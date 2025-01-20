@@ -89,13 +89,13 @@ function transformBooking(raw: any): FullBooking {
 			firstname: raw.client_firstname,
 			lastname: raw.client_lastname
 		},
+		location: {
+			id: raw.location_id,
+			name: raw.location_name
+		},
 		room: {
 			id: raw.room_id,
-			name: raw.room_name,
-			location: {
-				id: raw.location_id,
-				name: raw.location_name
-			}
+			name: raw.room_name
 		}
 	};
 }

@@ -4,6 +4,7 @@ export interface BookingDetails {
 	createdAt: string; // ISO date
 	updatedAt: string; // ISO date
 	startTime: string; // ISO date
+	endTime: string | null; // ISO date
 	cancelTime?: string | null;
 	repeatIndex?: number | null;
 	tryOut: boolean;
