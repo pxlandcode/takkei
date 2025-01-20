@@ -1,0 +1,21 @@
+@import 'normalize.css';
+
+@import 'tailwindcss/base';
+@import 'tailwindcss/components';
+@import 'tailwindcss/utilities';
+
+
+* {
+    @apply box-border;
+    @apply font-inter;
+}
+
+
+@font-face {
+    font-family: 'Inter';
+    src: url('/src/assets/Inter-VariableFont_wght.ttf') format('truetype');
+    font-weight: 100 900;
+    font-style: normal;
+    font-display: swap;
+}
+
