@@ -4,7 +4,8 @@
 
 	import {
 		getCurrentTimeOffset,
-		getStartOfWeek
+		getStartOfWeek,
+		groupOverlappingBookings
 	} from '$lib/helpers/calendarHelpers/calendar-utils';
 	import type { FullBooking } from '$lib/types/calendarTypes';
 	import CurrentTimePill from './current-time-pill/CurrentTimePill.svelte';
@@ -35,18 +36,26 @@
 			calendarContainer.scrollTop = getCurrentTimeOffset(startHour, hourHeight) - hourHeight;
 		}
 	});
+
+	$: groupedBookingsByDay = weekDays.map((_, dayIndex) =>
+		groupOverlappingBookings(
+			bookings.filter((b) => new Date(b.booking.startTime).getDay() === dayIndex)
+		)
+	);
+
+	$: groupedBookingsByDay && console.log('groupedBookingsByDay', groupedBookingsByDay);
 </script>
 
 <div class="overflow-x-auto rounded-tl-md rounded-tr-md border border-gray bg-gray-bright">
 	<!-- Calendar Header (Days of the Week) -->
 	<div
-		class="relative grid grid-cols-8 overflow-y-auto border-b border-gray bg-white"
+		class="grid-cols-8overflow-y-auto relative grid h-16 border-b border-gray bg-white"
 		style="grid-template-columns: minmax(60px, 8%) repeat(7, minmax(100px, 1fr));"
 	>
 		<!-- Empty space for time labels -->
-		<div class="relative flex flex-col items-center border-gray"></div>
+		<div class="relative flex h-full flex-col border-gray"></div>
 		{#each weekDays as day}
-			<div class="border-l py-2 text-center text-text">{day}</div>
+			<div class="h-full content-center border-l py-2 text-center text-sm text-text">{day}</div>
 		{/each}
 	</div>
 
@@ -77,8 +86,18 @@
 					></div>
 				{/each}
 
-				{#each bookings.filter((b) => new Date(b.booking.startTime).getDay() === dayIndex) as booking, i}
-					<BookingSlot {booking} {startHour} {hourHeight} {i} />
+				<!-- Render bookings in separate columns based on overlaps -->
+				{#each groupedBookingsByDay[dayIndex] as bookingGroup}
+					{#each bookingGroup as booking, bookingIndex}
+						<BookingSlot
+							{booking}
+							{startHour}
+							{hourHeight}
+							i={bookingIndex}
+							bookingWidth={`calc(${90 / bookingGroup.length}% - 2px)`}
+							leftOffset={`calc(${(100 / bookingGroup.length) * bookingIndex}% + 4px)`}
+						/>
+					{/each}
 				{/each}
 			</div>
 		{/each}

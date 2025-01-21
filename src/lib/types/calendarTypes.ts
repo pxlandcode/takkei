@@ -36,11 +36,16 @@ export interface Location {
 	name: string;
 }
 
+export interface BookingContent {
+	id: number;
+	kind: string;
+}
+
 export interface AdditionalInfo {
 	packageId?: number | null;
 	education: boolean;
 	internal: boolean;
-	bookingContentId: number;
+	bookingContent: BookingContent;
 	addedToPackageBy?: string | null;
 	addedToPackageDate?: string | null;
 	actualCancelTime?: string | null;
