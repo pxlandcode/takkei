@@ -16,8 +16,6 @@
 	export let startHour: number;
 	export let hourHeight: number;
 	export let i: number;
-	export let bookingWidth: string;
-	export let leftOffset: string;
 
 	let bookingSlot: HTMLDivElement | null = null;
 	let trainerNameElement: HTMLSpanElement | null = null;
@@ -86,9 +84,9 @@
 
 <div
 	bind:this={bookingSlot}
-	class="absolute z-20 flex flex-col gap-[2px] rounded-md border border-dashed bg-white p-1 text-xs shadow-sm"
+	class="absolute left-1 right-1 z-20 flex flex-col gap-[2px] rounded-md border border-dashed bg-white p-1 text-xs shadow-sm"
 	style="top: {topOffset}px; height: {meetingHeight -
-		4}px; width: {bookingWidth}; left: calc({leftOffset} + 4px);"
+		4}px; color: {bookingColor}; border-color: {bookingColor};"
 >
 	<div class="flex flex-row gap-1">
 		<div class="relative flex h-8 min-h-8 w-8 min-w-8 items-center justify-center rounded-sm">

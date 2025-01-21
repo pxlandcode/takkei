@@ -4,8 +4,7 @@
 
 	import {
 		getCurrentTimeOffset,
-		getStartOfWeek,
-		groupOverlappingBookings
+		getStartOfWeek
 	} from '$lib/helpers/calendarHelpers/calendar-utils';
 	import type { FullBooking } from '$lib/types/calendarTypes';
 	import CurrentTimePill from './current-time-pill/CurrentTimePill.svelte';
@@ -36,14 +35,6 @@
 			calendarContainer.scrollTop = getCurrentTimeOffset(startHour, hourHeight) - hourHeight;
 		}
 	});
-
-	$: groupedBookingsByDay = weekDays.map((_, dayIndex) =>
-		groupOverlappingBookings(
-			bookings.filter((b) => new Date(b.booking.startTime).getDay() === dayIndex)
-		)
-	);
-
-	$: groupedBookingsByDay && console.log('groupedBookingsByDay', groupedBookingsByDay);
 </script>
 
 <div class="overflow-x-auto rounded-tl-md rounded-tr-md border border-gray bg-gray-bright">
@@ -86,18 +77,8 @@
 					></div>
 				{/each}
 
-				<!-- Render bookings in separate columns based on overlaps -->
-				{#each groupedBookingsByDay[dayIndex] as bookingGroup}
-					{#each bookingGroup as booking, bookingIndex}
-						<BookingSlot
-							{booking}
-							{startHour}
-							{hourHeight}
-							i={bookingIndex}
-							bookingWidth={`calc(${90 / bookingGroup.length}% - 2px)`}
-							leftOffset={`calc(${(100 / bookingGroup.length) * bookingIndex}% + 4px)`}
-						/>
-					{/each}
+				{#each bookings.filter((b) => new Date(b.booking.startTime).getDay() === dayIndex) as booking, i}
+					<BookingSlot {booking} {startHour} {hourHeight} {i} />
 				{/each}
 			</div>
 		{/each}

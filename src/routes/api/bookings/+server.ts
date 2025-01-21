@@ -4,7 +4,7 @@ export async function GET({ url }) {
 	const week = url.searchParams.get('week');
 	const day = url.searchParams.get('day');
 	const roomId = url.searchParams.get('roomId');
-	const locationIds = url.searchParams.getAll('locationId'); // Fetch multiple locationIds
+	const locationIds = url.searchParams.getAll('locationId');
 	const trainerId = url.searchParams.get('trainerId');
 	const clientId = url.searchParams.get('clientId');
 

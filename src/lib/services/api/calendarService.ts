@@ -29,6 +29,7 @@ export async function fetchBookings(filters: BookingFilters): Promise<FullBookin
 		params.append('clientId', filters.clientId.toString());
 
 	try {
+		console.log('params', params.toString());
 		const response = await fetch(`/api/bookings?${params.toString()}`);
 
 		if (!response.ok) {
