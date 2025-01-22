@@ -1,5 +1,4 @@
 const orange = '#dd890b';
-
 //gray
 const brightGray = '#FAFCFC';
 const gray = '#D9D9D9';

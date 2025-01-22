@@ -18,7 +18,7 @@
 
 	const filters: BookingFilters = {
 		week: '2025-01-10',
-		locationIds: [69, 70]
+		locationIds: [69, 70, 71]
 	};
 
 	onMount(async () => {

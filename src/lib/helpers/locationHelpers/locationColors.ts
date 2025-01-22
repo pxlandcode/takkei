@@ -4,11 +4,11 @@
  */
 export function getLocationColor(locationId: number): string {
 	const locationColors: Record<number, string> = {
-		67: '#3C82F6', // Example color for location 1
-		68: '#c04c3d', // Example color for location 2
-		69: '#29793D', // Example color for location 3 (green)
-		70: '#AA8554', // Example color for location 4 (bronze)
-		71: '#C0645F' // Example color for location 5 (red)
+		67: '#3C82F6',
+		68: '#c04c3d',
+		69: '#29793D',
+		70: '#AA8554',
+		71: '#8B5CF6'
 	};
 
 	return locationColors[locationId] || '#6b7280'; // Gray as default

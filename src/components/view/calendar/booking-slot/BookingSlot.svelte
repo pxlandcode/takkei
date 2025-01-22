@@ -11,11 +11,13 @@
 	import { onMount } from 'svelte';
 
 	import type { FullBooking } from '$lib/types/calendarTypes';
+	import { tooltip } from '$lib/actions/tooltip';
 
 	export let booking: FullBooking;
 	export let startHour: number;
 	export let hourHeight: number;
 	export let i: number;
+	export let toolTipText: string | undefined;
 
 	export let columnIndex: number = 0;
 	export let columnCount: number = 1;
@@ -93,13 +95,14 @@
 	bind:this={bookingSlot}
 	class="absolute z-20 flex flex-col gap-[2px] rounded-md border border-dashed bg-white p-1 text-xs shadow-sm"
 	style="
-		top: {topOffset}px;
-		height: {meetingHeight - 4}px;
-		left: {colLeft}%;
-		width: {colWidth}%;
-		color: {bookingColor};
-		border-color: {bookingColor};
-	"
+    top: {topOffset}px;
+    height: {meetingHeight - 4}px;
+    left: calc({colLeft}% + 2px);
+    width: calc({colWidth}% - 4px);
+    color: {bookingColor};
+    border-color: {bookingColor};
+  "
+	use:tooltip={{ content: toolTipText }}
 >
 	<div class="flex flex-row gap-1">
 		<div class="relative flex h-8 min-h-8 w-8 min-w-8 items-center justify-center rounded-sm">

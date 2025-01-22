@@ -4,7 +4,8 @@
 
 	import {
 		getCurrentTimeOffset,
-		getStartOfWeek
+		getStartOfWeek,
+		shiftUTCIndex
 	} from '$lib/helpers/calendarHelpers/calendar-utils';
 	import type { FullBooking } from '$lib/types/calendarTypes';
 	import CurrentTimePill from './current-time-pill/CurrentTimePill.svelte';
@@ -42,62 +43,83 @@
 		return aStart < bEnd && bStart < aEnd;
 	}
 
-	function layoutDayBookings(bookingsForDay: FullBooking[]) {
-		// Sort by start time (and maybe end time to break ties).
-		bookingsForDay.sort((a, b) => {
-			const aStart = new Date(a.booking.startTime).getTime();
-			const bStart = new Date(b.booking.startTime).getTime();
-			return aStart - bStart;
-		});
-
-		/**
-		 * columns: an array of arrays,
-		 *   where columns[i] is an array of bookings already placed in column i.
-		 *
-		 * result: an array of layout data { booking, columnIndex, columnCount }.
-		 */
-		const columns: FullBooking[][] = [];
-		const result: { booking: FullBooking; columnIndex: number; columnCount: number }[] = [];
-
-		for (const booking of bookingsForDay) {
-			let placed = false;
-			// Try to place in an existing column:
-			for (let colIndex = 0; colIndex < columns.length; colIndex++) {
-				const lastInColumn = columns[colIndex][columns[colIndex].length - 1];
-				// If this booking does NOT overlap with the last booking in col, we can place it here
-				if (!overlaps(booking, lastInColumn)) {
-					columns[colIndex].push(booking);
-					result.push({
-						booking,
-						columnIndex: colIndex,
-						columnCount: 0 // placeholder for now
-					});
-					placed = true;
-					break;
-				}
-			}
-			// If we couldn't place in any existing column, create a new one:
-			if (!placed) {
-				columns.push([booking]);
-				result.push({
-					booking,
-					columnIndex: columns.length - 1,
-					columnCount: 0 // placeholder for now
-				});
-			}
-		}
-
-		// The total number of columns is columns.length.
-		// We'll update each record's columnCount to that maximum:
-		const totalCols = columns.length;
-		for (const item of result) {
-			item.columnCount = totalCols;
-		}
-		return result;
-	}
-
 	const hourHeight = 80; // 1 hour = 80px
 	let calendarContainer: HTMLDivElement | null = null;
+
+	function getStart(booking: FullBooking): number {
+		return new Date(booking.booking.startTime).getTime();
+	}
+
+	function getEnd(booking: FullBooking): number {
+		// Fallback if booking.booking.endTime is missing
+		if (booking.booking.endTime) {
+			return new Date(booking.booking.endTime).getTime();
+		}
+		// Default to +1 hour
+		return getStart(booking) + 60 * 60 * 1000;
+	}
+
+	function layoutDayBookings(bookingsForDay: FullBooking[]) {
+		// Sort by start time
+		bookingsForDay.sort((a, b) => getStart(a) - getStart(b));
+
+		type LayoutInfo = {
+			booking: FullBooking;
+			columnIndex: number;
+			columnCount: number; // how many are currently overlapping
+		};
+
+		const results: LayoutInfo[] = [];
+
+		// `active` will track currently overlapping bookings,
+		// each with { booking, endTime, columnIndex }.
+		let active: { booking: FullBooking; endTime: number; columnIndex: number }[] = [];
+
+		// Helper to find the first free column index (lowest integer not used in active).
+		function getFreeColumnIndex(): number {
+			const used = active.map((a) => a.columnIndex);
+			let index = 0;
+			while (used.includes(index)) index++;
+			return index;
+		}
+
+		for (const booking of bookingsForDay) {
+			const start = getStart(booking);
+			const end = getEnd(booking);
+
+			// 1) Remove from `active` all bookings that have ended BEFORE this one starts
+			active = active.filter((a) => a.endTime > start);
+
+			// 2) Current concurrency is `active.length + 1`
+			const concurrency = active.length + 1;
+
+			// 3) The new booking gets the first free column index
+			const colIndex = getFreeColumnIndex();
+
+			// 4) Insert it into `active`
+			active.push({ booking, endTime: end, columnIndex: colIndex });
+
+			// 5) Update columnCount for all active bookings (because they overlap each other now)
+			//    and ensure the results[] object is either created or updated for each.
+			//    We'll reassign `columnCount` so they all get the same concurrency.
+			for (const a of active) {
+				let existing = results.find((r) => r.booking === a.booking);
+				if (!existing) {
+					existing = {
+						booking: a.booking,
+						columnIndex: a.columnIndex,
+						columnCount: concurrency
+					};
+					results.push(existing);
+				}
+				// Update the concurrency (and columnIndex in case it changed)
+				existing.columnIndex = a.columnIndex;
+				existing.columnCount = concurrency;
+			}
+		}
+
+		return results;
+	}
 
 	onMount(async () => {
 		await tick();
@@ -137,7 +159,7 @@
 
 		<!-- Days Columns (Each Column is a Day) -->
 		{#each weekDays as day, dayIndex}
-			<div class="relative border-l border-gray" style="position: relative;">
+			<div class="relative flex flex-col gap-1 border-l border-gray" style="position: relative;">
 				<!-- dashed lines for hours, etc. -->
 				{#each Array.from({ length: totalHours }, (_, i) => i) as _, index}
 					<div
@@ -148,7 +170,8 @@
 
 				<!-- Layout the bookings for this day -->
 				{#if bookings}
-					{#each layoutDayBookings(bookings.filter((b) => new Date(b.booking.startTime).getDay() === dayIndex)) as layoutItem, i}
+					{#each layoutDayBookings(bookings.filter((b) => shiftUTCIndex(new Date(b.booking.startTime)) === dayIndex)) as layoutItem, i}
+						<!-- layoutItem has { booking, columnIndex, columnCount } -->
 						<BookingSlot
 							booking={layoutItem.booking}
 							{startHour}
@@ -156,6 +179,9 @@
 							{i}
 							columnIndex={layoutItem.columnIndex}
 							columnCount={layoutItem.columnCount}
+							toolTipText={new Date(layoutItem.booking.booking.startTime).getUTCDay().toString() +
+								' ' +
+								new Date(layoutItem.booking.booking.startTime).toString()}
 						/>
 					{/each}
 				{/if}

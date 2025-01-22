@@ -70,3 +70,10 @@ export function overlaps(
 	// Allow bookings that start exactly when another ends (no overlap)
 	return startA < endB && startB < endA;
 }
+
+export function shiftUTCIndex(date: Date): number {
+	const sundayBased = date.getUTCDay();
+	// shift so Monday=0, Sunday=6:
+
+	return (sundayBased + 6) % 7;
+}
