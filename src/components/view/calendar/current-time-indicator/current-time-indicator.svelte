@@ -33,6 +33,6 @@
 </script>
 
 <div
-	class="absolute z-10 ml-10 mt-4 flex h-[2px] w-full items-center bg-blue"
+	class="absolute z-10 ml-10 flex h-[2px] w-full items-center bg-blue"
 	style="top: {currentTimeOffset}px;"
 ></div>

@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
+	import { tooltip } from '$lib/actions/tooltip';
 	import {
 		getMeetingHeight,
 		getTopOffset,
@@ -8,10 +10,8 @@
 	import { getLocationColor } from '$lib/helpers/locationHelpers/locationColors';
 	import { IconBuilding, IconClock, IconDumbbell, IconGymnastics } from '$lib/icons';
 	import IconPerson from '$lib/icons/IconPerson.svelte';
-	import { onMount } from 'svelte';
 
 	import type { FullBooking } from '$lib/types/calendarTypes';
-	import { tooltip } from '$lib/actions/tooltip';
 
 	export let booking: FullBooking;
 	export let startHour: number;
@@ -19,26 +19,23 @@
 	export let i: number;
 	export let toolTipText: string | undefined;
 
-	export let columnIndex: number = 0;
-	export let columnCount: number = 1;
+	export let columnIndex = 0;
+	export let columnCount = 1;
 
 	let bookingSlot: HTMLDivElement | null = null;
 	let trainerNameElement: HTMLSpanElement | null = null;
-	let width = 200; // Default width, will be updated dynamically
+	let width = 200;
 	let useInitials = false;
 	let debounceTimer: NodeJS.Timeout;
 
-	// Compute fallback end time if none is given
 	$: endTime =
 		booking.booking.endTime ??
 		new Date(new Date(booking.booking.startTime).getTime() + 60 * 60 * 1000).toISOString();
 
-	// Existing layout logic for top, height, and color
 	$: topOffset = getTopOffset(booking.booking.startTime, startHour, hourHeight);
 	$: meetingHeight = getMeetingHeight(booking.booking.startTime, endTime, hourHeight);
 	$: bookingColor = getLocationColor(booking?.location?.id);
 
-	// Determine which icon to show
 	$: bookingIcon = (() => {
 		const kind = booking.additionalInfo?.bookingContent?.kind?.toLowerCase() ?? '';
 		switch (kind) {
@@ -51,13 +48,11 @@
 		}
 	})();
 
-	// Compute trainer initials (fallback if full name is too wide)
 	$: trainerInitials =
 		booking.trainer.firstname && booking.trainer.lastname
 			? `${booking.trainer.firstname[0]}${booking.trainer.lastname[0]}`
 			: (booking.trainer.firstname ?? 'T');
 
-	// New: compute how wide each column is and the left offset as a %
 	$: colWidth = 100 / columnCount;
 	$: colLeft = columnIndex * colWidth;
 
@@ -66,8 +61,6 @@
 
 		const nameWidth = trainerNameElement.offsetWidth;
 		const containerWidth = bookingSlot.offsetWidth;
-
-		// If name is too long compared to the available width, switch to initials
 		useInitials = nameWidth > containerWidth * 0.5;
 	}
 
@@ -76,6 +69,7 @@
 
 		const resizeObserver = new ResizeObserver(() => {
 			if (debounceTimer) clearTimeout(debounceTimer);
+
 			debounceTimer = setTimeout(() => {
 				width = bookingSlot.offsetWidth || 200;
 				checkNameWidth();
@@ -95,17 +89,17 @@
 	bind:this={bookingSlot}
 	class="absolute z-20 flex flex-col gap-[2px] rounded-md border border-dashed bg-white p-1 text-xs shadow-sm"
 	style="
-    top: {topOffset}px;
-    height: {meetingHeight - 4}px;
-    left: calc({colLeft}% + 2px);
-    width: calc({colWidth}% - 4px);
-    color: {bookingColor};
-    border-color: {bookingColor};
-  "
+		top: {topOffset}px;
+		height: {meetingHeight - 4}px;
+		left: calc({colLeft}% + 2px);
+		width: calc({colWidth}% - 4px);
+		color: {bookingColor};
+		border-color: {bookingColor};
+	"
 	use:tooltip={{ content: toolTipText }}
 >
 	<div class="flex flex-row gap-1">
-		<div class="relative flex h-8 min-h-8 w-8 min-w-8 items-center justify-center rounded-sm">
+		<div class="relative flex h-8 w-8 items-center justify-center rounded-sm">
 			<div
 				class="absolute inset-0 rounded-sm opacity-20"
 				style="background-color: {bookingColor};"

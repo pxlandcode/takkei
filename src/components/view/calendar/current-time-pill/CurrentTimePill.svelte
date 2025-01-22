@@ -19,7 +19,6 @@
 	let interval: NodeJS.Timeout;
 
 	onMount(() => {
-		// Initial update at the start of the next minute
 		const initialTimeout = setTimeout(() => {
 			updateTime();
 			interval = setInterval(updateTime, 60000);
@@ -34,9 +33,7 @@
 	$: currentTimeLabel = currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 </script>
 
-<!-- Current Time Indicator -->
-<div class="absolute z-10 flex w-full items-center" style="top: {currentTimeOffset}px;">
-	<!-- Centered Time Pill -->
+<div class="absolute z-10 flex w-full items-center" style="top: {currentTimeOffset - 16}px;">
 	<div
 		class="relative z-20 h-8 w-20 rounded-full bg-blue px-2 py-1 text-center text-[0.9rem] font-light text-white shadow-md"
 		style="left: 50%; transform: translateX(-50%);"
