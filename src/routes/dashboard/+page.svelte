@@ -17,7 +17,8 @@
 	let bookings = [];
 
 	const filters: BookingFilters = {
-		week: '2025-01-10'
+		week: '2025-01-10',
+		locationIds: [69, 70]
 	};
 
 	onMount(async () => {

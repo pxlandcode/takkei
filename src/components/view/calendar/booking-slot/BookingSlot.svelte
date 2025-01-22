@@ -17,20 +17,26 @@
 	export let hourHeight: number;
 	export let i: number;
 
+	export let columnIndex: number = 0;
+	export let columnCount: number = 1;
+
 	let bookingSlot: HTMLDivElement | null = null;
 	let trainerNameElement: HTMLSpanElement | null = null;
 	let width = 200; // Default width, will be updated dynamically
 	let useInitials = false;
 	let debounceTimer: NodeJS.Timeout;
 
+	// Compute fallback end time if none is given
 	$: endTime =
 		booking.booking.endTime ??
 		new Date(new Date(booking.booking.startTime).getTime() + 60 * 60 * 1000).toISOString();
 
+	// Existing layout logic for top, height, and color
 	$: topOffset = getTopOffset(booking.booking.startTime, startHour, hourHeight);
 	$: meetingHeight = getMeetingHeight(booking.booking.startTime, endTime, hourHeight);
 	$: bookingColor = getLocationColor(booking?.location?.id);
 
+	// Determine which icon to show
 	$: bookingIcon = (() => {
 		const kind = booking.additionalInfo?.bookingContent?.kind?.toLowerCase() ?? '';
 		switch (kind) {
@@ -43,15 +49,19 @@
 		}
 	})();
 
+	// Compute trainer initials (fallback if full name is too wide)
 	$: trainerInitials =
 		booking.trainer.firstname && booking.trainer.lastname
 			? `${booking.trainer.firstname[0]}${booking.trainer.lastname[0]}`
 			: (booking.trainer.firstname ?? 'T');
 
+	// New: compute how wide each column is and the left offset as a %
+	$: colWidth = 100 / columnCount;
+	$: colLeft = columnIndex * colWidth;
+
 	function checkNameWidth() {
 		if (!trainerNameElement || !bookingSlot) return;
 
-		// Get the actual width of the text
 		const nameWidth = trainerNameElement.offsetWidth;
 		const containerWidth = bookingSlot.offsetWidth;
 
@@ -63,12 +73,9 @@
 		if (!bookingSlot) return;
 
 		const resizeObserver = new ResizeObserver(() => {
-			// Clear any existing timeout to debounce
 			if (debounceTimer) clearTimeout(debounceTimer);
-
-			// Set a new timeout for 300ms before executing checkNameWidth
 			debounceTimer = setTimeout(() => {
-				width = bookingSlot?.offsetWidth || 200;
+				width = bookingSlot.offsetWidth || 200;
 				checkNameWidth();
 			}, 300);
 		});
@@ -84,9 +91,15 @@
 
 <div
 	bind:this={bookingSlot}
-	class="absolute left-1 right-1 z-20 flex flex-col gap-[2px] rounded-md border border-dashed bg-white p-1 text-xs shadow-sm"
-	style="top: {topOffset}px; height: {meetingHeight -
-		4}px; color: {bookingColor}; border-color: {bookingColor};"
+	class="absolute z-20 flex flex-col gap-[2px] rounded-md border border-dashed bg-white p-1 text-xs shadow-sm"
+	style="
+		top: {topOffset}px;
+		height: {meetingHeight - 4}px;
+		left: {colLeft}%;
+		width: {colWidth}%;
+		color: {bookingColor};
+		border-color: {bookingColor};
+	"
 >
 	<div class="flex flex-row gap-1">
 		<div class="relative flex h-8 min-h-8 w-8 min-w-8 items-center justify-center rounded-sm">
@@ -101,7 +114,9 @@
 			<div class="flex flex-col">
 				<p>{booking.additionalInfo.bookingContent.kind}</p>
 				{#if width >= 125}
-					<p>{formatTime(booking.booking.startTime)} - {formatTime(endTime)}</p>
+					<p>
+						{formatTime(booking.booking.startTime)} - {formatTime(endTime)}
+					</p>
 				{/if}
 			</div>
 		{/if}
