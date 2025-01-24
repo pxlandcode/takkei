@@ -4,6 +4,7 @@ export interface BookingDetails {
 	createdAt: string; // ISO date
 	updatedAt: string; // ISO date
 	startTime: string; // ISO date
+	endTime: string | null; // ISO date
 	cancelTime?: string | null;
 	repeatIndex?: number | null;
 	tryOut: boolean;
@@ -35,11 +36,16 @@ export interface Location {
 	name: string;
 }
 
+export interface BookingContent {
+	id: number;
+	kind: string;
+}
+
 export interface AdditionalInfo {
 	packageId?: number | null;
 	education: boolean;
 	internal: boolean;
-	bookingContentId: number;
+	bookingContent: BookingContent;
 	addedToPackageBy?: string | null;
 	addedToPackageDate?: string | null;
 	actualCancelTime?: string | null;

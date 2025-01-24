@@ -4,11 +4,10 @@ export type BookingFilters = {
 	week?: string | null;
 	day?: string | null;
 	roomId?: number | null;
-	locationId?: number | null;
+	locationIds?: number[]; // Change from single locationId to an array
 	trainerId?: number | null;
 	clientId?: number | null;
 };
-
 /**
  * Fetches a list of bookings with optional filtering.
  * @param filters - Filtering options for bookings
@@ -21,14 +20,16 @@ export async function fetchBookings(filters: BookingFilters): Promise<FullBookin
 	if (filters.day) params.append('day', filters.day);
 	if (filters.roomId !== null && filters.roomId !== undefined)
 		params.append('roomId', filters.roomId.toString());
-	if (filters.locationId !== null && filters.locationId !== undefined)
-		params.append('locationId', filters.locationId.toString());
+	if (filters.locationIds && filters.locationIds.length > 0) {
+		filters.locationIds.forEach((id) => params.append('locationId', id.toString())); // Multiple IDs
+	}
 	if (filters.trainerId !== null && filters.trainerId !== undefined)
 		params.append('trainerId', filters.trainerId.toString());
 	if (filters.clientId !== null && filters.clientId !== undefined)
 		params.append('clientId', filters.clientId.toString());
 
 	try {
+		console.log('params', params.toString());
 		const response = await fetch(`/api/bookings?${params.toString()}`);
 
 		if (!response.ok) {
@@ -77,7 +78,14 @@ function transformBooking(raw: any): FullBooking {
 			startTime: raw.start_time,
 			endTime: raw.end_time ?? null,
 			createdAt: raw.created_at,
-			updatedAt: raw.updated_at
+			updatedAt: raw.updated_at,
+			cancelTime: raw.cancel_time ?? null,
+			repeatIndex: raw.repeat_index ?? null,
+			tryOut: raw.try_out,
+			refundComment: raw.refund_comment ?? null,
+			cancelReason: raw.cancel_reason ?? null,
+			bookingWithoutRoom: raw.booking_without_room,
+			internalEducation: raw.internal_education
 		},
 		trainer: {
 			id: raw.trainer_id,
@@ -85,17 +93,29 @@ function transformBooking(raw: any): FullBooking {
 			lastname: raw.trainer_lastname
 		},
 		client: {
-			id: raw.client_id,
+			id: raw.client_id ?? null,
 			firstname: raw.client_firstname,
 			lastname: raw.client_lastname
 		},
+		location: {
+			id: raw.location_id,
+			name: raw.location_name
+		},
 		room: {
 			id: raw.room_id,
-			name: raw.room_name,
-			location: {
-				id: raw.location_id,
-				name: raw.location_name
-			}
+			name: raw.room_name
+		},
+		additionalInfo: {
+			packageId: raw.package_id ?? null,
+			education: raw.education,
+			internal: raw.internal,
+			bookingContent: {
+				id: raw.booking_content_id,
+				kind: raw.booking_content_kind
+			},
+			addedToPackageBy: raw.added_to_package_by ?? null,
+			addedToPackageDate: raw.added_to_package_date ?? null,
+			actualCancelTime: raw.actual_cancel_time ?? null
 		}
 	};
 }

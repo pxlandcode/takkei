@@ -2,11 +2,14 @@
 	export let hour: number;
 	export let index: number;
 	export let hourHeight: number;
+	export let hideLabel: boolean;
 </script>
 
 <div
-	class="absolute w-full border-t border-gray-300 pl-2 text-left text-xs text-gray-600"
-	style="top: {index * hourHeight}px;"
+	class="relative flex items-center justify-center text-2xl font-thin text-text"
+	style="height: {hourHeight}px; top: {-hourHeight / 2}px;"
 >
-	{hour}:00
+	{#if !hideLabel}
+		{hour.toString().padStart(2, '0')}
+	{/if}
 </div>
