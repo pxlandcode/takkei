@@ -1,43 +1,43 @@
 import type { FullBooking } from '$lib/types/calendarTypes';
+import type { BookingFilters } from './types';
 
-export type BookingFilters = {
-	week?: string | null;
-	day?: string | null;
-	roomId?: number | null;
-	locationIds?: number[]; // Change from single locationId to an array
-	trainerId?: number | null;
-	clientId?: number | null;
-};
-/**
- * Fetches a list of bookings with optional filtering.
- * @param filters - Filtering options for bookings
- * @returns An array of FullBooking objects
- */
-export async function fetchBookings(filters: BookingFilters): Promise<FullBooking[]> {
+export async function fetchBookings(
+	filters: BookingFilters,
+	fetchFn: typeof fetch
+): Promise<FullBooking[]> {
 	const params = new URLSearchParams();
 
-	if (filters.week) params.append('week', filters.week);
-	if (filters.day) params.append('day', filters.day);
-	if (filters.roomId !== null && filters.roomId !== undefined)
-		params.append('roomId', filters.roomId.toString());
-	if (filters.locationIds && filters.locationIds.length > 0) {
-		filters.locationIds.forEach((id) => params.append('locationId', id.toString())); // Multiple IDs
+	// ✅ Add date filters
+	if (filters.from && filters.to) {
+		params.append('from', filters.from);
+		params.append('to', filters.to);
+	} else if (filters.date) {
+		params.append('date', filters.date);
+	} else {
+		// ✅ Default to today's date
+		const today = new Date().toISOString().slice(0, 10);
+		params.append('date', today);
 	}
-	if (filters.trainerId !== null && filters.trainerId !== undefined)
-		params.append('trainerId', filters.trainerId.toString());
-	if (filters.clientId !== null && filters.clientId !== undefined)
-		params.append('clientId', filters.clientId.toString());
+
+	// ✅ Add optional filters
+	if (filters.roomId != null) params.append('roomId', filters.roomId.toString());
+	if (filters.locationIds?.length)
+		filters.locationIds.forEach((id) => params.append('locationId', id.toString()));
+	if (filters.trainerId != null) params.append('trainerId', filters.trainerId.toString());
+	if (filters.clientId != null) params.append('clientId', filters.clientId.toString());
 
 	try {
-		console.log('params', params.toString());
-		const response = await fetch(`/api/bookings?${params.toString()}`);
+		const url = `/api/bookings?${params.toString()}`;
+		console.log('Fetching bookings:', url);
+		const response = await fetchFn(url);
 
 		if (!response.ok) {
-			throw new Error(`Error fetching bookings: ${response.statusText}`);
+			const errorText = await response.text();
+			throw new Error(`Error fetching bookings (${response.status}): ${errorText}`);
 		}
 
 		const data = await response.json();
-		return data.map((b: any) => transformBooking(b)); // Transform into FullBooking structure
+		return data.map(transformBooking);
 	} catch (error) {
 		console.error('Error in fetchBookings:', error);
 		return [];
@@ -45,30 +45,9 @@ export async function fetchBookings(filters: BookingFilters): Promise<FullBookin
 }
 
 /**
- * Fetches a single booking by ID.
- * @param bookingId - The ID of the booking to fetch
- * @returns A single FullBooking object or null if not found
- */
-export async function fetchBookingById(bookingId: number): Promise<FullBooking | null> {
-	try {
-		const response = await fetch(`/api/bookings/${bookingId}`);
-
-		if (!response.ok) {
-			throw new Error(`Error fetching booking with ID ${bookingId}: ${response.statusText}`);
-		}
-
-		const data = await response.json();
-		return transformBooking(data);
-	} catch (error) {
-		console.error(`Error fetching booking by ID:`, error);
-		return null;
-	}
-}
-
-/**
- * Transforms API response into FullBooking structure.
- * @param raw - Raw booking data from API
- * @returns Formatted FullBooking object
+ * Convert API response into FullBooking format.
+ * @param raw - Raw booking data from API.
+ * @returns Formatted FullBooking object.
  */
 function transformBooking(raw: any): FullBooking {
 	return {

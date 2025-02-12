@@ -1,8 +1,10 @@
 import { query } from '$lib/db';
 
 export async function GET({ url }) {
-	const week = url.searchParams.get('week');
-	const day = url.searchParams.get('day');
+	const fromDate = url.searchParams.get('from');
+	const toDate = url.searchParams.get('to');
+	const date = url.searchParams.get('date'); // If no range is given, get a single date
+
 	const roomId = url.searchParams.get('roomId');
 	const locationIds = url.searchParams.getAll('locationId');
 	const trainerId = url.searchParams.get('trainerId');
@@ -29,29 +31,36 @@ export async function GET({ url }) {
 
 	const params: (string | number | number[])[] = [];
 
-	if (week) {
-		queryStr += ` AND DATE_TRUNC('week', bookings.start_time) = DATE_TRUNC('week', TO_TIMESTAMP($${params.length + 1}, 'YYYY-MM-DD'))`;
-		params.push(week);
+	// date range
+	if (fromDate && toDate) {
+		params.push(fromDate, toDate);
+		queryStr += ` AND bookings.start_time BETWEEN TO_DATE($${params.length - 1}, 'YYYY-MM-DD') 
+                      AND TO_DATE($${params.length}, 'YYYY-MM-DD')`;
+	} else if (date) {
+		params.push(date);
+		queryStr += ` AND DATE(bookings.start_time) = TO_DATE($${params.length}, 'YYYY-MM-DD')`;
+	} else {
+		const today = new Date().toISOString().slice(0, 10);
+		params.push(today);
+		queryStr += ` AND DATE(bookings.start_time) = TO_DATE($${params.length}, 'YYYY-MM-DD')`;
 	}
-	if (day) {
-		queryStr += ` AND DATE(bookings.start_time) = $${params.length + 1}::DATE`;
-		params.push(day);
-	}
+
+	// ✅ Additional filters
 	if (roomId) {
-		queryStr += ` AND bookings.room_id = $${params.length + 1}`;
 		params.push(Number(roomId));
+		queryStr += ` AND bookings.room_id = $${params.length}`;
 	}
 	if (locationIds.length > 0) {
-		queryStr += ` AND bookings.location_id = ANY($${params.length + 1}::int[])`;
 		params.push(locationIds.map(Number));
+		queryStr += ` AND bookings.location_id = ANY($${params.length}::int[])`;
 	}
 	if (trainerId) {
-		queryStr += ` AND bookings.trainer_id = $${params.length + 1}`;
 		params.push(Number(trainerId));
+		queryStr += ` AND bookings.trainer_id = $${params.length}`;
 	}
 	if (clientId) {
-		queryStr += ` AND bookings.client_id = $${params.length + 1}`;
 		params.push(Number(clientId));
+		queryStr += ` AND bookings.client_id = $${params.length}`;
 	}
 
 	try {

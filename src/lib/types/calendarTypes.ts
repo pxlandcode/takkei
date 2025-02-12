@@ -59,3 +59,13 @@ export interface FullBooking {
 	location: Location;
 	additionalInfo: AdditionalInfo;
 }
+
+export type BookingFilters = {
+	from?: string | null; // Start date (YYYY-MM-DD)
+	to?: string | null; // End date (YYYY-MM-DD)
+	date?: string | null; // Single date (YYYY-MM-DD)
+	roomId?: number | null;
+	locationIds?: number[];
+	trainerId?: number | null;
+	clientId?: number | null;
+};

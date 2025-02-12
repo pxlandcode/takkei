@@ -32,13 +32,15 @@ export async function POST({ request, cookies }) {
 		maxAge: 60 * 15 // 1 day
 	});
 
-	// Return the user object (exclude sensitive data)
-	return new Response(
-		JSON.stringify({
-			user: { id: user.id, firstname: user.firstname, lastname: user.lastname, email: user.email }
-		}),
-		{
-			status: 200
-		}
-	);
+	const userData = {
+		id: user.id,
+		firstname: user.firstname,
+		lastname: user.lastname,
+		email: user.email
+	};
+
+	return new Response(JSON.stringify({ user: userData }), {
+		status: 200,
+		headers: { 'Content-Type': 'application/json' }
+	});
 }
