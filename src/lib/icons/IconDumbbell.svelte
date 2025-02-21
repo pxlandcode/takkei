@@ -1,10 +1,10 @@
 <script>
 	export let size = '40px';
-	export let color = 'black';
+	export let color = null;
 	export let extraClasses = '';
 	export let extraStyle = '';
 
-	$: classString = `text-${color} ${extraClasses}`;
+	$: classString = `${extraClasses} ${color ? `text-${color}` : ''}`;
 	$: styleString = `${extraStyle}`;
 </script>
 

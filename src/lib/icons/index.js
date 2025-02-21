@@ -18,6 +18,10 @@ import IconChevronLeft from './IconChevronLeft.svelte';
 import IconChevronDown from './IconChevronDown.svelte';
 import IconChevronUp from './IconChevronUp.svelte';
 import IconCalendar from './IconCalendar.svelte';
+import IconWeek from './IconWeek.svelte';
+import IconDay from './IconDay.svelte';
+import IconPlus from './IconPlus.svelte';
+import IconFilter from './IconFilter.svelte';
 
 export {
 	IconClose,
@@ -39,5 +43,9 @@ export {
 	IconChevronLeft,
 	IconChevronDown,
 	IconChevronUp,
-	IconCalendar
+	IconCalendar,
+	IconWeek,
+	IconDay,
+	IconPlus,
+	IconFilter
 };

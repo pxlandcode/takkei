@@ -88,6 +88,9 @@ module.exports = {
 			backgroundImage: {
 				'background-gradient':
 					'linear-gradient(349deg, rgba(0,0,0,1) 0%, rgba(0,0,0,1) 79%, rgba(102,102,102,1) 100%);'
+			},
+			fontSize: {
+				xxs: '0.6rem'
 			}
 		}
 	},
@@ -101,6 +104,27 @@ module.exports = {
 				},
 				'.rounded-4xl': {
 					'border-radius': '1.8rem'
+				},
+				'.custom-scrollbar': {
+					'scrollbar-width': 'thin',
+					'scrollbar-color': 'rgba(0, 0, 0, 0.2) transparent',
+					'border-radius': 'inherit',
+					'padding-right': '0.5rem'
+				},
+				'.custom-scrollbar::-webkit-scrollbar': {
+					width: '8px'
+				},
+				'.custom-scrollbar::-webkit-scrollbar-track': {
+					background: 'transparent',
+					'border-radius': '8px'
+				},
+				'.custom-scrollbar::-webkit-scrollbar-thumb': {
+					background: 'rgba(0, 0, 0, 0.2)',
+					'border-radius': '8px',
+					transition: 'background 0.3s ease'
+				},
+				'.custom-scrollbar::-webkit-scrollbar-thumb:hover': {
+					background: 'rgba(0, 0, 0, 0.3)'
 				}
 			});
 		}

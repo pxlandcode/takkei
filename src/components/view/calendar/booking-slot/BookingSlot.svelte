@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, tick } from 'svelte';
 	import { tooltip } from '$lib/actions/tooltip';
 	import {
 		getMeetingHeight,
@@ -8,8 +8,7 @@
 	} from '$lib/helpers/calendarHelpers/calendar-utils';
 	import { getShortAddress } from '$lib/helpers/locationHelpers/location-utils';
 	import { getLocationColor } from '$lib/helpers/locationHelpers/locationColors';
-	import { IconBuilding, IconClock, IconDumbbell, IconGymnastics } from '$lib/icons';
-	import IconPerson from '$lib/icons/IconPerson.svelte';
+	import { IconClock, IconDumbbell, IconGymnastics } from '$lib/icons';
 
 	import type { FullBooking } from '$lib/types/calendarTypes';
 
@@ -56,16 +55,36 @@
 	$: colWidth = 100 / columnCount;
 	$: colLeft = columnIndex * colWidth;
 
-	function checkNameWidth() {
-		if (!trainerNameElement || !bookingSlot) return;
+	let fullNameWidth = 0; // Store full name width
 
-		const nameWidth = trainerNameElement.offsetWidth;
-		const containerWidth = bookingSlot.offsetWidth;
-		useInitials = nameWidth > containerWidth * 0.5;
+	function measureFullNameWidth() {
+		setTimeout(() => {
+			if (!trainerNameElement) return; // Ensure element exists
+
+			useInitials = false; // Ensure full name is measured
+			fullNameWidth = trainerNameElement.offsetWidth;
+
+			console.log('Measured full name width:', fullNameWidth);
+			checkNameWidth();
+		}, 10); // Small delay to allow rendering
 	}
 
-	onMount(() => {
-		if (!bookingSlot) return;
+	function checkNameWidth() {
+		if (fullNameWidth === 0) return;
+
+		console.log('Checking name width:', fullNameWidth, width);
+		const containerWidth = bookingSlot.offsetWidth;
+
+		// Use initials if full name is too wide
+		useInitials = fullNameWidth > containerWidth - 8;
+	}
+
+	onMount(async () => {
+		await tick(); // Ensure DOM elements are rendered
+
+		setTimeout(() => {
+			measureFullNameWidth(); // Measure full name after ensuring it exists
+		}, 10);
 
 		const resizeObserver = new ResizeObserver(() => {
 			if (debounceTimer) clearTimeout(debounceTimer);
@@ -73,10 +92,12 @@
 			debounceTimer = setTimeout(() => {
 				width = bookingSlot.offsetWidth || 200;
 				checkNameWidth();
-			}, 300);
+			}, 100);
 		});
 
-		resizeObserver.observe(bookingSlot);
+		if (bookingSlot) {
+			resizeObserver.observe(bookingSlot);
+		}
 
 		return () => {
 			resizeObserver.disconnect();
@@ -87,47 +108,47 @@
 
 <div
 	bind:this={bookingSlot}
-	class="absolute z-20 flex flex-col gap-[2px] rounded-md border border-dashed bg-white p-1 text-xs shadow-sm"
+	class="absolute z-20 flex flex-col gap-[2px] rounded-md p-1 text-xs text-gray shadow-sm {useInitials
+		? 'items-center'
+		: 'items-start'}"
 	style="
 		top: {topOffset}px;
 		height: {meetingHeight - 4}px;
 		left: calc({colLeft}% + 2px);
 		width: calc({colWidth}% - 4px);
-		color: {bookingColor};
-		border-color: {bookingColor};
+	
+        background-color: {bookingColor}20;
 	"
 	use:tooltip={{ content: toolTipText }}
 >
-	<div class="flex flex-row gap-1">
-		<div class="relative flex h-8 w-8 items-center justify-center rounded-sm">
-			<div
-				class="absolute inset-0 rounded-sm opacity-20"
-				style="background-color: {bookingColor};"
-			></div>
-			<svelte:component this={bookingIcon} size="20" extraClasses="relative z-10" />
-		</div>
+	<div class="flex flex-row">
+		<div
+			class="relative flex items-center justify-center gap-2 rounded-sm px-1"
+			style="color: {bookingColor}"
+		>
+			<svelte:component this={bookingIcon} size="20px" extraClasses="relative z-10" />
 
-		{#if width >= 120}
-			<div class="flex flex-col">
-				<p>{booking.additionalInfo.bookingContent.kind}</p>
-				{#if width >= 125}
-					<p>
-						{formatTime(booking.booking.startTime)} - {formatTime(endTime)}
-					</p>
-				{/if}
-			</div>
-		{/if}
+			{#if width >= 120}
+				<div class="flex flex-col text-xs text-gray">
+					<p>{booking.additionalInfo.bookingContent.kind}</p>
+
+					{#if width >= 125}
+						<p class="text-xxs">
+							{formatTime(booking.booking.startTime)} - {formatTime(endTime)}
+						</p>
+					{/if}
+				</div>
+			{/if}
+		</div>
 	</div>
 
-	<div class="flex flex-row items-center gap-1">
-		<IconPerson size="12" />
+	<div class="flex flex-row items-center text-xs">
 		<p class="whitespace-nowrap" bind:this={trainerNameElement}>
 			{useInitials ? trainerInitials : `${booking.trainer.firstname} ${booking.trainer.lastname}`}
 		</p>
 	</div>
 
-	<div class="flex flex-row items-center gap-1">
-		<IconBuilding size="12" />
+	<div class="flex flex-row items-center text-xs">
 		<p>{getShortAddress(booking.location.name)}</p>
 	</div>
 </div>

@@ -13,6 +13,7 @@
 	export let small: boolean = false;
 	export let iconRightSize: string = '20px';
 	export let iconLeftSize: string = '24px';
+	export let iconSize: string = '20px';
 	export let full: boolean = false;
 
 	const dispatch = createEventDispatcher();
@@ -40,10 +41,10 @@
 <button class={buttonClasses} on:click={handleClick} {type}>
 	{#if icon && !text}
 		<!-- Icon-only button (Centered & Square) -->
-		<Icon {icon} size={small ? '15px' : iconLeftSize} />
+		<Icon {icon} size={iconSize} />
 	{:else}
 		{#if iconLeft}
-			<Icon icon={iconLeft} size="20px" />
+			<Icon icon={iconLeft} size={small ? '15px' : iconLeftSize} />
 		{/if}
 
 		{text}

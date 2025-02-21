@@ -10,7 +10,7 @@
 
 		const weekStart = new Date(date);
 		weekStart.setDate(
-			weekStart.getDate() - (weekStart.getDay() === 0 ? 6 : weekStart.getDay() - 1)
+			weekStart.getDate() - (weekStart.getDay() === 0 ? 6 : weekStart.getDay() - 2)
 		); // Go to Monday
 
 		const from = weekStart.toISOString().slice(0, 10);

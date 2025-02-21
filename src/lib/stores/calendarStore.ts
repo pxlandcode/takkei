@@ -69,7 +69,7 @@ const createCalendarStore = () => {
 		const dayOfWeek = weekStart.getDay();
 
 		// Adjust to Monday (if Sunday, go back 6 days)
-		const daysToSubtract = dayOfWeek === 0 ? 6 : dayOfWeek - 2;
+		const daysToSubtract = dayOfWeek === 0 ? 7 : dayOfWeek - 1;
 		weekStart.setDate(weekStart.getDate() - daysToSubtract);
 
 		// Get Sunday (end of the week)
@@ -78,14 +78,12 @@ const createCalendarStore = () => {
 
 		const from = weekStart.toISOString().slice(0, 10);
 		const to = weekEnd.toISOString().slice(0, 10);
-
-		console.log('from', from);
-		console.log('to', to);
+		const formattedDate = date.toISOString().slice(0, 10);
 
 		let storeData;
 		subscribe((store) => (storeData = store))();
 
-		updateFilters({ from, to, date: null }, fetchFn);
+		updateFilters({ from, to, date: formattedDate, trainerId: 2 }, fetchFn);
 
 		refresh(fetchFn);
 		console.log('storeData', storeData);
@@ -146,7 +144,7 @@ const createCalendarStore = () => {
 	 */
 	function goToDate(date: Date, fetchFn: typeof fetch) {
 		const formattedDate = date.toISOString().slice(0, 10);
-		updateFilters({ date, from: null, to: null }, fetchFn);
+		updateFilters({ date: formattedDate, from: null, to: null }, fetchFn);
 	}
 
 	return {

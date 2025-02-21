@@ -33,8 +33,8 @@
 			<aside class="h-dvh w-80 p-4">
 				<Dashboard />
 			</aside>
-			<main class=" h-dvh w-full flex-1 overflow-y-scroll p-4">
-				<div class="rounded-4xl h-full w-full bg-white">
+			<main class=" h-dvh w-full flex-1 p-4">
+				<div class=" h-full w-full bg-white p-4 rounded-4xl">
 					<slot />
 				</div>
 			</main>
