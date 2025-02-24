@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { createEventDispatcher, onDestroy, onMount } from 'svelte';
-	import IconButton from '../../icon-button/IconButton.svelte';
-	import Icon from '../../icon-component/Icon.svelte';
+	import IconButton from '../../bits/icon-button/IconButton.svelte';
+	import Icon from '../../bits/icon-component/Icon.svelte';
 
 	export let header: string = 'Popup';
 	export let width: string = 'fit-content';
@@ -43,13 +43,13 @@
 	>
 		<div class="p-4">
 			<div class="header flex items-center justify-between border-b-2 pb-2">
-				<div class="flex items-center gap-2">
+				<div class="ml-3 flex items-center gap-2">
 					{#if icon}
-						<div class="bg-text flex h-7 w-7 items-center justify-center rounded-full text-black">
+						<div class="flex h-7 w-7 items-center justify-center rounded-full bg-text text-white">
 							<Icon {icon} size="14px" />
 						</div>
 					{/if}
-					<h2 class="text-text text-3xl font-semibold text-black" id="popup-title">{header}</h2>
+					<h2 class="text-3xl font-semibold text-black text-text" id="popup-title">{header}</h2>
 				</div>
 				<IconButton on:click={onClose} size="18px" icon="Close" transparent />
 			</div>

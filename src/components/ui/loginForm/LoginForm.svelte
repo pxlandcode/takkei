@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { calendarStore } from '$lib/stores/calendarStore';
 	import { user } from '$lib/stores/userStore';
 	import type { User } from '$lib/types/userTypes';
 	import Button from '../../bits/button/Button.svelte';
@@ -24,6 +25,8 @@
 			}
 
 			user.set(data.user as User);
+			calendarStore.updateFilters({ trainerIds: [data.user.id] }, fetch);
+
 			goto('/dashboard');
 		} catch (error) {
 			errorMessage = error.message;

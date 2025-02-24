@@ -1,5 +1,6 @@
 import { writable } from 'svelte/store';
 import { fetchBookings } from '$lib/services/api/calendarService';
+import { user } from './userStore';
 
 /**
  * Type for Calendar Filters
@@ -10,8 +11,8 @@ export type CalendarFilters = {
 	date?: string | null;
 	roomId?: number | null;
 	locationIds?: number[];
-	trainerId?: number | null;
-	clientId?: number | null;
+	trainerIds?: number[] | null;
+	clientIds?: number[] | null;
 };
 
 /**
@@ -25,8 +26,8 @@ const createCalendarStore = () => {
 			date: new Date().toISOString().slice(0, 10), // Default: today
 			roomId: null,
 			locationIds: [],
-			trainerId: null,
-			clientId: null
+			trainerIds: null,
+			clientIds: null
 		},
 		bookings: []
 	});
@@ -38,18 +39,29 @@ const createCalendarStore = () => {
 		let storeData;
 		subscribe((store) => (storeData = store))();
 
+		if (!storeData.filters.from && !storeData.filters.to) {
+			const { weekStart, weekEnd } = getWeekStartAndEnd(new Date());
+			storeData.filters.from = weekStart;
+			storeData.filters.to = weekEnd;
+		}
+
 		const newBookings = await fetchBookings(storeData.filters, fetchFn);
 
 		update((store) => ({
 			...store,
 			bookings: newBookings
 		}));
+
+		console.log('Bookings:', newBookings);
 	}
 
 	/**
 	 * Update filters & fetch new bookings
 	 */
 	function updateFilters(newFilters: Partial<CalendarFilters>, fetchFn: typeof fetch) {
+		let storeData;
+		subscribe((store) => (storeData = store))();
+		console.log('storeData', storeData);
 		update((store) => ({
 			...store,
 			filters: {
@@ -65,28 +77,12 @@ const createCalendarStore = () => {
 	 * Set Week (from Monday → Sunday)
 	 */
 	function goToWeek(date: Date, fetchFn: typeof fetch) {
-		const weekStart = new Date(date);
-		const dayOfWeek = weekStart.getDay();
-
-		// Adjust to Monday (if Sunday, go back 6 days)
-		const daysToSubtract = dayOfWeek === 0 ? 7 : dayOfWeek - 1;
-		weekStart.setDate(weekStart.getDate() - daysToSubtract);
-
-		// Get Sunday (end of the week)
-		const weekEnd = new Date(weekStart);
-		weekEnd.setDate(weekStart.getDate() + 7);
-
-		const from = weekStart.toISOString().slice(0, 10);
-		const to = weekEnd.toISOString().slice(0, 10);
+		const { weekStart, weekEnd } = getWeekStartAndEnd(new Date(date));
+		const from = weekStart;
+		const to = weekEnd;
 		const formattedDate = date.toISOString().slice(0, 10);
 
-		let storeData;
-		subscribe((store) => (storeData = store))();
-
-		updateFilters({ from, to, date: formattedDate, trainerId: 2 }, fetchFn);
-
-		refresh(fetchFn);
-		console.log('storeData', storeData);
+		updateFilters({ from, to, date: formattedDate }, fetchFn);
 	}
 
 	/**
@@ -144,7 +140,8 @@ const createCalendarStore = () => {
 	 */
 	function goToDate(date: Date, fetchFn: typeof fetch) {
 		const formattedDate = date.toISOString().slice(0, 10);
-		updateFilters({ date: formattedDate, from: null, to: null }, fetchFn);
+		const { weekStart, weekEnd } = getWeekStartAndEnd(date);
+		updateFilters({ date: formattedDate, from: weekStart, to: weekEnd }, fetchFn);
 	}
 
 	return {
@@ -153,8 +150,30 @@ const createCalendarStore = () => {
 		goToWeek,
 		goToNextWeek,
 		goToPreviousWeek,
-		goToDate
+		goToDate,
+		updateFilters
 	};
 };
 
 export const calendarStore = createCalendarStore();
+
+function getWeekStartAndEnd(date: Date) {
+	const givenDate = new Date(date);
+
+	// Get the day of the week (0 = Sunday, 6 = Saturday)
+	const dayOfWeek = givenDate.getDay();
+
+	// Adjust to start the week on Monday
+	const diffToMonday = (dayOfWeek === 0 ? -6 : 1 - dayOfWeek) + 1;
+	const weekStart = new Date(givenDate);
+	weekStart.setDate(givenDate.getDate() + diffToMonday);
+
+	// Calculate week end (Sunday)
+	const weekEnd = new Date(weekStart);
+	weekEnd.setDate(weekStart.getDate() + 7);
+
+	return {
+		weekStart: weekStart.toISOString().split('T')[0],
+		weekEnd: weekEnd.toISOString().split('T')[0]
+	};
+}

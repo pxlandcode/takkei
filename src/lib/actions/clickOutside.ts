@@ -1,25 +1,18 @@
 export function clickOutside(node: HTMLElement, callback: () => void) {
-	// Function to check if click is outside the element
 	const handleClick = (event: MouseEvent) => {
-		// Ensure target is a valid node
-		if (!event.target) return;
-
-		// Check if click is inside the node
+		// If click is inside the element, do nothing
 		if (node.contains(event.target as Node)) return;
 
-		// Run the callback if click is outside
+		// If click is outside, run the callback
 		callback();
 	};
 
-	// Delay adding event listener to prevent immediate close when toggling
-	setTimeout(() => {
-		document.addEventListener('click', handleClick);
-	});
+	// ✅ Attach event listener immediately
+	document.addEventListener('click', handleClick, true); // Capture phase
 
-	// Cleanup function (Svelte runs this when the element is removed)
 	return {
 		destroy() {
-			document.removeEventListener('click', handleClick);
+			document.removeEventListener('click', handleClick, true);
 		}
 	};
 }

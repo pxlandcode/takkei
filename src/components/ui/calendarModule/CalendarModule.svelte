@@ -88,6 +88,7 @@
 
 	// Handle date click
 	function selectDate(date: Date) {
+		console.log('date', date);
 		if (date.getMonth() !== $currentDate.getMonth()) {
 			if (date.getMonth() > $currentDate.getMonth()) {
 				nextMonth();

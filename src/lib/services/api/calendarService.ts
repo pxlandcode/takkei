@@ -23,8 +23,10 @@ export async function fetchBookings(
 	if (filters.roomId != null) params.append('roomId', filters.roomId.toString());
 	if (filters.locationIds?.length)
 		filters.locationIds.forEach((id) => params.append('locationId', id.toString()));
-	if (filters.trainerId != null) params.append('trainerId', filters.trainerId.toString());
-	if (filters.clientId != null) params.append('clientId', filters.clientId.toString());
+	if (filters.trainerIds?.length)
+		filters.trainerIds.forEach((id) => params.append('trainerId', id.toString()));
+	if (filters.clientIds?.length)
+		filters.clientIds.forEach((id) => params.append('clientId', id.toString()));
 
 	try {
 		const url = `/api/bookings?${params.toString()}`;

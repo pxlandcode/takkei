@@ -3,11 +3,13 @@
 	import { calendarStore } from '$lib/stores/calendarStore';
 	import Button from '../../components/bits/button/Button.svelte';
 	import OptionButton from '../../components/bits/optionButton/OptionButton.svelte';
+	import FilteringPopup from '../../components/ui/filteringPopup/FilteringPopup.svelte';
+	import PopupWrapper from '../../components/ui/popupWrapper/PopupWrapper.svelte';
 	import CalendarComponent from '../../components/view/calendar/CalendarComponent.svelte';
 
-	$: filters = $calendarStore.filters;
+	let filterOpen = false;
 
-	$: filters && console.log(filters.date);
+	$: filters = $calendarStore.filters;
 
 	$: selectedDate = filters.date ? new Date(filters.date) : new Date();
 
@@ -33,6 +35,10 @@
 			icon: isDayView ? 'Day' : 'Week'
 		};
 	}
+
+	function closePopup() {
+		filterOpen = false;
+	}
 </script>
 
 <div class="h-full overflow-x-scroll custom-scrollbar">
@@ -54,7 +60,8 @@
 			<Button icon="ChevronRight" variant="secondary" iconSize="16px"></Button>
 		</div>
 		<div class="flex flex-row gap-2">
-			<Button icon="Filter" variant="secondary" iconSize="16px"></Button>
+			<Button on:click={() => (filterOpen = true)} icon="Filter" variant="secondary" iconSize="16px"
+			></Button>
 
 			<Button iconLeft="Plus" variant="primary" text="Boka" iconLeftSize="13px"></Button>
 		</div>
@@ -62,3 +69,9 @@
 
 	<CalendarComponent singleDayView={calendarView.value} />
 </div>
+
+{#if filterOpen}
+	<PopupWrapper header="Filter" icon="Filter" on:close={closePopup}>
+		<FilteringPopup />
+	</PopupWrapper>
+{/if}

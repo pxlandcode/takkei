@@ -64,7 +64,6 @@
 			useInitials = false; // Ensure full name is measured
 			fullNameWidth = trainerNameElement.offsetWidth;
 
-			console.log('Measured full name width:', fullNameWidth);
 			checkNameWidth();
 		}, 10); // Small delay to allow rendering
 	}
@@ -72,7 +71,6 @@
 	function checkNameWidth() {
 		if (fullNameWidth === 0) return;
 
-		console.log('Checking name width:', fullNameWidth, width);
 		const containerWidth = bookingSlot.offsetWidth;
 
 		// Use initials if full name is too wide

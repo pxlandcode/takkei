@@ -5,12 +5,13 @@
 	import { goto } from '$app/navigation';
 
 	function handleDateSelect(date: Date) {
+		console.log('date', date);
 		// ✅ Update store
 		calendarStore.goToWeek(date, fetch);
 
 		const weekStart = new Date(date);
 		weekStart.setDate(
-			weekStart.getDate() - (weekStart.getDay() === 0 ? 6 : weekStart.getDay() - 2)
+			weekStart.getDate() - (weekStart.getDay() === 0 ? 6 : weekStart.getDay() - 1)
 		); // Go to Monday
 
 		const from = weekStart.toISOString().slice(0, 10);

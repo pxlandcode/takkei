@@ -7,7 +7,7 @@ export async function GET({ url }) {
 
 	const roomId = url.searchParams.get('roomId');
 	const locationIds = url.searchParams.getAll('locationId');
-	const trainerId = url.searchParams.get('trainerId');
+	const trainerIds = url.searchParams.getAll('trainerId'); // Allow multiple trainers
 	const clientId = url.searchParams.get('clientId');
 
 	let queryStr = `
@@ -26,12 +26,14 @@ export async function GET({ url }) {
         LEFT JOIN users ON bookings.trainer_id = users.id
         LEFT JOIN clients ON bookings.client_id = clients.id
         LEFT JOIN booking_contents ON bookings.booking_content_id = booking_contents.id
-        WHERE 1=1
+        WHERE 1=1 AND bookings.status != 'Cancelled'
     `;
 
 	const params: (string | number | number[])[] = [];
+	console.log('fromDate', fromDate);
+	console.log('toDate', toDate);
 
-	// date range
+	// Date range filtering
 	if (fromDate && toDate) {
 		params.push(fromDate, toDate);
 		queryStr += ` AND bookings.start_time BETWEEN TO_DATE($${params.length - 1}, 'YYYY-MM-DD') 
@@ -45,7 +47,7 @@ export async function GET({ url }) {
 		queryStr += ` AND DATE(bookings.start_time) = TO_DATE($${params.length}, 'YYYY-MM-DD')`;
 	}
 
-	// ✅ Additional filters
+	// Additional filters
 	if (roomId) {
 		params.push(Number(roomId));
 		queryStr += ` AND bookings.room_id = $${params.length}`;
@@ -54,9 +56,9 @@ export async function GET({ url }) {
 		params.push(locationIds.map(Number));
 		queryStr += ` AND bookings.location_id = ANY($${params.length}::int[])`;
 	}
-	if (trainerId) {
-		params.push(Number(trainerId));
-		queryStr += ` AND bookings.trainer_id = $${params.length}`;
+	if (trainerIds.length > 0) {
+		params.push(trainerIds.map(Number));
+		queryStr += ` AND bookings.trainer_id = ANY($${params.length}::int[])`;
 	}
 	if (clientId) {
 		params.push(Number(clientId));
