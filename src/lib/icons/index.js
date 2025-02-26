@@ -22,6 +22,12 @@ import IconWeek from './IconWeek.svelte';
 import IconDay from './IconDay.svelte';
 import IconPlus from './IconPlus.svelte';
 import IconFilter from './IconFilter.svelte';
+import IconMultiCheck from './IconMultiCheck.svelte';
+import IconTrash from './IconTrash.svelte';
+import IconTraining from './IconTraining.svelte';
+import IconMeeting from './IconMeeting.svelte';
+import IconCategory from './IconCategory.svelte';
+import IconClients from './IconClients.svelte';
 
 export {
 	IconClose,
@@ -47,5 +53,11 @@ export {
 	IconWeek,
 	IconDay,
 	IconPlus,
-	IconFilter
+	IconFilter,
+	IconMultiCheck,
+	IconTrash,
+	IconTraining,
+	IconMeeting,
+	IconCategory,
+	IconClients
 };

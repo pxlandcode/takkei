@@ -15,6 +15,7 @@
 	export let iconLeftSize: string = '24px';
 	export let iconSize: string = '20px';
 	export let full: boolean = false;
+	export let iconColor: string = 'currentColor';
 
 	const dispatch = createEventDispatcher();
 
@@ -41,15 +42,15 @@
 <button class={buttonClasses} on:click={handleClick} {type}>
 	{#if icon && !text}
 		<!-- Icon-only button (Centered & Square) -->
-		<Icon {icon} size={iconSize} />
+		<Icon {icon} size={iconSize} color={iconColor} />
 	{:else}
 		{#if iconLeft}
-			<Icon icon={iconLeft} size={small ? '15px' : iconLeftSize} />
+			<Icon icon={iconLeft} size={small ? '15px' : iconLeftSize} color={iconColor} />
 		{/if}
 
 		{text}
 		{#if iconRight}
-			<Icon icon={iconRight} size={small ? '15px' : iconRightSize} />
+			<Icon icon={iconRight} size={small ? '15px' : iconRightSize} color={iconColor} />
 		{/if}
 	{/if}
 </button>

@@ -2,13 +2,20 @@
 	import { clickOutside } from '$lib/actions/clickOutside';
 	import IconArrowDown from '$lib/icons/IconArrowDown.svelte';
 	import { createEventDispatcher } from 'svelte';
+	import Icon from '../icon-component/Icon.svelte';
 
 	export let id: string;
 	export let label: string;
 	export let placeholder: string = 'Välj ett alternativ';
-	export let options: string[] = [];
+	export let options: (string | { label: string; value: any })[] = [];
 	export let disabled: boolean = false;
-	export let selectedValue: string = '';
+	export let variant: 'black' | 'gray' = 'gray';
+	export let selectedValue: any = '';
+	export let search: boolean = false; // Enables search input
+	export let maxNumberOfSuggestions: number | undefined = undefined;
+	export let infiniteScroll: boolean = false;
+	export let labelIcon: string = '';
+	export let labelIconSize: string = '20px';
 
 	// Accept an errors object for validation handling
 	export let errors: Record<string, string> = {};
@@ -16,21 +23,38 @@
 	let showDropdown = false;
 	let listRef: HTMLUListElement | null = null;
 	let activeIndex: number = -1;
+	let searchQuery = '';
+	let initialMaxNumberOfSuggestions = maxNumberOfSuggestions;
+	let suggestionsListElement: HTMLUListElement;
+	let totalAvailableSuggestions = options.length;
 
 	const dispatch = createEventDispatcher();
 
+	// Helper function to check if options are objects
+	function isObjectOption(option: any): option is { label: string; value: any } {
+		return typeof option === 'object' && option !== null && 'label' in option && 'value' in option;
+	}
+
+	// Get label for the selected value
+	function getLabel(value: any): string {
+		const option = options.find((opt) =>
+			isObjectOption(opt) ? opt.value === value : opt === value
+		);
+		return isObjectOption(option) ? option.label : (option as string) || placeholder;
+	}
+
 	// Select an option and close dropdown
-	function selectOption(option: string) {
-		selectedValue = option;
+	function selectOption(option: string | { label: string; value: any }) {
+		selectedValue = isObjectOption(option) ? option.value : option;
 		showDropdown = false;
 		activeIndex = -1;
-		dispatch('change', { value: option });
+		dispatch('change', { value: selectedValue });
 	}
 
 	// Toggle dropdown visibility when clicking the button
 	function toggleDropdown(event: Event) {
 		if (disabled) return;
-		event.stopPropagation(); // Prevent immediate closing
+		event.stopPropagation();
 		showDropdown = !showDropdown;
 		activeIndex = -1;
 	}
@@ -46,40 +70,73 @@
 
 		if (event.key === 'ArrowDown') {
 			event.preventDefault();
-			activeIndex = (activeIndex + 1) % options.length;
+			activeIndex = (activeIndex + 1) % filteredOptions.length;
 		} else if (event.key === 'ArrowUp') {
 			event.preventDefault();
-			activeIndex = (activeIndex - 1 + options.length) % options.length;
+			activeIndex = (activeIndex - 1 + filteredOptions.length) % filteredOptions.length;
 		} else if (event.key === 'Enter' && activeIndex >= 0) {
-			selectOption(options[activeIndex]);
+			selectOption(filteredOptions[activeIndex]);
 		} else if (event.key === 'Escape') {
 			showDropdown = false;
 		}
 	}
+
+	// Filter options based on search query
+	$: filteredOptions = options
+		.filter((option) => {
+			const label = isObjectOption(option) ? option.label.toLowerCase() : option.toLowerCase();
+			return label.includes(searchQuery.toLowerCase());
+		})
+		.slice(0, maxNumberOfSuggestions);
+
+	// Handle infinite scroll
+	function onSuggestionsScroll() {
+		if (!infiniteScroll || !maxNumberOfSuggestions) return;
+
+		const { scrollTop, scrollHeight, clientHeight } = suggestionsListElement;
+		const isAtBottom = scrollHeight - scrollTop === clientHeight;
+
+		if (isAtBottom && maxNumberOfSuggestions < totalAvailableSuggestions) {
+			maxNumberOfSuggestions += 20;
+		}
+	}
 </script>
 
-<div class="relative flex w-full flex-col gap-1">
-	<label for={id} class="block text-base font-medium text-white">{label}</label>
+<div class="relative flex w-full flex-col gap-1" use:clickOutside={closeDropdown}>
+	<div class="mb-1 flex flex-row items-center gap-2">
+		{#if labelIcon}
+			<Icon icon={labelIcon} size={labelIconSize} color="gray" />
+		{/if}
 
+		<label for={id} class="block text-base font-medium text-gray">{label}</label>
+	</div>
 	<!-- Dropdown Button -->
 	<button
 		type="button"
 		{id}
-		class={`flex w-full flex-row items-center justify-between rounded border px-3 py-2 text-left focus:outline-blue-500 
-			${errors[id] ? 'border-red-500' : 'border-white'} 
-			${showDropdown ? 'bg-black text-white' : 'bg-white text-black'} 
-			transition-colors duration-150`}
+		class={`group flex w-full flex-row items-center justify-between rounded border px-3 py-2 text-left hover:text-white focus:outline-blue-500
+		${errors[id] ? 'border-red-500' : variant === 'black' ? 'border-white' : 'border-gray'} 
+		${
+			showDropdown
+				? variant === 'black'
+					? 'bg-black text-white'
+					: 'bg-gray text-white'
+				: 'bg-white text-black'
+		} 
+        ${variant === 'black' ? 'hover:bg-black' : 'hover:bg-gray'}
+		transition-colors duration-150`}
 		on:click={toggleDropdown}
 		aria-haspopup="listbox"
 		aria-expanded={showDropdown}
 		aria-label={label}
 		{disabled}
+		aria-disabled={disabled}
 	>
-		{selectedValue || placeholder}
+		{getLabel(selectedValue)}
 		<IconArrowDown
 			size="12px"
-			extraClasses={`transform transition-all duration-300 
-				${showDropdown ? 'rotate-180 text-white' : 'text-black'}
+			extraClasses={`transform transition-all duration-300 group-hover:text-white
+				${showDropdown ? (variant === 'black' ? 'rotate-180 text-white' : 'rotate-180 text-white') : 'text-gray '}
 			`}
 		/>
 	</button>
@@ -92,23 +149,40 @@
 	<!-- Dropdown List -->
 	{#if showDropdown && options.length > 0}
 		<ul
-			bind:this={listRef}
-			class="absolute top-full z-50 mt-1 max-h-60 w-full overflow-auto rounded-md border border-gray-300 bg-white shadow-md"
+			bind:this={suggestionsListElement}
+			class="absolute top-full z-50 mt-1 max-h-60 w-full overflow-auto rounded-md border border-gray-bright bg-white shadow-md"
 			role="listbox"
 			on:keydown={handleKeydown}
-			use:clickOutside={closeDropdown}
+			on:scroll={onSuggestionsScroll}
+			aria-labelledby={id}
+			aria-disabled={disabled}
 		>
-			{#each options as option, i}
+			<!-- Search Input -->
+			{#if search}
+				<li class="p-2">
+					<input
+						type="text"
+						class="w-full rounded-lg border p-2 focus:outline-blue"
+						placeholder="Sök..."
+						bind:value={searchQuery}
+						on:keydown={handleKeydown}
+					/>
+				</li>
+			{/if}
+
+			{#each filteredOptions as option, i}
 				<li
 					class={`cursor-pointer hover:bg-black ${i === activeIndex ? 'bg-black text-white' : 'text-black'}`}
-					aria-selected={selectedValue === option}
+					aria-selected={selectedValue === (isObjectOption(option) ? option.value : option)}
 					role="option"
 				>
 					<button
 						on:click={() => selectOption(option)}
-						class="w-full px-3 py-2 text-left hover:text-white focus:bg-black focus:text-white focus:outline-white"
+						class={`w-full px-3 py-2 text-left hover:text-white focus:text-white focus:outline-white
+                          ${variant === 'black' ? 'hover:bg-black focus:bg-black' : 'hover:bg-gray focus:bg-gray'}`}
+						aria-label={isObjectOption(option) ? option.label : option}
 					>
-						{option}
+						{isObjectOption(option) ? option.label : option}
 					</button>
 				</li>
 			{/each}

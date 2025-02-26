@@ -17,10 +17,10 @@
 <button
 	on:click={handleClick}
 	class={`flex cursor-pointer items-center justify-center rounded-full text-black shadow-lg transition-all duration-200
-        ${type === 'primary' ? 'bg-black text-white hover:bg-gray-800' : ''}
+        ${type === 'primary' ? 'bg-black text-white hover:bg-gray' : ''}
         ${type === 'secondary' ? 'bg-gray-600 text-white hover:bg-gray-500' : ''}
         ${type === 'cancel' ? 'bg-red-600 text-white hover:bg-red-500' : ''}
-        ${transparent ? 'bg-transparent text-gray-800 shadow-none hover:bg-gray-800 hover:text-white' : ''}
+        ${transparent ? 'bg-transparent text-gray shadow-none hover:bg-gray hover:text-white' : ''}
         ${transparent && type === 'cancel' ? 'hover:text-red-500' : ''}
         h-12 w-12
         ${small ? 'h-8 w-8' : ''}

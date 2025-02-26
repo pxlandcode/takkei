@@ -1,6 +1,5 @@
 import { writable } from 'svelte/store';
 import { fetchBookings } from '$lib/services/api/calendarService';
-import { user } from './userStore';
 
 /**
  * Type for Calendar Filters
@@ -85,24 +84,20 @@ const createCalendarStore = () => {
 		updateFilters({ from, to, date: formattedDate }, fetchFn);
 	}
 
-	/**
-	 * Set Next Week
-	 */
 	function goToNextWeek(fetchFn: typeof fetch) {
 		update((store) => {
-			const fromDate = store.filters.from ? new Date(store.filters.from) : new Date();
-			fromDate.setDate(fromDate.getDate() + 7);
+			const currentDate = store.filters.from ? new Date(store.filters.from) : new Date();
+			currentDate.setDate(currentDate.getDate() + 7); // Move forward one week
 
-			const toDate = new Date(fromDate);
-			toDate.setDate(toDate.getDate() + 6);
+			const { weekStart, weekEnd } = getWeekStartAndEnd(currentDate);
 
 			return {
 				...store,
 				filters: {
 					...store.filters,
-					from: fromDate.toISOString().slice(0, 10),
-					to: toDate.toISOString().slice(0, 10),
-					date: null
+					from: weekStart,
+					to: weekEnd,
+					date: weekStart // Move the displayed date to the start of the new week
 				}
 			};
 		});
@@ -110,38 +105,108 @@ const createCalendarStore = () => {
 		refresh(fetchFn);
 	}
 
-	/**
-	 * Set Previous Week
-	 */
 	function goToPreviousWeek(fetchFn: typeof fetch) {
 		update((store) => {
-			const fromDate = store.filters.from ? new Date(store.filters.from) : new Date();
-			fromDate.setDate(fromDate.getDate() - 7);
+			const currentDate = store.filters.from ? new Date(store.filters.from) : new Date();
+			currentDate.setDate(currentDate.getDate() - 7); // Move backward one week
 
-			const toDate = new Date(fromDate);
-			toDate.setDate(toDate.getDate() + 6);
+			const { weekStart, weekEnd } = getWeekStartAndEnd(currentDate);
 
 			return {
 				...store,
 				filters: {
 					...store.filters,
-					from: fromDate.toISOString().slice(0, 10),
-					to: toDate.toISOString().slice(0, 10),
-					date: null
+					from: weekStart,
+					to: weekEnd,
+					date: weekStart // Move the displayed date to the start of the new week
 				}
 			};
 		});
 
 		refresh(fetchFn);
+	}
+
+	function goToNextDay(fetchFn: typeof fetch) {
+		let needsWeekUpdate = false;
+
+		update((store) => {
+			const currentDate = store.filters.date ? new Date(store.filters.date) : new Date();
+			currentDate.setDate(currentDate.getDate() + 1); // Move forward one day
+
+			const newDateStr = currentDate.toISOString().slice(0, 10);
+			const { weekStart, weekEnd } = getWeekStartAndEnd(currentDate);
+
+			// Check if the new date is outside the current week range
+			needsWeekUpdate = newDateStr < store.filters.from || newDateStr > store.filters.to;
+
+			return {
+				...store,
+				filters: {
+					...store.filters,
+					date: newDateStr,
+					...(needsWeekUpdate ? { from: weekStart, to: weekEnd } : {})
+				}
+			};
+		});
+
+		if (needsWeekUpdate) {
+			refresh(fetchFn);
+		}
+	}
+
+	function goToPreviousDay(fetchFn: typeof fetch) {
+		let needsWeekUpdate = false;
+
+		update((store) => {
+			const currentDate = store.filters.date ? new Date(store.filters.date) : new Date();
+			currentDate.setDate(currentDate.getDate() - 1); // Move backward one day
+
+			const newDateStr = currentDate.toISOString().slice(0, 10);
+			const { weekStart, weekEnd } = getWeekStartAndEnd(currentDate);
+
+			// Check if the new date is outside the current week range
+			needsWeekUpdate = newDateStr < store.filters.from || newDateStr > store.filters.to;
+
+			return {
+				...store,
+				filters: {
+					...store.filters,
+					date: newDateStr,
+					...(needsWeekUpdate ? { from: weekStart, to: weekEnd } : {})
+				}
+			};
+		});
+
+		if (needsWeekUpdate) {
+			refresh(fetchFn);
+		}
 	}
 
 	/**
 	 * Set Specific Date (Single Day View)
 	 */
 	function goToDate(date: Date, fetchFn: typeof fetch) {
-		const formattedDate = date.toISOString().slice(0, 10);
-		const { weekStart, weekEnd } = getWeekStartAndEnd(date);
-		updateFilters({ date: formattedDate, from: weekStart, to: weekEnd }, fetchFn);
+		let needsWeekUpdate: boolean = false;
+		update((store) => {
+			const newDateStr = date.toISOString().slice(0, 10);
+			const { weekStart, weekEnd } = getWeekStartAndEnd(date);
+
+			// Check if the new date is outside the current week range
+			needsWeekUpdate = newDateStr < store.filters.from || newDateStr > store.filters.to;
+
+			return {
+				...store,
+				filters: {
+					...store.filters,
+					date: newDateStr,
+					...(needsWeekUpdate ? { from: weekStart, to: weekEnd } : {})
+				}
+			};
+		});
+
+		if (needsWeekUpdate) {
+			refresh(fetchFn);
+		}
 	}
 
 	return {
@@ -150,6 +215,8 @@ const createCalendarStore = () => {
 		goToWeek,
 		goToNextWeek,
 		goToPreviousWeek,
+		goToNextDay,
+		goToPreviousDay,
 		goToDate,
 		updateFilters
 	};

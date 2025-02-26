@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { createEventDispatcher, onMount } from 'svelte';
 	import { users, fetchUsers } from '$lib/stores/usersStore';
 	import { locations, fetchLocations } from '$lib/stores/locationsStore';
 	import { clients, fetchClients } from '$lib/stores/clientsStore';
@@ -10,17 +10,29 @@
 	import Button from '../../bits/button/Button.svelte';
 	import { calendarStore } from '$lib/stores/calendarStore';
 	import { get } from 'svelte/store';
+	import FilterBox from '../../bits/filterBox/FilterBox.svelte';
 
+	// Reactive stores
+	let filters = get(calendarStore).filters;
 	let selectedUsers: User[] = [];
 	let selectedLocations: Location[] = [];
 	let selectedClients: Client[] = [];
 
-	onMount(() => {
-		fetchUsers();
-		fetchLocations();
-		fetchClients();
+	const dispatch = createEventDispatcher();
+
+	// Fetch initial data & set selected filters
+	onMount(async () => {
+		await Promise.all([fetchUsers(), fetchLocations(), fetchClients()]);
+
+		// Pre-fill selected options from store
+		selectedUsers = get(users).filter((user) => filters.trainerIds?.includes(user.id));
+		selectedLocations = get(locations).filter((location) =>
+			filters.locationIds?.includes(location.id)
+		);
+		selectedClients = get(clients).filter((client) => filters.clientIds?.includes(client.id));
 	});
 
+	// Handle selection updates
 	function handleUserSelection(event) {
 		selectedUsers = [...event.detail.selected];
 	}
@@ -33,6 +45,35 @@
 		selectedClients = [...event.detail.selected];
 	}
 
+	function onSelectAllUsers() {
+		selectedUsers = $users;
+	}
+
+	function onDeSelectAllUsers() {
+		selectedUsers = [];
+	}
+
+	function onSelectAllClients() {
+		selectedClients = $clients;
+	}
+
+	function onDeSelectAllClients() {
+		selectedClients = [];
+	}
+
+	function onSelectAllLocations() {
+		selectedLocations = $locations;
+	}
+
+	function onDeSelectAllLocations() {
+		selectedLocations = [];
+	}
+
+	function onClose() {
+		dispatch('close');
+	}
+
+	// Apply filters only when clicking the button
 	function onFilter() {
 		calendarStore.updateFilters(
 			{
@@ -42,123 +83,120 @@
 			},
 			fetch
 		);
+		onClose();
 	}
-
-	// Subscribe to calendarStore to access filters
-	$: filters = get(calendarStore).filters;
 </script>
 
-<div class="flex h-[600px] w-[400px] flex-col justify-between bg-white p-4">
+<!-- UI Layout -->
+<div class="flex max-h-dvh min-h-[450px] w-[600px] flex-col bg-white p-4">
 	<div class="flex flex-col gap-4">
-		<!-- Users Dropdown -->
-		<DropdownCheckbox
-			label="Tränare"
-			placeholder="Välj tränare"
-			id="users"
-			options={($users || []).map((user) => ({
-				name: `${user.firstname} ${user.lastname}`,
-				value: user
-			}))}
-			maxNumberOfSuggestions={15}
-			infiniteScroll={true}
-			bind:selectedValues={selectedUsers}
-			on:change={handleUserSelection}
-		/>
+		<!-- Trainers Dropdown -->
+		<div class="flex flex-row gap-2">
+			<DropdownCheckbox
+				label="Tränare"
+				placeholder="Välj tränare"
+				id="users"
+				options={($users || []).map((user) => ({
+					name: `${user.firstname} ${user.lastname}`,
+					value: user
+				}))}
+				maxNumberOfSuggestions={15}
+				infiniteScroll={true}
+				search
+				bind:selectedValues={selectedUsers}
+				on:change={handleUserSelection}
+			/>
+			<div class="mt-6 flex flex-row gap-2">
+				<Button
+					icon="MultiCheck"
+					variant="secondary"
+					on:click={onSelectAllUsers}
+					iconColor="green"
+				/>
+
+				<Button icon="Trash" iconColor="red" variant="secondary" on:click={onDeSelectAllUsers} />
+			</div>
+		</div>
+
+		<div class="flex flex-row gap-2">
+			<DropdownCheckbox
+				label="Kunder"
+				placeholder="Välj kunder"
+				id="clients"
+				options={($clients || []).map((client) => ({
+					name: `${client.firstname} ${client.lastname}`,
+					value: client
+				}))}
+				search
+				maxNumberOfSuggestions={15}
+				infiniteScroll={true}
+				bind:selectedValues={selectedClients}
+				on:change={handleClientSelection}
+			/>
+
+			<div class="mt-6 flex flex-row gap-2">
+				<Button
+					icon="MultiCheck"
+					variant="secondary"
+					on:click={onSelectAllClients}
+					iconColor="green"
+				/>
+
+				<Button icon="Trash" iconColor="red" variant="secondary" on:click={onDeSelectAllClients} />
+			</div>
+		</div>
 
 		<!-- Locations Dropdown -->
-		<DropdownCheckbox
-			label="Plats"
-			placeholder="Välj plats"
-			id="locations"
-			options={($locations || []).map((location) => ({
-				name: location.name,
-				value: location
-			}))}
-			maxNumberOfSuggestions={15}
-			infiniteScroll={true}
-			bind:selectedValues={selectedLocations}
-			on:change={handleLocationSelection}
-		/>
 
-		<!-- Clients Dropdown -->
-		<DropdownCheckbox
-			label="Kunder"
-			placeholder="Välj kunder"
-			id="clients"
-			options={($clients || []).map((client) => ({
-				name: `${client.firstname} ${client.lastname}`,
-				value: client
-			}))}
-			maxNumberOfSuggestions={15}
-			infiniteScroll={true}
-			bind:selectedValues={selectedClients}
-			on:change={handleClientSelection}
-		/>
+		<div class="flex flex-row gap-2">
+			<DropdownCheckbox
+				label="Plats"
+				placeholder="Välj plats"
+				id="locations"
+				options={($locations || []).map((location) => ({
+					name: location.name,
+					value: location
+				}))}
+				maxNumberOfSuggestions={15}
+				infiniteScroll={true}
+				bind:selectedValues={selectedLocations}
+				on:change={handleLocationSelection}
+			/>
+
+			<div class="mt-6 flex flex-row gap-2">
+				<Button
+					icon="MultiCheck"
+					variant="secondary"
+					on:click={onSelectAllLocations}
+					iconColor="green"
+				/>
+
+				<Button
+					icon="Trash"
+					iconColor="red"
+					variant="secondary"
+					on:click={onDeSelectAllLocations}
+				/>
+			</div>
+		</div>
 	</div>
 
-	<!-- Selected Filters Section -->
+	<!-- Filter Box (Shows selected filters immediately) -->
 	<div class="mt-4">
-		<h3 class="text-lg font-semibold">Aktiva filter:</h3>
-		<ul class="mt-2 list-disc pl-4 text-sm text-gray-700">
-			{#if filters.trainerIds && filters.trainerIds.length > 0}
-				<li>
-					<strong>Tränare:</strong>
-					<p>
-						{#each selectedUsers as user, index}
-							<span>
-								{`${user.firstname} ${user.lastname}${index < selectedUsers.length - 1 ? ', ' : ''}`}
-							</span>
-						{/each}
-					</p>
-				</li>
-			{/if}
-
-			{#if filters.locationIds && filters.locationIds.length > 0}
-				<li>
-					<strong>Plats:</strong>
-					<p>
-						{#each selectedLocations as location, index}
-							<span>
-								{`${location.name}${index < selectedLocations.length - 1 ? ', ' : ''}`}
-							</span>
-						{/each}
-					</p>
-				</li>
-			{/if}
-
-			{#if filters.clientIds && filters.clientIds.length > 0}
-				<li>
-					<strong>Kunder:</strong>
-					<p>
-						{#each selectedClients as client, index}
-							<span>
-								{`${client.firstname} ${client.lastname}${index < selectedClients.length - 1 ? ', ' : ''}`}
-							</span>
-						{/each}
-					</p>
-				</li>
-			{/if}
-
-			{#if filters.from && filters.to}
-				<li><strong>Datumintervall:</strong> {filters.from} - {filters.to}</li>
-			{/if}
-
-			{#if filters.date}
-				<li><strong>Datum:</strong> {filters.date}</li>
-			{/if}
-
-			{#if filters.roomId}
-				<li><strong>Rum:</strong> {filters.roomId}</li>
-			{/if}
-
-			{#if !filters.trainerIds?.length && !filters.locationIds?.length && !filters.clientIds?.length && !filters.from && !filters.to && !filters.date && !filters.roomId}
-				<p class="text-gray-500">Inga filter valda</p>
-			{/if}
-		</ul>
+		<FilterBox
+			{selectedUsers}
+			{selectedLocations}
+			{selectedClients}
+			on:removeFilter={(event) => {
+				const { type, id } = event.detail;
+				if (type === 'trainer') selectedUsers = selectedUsers.filter((u) => u.id !== id);
+				if (type === 'location') selectedLocations = selectedLocations.filter((l) => l.id !== id);
+				if (type === 'client') selectedClients = selectedClients.filter((c) => c.id !== id);
+			}}
+		/>
 	</div>
 
-	<!-- Filter Button -->
-	<div class="mt-4 flex flex-col gap-4">
+	<div class="mt-auto flex flex-col gap-4">
 		<Button
 			full
 			variant="primary"

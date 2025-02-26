@@ -4,8 +4,9 @@
 
 	export let options: { value: any; label: string; icon?: string }[] = [];
 	export let selectedOption: { value: any; label: string } | null = null;
-	export let variant: 'black' | 'gray' = 'gray'; // Default: Black
-	export let size: 'small' | 'medium' = 'medium'; // Default: Medium
+	export let variant: 'black' | 'gray' = 'gray';
+	export let size: 'small' | 'medium' = 'medium';
+	export let full: boolean = false;
 
 	const dispatch = createEventDispatcher();
 
@@ -22,9 +23,10 @@
 	`;
 
 	$: wrapperClasses = `
-    w-full max-w-md rounded-lg   bg-white p-[2px]
+    w-full  rounded-lg   bg-white p-[2px]
     ${variant === 'black' ? 'border-white border-2' : '  '}
-    ${variant === 'gray' ? 'border-gray border' : ''}`;
+    ${variant === 'gray' ? 'border-gray border' : ''}
+    ${full ? '' : 'max-w-md'}`;
 
 	$: selectedClasses = `
 		${variant === 'black' ? 'bg-black text-white' : ''}

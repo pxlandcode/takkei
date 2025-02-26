@@ -3,11 +3,14 @@
 	import { calendarStore } from '$lib/stores/calendarStore';
 	import Button from '../../components/bits/button/Button.svelte';
 	import OptionButton from '../../components/bits/optionButton/OptionButton.svelte';
+	import BookingPopup from '../../components/ui/bookingPopup/BookingPopup.svelte';
 	import FilteringPopup from '../../components/ui/filteringPopup/FilteringPopup.svelte';
 	import PopupWrapper from '../../components/ui/popupWrapper/PopupWrapper.svelte';
 	import CalendarComponent from '../../components/view/calendar/CalendarComponent.svelte';
 
 	let filterOpen = false;
+
+	let bookingOpen = false;
 
 	$: filters = $calendarStore.filters;
 
@@ -38,6 +41,27 @@
 
 	function closePopup() {
 		filterOpen = false;
+		bookingOpen = false;
+	}
+
+	function onNext() {
+		if (calendarView.value) {
+			calendarStore.goToNextDay(fetch);
+		} else {
+			calendarStore.goToNextWeek(fetch);
+		}
+	}
+
+	function onPrevious() {
+		if (calendarView.value) {
+			calendarStore.goToPreviousDay(fetch);
+		} else {
+			calendarStore.goToPreviousWeek(fetch);
+		}
+	}
+
+	function onToday() {
+		calendarStore.goToDate(new Date(), fetch);
 	}
 </script>
 
@@ -55,15 +79,21 @@
 			</div>
 		</div>
 		<div class="flex flex-row gap-2">
-			<Button icon="ChevronLeft" variant="secondary" iconSize="16px"></Button>
-			<Button text="Idag" variant="secondary"></Button>
-			<Button icon="ChevronRight" variant="secondary" iconSize="16px"></Button>
+			<Button icon="ChevronLeft" variant="secondary" iconSize="16px" on:click={onPrevious}></Button>
+			<Button text="Idag" variant="secondary" on:click={onToday}></Button>
+			<Button icon="ChevronRight" variant="secondary" iconSize="16px" on:click={onNext}></Button>
 		</div>
 		<div class="flex flex-row gap-2">
 			<Button on:click={() => (filterOpen = true)} icon="Filter" variant="secondary" iconSize="16px"
 			></Button>
 
-			<Button iconLeft="Plus" variant="primary" text="Boka" iconLeftSize="13px"></Button>
+			<Button
+				iconLeft="Plus"
+				variant="primary"
+				text="Boka"
+				iconLeftSize="13px"
+				on:click={() => (bookingOpen = true)}
+			></Button>
 		</div>
 	</div>
 
@@ -72,6 +102,12 @@
 
 {#if filterOpen}
 	<PopupWrapper header="Filter" icon="Filter" on:close={closePopup}>
-		<FilteringPopup />
+		<FilteringPopup on:close={closePopup} />
+	</PopupWrapper>
+{/if}
+
+{#if bookingOpen}
+	<PopupWrapper header="Bokning" icon="Plus" on:close={closePopup}>
+		<BookingPopup on:close={closePopup} />
 	</PopupWrapper>
 {/if}
