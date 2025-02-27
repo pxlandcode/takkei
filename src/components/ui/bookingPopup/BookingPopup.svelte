@@ -12,12 +12,16 @@
 	import { createBooking } from '$lib/services/api/bookingService';
 	import BookingPersonal from './bookingPersonal/BookingPersonal.svelte';
 	import OptionsSelect from '../../bits/options-select/OptionsSelect.svelte';
+	import { get } from 'svelte/store';
+	import { addNotification } from '$lib/stores/notificationStore';
+	import { AppNotificationType } from '$lib/types/notificationTypes';
 
 	// Store selected booking type component
 	let selectedBookingComponent: 'training' | 'meeting' = 'training';
 
-	// Shared booking object that updates dynamically
 	let bookingObject = {
+		user_id: null,
+		booked_by_id: null,
 		bookingType: null, // training or meeting
 		trainerId: null,
 		clientId: null,
@@ -25,18 +29,40 @@
 		locationId: null,
 		date: new Date().toISOString().split('T')[0],
 		time: '12:30',
+		endTime: '13:30',
 		repeat: false
 	};
 
 	// Fetch all required data
 	onMount(async () => {
+		const currentUser = get(user); // Get user store value
+		if (currentUser) {
+			bookingObject.user_id = currentUser.id;
+			bookingObject.booked_by_id = currentUser.id;
+		}
+
 		await Promise.all([fetchUsers(), fetchLocations(), fetchClients(), fetchBookingContents()]);
 	});
-
 	// API call to create booking
 	async function submitBooking() {
-		const result = await createBooking(bookingObject);
-		console.log('Booking Response:', result);
+		console.log('user', user);
+		console.log('bookingObject', bookingObject);
+		const type = selectedBookingComponent;
+		const result = await createBooking(bookingObject, type);
+
+		if (result.success) {
+			addNotification({
+				type: AppNotificationType.SUCCESS,
+				message: 'Bokning genomförd',
+				description: `Bokningen skapades klockan ${bookingObject.time} den ${bookingObject.date}.`
+			});
+		} else {
+			addNotification({
+				type: AppNotificationType.CANCEL,
+				message: 'Något gick fel',
+				description: `Något gick fel, försök igen eller kontakta IT.`
+			});
+		}
 	}
 </script>
 

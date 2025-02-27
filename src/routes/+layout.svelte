@@ -7,6 +7,7 @@
 	import HeaderComponent from '../components/view/header/HeaderComponent.svelte';
 	import LoadingOverlay from '../components/ui/loadingOverlay/LoadingOverlay.svelte';
 	import Dashboard from '../components/view/dashboard/Dashboard.svelte';
+	import NotificationContainer from '../components/ui/notification-container/NotificationContainer.svelte';
 
 	export let data;
 
@@ -40,5 +41,6 @@
 			</main>
 		</div>
 		<LoadingOverlay />
+		<NotificationContainer />
 	{/if}
 </ParaglideJS>

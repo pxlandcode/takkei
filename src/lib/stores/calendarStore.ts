@@ -224,14 +224,14 @@ const createCalendarStore = () => {
 
 export const calendarStore = createCalendarStore();
 
-function getWeekStartAndEnd(date: Date) {
+export function getWeekStartAndEnd(date: Date) {
 	const givenDate = new Date(date);
 
 	// Get the day of the week (0 = Sunday, 6 = Saturday)
 	const dayOfWeek = givenDate.getDay();
 
 	// Adjust to start the week on Monday
-	const diffToMonday = (dayOfWeek === 0 ? -6 : 1 - dayOfWeek) + 1;
+	const diffToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
 	const weekStart = new Date(givenDate);
 	weekStart.setDate(givenDate.getDate() + diffToMonday);
 

@@ -34,10 +34,13 @@
 	// ✅ Compute displayed days dynamically
 	let weekDays: { day: string; date: string }[] = [];
 
+	$: filters && console.log('filters', filters);
+
 	$: {
 		if (singleDayView && filters.date) {
 			// If `singleDayView` is enabled, show only the selected date
 			const selectedDate = new Date(filters.date);
+
 			weekDays = [
 				{
 					day: selectedDate.toLocaleDateString('sv-SE', { weekday: 'long' }),
@@ -77,8 +80,8 @@
 		return getStart(booking) + 60 * 60 * 1000;
 	}
 
-	// 📌 Layout bookings within a day for proper display
-	function layoutDayBookings(bookingsForDay: FullBooking[]) {
+	// Layout bookings within a day for proper display
+	function layoutDayBookings(bookingsForDay: FullBooking[], selectedDate?: Date) {
 		bookingsForDay.sort((a, b) => getStart(a) - getStart(b));
 
 		type LayoutInfo = {
@@ -97,9 +100,21 @@
 			return index;
 		}
 
+		// Ensure bookings are correctly placed in the selected date column
 		for (const booking of bookingsForDay) {
 			const start = getStart(booking);
 			const end = getEnd(booking);
+			const bookingStartDate = new Date(start);
+
+			// ✅ If single-day view, filter out bookings that are NOT for the selected date
+			if (selectedDate) {
+				const isSameDay =
+					bookingStartDate.getFullYear() === selectedDate.getFullYear() &&
+					bookingStartDate.getMonth() === selectedDate.getMonth() &&
+					bookingStartDate.getDate() === selectedDate.getDate();
+
+				if (!isSameDay) continue; // Skip bookings that are NOT for the selected day
+			}
 
 			// Remove finished bookings
 			active = active.filter((a) => a.endTime > start);
@@ -179,7 +194,7 @@
 		<!-- DAYS & BOOKINGS -->
 		{#each weekDays as { day, date }, dayIndex}
 			<div class="border-gray-dark relative flex flex-col gap-1 border-l">
-				{#each layoutDayBookings(bookings.filter((b) => shiftUTCIndex(new Date(b.booking.startTime)) === dayIndex)) as layoutItem, i}
+				{#each layoutDayBookings( bookings.filter( (b) => (singleDayView ? new Date(b.booking.startTime).toDateString() === new Date(filters.date).toDateString() : shiftUTCIndex(new Date(b.booking.startTime)) === dayIndex) ), singleDayView ? new Date(filters.date) : undefined ) as layoutItem, i}
 					<BookingSlot
 						booking={layoutItem.booking}
 						{startHour}

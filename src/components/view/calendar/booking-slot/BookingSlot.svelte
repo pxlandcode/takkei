@@ -48,9 +48,11 @@
 	})();
 
 	$: trainerInitials =
-		booking.trainer.firstname && booking.trainer.lastname
+		booking.trainer?.firstname && booking.trainer?.lastname
 			? `${booking.trainer.firstname[0]}${booking.trainer.lastname[0]}`
-			: (booking.trainer.firstname ?? 'T');
+			: booking.isPersonalBooking
+				? 'P'
+				: 'T';
 
 	$: colWidth = 100 / columnCount;
 	$: colLeft = columnIndex * colWidth;
@@ -119,34 +121,40 @@
 	"
 	use:tooltip={{ content: toolTipText }}
 >
-	<div class="flex flex-row">
-		<div
-			class="relative flex items-center justify-center gap-2 rounded-sm px-1"
-			style="color: {bookingColor}"
-		>
-			<svelte:component this={bookingIcon} size="20px" extraClasses="relative z-10" />
+	{#if !booking.isPersonalBooking}
+		<div class="flex flex-row">
+			<div
+				class="relative flex items-center justify-center gap-2 rounded-sm px-1"
+				style="color: {bookingColor}"
+			>
+				<svelte:component this={bookingIcon} size="20px" extraClasses="relative z-10" />
 
-			{#if width >= 120}
-				<div class="flex flex-col text-xs text-gray">
-					<p>{booking.additionalInfo.bookingContent.kind}</p>
+				{#if width >= 120}
+					<div class="flex flex-col text-xs text-gray">
+						<p>{booking.additionalInfo.bookingContent.kind}</p>
 
-					{#if width >= 125}
-						<p class="text-xxs">
-							{formatTime(booking.booking.startTime)} - {formatTime(endTime)}
-						</p>
-					{/if}
-				</div>
-			{/if}
+						{#if width >= 125}
+							<p class="text-xxs">
+								{formatTime(booking.booking.startTime)} - {formatTime(endTime)}
+							</p>
+						{/if}
+					</div>
+				{/if}
+			</div>
 		</div>
-	</div>
 
-	<div class="flex flex-row items-center text-xs">
-		<p class="whitespace-nowrap" bind:this={trainerNameElement}>
-			{useInitials ? trainerInitials : `${booking.trainer.firstname} ${booking.trainer.lastname}`}
-		</p>
-	</div>
+		<div class="flex flex-row items-center text-xs">
+			<p class="whitespace-nowrap" bind:this={trainerNameElement}>
+				{useInitials ? trainerInitials : `${booking.trainer.firstname} ${booking.trainer.lastname}`}
+			</p>
+		</div>
 
-	<div class="flex flex-row items-center text-xs">
-		<p>{getShortAddress(booking.location.name)}</p>
-	</div>
+		<div class="flex flex-row items-center text-xs">
+			<p>{booking.location.name ? getShortAddress(booking.location.name) : ''}</p>
+		</div>
+	{:else}
+		<div class="flex flex-row items-center text-xs">
+			<p>{booking.personalBooking.name}</p>
+		</div>
+	{/if}
 </div>

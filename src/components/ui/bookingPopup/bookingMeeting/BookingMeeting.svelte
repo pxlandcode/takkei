@@ -62,6 +62,7 @@
 			<Button icon="Trash" iconColor="red" variant="secondary" on:click={onDeSelectAllUsers} />
 		</div>
 	</div>
+	§
 
 	<!-- Location Selection -->
 	<Dropdown
@@ -83,13 +84,24 @@
 				class="w-full rounded-lg border p-2 text-gray"
 			/>
 		</div>
+	</div>
 
+	<div class="grid grid-cols-2 gap-4">
 		<div>
 			<label for="time" class="text-sm font-medium text-gray">Starttid</label>
 			<input
 				type="time"
 				id="time"
 				bind:value={bookingObject.time}
+				class="w-full rounded-lg border p-2 text-gray"
+			/>
+		</div>
+		<div>
+			<label for="endTime" class="text-sm font-medium text-gray">Sluttid</label>
+			<input
+				type="time"
+				id="endTime"
+				bind:value={bookingObject.endTime}
 				class="w-full rounded-lg border p-2 text-gray"
 			/>
 		</div>

@@ -3,7 +3,9 @@ const orangeDark = '#c47a0a';
 //gray
 
 //green
+const brightGreen = '#33c759';
 const green = '#29793D';
+const darkGreen = '#061B15';
 
 //bronze
 const lightBronze = '#FFF6EE';
@@ -49,7 +51,9 @@ module.exports = {
 					hover: primaryHover
 				},
 				green: {
-					DEFAULT: green
+					DEFAULT: green,
+					bright: brightGreen,
+					dark: darkGreen
 				},
 				gray: {
 					DEFAULT: takkeiGray,

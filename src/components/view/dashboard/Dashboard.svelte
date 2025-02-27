@@ -1,23 +1,18 @@
 <script lang="ts">
 	import CalendarModule from '../../ui/calendarModule/CalendarModule.svelte';
 	import DashboardHeader from '../../ui/dashboardHeader/DashboardHeader.svelte';
-	import { calendarStore } from '$lib/stores/calendarStore';
+	import { calendarStore, getWeekStartAndEnd } from '$lib/stores/calendarStore';
 	import { goto } from '$app/navigation';
 
-	function handleDateSelect(date: Date) {
-		console.log('date', date);
+	async function handleDateSelect(date: Date) {
 		// ✅ Update store
+
+		date.setHours(2, 0, 0, 0); // Reset time to midnight
 		calendarStore.goToWeek(date, fetch);
 
-		const weekStart = new Date(date);
-		weekStart.setDate(
-			weekStart.getDate() - (weekStart.getDay() === 0 ? 6 : weekStart.getDay() - 1)
-		); // Go to Monday
+		const { weekStart, weekEnd } = getWeekStartAndEnd(date);
 
-		const from = weekStart.toISOString().slice(0, 10);
-		const to = new Date(weekStart.setDate(weekStart.getDate() + 6)).toISOString().slice(0, 10);
-
-		goto(`/calendar?from=${from}&to=${to}`);
+		goto(`/calendar?from=${weekStart}&to=${weekEnd}`);
 	}
 </script>
 

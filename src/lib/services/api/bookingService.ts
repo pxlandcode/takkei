@@ -1,27 +1,30 @@
-export async function createBooking(bookingObject: any) {
+import { addNotification } from '$lib/stores/notificationStore';
+import { AppNotificationType } from '$lib/types/notificationTypes';
+
+export async function createBooking(
+	bookingObject: any,
+	type: 'training' | 'personal' | 'meeting' = 'training'
+) {
 	try {
 		// Determine which API to call
 		let apiUrl =
-			bookingObject.bookingType?.value === 'personal'
+			type === 'personal' || type === 'meeting'
 				? '/api/create-personal-booking'
 				: '/api/create-booking';
 
 		let requestData;
 
-		if (
-			bookingObject.bookingType?.value === 'personal' ||
-			bookingObject.bookingType?.value === 'meeting'
-		) {
+		if (type === 'personal' || type === 'meeting') {
 			requestData = {
 				name: bookingObject.bookingType?.label ?? 'Personal Booking',
 				text: '',
-				user_id: bookingObject.attendees[0] ?? null, // First attendee as main user
+				user_id: bookingObject.user_id ?? null, // First attendee as main user
 				user_ids: bookingObject.attendees,
 				start_time: `${bookingObject.date}T${bookingObject.time}:00`,
 				end_time: `${bookingObject.date}T${parseInt(bookingObject.time) + 1}:00`, // Example: 1-hour duration
 				kind: bookingObject.bookingType?.value ?? 'Corporate',
 				repeat_of: bookingObject.repeat ? 1 : null,
-				booked_by_id: 1 // Replace with actual user ID
+				booked_by_id: bookingObject.booked_by_id
 			};
 		} else {
 			requestData = {
@@ -33,10 +36,12 @@ export async function createBooking(bookingObject: any) {
 				location_id: bookingObject.locationId ?? null,
 				booking_content_id: bookingObject.bookingType?.value ?? null,
 				status: 'New',
-				created_by_id: 1, // Replace with actual user ID
+				created_by_id: bookingObject.booked_by_id,
 				repeat_index: bookingObject.repeat ? 1 : null
 			};
 		}
+
+		console.log('Request Data:', requestData);
 
 		// Make API request
 		const response = await fetch(apiUrl, {
@@ -46,6 +51,8 @@ export async function createBooking(bookingObject: any) {
 		});
 
 		const responseData = await response.json();
+
+		console.log('Response Data:', responseData);
 		if (!response.ok) throw new Error(responseData.error || 'Booking failed');
 
 		return {
@@ -55,6 +62,7 @@ export async function createBooking(bookingObject: any) {
 		};
 	} catch (error) {
 		console.error('Error Submitting Booking:', error);
+
 		return {
 			success: false,
 			message: 'Error creating booking',

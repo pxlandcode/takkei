@@ -5,14 +5,16 @@ export const POST: RequestHandler = async ({ request }) => {
 	try {
 		const data = await request.json();
 
-		// Extract personal booking details from request
+		console.log('Data:', data);
+
+		// Extract personal booking details
 		const name = data.name ?? null;
 		const text = data.text ?? null;
 		const user_id = data.user_id ?? null;
-		const user_ids = data.user_ids?.length > 0 ? `{${data.user_ids.join(',')}}` : null;
+		const user_ids = data.user_ids?.length > 0 ? data.user_ids : null;
 		const start_time = data.start_time ?? new Date().toISOString();
 		const end_time = data.end_time ?? new Date().toISOString();
-		const kind = data.kind ?? 'General';
+		const kind = data.kind ?? 'Personal';
 		const repeat_of = data.repeat_of ?? null;
 		const booked_by_id = data.booked_by_id ?? null;
 
@@ -22,7 +24,7 @@ export const POST: RequestHandler = async ({ request }) => {
       INSERT INTO personal_bookings 
         (name, text, user_id, start_time, end_time, kind, repeat_of, booked_by_id, user_ids, created_at, updated_at)
       VALUES
-        ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), NOW())
+        ($1, $2, $3, $4, $5, $6, $7, $8, $9::int[], NOW(), NOW())
       RETURNING id
       `,
 			[name, text, user_id, start_time, end_time, kind, repeat_of, booked_by_id, user_ids]
