@@ -122,7 +122,7 @@
 	onMount(updateTodayRow);
 </script>
 
-<div class="relative w-[320px] p-4 text-sm font-light glass rounded-4xl">
+<div class="relative h-auto w-[320px] p-4 text-sm font-light glass rounded-4xl">
 	<!-- Header -->
 	<div class="mb-4 flex items-center justify-between">
 		<div class="flex w-36 flex-row items-center justify-between text-white">
@@ -146,7 +146,7 @@
 	</div>
 
 	<!-- Days of the week -->
-	<div class="flex h-full w-full flex-col items-center justify-center">
+	<div class="flex w-full flex-col items-center justify-center">
 		<div class="grid grid-cols-7 gap-x-3 text-white">
 			{#each daysOfWeek as day}
 				<div class="h-8 w-8 text-center">{day}</div>

@@ -12,6 +12,7 @@ export type CalendarFilters = {
 	locationIds?: number[];
 	trainerIds?: number[] | null;
 	clientIds?: number[] | null;
+	personalBookings?: boolean;
 };
 
 /**
@@ -26,7 +27,8 @@ const createCalendarStore = () => {
 			roomId: null,
 			locationIds: [],
 			trainerIds: null,
-			clientIds: null
+			clientIds: null,
+			personalBookings: false
 		},
 		bookings: []
 	});
@@ -44,6 +46,11 @@ const createCalendarStore = () => {
 			storeData.filters.to = weekEnd;
 		}
 
+		// ✅ Only auto-set personalBookings if it wasn't explicitly set
+		if (storeData.filters.personalBookings === undefined) {
+			storeData.filters.personalBookings = storeData.filters.trainerIds?.length === 1;
+		}
+
 		const newBookings = await fetchBookings(storeData.filters, fetchFn);
 
 		update((store) => ({
@@ -54,21 +61,21 @@ const createCalendarStore = () => {
 		console.log('Bookings:', newBookings);
 	}
 
-	/**
-	 * Update filters & fetch new bookings
-	 */
 	function updateFilters(newFilters: Partial<CalendarFilters>, fetchFn: typeof fetch) {
 		let storeData;
 		subscribe((store) => (storeData = store))();
-		console.log('storeData', storeData);
+
 		update((store) => ({
 			...store,
 			filters: {
 				...store.filters,
-				...newFilters
+				...newFilters,
+				// ✅ Only auto-set if `personalBookings` wasn't explicitly set
+				personalBookings: newFilters.personalBookings ?? newFilters.trainerIds?.length === 1
 			}
 		}));
 
+		console.log('newFilters', newFilters);
 		refresh(fetchFn);
 	}
 

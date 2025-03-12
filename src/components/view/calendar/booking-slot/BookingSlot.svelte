@@ -11,6 +11,8 @@
 	import { IconClock, IconDumbbell, IconGymnastics } from '$lib/icons';
 
 	import type { FullBooking } from '$lib/types/calendarTypes';
+	import { user } from '$lib/stores/userStore';
+	import IconMobility from '$icons/IconMobility.svelte';
 
 	export let booking: FullBooking;
 	export let startHour: number;
@@ -42,6 +44,8 @@
 				return IconDumbbell;
 			case 'gymnastics':
 				return IconGymnastics;
+			case 'mobility':
+				return IconMobility;
 			default:
 				return IconClock;
 		}
@@ -110,7 +114,8 @@
 	bind:this={bookingSlot}
 	class="absolute z-20 flex flex-col gap-[2px] rounded-md p-1 text-xs text-gray shadow-sm {useInitials
 		? 'items-center'
-		: 'items-start'}"
+		: 'items-start'}
+        {booking.trainer?.id === $user.id ? 'border ' : ''}"
 	style="
 		top: {topOffset}px;
 		height: {meetingHeight - 4}px;
@@ -118,6 +123,7 @@
 		width: calc({colWidth}% - 4px);
 	
         background-color: {bookingColor}20;
+        border-color: {bookingColor};
 	"
 	use:tooltip={{ content: toolTipText }}
 >

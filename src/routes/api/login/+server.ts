@@ -28,7 +28,7 @@ export async function POST({ request, cookies }) {
 		secure: process.env.NODE_ENV === 'production',
 		sameSite: 'strict',
 		path: '/',
-		maxAge: 60 * 15 // 1 day
+		maxAge: 60 * 30
 	});
 
 	return new Response(JSON.stringify({ user }), {

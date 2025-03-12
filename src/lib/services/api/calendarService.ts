@@ -45,7 +45,7 @@ export async function fetchBookings(
 
 		let transformedPersonalBookings: FullBooking[] = [];
 		// Fetch personal bookings
-		if (filters.trainerIds?.length) {
+		if (filters.personalBookings) {
 			const personalBookingsUrl = `/api/fetch-personal-bookings?${params.toString()}`;
 
 			const personalBookingsResponse = await fetchFn(personalBookingsUrl);

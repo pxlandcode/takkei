@@ -28,6 +28,16 @@ import IconTraining from './IconTraining.svelte';
 import IconMeeting from './IconMeeting.svelte';
 import IconCategory from './IconCategory.svelte';
 import IconClients from './IconClients.svelte';
+import IconRunning from './IconRunning.svelte';
+import IconNewspaper from './IconNewspaper.svelte';
+import IconCharts from './IconCharts.svelte';
+import IconSettings from './IconSettings.svelte';
+import IconMobility from './IconMobility.svelte';
+import IconGoTo from './IconGoTo.svelte';
+import IconContact from './IconContact.svelte';
+import IconActions from './IconActions.svelte';
+import IconSort from './IconSort.svelte';
+import IconNotes from './IconNotes.svelte';
 
 export {
 	IconClose,
@@ -59,5 +69,15 @@ export {
 	IconTraining,
 	IconMeeting,
 	IconCategory,
-	IconClients
+	IconClients,
+	IconRunning,
+	IconNewspaper,
+	IconCharts,
+	IconSettings,
+	IconMobility,
+	IconGoTo,
+	IconContact,
+	IconActions,
+	IconSort,
+	IconNotes
 };

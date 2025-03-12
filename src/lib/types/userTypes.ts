@@ -13,6 +13,7 @@ export type User = {
 	email: string;
 	mobile: string;
 	default_location_id: number | null;
+	default_location?: string | null;
 	active: boolean;
 	salt: string;
 	crypted_password: string;

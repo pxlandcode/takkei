@@ -11,6 +11,8 @@
 	import { calendarStore } from '$lib/stores/calendarStore';
 	import { get } from 'svelte/store';
 	import FilterBox from '../../bits/filterBox/FilterBox.svelte';
+	import { addNotification } from '$lib/stores/notificationStore';
+	import { AppNotificationType } from '$lib/types/notificationTypes';
 
 	// Reactive stores
 	let filters = get(calendarStore).filters;
@@ -79,10 +81,17 @@
 			{
 				trainerIds: selectedUsers.map((user) => user.id),
 				locationIds: selectedLocations.map((location) => location.id),
-				clientIds: selectedClients.map((client) => client.id)
+				clientIds: selectedClients.map((client) => client.id),
+				personalBookings: selectedUsers.length === 1
 			},
 			fetch
 		);
+
+		addNotification({
+			type: AppNotificationType.NOTE,
+			message: 'Filter uppdaterade',
+			description: `Filtrerar bokningar baserat på nya filter. `
+		});
 		onClose();
 	}
 </script>

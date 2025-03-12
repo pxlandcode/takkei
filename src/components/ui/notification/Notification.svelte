@@ -23,8 +23,8 @@
 </script>
 
 <div
-	class={`relative mb-2 flex w-80 cursor-pointer items-start gap-2 rounded-lg border px-4 py-2 shadow-md transition-transform  ${type === 'success' ? 'bg-green-bright border-green-dark ' : type === 'cancel' ? 'border-red-dark bg-red' : 'border-blue-950 bg-blue-500'} text-white`}
-	transition:fly={{ x: 300, duration: 400 }}
+	class={`relative mb-2 flex w-80 cursor-pointer items-start gap-2 rounded-lg border px-4 py-2 shadow-md transition-transform  ${type === 'success' ? 'bg-green-bright border-green-dark' : type === 'cancel' ? 'border-red-dark bg-red' : 'border-blue-950 bg-blue-500'} text-white`}
+	transition:fly={{ x: -300, duration: 400 }}
 	role="alert"
 >
 	<div class="flex-1">

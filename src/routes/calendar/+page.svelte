@@ -8,6 +8,8 @@
 	import PopupWrapper from '../../components/ui/popupWrapper/PopupWrapper.svelte';
 	import CalendarComponent from '../../components/view/calendar/CalendarComponent.svelte';
 
+	export let data;
+
 	let filterOpen = false;
 
 	let bookingOpen = false;
@@ -22,6 +24,12 @@
 			year: 'numeric'
 		})
 	);
+
+	if (data.firstVisit) {
+		console.log('datafilters', data.filters);
+		calendarStore.updateFilters(data.filters, fetch);
+		data.firstVisit = false;
+	}
 
 	let calendarView = { value: false, label: 'Vecka', icon: 'Week' };
 
