@@ -45,8 +45,6 @@
 	});
 	// API call to create booking
 	async function submitBooking() {
-		console.log('user', user);
-		console.log('bookingObject', bookingObject);
 		const type = selectedBookingComponent;
 		const result = await createBooking(bookingObject, type);
 

@@ -5,8 +5,6 @@ export const POST: RequestHandler = async ({ request }) => {
 	try {
 		const data = await request.json();
 
-		console.log('Data:', data);
-
 		// Extract personal booking details
 		const name = data.name ?? null;
 		const text = data.text ?? null;

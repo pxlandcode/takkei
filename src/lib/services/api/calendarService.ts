@@ -33,7 +33,6 @@ export async function fetchBookings(
 	try {
 		// Fetch standard bookings
 		const bookingsUrl = `/api/bookings?${params.toString()}`;
-		console.log('Fetching standard bookings:', bookingsUrl);
 		const bookingsResponse = await fetchFn(bookingsUrl);
 
 		if (!bookingsResponse.ok) {

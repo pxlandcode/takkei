@@ -21,8 +21,6 @@ export async function GET({ params }) {
     `;
 
 	try {
-		console.log('Executing Query:', queryStr, 'with params:', [userId]);
-
 		const result = await query(queryStr, [userId]);
 
 		if (result.length === 0) {

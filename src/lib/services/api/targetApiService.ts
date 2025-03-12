@@ -25,14 +25,10 @@ async function processTarget(target: any) {
 
 	let achieved = 0;
 
-	console.log('Target:', target);
-	console.log('Rules:', rules);
 	if (rules.filter_by === 'internal_education' && rules.value === true) {
 		achieved = await getInternalEducationCount(target);
 	} else if (rules.filter_by === 'booking_count') {
-		console.log('Booking count target:', target);
 		achieved = await getBookingCount(target);
-		console.log('Achieved:', achieved);
 	} else if (rules.filter_by === 'location' && target.location_ids?.length > 0) {
 		achieved = await getBookingCountByLocation(target);
 	}
@@ -64,7 +60,6 @@ async function getBookingCount(target: any) {
 	const params = [target.user_ids, target.start_date, target.end_date];
 	const result = await query(bookingQuery, params);
 
-	console.log('Booking count result:', result);
 	return Number(result[0].count);
 }
 

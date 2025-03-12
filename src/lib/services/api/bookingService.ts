@@ -41,8 +41,6 @@ export async function createBooking(
 			};
 		}
 
-		console.log('Request Data:', requestData);
-
 		// Make API request
 		const response = await fetch(apiUrl, {
 			method: 'POST',
@@ -52,7 +50,6 @@ export async function createBooking(
 
 		const responseData = await response.json();
 
-		console.log('Response Data:', responseData);
 		if (!response.ok) throw new Error(responseData.error || 'Booking failed');
 
 		return {

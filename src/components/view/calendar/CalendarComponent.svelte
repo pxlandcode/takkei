@@ -34,8 +34,6 @@
 	// ✅ Compute displayed days dynamically
 	let weekDays: { day: string; date: string }[] = [];
 
-	$: filters && console.log('filters', filters);
-
 	$: {
 		if (singleDayView && filters.date) {
 			// If `singleDayView` is enabled, show only the selected date

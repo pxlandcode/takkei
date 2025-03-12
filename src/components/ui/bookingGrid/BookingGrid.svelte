@@ -59,7 +59,7 @@
 	}
 </script>
 
-<div class="rounded-lg bg-white p-6 shadow-md">
+<div class="max-w-[820px] rounded-lg bg-white p-6 shadow-md">
 	<div class="mb-4 flex flex-row items-center justify-between">
 		<h4 class="text-xl font-semibold">Bokningar senaste året</h4>
 		<div class="flex flex-row items-center gap-[2px]">
@@ -124,6 +124,7 @@
 		justify-content: space-between;
 		gap: 2px;
 		margin-bottom: 5px;
+		max-width: 740px;
 	}
 
 	.month-label {

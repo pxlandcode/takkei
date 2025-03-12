@@ -26,7 +26,6 @@
 	);
 
 	if (data.firstVisit) {
-		console.log('datafilters', data.filters);
 		calendarStore.updateFilters(data.filters, fetch);
 		data.firstVisit = false;
 	}

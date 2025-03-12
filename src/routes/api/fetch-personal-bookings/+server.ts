@@ -38,7 +38,6 @@ export async function GET({ url }) {
 	}
 
 	try {
-		console.log('Executing Personal Bookings Query:', queryStr, params);
 		const result = await query(queryStr, params);
 		return new Response(JSON.stringify(result), { status: 200 });
 	} catch (error) {

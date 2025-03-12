@@ -57,8 +57,6 @@ const createCalendarStore = () => {
 			...store,
 			bookings: newBookings
 		}));
-
-		console.log('Bookings:', newBookings);
 	}
 
 	function updateFilters(newFilters: Partial<CalendarFilters>, fetchFn: typeof fetch) {
@@ -75,7 +73,6 @@ const createCalendarStore = () => {
 			}
 		}));
 
-		console.log('newFilters', newFilters);
 		refresh(fetchFn);
 	}
 

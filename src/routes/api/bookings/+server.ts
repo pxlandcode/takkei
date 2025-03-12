@@ -30,8 +30,6 @@ export async function GET({ url }) {
     `;
 
 	const params: (string | number | number[])[] = [];
-	console.log('fromDate', fromDate);
-	console.log('toDate', toDate);
 
 	// Date range filtering
 	if (fromDate && toDate) {
@@ -66,7 +64,6 @@ export async function GET({ url }) {
 	}
 
 	try {
-		console.log('Executing Query:', queryStr, params);
 		const result = await query(queryStr, params);
 		return new Response(JSON.stringify(result), { status: 200 });
 	} catch (error) {

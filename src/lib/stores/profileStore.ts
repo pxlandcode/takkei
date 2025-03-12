@@ -19,15 +19,12 @@ const createProfileStore = () => {
 	 * Fetch User Details and Bookings Using `userService`
 	 */
 	async function loadUser(trainerId: number, fetchFn: typeof fetch) {
-		console.log(`[profileStore] Loading user: ${trainerId}`);
-
 		const data = await fetchUser(trainerId, fetchFn);
 
 		if (data) {
-			console.log(`[profileStore] Loaded user successfully:`, data);
 			update((store) => {
 				const newUsers = { ...store.users, [trainerId]: data };
-				console.log(`[profileStore] Updated store:`, newUsers);
+
 				return { ...store, users: newUsers };
 			});
 		} else {

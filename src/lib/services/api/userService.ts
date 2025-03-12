@@ -15,8 +15,6 @@ export async function fetchUser(
 		if (!userResponse.ok) throw new Error('User not found');
 		const userData: User = await userResponse.json();
 
-		console.log('User Data:', userData);
-
 		// Define filters for the last year
 		const today = new Date().toISOString().slice(0, 10);
 		const lastYear = new Date();
@@ -32,8 +30,6 @@ export async function fetchUser(
 
 		// Fetch bookings using `fetchBookings()`
 		const bookingsData: FullBooking[] = await fetchBookings(bookingFilters, fetchFn);
-
-		console.log('Bookings Data:', bookingsData);
 
 		return { user: userData, bookings: bookingsData };
 	} catch (error) {

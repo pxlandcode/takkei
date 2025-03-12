@@ -8,7 +8,6 @@ export async function GET() {
     `;
 
 	try {
-		console.log('Executing Query:', queryStr);
 		const result = await query(queryStr);
 		return new Response(JSON.stringify(result), { status: 200 });
 	} catch (error) {
