@@ -63,6 +63,8 @@ const createCalendarStore = () => {
 		let storeData;
 		subscribe((store) => (storeData = store))();
 
+		console.log('[calendarStore] Updating filters:', newFilters);
+
 		update((store) => ({
 			...store,
 			filters: {
@@ -72,6 +74,7 @@ const createCalendarStore = () => {
 				personalBookings: newFilters.personalBookings ?? newFilters.trainerIds?.length === 1
 			}
 		}));
+		console.log('[calendarStore] Updated filters:', storeData.filters);
 
 		refresh(fetchFn);
 	}

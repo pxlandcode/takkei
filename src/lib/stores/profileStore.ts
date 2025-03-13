@@ -7,7 +7,7 @@ import { fetchUser } from '$lib/services/api/userService';
  * Type for the Profile Store
  */
 type ProfileStoreData = {
-	users: Record<number, { user: User; bookings: FullBooking[] }>;
+	users: Record<number, { user: User; bookingsShort: FullBooking[] }>;
 };
 
 const createProfileStore = () => {
@@ -56,8 +56,8 @@ const createProfileStore = () => {
 	return {
 		subscribe,
 		loadUser,
-		getUser, // ✅ Now we can get a user
-		getBookings, // ✅ Now we can get bookings
+		getUser,
+		getBookings,
 		reset
 	};
 };

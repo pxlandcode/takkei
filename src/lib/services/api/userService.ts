@@ -28,7 +28,6 @@ export async function fetchUser(
 			personalBooking: false
 		};
 
-		// Fetch bookings using `fetchBookings()`
 		const bookingsData: FullBooking[] = await fetchBookings(bookingFilters, fetchFn);
 
 		return { user: userData, bookings: bookingsData };

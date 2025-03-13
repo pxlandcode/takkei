@@ -38,6 +38,8 @@ import IconContact from './IconContact.svelte';
 import IconActions from './IconActions.svelte';
 import IconSort from './IconSort.svelte';
 import IconNotes from './IconNotes.svelte';
+import IconStarCircle from './IconStarCircle.svelte';
+import IconCancel from './IconCancel.svelte';
 
 export {
 	IconClose,
@@ -79,5 +81,7 @@ export {
 	IconContact,
 	IconActions,
 	IconSort,
-	IconNotes
+	IconNotes,
+	IconStarCircle,
+	IconCancel
 };

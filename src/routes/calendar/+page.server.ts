@@ -1,5 +1,4 @@
 import type { PageServerLoad } from './$types';
-import { fetchBookings } from '$lib/services/api/calendarService';
 import type { CalendarFilters } from '$lib/stores/calendarStore';
 
 /**

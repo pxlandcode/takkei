@@ -3,7 +3,10 @@ import type { BookingFilters } from './types';
 
 export async function fetchBookings(
 	filters: BookingFilters,
-	fetchFn: typeof fetch
+	fetchFn: typeof fetch,
+	limit?: number, // ✅ Now optional (unlimited if not set)
+	offset: number = 0, // ✅ Default offset is 0
+	fetchAllStatuses: boolean = false // ✅ Allows fetching cancelled bookings
 ): Promise<FullBooking[]> {
 	const params = new URLSearchParams();
 
@@ -18,7 +21,7 @@ export async function fetchBookings(
 		params.append('date', today);
 	}
 
-	// Add optional filters
+	// ✅ Add optional filters
 	if (filters.roomId != null) params.append('roomId', filters.roomId.toString());
 	if (filters.locationIds?.length)
 		filters.locationIds.forEach((id) => params.append('locationId', id.toString()));
@@ -27,8 +30,18 @@ export async function fetchBookings(
 	if (filters.clientIds?.length)
 		filters.clientIds.forEach((id) => params.append('clientId', id.toString()));
 	if (filters.userIds?.length)
-		// New: userIds for personal_bookings
 		filters.userIds.forEach((id) => params.append('userId', id.toString()));
+
+	// ✅ Apply pagination *only* if `limit` is set
+	if (limit !== undefined) {
+		params.append('limit', limit.toString());
+		params.append('offset', offset.toString());
+	}
+
+	// ✅ Optionally include cancelled bookings
+	if (fetchAllStatuses) {
+		params.append('includeCancelled', 'true');
+	}
 
 	try {
 		// Fetch standard bookings
@@ -43,10 +56,10 @@ export async function fetchBookings(
 		const standardBookings = await bookingsResponse.json();
 
 		let transformedPersonalBookings: FullBooking[] = [];
-		// Fetch personal bookings
+		// Fetch personal bookings with pagination
 		if (filters.personalBookings) {
-			const personalBookingsUrl = `/api/fetch-personal-bookings?${params.toString()}`;
-
+			const personalParams = new URLSearchParams(params);
+			const personalBookingsUrl = `/api/fetch-personal-bookings?${personalParams.toString()}`;
 			const personalBookingsResponse = await fetchFn(personalBookingsUrl);
 
 			if (!personalBookingsResponse.ok) {

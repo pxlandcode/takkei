@@ -4,6 +4,7 @@
 	import Button from '../../bits/button/Button.svelte';
 	import BookingGrid from '../bookingGrid/BookingGrid.svelte';
 	import ProfileEdit from '../ProfileEdit/ProfileEdit.svelte';
+	import AchievementsComponent from '../achievementsComponent/AchievementsComponent.svelte';
 
 	export let trainer;
 
@@ -62,4 +63,5 @@
 	</div>
 
 	<BookingGrid trainerId={trainer.id} />
+	<AchievementsComponent userId={trainer.id} />
 </div>

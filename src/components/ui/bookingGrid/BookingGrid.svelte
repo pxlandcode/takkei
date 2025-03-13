@@ -4,23 +4,28 @@
 	import { tooltip } from '$lib/actions/tooltip';
 
 	export let trainerId;
+	export let daysToShow = 365; // Default to 1 year (Can be 31, 180, etc.)
 	let trainerBookings = [];
 
-	// ✅ Define `days` to hold a year's worth of data
+	// ✅ Compute start date based on daysToShow
 	const today = new Date();
-	const lastYear = new Date();
-	lastYear.setFullYear(today.getFullYear() - 1);
+	const startDate = new Date();
+	startDate.setDate(today.getDate() - daysToShow);
 
 	let days = [];
 	let months = [];
-	let weekStart = new Date(lastYear);
-	weekStart.setDate(lastYear.getDate() - ((weekStart.getDay() + 6) % 7)); // Ensure Monday start
+	let weekStart = new Date(startDate);
+	weekStart.setDate(startDate.getDate() - ((weekStart.getDay() + 6) % 7)); // Ensure Monday start
 
 	const weekDays = ['Mån', 'Tis', 'Ons', 'Tors', 'Fre', 'Lör', 'Sön'];
 
-	// ✅ Populate `days` with 365 days, mapped to weeks
+	// ✅ Track grid width
+	let gridContainer;
+	let gridWidth = 0;
+
+	// ✅ Populate days dynamically based on daysToShow
 	let monthLoop = null;
-	for (let i = 0; i < 365; i++) {
+	for (let i = 0; i < daysToShow; i++) {
 		const date = new Date(weekStart);
 		date.setDate(weekStart.getDate() + i);
 
@@ -28,21 +33,26 @@
 			monthLoop = date.getMonth();
 			months.push({
 				name: date.toLocaleString('sv-SE', { month: 'short' }),
-				index: Math.floor(days.length / 7) + 1 // Position at week start
+				index: Math.floor(days.length / 7) + 1 // Adjusted for different lengths
 			});
 		}
 
 		days.push({ date, count: 0 });
 	}
 
-	// ✅ Fetch user and bookings when component mounts
+	// ✅ Fetch bookings when component mounts
 	onMount(async () => {
 		await profileStore.loadUser(trainerId, fetch);
 		trainerBookings = profileStore.getBookings(trainerId);
 		updateDays();
+
+		// ✅ Get grid width
+		if (gridContainer) {
+			gridWidth = gridContainer.offsetWidth;
+		}
 	});
 
-	// ✅ Function to update `days` based on `trainerBookings`
+	// ✅ Function to update days with booking counts
 	function updateDays() {
 		days = days.map((day) => ({
 			...day,
@@ -61,15 +71,10 @@
 
 <div class="max-w-[820px] rounded-lg bg-white p-6 shadow-md">
 	<div class="mb-4 flex flex-row items-center justify-between">
-		<h4 class="text-xl font-semibold">Bokningar senaste året</h4>
+		<h4 class="text-xl font-semibold">Bokningar senaste {daysToShow} dagar</h4>
 		<div class="flex flex-row items-center gap-[2px]">
 			<p class="day-label">0</p>
-			<div
-				class="cell bg-gray-200"
-				use:tooltip={{
-					content: `0 bokningar`
-				}}
-			></div>
+			<div use:tooltip={{ content: '0 bokningar' }} class="cell bg-gray-200"></div>
 			<div use:tooltip={{ content: '1 bokning' }} class="cell bg-orange/10"></div>
 			<div use:tooltip={{ content: '2 bokningar' }} class="cell bg-orange/30"></div>
 			<div use:tooltip={{ content: '3 bokningar' }} class="cell bg-orange/55"></div>
@@ -79,13 +84,14 @@
 		</div>
 	</div>
 
-	<!-- Month Labels -->
-	<div class="months">
+	<!-- Month Labels (Dynamic Width) -->
+	<div class="months" style="width: {gridWidth}px;">
 		{#each months as month}
 			<div class="month-label" style="grid-column: {month.index};">{month.name}</div>
 		{/each}
 	</div>
 
+	<!-- Booking Grid -->
 	<div class="grid-wrapper">
 		<!-- Weekday Labels -->
 		<div class="weekdays">
@@ -95,7 +101,11 @@
 		</div>
 
 		<!-- Booking Grid -->
-		<div class="grid-container">
+		<div
+			class="grid-container"
+			style="grid-template-columns: repeat({Math.ceil(daysToShow / 7)}, 12px);"
+			bind:this={gridContainer}
+		>
 			{#each days as day, i}
 				<div
 					use:tooltip={{
@@ -116,7 +126,6 @@
 </div>
 
 <style>
-	/* Month Labels */
 	.months {
 		margin-left: 30px;
 		display: flex;
@@ -124,7 +133,7 @@
 		justify-content: space-between;
 		gap: 2px;
 		margin-bottom: 5px;
-		max-width: 740px;
+		max-width: 100%;
 	}
 
 	.month-label {
@@ -137,7 +146,6 @@
 		display: flex;
 	}
 
-	/* Weekday Labels */
 	.weekdays {
 		display: grid;
 		grid-template-rows: repeat(7, 12px);
@@ -156,7 +164,7 @@
 
 	.grid-container {
 		display: grid;
-		grid-template-columns: repeat(53, 12px);
+		grid-template-columns: repeat(53, 12px); /* Adjusts based on daysToShow */
 		grid-template-rows: repeat(7, 12px);
 		gap: 2px;
 	}

@@ -3,13 +3,22 @@ import { query } from '$lib/db';
 export async function GET({ url }) {
 	const fromDate = url.searchParams.get('from');
 	const toDate = url.searchParams.get('to');
-	const date = url.searchParams.get('date'); // If no range is given, get a single date
+	const date = url.searchParams.get('date');
+	const includeCancelled = url.searchParams.get('includeCancelled') === 'true';
 
 	const roomId = url.searchParams.get('roomId');
 	const locationIds = url.searchParams.getAll('locationId');
-	const trainerIds = url.searchParams.getAll('trainerId'); // Allow multiple trainers
+	const trainerIds = url.searchParams.getAll('trainerId');
 	const clientId = url.searchParams.get('clientId');
 
+	// ✅ Optional Pagination
+	const limitParam = url.searchParams.get('limit');
+	const offsetParam = url.searchParams.get('offset');
+
+	const limit = limitParam ? parseInt(limitParam) : null;
+	const offset = offsetParam ? parseInt(offsetParam) : 0;
+
+	const params: (string | number | number[])[] = [];
 	let queryStr = `
         SELECT bookings.*, 
                rooms.name AS room_name, 
@@ -26,12 +35,15 @@ export async function GET({ url }) {
         LEFT JOIN users ON bookings.trainer_id = users.id
         LEFT JOIN clients ON bookings.client_id = clients.id
         LEFT JOIN booking_contents ON bookings.booking_content_id = booking_contents.id
-        WHERE 1=1 AND bookings.status != 'Cancelled'
+        WHERE 1=1
     `;
 
-	const params: (string | number | number[])[] = [];
+	// ✅ Exclude cancelled bookings by default
+	if (!includeCancelled) {
+		queryStr += ` AND bookings.status NOT IN ('Cancelled', 'Late_cancelled')`;
+	}
 
-	// Date range filtering
+	// ✅ Date range filtering
 	if (fromDate && toDate) {
 		params.push(fromDate, toDate);
 		queryStr += ` AND bookings.start_time BETWEEN TO_DATE($${params.length - 1}, 'YYYY-MM-DD') 
@@ -39,13 +51,9 @@ export async function GET({ url }) {
 	} else if (date) {
 		params.push(date);
 		queryStr += ` AND DATE(bookings.start_time) = TO_DATE($${params.length}, 'YYYY-MM-DD')`;
-	} else {
-		const today = new Date().toISOString().slice(0, 10);
-		params.push(today);
-		queryStr += ` AND DATE(bookings.start_time) = TO_DATE($${params.length}, 'YYYY-MM-DD')`;
 	}
 
-	// Additional filters
+	// ✅ Additional filters
 	if (roomId) {
 		params.push(Number(roomId));
 		queryStr += ` AND bookings.room_id = $${params.length}`;
@@ -61,6 +69,14 @@ export async function GET({ url }) {
 	if (clientId) {
 		params.push(Number(clientId));
 		queryStr += ` AND bookings.client_id = $${params.length}`;
+	}
+
+	// ✅ Apply pagination *only* if `limit` is set
+	if (limit !== null) {
+		queryStr += ` ORDER BY bookings.start_time DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+		params.push(limit, offset);
+	} else {
+		queryStr += ` ORDER BY bookings.start_time DESC`; // No limit, return all results
 	}
 
 	try {

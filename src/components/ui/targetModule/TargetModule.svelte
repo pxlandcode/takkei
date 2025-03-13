@@ -12,6 +12,8 @@
 		const formattedDate = selectedDate.toISOString().slice(0, 10);
 		updateTargets(userId, formattedDate);
 	});
+
+	console.log($targetStore);
 </script>
 
 <div class="relative w-[320px] p-4 text-sm font-light glass rounded-4xl">

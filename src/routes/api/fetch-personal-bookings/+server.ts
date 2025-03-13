@@ -5,7 +5,14 @@ export async function GET({ url }) {
 	const toDate = url.searchParams.get('to');
 	const date = url.searchParams.get('date');
 
-	const userIds = url.searchParams.getAll('trainerId');
+	const userIds = url.searchParams.getAll('trainerId').map(Number).filter(Boolean);
+
+	// ✅ Optional Pagination
+	const limitParam = url.searchParams.get('limit');
+	const offsetParam = url.searchParams.get('offset');
+
+	const limit = limitParam ? parseInt(limitParam) : null;
+	const offset = offsetParam ? parseInt(offsetParam) : 0;
 
 	const params: (string | number | number[])[] = [];
 	let queryStr = `
@@ -17,7 +24,7 @@ export async function GET({ url }) {
         WHERE 1=1
     `;
 
-	// Date range filtering
+	// ✅ Date range filtering
 	if (fromDate && toDate) {
 		params.push(fromDate, toDate);
 		queryStr += ` AND personal_bookings.start_time BETWEEN TO_DATE($${params.length - 1}, 'YYYY-MM-DD') 
@@ -27,14 +34,19 @@ export async function GET({ url }) {
 		queryStr += ` AND DATE(personal_bookings.start_time) = TO_DATE($${params.length}, 'YYYY-MM-DD')`;
 	}
 
-	// Filtering by `user_ids`
+	// ✅ Filtering by `trainerId`
 	if (userIds.length > 0) {
-		params.push(userIds.map(Number));
-		queryStr += ` AND personal_bookings.user_ids @> ARRAY[$${params.length}::int[]]`;
+		params.push(userIds);
+		queryStr += ` AND personal_bookings.user_id = ANY($${params.length}::int[])`;
+	}
 
-		if (userIds.length > 3) {
-			queryStr += ` AND personal_bookings.kind = 'Meeting'`;
-		}
+	// ✅ Apply ORDER BY
+	queryStr += ` ORDER BY personal_bookings.start_time DESC`;
+
+	// ✅ Apply pagination only if `limit` is set
+	if (limit !== null) {
+		params.push(limit, offset);
+		queryStr += ` LIMIT $${params.length - 1} OFFSET $${params.length}`;
 	}
 
 	try {
