@@ -128,7 +128,7 @@
 
 	<!-- 🔹 Booking List (Infinite Scroll) -->
 	<div
-		class="h-full max-h-[70vh] space-y-3 overflow-y-auto custom-scrollbar"
+		class="h-full max-h-[65vh] space-y-3 overflow-y-scroll custom-scrollbar"
 		on:scroll={handleScroll}
 	>
 		{#each $bookings as booking}

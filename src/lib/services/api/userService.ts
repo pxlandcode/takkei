@@ -16,14 +16,17 @@ export async function fetchUser(
 		const userData: User = await userResponse.json();
 
 		// Define filters for the last year
-		const today = new Date().toISOString().slice(0, 10);
+		const today = new Date();
+		today.setDate(new Date().getDate() + 1);
+
 		const lastYear = new Date();
 		lastYear.setFullYear(lastYear.getFullYear() - 1);
+		const toDate = today.toISOString().slice(0, 10);
 		const fromDate = lastYear.toISOString().slice(0, 10);
 
 		const bookingFilters: BookingFilters = {
 			from: fromDate,
-			to: today,
+			to: toDate,
 			trainerIds: [trainerId],
 			personalBooking: false
 		};

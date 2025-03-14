@@ -20,7 +20,7 @@
 	});
 </script>
 
-<div class="flex h-[75px] w-full items-center justify-between px-4 glass rounded-4xl">
+<div class="flex h-[75px] w-full items-center justify-between rounded-lg px-4 glass">
 	<div class="text-2xl text-white">
 		{greeting.message}
 		{greeting.icon ? greeting.icon : ''}

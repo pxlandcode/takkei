@@ -129,7 +129,9 @@
 			{:else if selectedTab === 'Klienter'}
 				<p class="text-gray-500">Klienter kommer att listas här.</p>
 			{:else if selectedTab === 'Anteckningar'}
-				<ProfileNotesComponent {trainerId} />
+				<div class="flex h-[80vh] flex-col">
+					<ProfileNotesComponent {trainerId} />
+				</div>
 			{/if}
 		</div>
 	</div>

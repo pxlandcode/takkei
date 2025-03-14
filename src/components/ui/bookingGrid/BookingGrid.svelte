@@ -4,18 +4,22 @@
 	import { tooltip } from '$lib/actions/tooltip';
 
 	export let trainerId;
-	export let daysToShow = 365; // Default to 1 year (Can be 31, 180, etc.)
+	export let daysToShow = 365; // Default to 1 year
 	let trainerBookings = [];
 
-	// ✅ Compute start date based on daysToShow
+	// ✅ Compute the original start date
 	const today = new Date();
-	const startDate = new Date();
-	startDate.setDate(today.getDate() - daysToShow);
+	let startDate = new Date(today);
+	startDate.setDate(today.getDate() - (daysToShow - 1)); // Exact range
+
+	// ✅ Ensure the grid starts on a **Monday** (aligning the first day)
+	let weekStart = new Date(startDate);
+	const dayOfWeek = weekStart.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+	const daysToSubtract = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+	weekStart.setDate(weekStart.getDate() - daysToSubtract);
 
 	let days = [];
 	let months = [];
-	let weekStart = new Date(startDate);
-	weekStart.setDate(startDate.getDate() - ((weekStart.getDay() + 6) % 7)); // Ensure Monday start
 
 	const weekDays = ['Mån', 'Tis', 'Ons', 'Tors', 'Fre', 'Lör', 'Sön'];
 
@@ -23,22 +27,36 @@
 	let gridContainer;
 	let gridWidth = 0;
 
-	// ✅ Populate days dynamically based on daysToShow
+	console.log('daysToShow:', daysToShow);
+	console.log('startDate (Before aligning to Monday):', startDate.toISOString().slice(0, 10));
+	console.log('weekStart (Monday-aligned start):', weekStart.toISOString().slice(0, 10));
+
+	// ✅ Populate days dynamically
 	let monthLoop = null;
-	for (let i = 0; i < daysToShow; i++) {
-		const date = new Date(weekStart);
-		date.setDate(weekStart.getDate() + i);
+	let currentDate = new Date(weekStart);
+	while (currentDate <= today) {
+		const date = new Date(currentDate);
 
 		if (date.getMonth() !== monthLoop) {
 			monthLoop = date.getMonth();
 			months.push({
 				name: date.toLocaleString('sv-SE', { month: 'short' }),
-				index: Math.floor(days.length / 7) + 1 // Adjusted for different lengths
+				index: Math.floor(days.length / 7) + 1
 			});
 		}
 
 		days.push({ date, count: 0 });
+
+		// Move to the next day
+		currentDate.setDate(currentDate.getDate() + 1);
 	}
+
+	// ✅ Ensure last date is today
+	console.log('First date in days array:', days[0]?.date.toISOString().slice(0, 10));
+	console.log(
+		'Last date in days array (should be today):',
+		days[days.length - 1]?.date.toISOString().slice(0, 10)
+	);
 
 	// ✅ Fetch bookings when component mounts
 	onMount(async () => {
@@ -54,13 +72,34 @@
 
 	// ✅ Function to update days with booking counts
 	function updateDays() {
-		days = days.map((day) => ({
-			...day,
-			count: trainerBookings.filter((b) => {
+		console.log('Updating days...');
+
+		// Log first and last booking date in `trainerBookings`
+		if (trainerBookings.length > 0) {
+			const sortedBookings = trainerBookings
+				.map((b) => new Date(b.booking.startTime))
+				.sort((a, b) => a - b);
+
+			console.log('Earliest booking date:', sortedBookings[0].toISOString().slice(0, 10));
+			console.log(
+				'Latest booking date:',
+				sortedBookings[sortedBookings.length - 1].toISOString().slice(0, 10)
+			);
+		} else {
+			console.log('No bookings found in trainerBookings.');
+		}
+
+		// Update `days` with correct counts
+		days = days.map((day) => {
+			const bookingCount = trainerBookings.filter((b) => {
 				const bookingDate = new Date(b.booking.startTime);
 				return bookingDate.toISOString().slice(0, 10) === day.date.toISOString().slice(0, 10);
-			}).length
-		}));
+			}).length;
+
+			console.log(`Date: ${day.date.toISOString().slice(0, 10)}, Bookings: ${bookingCount}`);
+
+			return { ...day, count: bookingCount };
+		});
 	}
 
 	// ✅ Recalculate when trainerBookings updates
@@ -103,7 +142,7 @@
 		<!-- Booking Grid -->
 		<div
 			class="grid-container"
-			style="grid-template-columns: repeat({Math.ceil(daysToShow / 7)}, 12px);"
+			style="grid-template-columns: repeat({Math.ceil(days.length / 7)}, 12px);"
 			bind:this={gridContainer}
 		>
 			{#each days as day, i}
@@ -164,7 +203,7 @@
 
 	.grid-container {
 		display: grid;
-		grid-template-columns: repeat(53, 12px); /* Adjusts based on daysToShow */
+		grid-template-columns: repeat(53, 12px); /* Adjusts based on days.length */
 		grid-template-rows: repeat(7, 12px);
 		gap: 2px;
 	}

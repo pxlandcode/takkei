@@ -35,7 +35,7 @@
 				<Dashboard />
 			</aside>
 			<main class="h-dvh w-full flex-1 p-4">
-				<div class=" h-full w-full bg-white p-4 rounded-4xl">
+				<div class="h-full w-full overflow-y-hidden bg-white p-4 rounded-4xl">
 					<slot />
 				</div>
 			</main>

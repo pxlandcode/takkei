@@ -5,6 +5,7 @@
 @import 'tailwindcss/utilities';
 
 
+
 * {
     @apply box-border;
     @apply font-inter;

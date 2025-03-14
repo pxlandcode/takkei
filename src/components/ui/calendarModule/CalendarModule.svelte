@@ -122,7 +122,7 @@
 	onMount(updateTodayRow);
 </script>
 
-<div class="relative h-auto w-[320px] p-4 text-sm font-light glass rounded-4xl">
+<div class="relative h-auto w-[320px] rounded-lg p-4 text-sm font-light glass">
 	<!-- Header -->
 	<div class="mb-4 flex items-center justify-between">
 		<div class="flex w-36 flex-row items-center justify-between text-white">
