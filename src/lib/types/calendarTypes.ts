@@ -4,7 +4,7 @@ export interface BookingDetails {
 	createdAt: string; // ISO date
 	updatedAt: string; // ISO date
 	startTime: string; // ISO date
-	endTime: string | null; // ISO date
+	endTime?: string | null; // ISO date
 	cancelTime?: string | null;
 	repeatIndex?: number | null;
 	tryOut: boolean;
@@ -34,6 +34,7 @@ export interface RoomDetails {
 export interface Location {
 	id: number;
 	name: string;
+	color: string;
 }
 
 export interface BookingContent {
@@ -51,11 +52,32 @@ export interface AdditionalInfo {
 	actualCancelTime?: string | null;
 }
 
-export interface FullBooking {
-	booking: BookingDetails;
-	trainer: Trainer;
-	client: Client;
-	room: RoomDetails;
-	location: Location;
-	additionalInfo: AdditionalInfo;
+export interface PersonalBookingInfo {
+	name: string;
+	text?: string;
+	bookedById?: number | null;
+	userIds: number[];
 }
+
+export interface FullBooking {
+	isPersonalBooking: boolean;
+	booking: BookingDetails;
+	trainer?: Trainer | null;
+	client?: Client | null;
+	room?: RoomDetails | null;
+	location?: Location | null;
+	additionalInfo?: AdditionalInfo | null;
+	personalBooking?: PersonalBookingInfo | null;
+}
+
+export type BookingFilters = {
+	from?: string | null; // Start date (YYYY-MM-DD)
+	to?: string | null; // End date (YYYY-MM-DD)
+	date?: string | null; // Single date (YYYY-MM-DD)
+	roomId?: number | null;
+	locationIds?: number[];
+	trainerIds?: number[] | null;
+	clientIds?: number[] | null;
+	userIds?: number[] | null;
+	personalBooking?: boolean | null;
+};

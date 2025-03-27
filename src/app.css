@@ -5,9 +5,14 @@
 @import 'tailwindcss/utilities';
 
 
+
 * {
     @apply box-border;
     @apply font-inter;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
 }
 
 

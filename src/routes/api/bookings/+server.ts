@@ -1,17 +1,29 @@
 import { query } from '$lib/db';
 
 export async function GET({ url }) {
-	const week = url.searchParams.get('week');
-	const day = url.searchParams.get('day');
+	const fromDate = url.searchParams.get('from');
+	const toDate = url.searchParams.get('to');
+	const date = url.searchParams.get('date');
+	const includeCancelled = url.searchParams.get('includeCancelled') === 'true';
+
 	const roomId = url.searchParams.get('roomId');
 	const locationIds = url.searchParams.getAll('locationId');
-	const trainerId = url.searchParams.get('trainerId');
+	const trainerIds = url.searchParams.getAll('trainerId');
 	const clientId = url.searchParams.get('clientId');
 
+	// ✅ Optional Pagination
+	const limitParam = url.searchParams.get('limit');
+	const offsetParam = url.searchParams.get('offset');
+
+	const limit = limitParam ? parseInt(limitParam) : null;
+	const offset = offsetParam ? parseInt(offsetParam) : 0;
+
+	const params: (string | number | number[])[] = [];
 	let queryStr = `
         SELECT bookings.*, 
                rooms.name AS room_name, 
                locations.name AS location_name,
+               locations.color AS location_color,
                users.firstname AS trainer_firstname,
                users.lastname AS trainer_lastname,
                clients.firstname AS client_firstname,
@@ -27,35 +39,48 @@ export async function GET({ url }) {
         WHERE 1=1
     `;
 
-	const params: (string | number | number[])[] = [];
+	// ✅ Exclude cancelled bookings by default
+	if (!includeCancelled) {
+		queryStr += ` AND bookings.status NOT IN ('Cancelled', 'Late_cancelled')`;
+	}
 
-	if (week) {
-		queryStr += ` AND DATE_TRUNC('week', bookings.start_time) = DATE_TRUNC('week', TO_TIMESTAMP($${params.length + 1}, 'YYYY-MM-DD'))`;
-		params.push(week);
+	// ✅ Date range filtering
+	if (fromDate && toDate) {
+		params.push(fromDate, toDate);
+		queryStr += ` AND bookings.start_time BETWEEN TO_DATE($${params.length - 1}, 'YYYY-MM-DD') 
+                      AND TO_DATE($${params.length}, 'YYYY-MM-DD')`;
+	} else if (date) {
+		params.push(date);
+		queryStr += ` AND DATE(bookings.start_time) = TO_DATE($${params.length}, 'YYYY-MM-DD')`;
 	}
-	if (day) {
-		queryStr += ` AND DATE(bookings.start_time) = $${params.length + 1}::DATE`;
-		params.push(day);
-	}
+
+	// ✅ Additional filters
 	if (roomId) {
-		queryStr += ` AND bookings.room_id = $${params.length + 1}`;
 		params.push(Number(roomId));
+		queryStr += ` AND bookings.room_id = $${params.length}`;
 	}
 	if (locationIds.length > 0) {
-		queryStr += ` AND bookings.location_id = ANY($${params.length + 1}::int[])`;
 		params.push(locationIds.map(Number));
+		queryStr += ` AND bookings.location_id = ANY($${params.length}::int[])`;
 	}
-	if (trainerId) {
-		queryStr += ` AND bookings.trainer_id = $${params.length + 1}`;
-		params.push(Number(trainerId));
+	if (trainerIds.length > 0) {
+		params.push(trainerIds.map(Number));
+		queryStr += ` AND bookings.trainer_id = ANY($${params.length}::int[])`;
 	}
 	if (clientId) {
-		queryStr += ` AND bookings.client_id = $${params.length + 1}`;
 		params.push(Number(clientId));
+		queryStr += ` AND bookings.client_id = $${params.length}`;
+	}
+
+	// ✅ Apply pagination *only* if `limit` is set
+	if (limit !== null) {
+		queryStr += ` ORDER BY bookings.start_time DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+		params.push(limit, offset);
+	} else {
+		queryStr += ` ORDER BY bookings.start_time DESC`; // No limit, return all results
 	}
 
 	try {
-		console.log('Executing Query:', queryStr, params);
 		const result = await query(queryStr, params);
 		return new Response(JSON.stringify(result), { status: 200 });
 	} catch (error) {

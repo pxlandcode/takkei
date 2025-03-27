@@ -4,8 +4,8 @@ import { tick } from 'svelte';
 export interface TooltipParams {
 	content: string | undefined;
 	preferred?: 'bottom' | 'top' | 'left' | 'right';
-	/** Delay (ms) before showing the tooltip on hover. Default = 0. */
 	delay?: number;
+	clickable?: boolean;
 }
 
 export function tooltip(node: HTMLElement, params: TooltipParams) {
@@ -14,61 +14,81 @@ export function tooltip(node: HTMLElement, params: TooltipParams) {
 
 	let visible = false;
 	let showTimer: ReturnType<typeof setTimeout> | null = null;
-
 	let content = params.content ?? '';
 	let preferred = params.preferred ?? 'bottom';
 	let delay = params.delay ?? 0;
+	let clickable = params.clickable ?? false;
 
+	// Event Handlers
 	function onMouseEnter() {
-		showTimer = setTimeout(() => {
-			show();
-		}, delay);
+		// Show tooltip on hover if not already visible
+		if (!visible) {
+			showTimer = setTimeout(() => {
+				show();
+			}, delay);
+		}
 	}
 
 	function onMouseLeave() {
-		if (showTimer) {
-			clearTimeout(showTimer);
-			showTimer = null;
+		// Always hide on mouseleave if tooltip is visible
+		if (visible) {
+			hide();
 		}
-		hide();
 	}
 
+	function onClick(event: Event) {
+		event.stopPropagation();
+		// Toggle tooltip on click
+		visible ? hide() : show();
+	}
+
+	function onOutsideClick(event: Event) {
+		// Hide if click is outside the tooltip element
+		if (tooltipEl && !tooltipEl.contains(event.target as Node)) {
+			hide();
+		}
+	}
+
+	// Show Tooltip
 	function show() {
 		visible = true;
 		createTooltip();
+		// If tooltip is meant to be clickable, listen for outside clicks
+		if (clickable) {
+			document.addEventListener('click', onOutsideClick);
+		}
 	}
 
+	// Hide Tooltip
 	function hide() {
 		visible = false;
 		removeTooltip();
+		document.removeEventListener('click', onOutsideClick);
 	}
 
+	// Create Tooltip
 	async function createTooltip() {
 		if (!visible || tooltipEl) return;
 
 		tooltipEl = document.createElement('div');
 		tooltipEl.className =
-			'fixed pointer-events-none z-50 transition-opacity duration-100 ' + 'opacity-0'; // We'll fade in via opacity below
-
+			'fixed z-50 transition-opacity duration-100 opacity-0 pointer-events-auto';
 		tooltipEl.innerHTML = `
-      <div class="relative bg-blue text-white px-2 py-1 rounded shadow max-w-sm">
-      
+      <div class="relative bg-white text-black px-2 py-1 rounded shadow-lg border border-black max-w-sm z-20">
         <div id="tooltip-arrow" class="absolute w-0 h-0"></div>
-      
         <div>${content}</div>
       </div>
     `;
 
 		document.body.appendChild(tooltipEl);
-
 		arrowEl = tooltipEl.querySelector('#tooltip-arrow') as HTMLDivElement;
 
 		await tick();
 		positionTooltip();
-
 		tooltipEl.style.opacity = '1';
 	}
 
+	// Remove Tooltip
 	function removeTooltip() {
 		if (tooltipEl) {
 			tooltipEl.remove();
@@ -77,13 +97,13 @@ export function tooltip(node: HTMLElement, params: TooltipParams) {
 		}
 	}
 
+	// Position Tooltip (with clamping)
 	function positionTooltip() {
 		if (!tooltipEl) return;
 
-		const margin = 8; // Gap between anchor and tooltip
+		const margin = 8;
 		const anchorRect = node.getBoundingClientRect();
 		const tooltipRect = tooltipEl.getBoundingClientRect();
-
 		const finalPos = getBestPosition(anchorRect, tooltipRect, preferred, margin);
 
 		let top = 0;
@@ -107,12 +127,29 @@ export function tooltip(node: HTMLElement, params: TooltipParams) {
 				break;
 		}
 
+		// --- Clamp so the tooltip doesn't overflow the viewport ---
+		// Clamp horizontally
+		if (left < margin) {
+			left = margin;
+		} else if (left + tooltipRect.width > window.innerWidth - margin) {
+			left = window.innerWidth - margin - tooltipRect.width;
+		}
+
+		// Clamp vertically
+		if (top < margin) {
+			top = margin;
+		} else if (top + tooltipRect.height > window.innerHeight - margin) {
+			top = window.innerHeight - margin - tooltipRect.height;
+		}
+		// ----------------------------------------------------------
+
 		tooltipEl.style.top = `${top}px`;
 		tooltipEl.style.left = `${left}px`;
 
 		positionArrow(finalPos);
 	}
 
+	// Determines Best Position
 	function getBestPosition(
 		anchorRect: DOMRect,
 		tooltipRect: DOMRect,
@@ -131,73 +168,82 @@ export function tooltip(node: HTMLElement, params: TooltipParams) {
 	function canPlace(position: string, anchorRect: DOMRect, tipRect: DOMRect, margin: number) {
 		switch (position) {
 			case 'bottom':
+				// Enough space below for entire tooltip
 				return anchorRect.bottom + tipRect.height + margin <= window.innerHeight;
 			case 'top':
+				// Enough space above
 				return anchorRect.top - tipRect.height - margin >= 0;
 			case 'right':
+				// Enough space on the right
 				return anchorRect.right + tipRect.width + margin <= window.innerWidth;
 			case 'left':
+				// Enough space on the left
 				return anchorRect.left - tipRect.width - margin >= 0;
 		}
 		return false;
 	}
 
+	// Position Arrow
 	function positionArrow(finalPos: 'bottom' | 'top' | 'right' | 'left') {
 		if (!arrowEl) return;
 
+		// Reset arrow styles
 		arrowEl.className = 'absolute w-0 h-0';
-
 		arrowEl.style.borderLeft = '0.4rem solid transparent';
 		arrowEl.style.borderRight = '0.4rem solid transparent';
-		arrowEl.style.borderTop = '0';
-		arrowEl.style.borderBottom = '0';
+		arrowEl.style.top = '';
+		arrowEl.style.bottom = '';
+		arrowEl.style.left = '';
+		arrowEl.style.right = '';
+		arrowEl.style.borderTop = '';
+		arrowEl.style.borderBottom = '';
+		arrowEl.style.borderLeft = '';
+		arrowEl.style.borderRight = '';
 
 		switch (finalPos) {
 			case 'bottom':
-				arrowEl.style.bottom = '100%';
+				arrowEl.style.bottom = '-0.4rem';
 				arrowEl.style.left = '50%';
 				arrowEl.style.transform = 'translateX(-50%)';
-				arrowEl.style.borderBottom = '0.4rem solid rgb(59,130,246)';
+				arrowEl.style.borderTop = '0.4rem solid black';
 				break;
 			case 'top':
-				arrowEl.style.top = '100%';
+				arrowEl.style.top = '-0.4rem';
 				arrowEl.style.left = '50%';
 				arrowEl.style.transform = 'translateX(-50%)';
-				arrowEl.style.borderTop = '0.4rem solid rgb(59,130,246)';
+				arrowEl.style.borderBottom = '0.4rem solid black';
 				break;
 			case 'right':
-				arrowEl.style.left = '0';
+				arrowEl.style.left = '-0.4rem';
 				arrowEl.style.top = '50%';
-				arrowEl.style.transform = 'translate(-100%, -50%)';
-				arrowEl.style.borderLeft = '0.4rem solid rgb(59,130,246)';
+				arrowEl.style.transform = 'translateY(-50%)';
+				arrowEl.style.borderLeft = '0.4rem solid black';
 				break;
 			case 'left':
-				arrowEl.style.right = '0';
+				arrowEl.style.right = '-0.4rem';
 				arrowEl.style.top = '50%';
-				arrowEl.style.transform = 'translate(100%, -50%)';
-				arrowEl.style.borderRight = '0.4rem solid rgb(59,130,246)';
+				arrowEl.style.transform = 'translateY(-50%)';
+				arrowEl.style.borderRight = '0.4rem solid black';
 				break;
 		}
 	}
 
+	// Attach Events
 	node.addEventListener('mouseenter', onMouseEnter);
 	node.addEventListener('mouseleave', onMouseLeave);
+	node.addEventListener('click', onClick);
 
 	function update(newParams: TooltipParams) {
 		content = newParams.content;
 		preferred = newParams.preferred ?? 'bottom';
 		delay = newParams.delay ?? 0;
-
-		if (visible && tooltipEl) {
-			const textDiv = tooltipEl.querySelector('div div:last-child');
-			if (textDiv) textDiv.textContent = content;
-			positionTooltip();
-		}
+		clickable = newParams.clickable ?? false;
 	}
 
 	function destroy() {
 		node.removeEventListener('mouseenter', onMouseEnter);
 		node.removeEventListener('mouseleave', onMouseLeave);
+		node.removeEventListener('click', onClick);
 		removeTooltip();
 	}
 

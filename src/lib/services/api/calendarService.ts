@@ -1,43 +1,82 @@
 import type { FullBooking } from '$lib/types/calendarTypes';
+import type { BookingFilters } from './types';
 
-export type BookingFilters = {
-	week?: string | null;
-	day?: string | null;
-	roomId?: number | null;
-	locationIds?: number[]; // Change from single locationId to an array
-	trainerId?: number | null;
-	clientId?: number | null;
-};
-/**
- * Fetches a list of bookings with optional filtering.
- * @param filters - Filtering options for bookings
- * @returns An array of FullBooking objects
- */
-export async function fetchBookings(filters: BookingFilters): Promise<FullBooking[]> {
+export async function fetchBookings(
+	filters: BookingFilters,
+	fetchFn: typeof fetch,
+	limit?: number, // ✅ Now optional (unlimited if not set)
+	offset: number = 0, // ✅ Default offset is 0
+	fetchAllStatuses: boolean = false // ✅ Allows fetching cancelled bookings
+): Promise<FullBooking[]> {
 	const params = new URLSearchParams();
 
-	if (filters.week) params.append('week', filters.week);
-	if (filters.day) params.append('day', filters.day);
-	if (filters.roomId !== null && filters.roomId !== undefined)
-		params.append('roomId', filters.roomId.toString());
-	if (filters.locationIds && filters.locationIds.length > 0) {
-		filters.locationIds.forEach((id) => params.append('locationId', id.toString())); // Multiple IDs
+	// ✅ Add date filters
+	if (filters.from && filters.to) {
+		params.append('from', filters.from);
+		params.append('to', filters.to);
+	} else if (filters.date) {
+		params.append('date', filters.date);
+	} else {
+		const today = new Date().toISOString().slice(0, 10);
+		params.append('date', today);
 	}
-	if (filters.trainerId !== null && filters.trainerId !== undefined)
-		params.append('trainerId', filters.trainerId.toString());
-	if (filters.clientId !== null && filters.clientId !== undefined)
-		params.append('clientId', filters.clientId.toString());
+
+	// ✅ Add optional filters
+	if (filters.roomId != null) params.append('roomId', filters.roomId.toString());
+	if (filters.locationIds?.length)
+		filters.locationIds.forEach((id) => params.append('locationId', id.toString()));
+	if (filters.trainerIds?.length)
+		filters.trainerIds.forEach((id) => params.append('trainerId', id.toString()));
+	if (filters.clientIds?.length)
+		filters.clientIds.forEach((id) => params.append('clientId', id.toString()));
+	if (filters.userIds?.length)
+		filters.userIds.forEach((id) => params.append('userId', id.toString()));
+
+	// ✅ Apply pagination *only* if `limit` is set
+	if (limit !== undefined) {
+		params.append('limit', limit.toString());
+		params.append('offset', offset.toString());
+	}
+
+	// ✅ Optionally include cancelled bookings
+	if (fetchAllStatuses) {
+		params.append('includeCancelled', 'true');
+	}
 
 	try {
-		console.log('params', params.toString());
-		const response = await fetch(`/api/bookings?${params.toString()}`);
+		// Fetch standard bookings
+		const bookingsUrl = `/api/bookings?${params.toString()}`;
+		const bookingsResponse = await fetchFn(bookingsUrl);
 
-		if (!response.ok) {
-			throw new Error(`Error fetching bookings: ${response.statusText}`);
+		if (!bookingsResponse.ok) {
+			const errorText = await bookingsResponse.text();
+			throw new Error(`Error fetching bookings (${bookingsResponse.status}): ${errorText}`);
 		}
 
-		const data = await response.json();
-		return data.map((b: any) => transformBooking(b)); // Transform into FullBooking structure
+		const standardBookings = await bookingsResponse.json();
+
+		let transformedPersonalBookings: FullBooking[] = [];
+		// Fetch personal bookings with pagination
+		if (filters.personalBookings) {
+			const personalParams = new URLSearchParams(params);
+			const personalBookingsUrl = `/api/fetch-personal-bookings?${personalParams.toString()}`;
+			const personalBookingsResponse = await fetchFn(personalBookingsUrl);
+
+			if (!personalBookingsResponse.ok) {
+				const errorText = await personalBookingsResponse.text();
+				throw new Error(
+					`Error fetching personal bookings (${personalBookingsResponse.status}): ${errorText}`
+				);
+			}
+
+			const personalBookings = await personalBookingsResponse.json();
+			transformedPersonalBookings = personalBookings.map(transformPersonalBooking);
+		}
+
+		// 📌 Transform and combine both types of bookings
+		const transformedStandardBookings = standardBookings.map(transformBooking);
+
+		return [...transformedStandardBookings, ...transformedPersonalBookings];
 	} catch (error) {
 		console.error('Error in fetchBookings:', error);
 		return [];
@@ -45,33 +84,11 @@ export async function fetchBookings(filters: BookingFilters): Promise<FullBookin
 }
 
 /**
- * Fetches a single booking by ID.
- * @param bookingId - The ID of the booking to fetch
- * @returns A single FullBooking object or null if not found
- */
-export async function fetchBookingById(bookingId: number): Promise<FullBooking | null> {
-	try {
-		const response = await fetch(`/api/bookings/${bookingId}`);
-
-		if (!response.ok) {
-			throw new Error(`Error fetching booking with ID ${bookingId}: ${response.statusText}`);
-		}
-
-		const data = await response.json();
-		return transformBooking(data);
-	} catch (error) {
-		console.error(`Error fetching booking by ID:`, error);
-		return null;
-	}
-}
-
-/**
- * Transforms API response into FullBooking structure.
- * @param raw - Raw booking data from API
- * @returns Formatted FullBooking object
+ * Convert API response into FullBooking format (for standard bookings).
  */
 function transformBooking(raw: any): FullBooking {
 	return {
+		isPersonalBooking: false, // Standard booking
 		booking: {
 			id: raw.id,
 			status: raw.status,
@@ -99,7 +116,8 @@ function transformBooking(raw: any): FullBooking {
 		},
 		location: {
 			id: raw.location_id,
-			name: raw.location_name
+			name: raw.location_name,
+			color: raw.location_color
 		},
 		room: {
 			id: raw.room_id,
@@ -116,6 +134,52 @@ function transformBooking(raw: any): FullBooking {
 			addedToPackageBy: raw.added_to_package_by ?? null,
 			addedToPackageDate: raw.added_to_package_date ?? null,
 			actualCancelTime: raw.actual_cancel_time ?? null
+		}
+	};
+}
+
+/**
+ * Convert API response into FullBooking format (for personal bookings).
+ */
+function transformPersonalBooking(raw: any): FullBooking {
+	return {
+		isPersonalBooking: true, // Indicates a personal booking
+		booking: {
+			id: raw.id,
+			status: 'Confirmed', // Personal bookings don't have status; default to 'Confirmed'
+			startTime: raw.start_time,
+			endTime: raw.end_time ?? null,
+			createdAt: raw.created_at,
+			updatedAt: raw.updated_at,
+			cancelTime: null,
+			repeatIndex: raw.repeat_of ?? null,
+			tryOut: false,
+			refundComment: null,
+			cancelReason: null,
+			bookingWithoutRoom: false,
+			internalEducation: false
+		},
+		trainer: null,
+		client: null,
+		location: null,
+		room: null,
+		additionalInfo: {
+			packageId: null,
+			education: false,
+			internal: false,
+			bookingContent: {
+				id: null,
+				kind: raw.kind
+			},
+			addedToPackageBy: null,
+			addedToPackageDate: null,
+			actualCancelTime: null
+		},
+		personalBooking: {
+			name: raw.name,
+			text: raw.text ?? '',
+			bookedById: raw.booked_by_id ?? null,
+			userIds: raw.user_ids ? raw.user_ids : []
 		}
 	};
 }

@@ -23,22 +23,16 @@ export async function POST({ request, cookies }) {
 		return new Response(JSON.stringify({ message: 'Invalid email or password' }), { status: 401 });
 	}
 
-	// Set a session cookie
 	cookies.set('session', user.id, {
 		httpOnly: true,
 		secure: process.env.NODE_ENV === 'production',
 		sameSite: 'strict',
 		path: '/',
-		maxAge: 60 * 15 // 1 day
+		maxAge: 60 * 30
 	});
 
-	// Return the user object (exclude sensitive data)
-	return new Response(
-		JSON.stringify({
-			user: { id: user.id, firstname: user.firstname, lastname: user.lastname, email: user.email }
-		}),
-		{
-			status: 200
-		}
-	);
+	return new Response(JSON.stringify({ user }), {
+		status: 200,
+		headers: { 'Content-Type': 'application/json' }
+	});
 }

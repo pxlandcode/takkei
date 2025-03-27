@@ -11,6 +11,40 @@ import IconUpcomingMeeting from './IconUpcomingMeeting.svelte';
 import IconDumbbell from './IconDumbbell.svelte';
 import IconGymnastics from './IconGymnastics.svelte';
 import IconBuilding from './IconBuilding.svelte';
+import IconArrowDown from './IconArrowDown.svelte';
+import IconCircleInfo from './IconCircleInfo.svelte';
+import IconChevronRight from './IconChevronRight.svelte';
+import IconChevronLeft from './IconChevronLeft.svelte';
+import IconChevronDown from './IconChevronDown.svelte';
+import IconChevronUp from './IconChevronUp.svelte';
+import IconCalendar from './IconCalendar.svelte';
+import IconWeek from './IconWeek.svelte';
+import IconDay from './IconDay.svelte';
+import IconPlus from './IconPlus.svelte';
+import IconFilter from './IconFilter.svelte';
+import IconMultiCheck from './IconMultiCheck.svelte';
+import IconTrash from './IconTrash.svelte';
+import IconTraining from './IconTraining.svelte';
+import IconMeeting from './IconMeeting.svelte';
+import IconCategory from './IconCategory.svelte';
+import IconClients from './IconClients.svelte';
+import IconRunning from './IconRunning.svelte';
+import IconNewspaper from './IconNewspaper.svelte';
+import IconCharts from './IconCharts.svelte';
+import IconSettings from './IconSettings.svelte';
+import IconMobility from './IconMobility.svelte';
+import IconGoTo from './IconGoTo.svelte';
+import IconContact from './IconContact.svelte';
+import IconActions from './IconActions.svelte';
+import IconSort from './IconSort.svelte';
+import IconNotes from './IconNotes.svelte';
+import IconStarCircle from './IconStarCircle.svelte';
+import IconCancel from './IconCancel.svelte';
+import IconBasicInfo from './IconBasicInfo.svelte';
+import IconHandoverInfo from './IconHandoverInfo.svelte';
+import IconEdit from './IconEdit.svelte';
+import IconSave from './IconSave.svelte';
+import IconCustomer from './IconCustomer.svelte';
 
 export {
 	IconClose,
@@ -25,5 +59,39 @@ export {
 	IconUpcomingMeeting,
 	IconDumbbell,
 	IconGymnastics,
-	IconBuilding
+	IconBuilding,
+	IconArrowDown,
+	IconCircleInfo,
+	IconChevronRight,
+	IconChevronLeft,
+	IconChevronDown,
+	IconChevronUp,
+	IconCalendar,
+	IconWeek,
+	IconDay,
+	IconPlus,
+	IconFilter,
+	IconMultiCheck,
+	IconTrash,
+	IconTraining,
+	IconMeeting,
+	IconCategory,
+	IconClients,
+	IconRunning,
+	IconNewspaper,
+	IconCharts,
+	IconSettings,
+	IconMobility,
+	IconGoTo,
+	IconContact,
+	IconActions,
+	IconSort,
+	IconNotes,
+	IconStarCircle,
+	IconCancel,
+	IconBasicInfo,
+	IconHandoverInfo,
+	IconEdit,
+	IconSave,
+	IconCustomer
 };
