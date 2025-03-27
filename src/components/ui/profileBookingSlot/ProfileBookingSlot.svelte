@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { tooltip } from '$lib/actions/tooltip';
 	import { formatTime } from '$lib/helpers/calendarHelpers/calendar-utils';
-	import { getLocationColor } from '$lib/helpers/locationHelpers/locationColors';
 
 	import { IconCancel, IconClock, IconDumbbell, IconGymnastics } from '$lib/icons';
 	import IconMobility from '$icons/IconMobility.svelte';
@@ -9,8 +8,9 @@
 	import type { FullBooking } from '$lib/types/calendarTypes';
 
 	export let booking: FullBooking;
+	export let isClient = false;
 
-	$: bookingColor = getLocationColor(booking?.location?.id);
+	$: bookingColor = booking.location?.color ? booking.location.color : '#4B5563';
 
 	// ✅ Compute end time
 	$: endTime =
@@ -85,7 +85,11 @@
 
 	<!-- ✅ Trainer Info -->
 	<div class="flex items-center text-sm text-gray-700">
-		<p>{`${booking.client?.firstname} ${booking.client?.lastname}`}</p>
+		{#if isClient}
+			<p>{`${booking.trainer?.firstname} ${booking.trainer?.lastname}`}</p>
+		{:else}
+			<p>{`${booking.client?.firstname} ${booking.client?.lastname}`}</p>
+		{/if}
 	</div>
 </div>
 

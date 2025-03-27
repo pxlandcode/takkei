@@ -30,16 +30,17 @@
 	{#if currentRoute === '/login'}
 		<slot />
 	{:else}
-		<div class="flex flex-row gap-4 bg-background-gradient">
-			<aside class="h-dvh w-80 p-4">
+		<main class="flex h-dvh w-full flex-row gap-4 bg-background-gradient">
+			<aside class="w-80 p-4">
 				<Dashboard />
 			</aside>
-			<main class="h-dvh w-full flex-1 p-4">
-				<div class="h-full w-full overflow-y-hidden bg-white p-4 rounded-4xl">
+
+			<section class="flex flex-1 flex-col overflow-hidden p-4">
+				<div class="flex flex-1 flex-col overflow-hidden rounded-lg bg-white">
 					<slot />
 				</div>
-			</main>
-		</div>
+			</section>
+		</main>
 		<LoadingOverlay />
 		<NotificationContainer />
 	{/if}

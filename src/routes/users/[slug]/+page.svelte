@@ -32,9 +32,9 @@
 	}
 </script>
 
-<div class="custom-scrollbar">
+<div class="my-4 custom-scrollbar">
 	<!-- Page Title -->
-	<div class="m-4 ml-3 flex items-center justify-between">
+	<div class="mx-6 flex items-center justify-between">
 		<div class="flex flex-row items-center gap-2">
 			<div class="flex h-7 w-7 items-center justify-center rounded-full bg-text text-white">
 				<Icon icon="Person" size="18px" />
@@ -130,7 +130,7 @@
 				<p class="text-gray-500">Klienter kommer att listas här.</p>
 			{:else if selectedTab === 'Anteckningar'}
 				<div class="flex h-[80vh] flex-col">
-					<ProfileNotesComponent {trainerId} />
+					<ProfileNotesComponent targetId={trainerId} />
 				</div>
 			{/if}
 		</div>

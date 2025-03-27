@@ -4,6 +4,9 @@
 	import Button from '../button/Button.svelte';
 	import Icon from '../icon-component/Icon.svelte';
 	import { IconArrowDown } from '$icons';
+	import { createEventDispatcher } from 'svelte';
+
+	const dispatch = createEventDispatcher();
 
 	// Props for headers and table data
 	export let headers: {
@@ -12,7 +15,9 @@
 		icon?: string;
 		iconSize?: string;
 		sort?: boolean;
+		width?: string; // ← Add this
 	}[] = [];
+
 	export let data: TableType = [];
 
 	// Sorting state
@@ -33,7 +38,7 @@
 			sortedColumn = columnKey;
 			sortOrder = 'asc';
 		}
-
+		dispatch('sortChange', { column: columnKey, order: sortOrder });
 		// Sort data dynamically based on key
 		sortedData.set(
 			[...get(sortedData)].sort((a, b) => {
@@ -64,6 +69,7 @@
 					<th
 						class="{header.sort ? 'cursor-pointer' : ''} items-center gap-2 p-4"
 						on:click={() => header.sort && sortTable(header.key)}
+						style={header.width ? `width: ${header.width}` : ''}
 					>
 						{#if header.icon}
 							<span class="p-2">
@@ -96,9 +102,12 @@
 						<input type="checkbox" class="h-5 w-5 rounded border-gray" />
 					</td>
 					{#each headers as header}
-						<td class="p-4">
+						<td class="p-4" style={header.width ? `width: ${header.width}` : ''}>
 							{#if Array.isArray(row[header.key])}
-								<div class="flex flex-row flex-wrap gap-2">
+								<div
+									class="flex flex-row flex-wrap gap-2 {header.key === 'actions' &&
+										'justify-center'}"
+								>
 									{#each row[header.key] as item}
 										{#if item.type === 'button'}
 											<Button

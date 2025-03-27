@@ -11,10 +11,12 @@ export async function GET({ url }) {
 	try {
 		const result = await query(
 			`
-            SELECT * FROM notes 
-            WHERE target_id = $1 AND target_type = $2 
-            ORDER BY created_at DESC
-            `,
+      SELECT notes.*, note_kinds.title AS note_kind_title
+      FROM notes
+      LEFT JOIN note_kinds ON notes.note_kind_id = note_kinds.id
+      WHERE notes.target_id = $1 AND notes.target_type = $2
+      ORDER BY notes.created_at DESC
+      `,
 			[targetId, targetType]
 		);
 		return new Response(JSON.stringify(result), { status: 200 });
@@ -26,7 +28,7 @@ export async function GET({ url }) {
 
 export async function POST({ request }) {
 	try {
-		const { target_id, target_type, writer_id, text } = await request.json();
+		const { target_id, target_type, writer_id, text, note_kind_id } = await request.json();
 
 		if (!target_id || !target_type || !writer_id || !text) {
 			return new Response(JSON.stringify({ error: 'Missing required fields' }), { status: 400 });
@@ -34,11 +36,11 @@ export async function POST({ request }) {
 
 		const result = await query(
 			`
-            INSERT INTO notes (target_id, target_type, writer_id, text, status, created_at, updated_at) 
-            VALUES ($1, $2, $3, $4, 'new', NOW(), NOW()) 
-            RETURNING *;
-            `,
-			[target_id, target_type, writer_id, text]
+      INSERT INTO notes (target_id, target_type, writer_id, text, note_kind_id, status, created_at, updated_at)
+      VALUES ($1, $2, $3, $4, $5, 'new', NOW(), NOW())
+      RETURNING *;
+      `,
+			[target_id, target_type, writer_id, text, note_kind_id || null]
 		);
 
 		return new Response(JSON.stringify(result[0]), { status: 201 });

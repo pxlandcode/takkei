@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { createEventDispatcher } from 'svelte';
 	import Icon from '../icon-component/Icon.svelte';
+	import { confirm } from '$lib/actions/confirm';
 
 	// Props
 	export let type: 'button' | 'submit' | 'reset' = 'button';
@@ -16,6 +17,12 @@
 	export let iconSize: string = '20px';
 	export let full: boolean = false;
 	export let iconColor: string = 'currentColor';
+	export let confirmOptions: {
+		title?: string;
+		description?: string;
+		action?: () => void;
+		actionLabel?: string;
+	} | null = null;
 
 	const dispatch = createEventDispatcher();
 
@@ -24,6 +31,8 @@
 		dispatch('click');
 	}
 
+	let directives = {};
+	$: directives = confirmOptions ? { use: [[confirm, confirmOptions]] } : {};
 	// Dynamic class setup
 	$: buttonClasses = `
 		flex items-center justify-center gap-2 rounded-md shadow-sm transition-all duration-200 
@@ -39,18 +48,32 @@
 	`;
 </script>
 
-<button class={buttonClasses} on:click={handleClick} {type}>
-	{#if icon && !text}
-		<!-- Icon-only button (Centered & Square) -->
-		<Icon {icon} size={iconSize} color={iconColor} />
-	{:else}
-		{#if iconLeft}
-			<Icon icon={iconLeft} size={small ? '15px' : iconLeftSize} color={iconColor} />
+{#if confirmOptions}
+	<button use:confirm={confirmOptions} {type} class={buttonClasses}>
+		{#if icon && !text}
+			<Icon {icon} size={iconSize} color={iconColor} />
+		{:else}
+			{#if iconLeft}
+				<Icon icon={iconLeft} size={small ? '15px' : iconLeftSize} color={iconColor} />
+			{/if}
+			{text}
+			{#if iconRight}
+				<Icon icon={iconRight} size={small ? '15px' : iconRightSize} color={iconColor} />
+			{/if}
 		{/if}
-
-		{text}
-		{#if iconRight}
-			<Icon icon={iconRight} size={small ? '15px' : iconRightSize} color={iconColor} />
+	</button>
+{:else}
+	<button {type} class={buttonClasses} on:click={handleClick}>
+		{#if icon && !text}
+			<Icon {icon} size={iconSize} color={iconColor} />
+		{:else}
+			{#if iconLeft}
+				<Icon icon={iconLeft} size={small ? '15px' : iconLeftSize} color={iconColor} />
+			{/if}
+			{text}
+			{#if iconRight}
+				<Icon icon={iconRight} size={small ? '15px' : iconRightSize} color={iconColor} />
+			{/if}
 		{/if}
-	{/if}
-</button>
+	</button>
+{/if}

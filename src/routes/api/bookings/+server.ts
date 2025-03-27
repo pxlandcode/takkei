@@ -23,6 +23,7 @@ export async function GET({ url }) {
         SELECT bookings.*, 
                rooms.name AS room_name, 
                locations.name AS location_name,
+               locations.color AS location_color,
                users.firstname AS trainer_firstname,
                users.lastname AS trainer_lastname,
                clients.firstname AS client_firstname,

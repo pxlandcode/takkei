@@ -164,7 +164,7 @@
 		</div>
 		{#each weekDays as { day, date }}
 			<div
-				class="mx-1 flex flex-col items-center rounded-2xl bg-gray py-2 text-white {date ===
+				class="mx-1 flex flex-col items-center rounded-lg bg-gray py-2 text-white {date ===
 					new Date().getDate().toString() && 'bg-orange'}"
 			>
 				<p class="text-lg">{day}</p>

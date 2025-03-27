@@ -6,7 +6,17 @@ export async function fetchNotes(
 	try {
 		const response = await fetchFn(`/api/notes?target_id=${targetId}&target_type=${targetType}`);
 		if (!response.ok) throw new Error('Failed to fetch notes');
-		return await response.json();
+
+		const rawNotes = await response.json();
+
+		// ✅ Map raw notes to structured format
+		return rawNotes.map((note) => ({
+			...note,
+			note_kind: {
+				id: note.note_kind_id || null,
+				title: note.note_kind_title || null
+			}
+		}));
 	} catch (error) {
 		console.error('Error fetching notes:', error);
 		return [];
@@ -18,14 +28,15 @@ export async function addNote(
 	targetType: 'User' | 'Client',
 	writerId: number,
 	text: string,
-	fetchFn: typeof fetch
+	fetchFn: typeof fetch,
+	noteKindId?: number
 ) {
-	// ✅ Log request payload
 	console.log('🚀 Sending Note:', {
 		target_id: targetId,
 		target_type: targetType,
 		writer_id: writerId,
-		text
+		text,
+		note_kind_id: noteKindId
 	});
 
 	try {
@@ -36,11 +47,11 @@ export async function addNote(
 				target_id: targetId,
 				target_type: targetType,
 				writer_id: writerId,
-				text
+				text,
+				note_kind_id: noteKindId || null
 			})
 		});
 
-		// ✅ Log server response
 		const result = await response.json();
 		console.log('📥 Server Response:', result);
 

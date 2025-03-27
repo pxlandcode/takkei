@@ -34,6 +34,7 @@ export interface RoomDetails {
 export interface Location {
 	id: number;
 	name: string;
+	color: string;
 }
 
 export interface BookingContent {

@@ -7,7 +7,6 @@
 		formatTime
 	} from '$lib/helpers/calendarHelpers/calendar-utils';
 	import { getShortAddress } from '$lib/helpers/locationHelpers/location-utils';
-	import { getLocationColor } from '$lib/helpers/locationHelpers/locationColors';
 	import { IconClock, IconDumbbell, IconGymnastics } from '$lib/icons';
 
 	import type { FullBooking } from '$lib/types/calendarTypes';
@@ -35,7 +34,7 @@
 
 	$: topOffset = getTopOffset(booking.booking.startTime, startHour, hourHeight);
 	$: meetingHeight = getMeetingHeight(booking.booking.startTime, endTime, hourHeight);
-	$: bookingColor = getLocationColor(booking?.location?.id);
+	$: bookingColor = booking.location?.color;
 
 	$: bookingIcon = (() => {
 		const kind = booking.additionalInfo?.bookingContent?.kind?.toLowerCase() ?? '';

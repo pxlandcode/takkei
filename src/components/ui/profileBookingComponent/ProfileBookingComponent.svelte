@@ -6,13 +6,16 @@
 	import ProfileBookingSlot from '../profileBookingSlot/ProfileBookingSlot.svelte';
 	import OptionButton from '../../bits/optionButton/OptionButton.svelte';
 
-	export let trainerId: number;
+	export let trainerId: number | null = null;
+	export let clientId: number | null = null;
 
 	// ✅ Reactive Stores
 	let bookings = writable([]);
 	let page = writable(0);
 	let isLoading = writable(false);
 	let hasMore = writable(true);
+
+	const isClient = clientId !== null;
 
 	// ✅ Filters
 	let selectedDate = writable(new Date().toISOString().split('T')[0]); // Default to today
@@ -43,10 +46,17 @@
 		const to = new Date($selectedDate).toISOString().split('T')[0];
 
 		const filters = {
-			trainerIds: [trainerId],
+			// ✅ Added clientId filter
 			from, // ✅ Fetching older bookings
 			to // ✅ The latest selected date
 		};
+
+		if (trainerId) {
+			filters.trainerIds = [trainerId]; // Fixed the syntax error
+		} else if (clientId) {
+			filters.clientIds = [clientId]; // Fixed the syntax error
+		}
+
 		const fetchCancelled = get(selectedCancelledOption).value;
 
 		console.log('Fetching with filters:', filters);
@@ -132,7 +142,7 @@
 		on:scroll={handleScroll}
 	>
 		{#each $bookings as booking}
-			<ProfileBookingSlot {booking} />
+			<ProfileBookingSlot {booking} {isClient} />
 		{/each}
 
 		{#if $isLoading}

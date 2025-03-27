@@ -83,10 +83,10 @@
 	}
 </script>
 
-<div class="h-full overflow-x-scroll custom-scrollbar">
+<div class="m-4 h-full overflow-x-scroll custom-scrollbar">
 	<!-- Page Title -->
 
-	<div class="m-4 ml-3 flex items-center gap-2">
+	<div class=" flex items-center gap-2">
 		<div class="flex h-7 w-7 items-center justify-center rounded-full bg-text text-white">
 			<Icon icon="Person" size="14px" />
 		</div>

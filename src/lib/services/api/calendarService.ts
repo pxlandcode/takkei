@@ -116,7 +116,8 @@ function transformBooking(raw: any): FullBooking {
 		},
 		location: {
 			id: raw.location_id,
-			name: raw.location_name
+			name: raw.location_name,
+			color: raw.location_color
 		},
 		room: {
 			id: raw.room_id,

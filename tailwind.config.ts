@@ -78,6 +78,14 @@ module.exports = {
 				},
 				black: {
 					DEFAULT: takkeiBlack
+				},
+				error: {
+					DEFAULT: red,
+					hover: darkRed
+				},
+				success: {
+					DEFAULT: green,
+					hover: brightGreen
 				}
 			},
 			screens: {
@@ -112,8 +120,7 @@ module.exports = {
 				'.custom-scrollbar': {
 					'scrollbar-width': 'thin',
 					'scrollbar-color': 'rgba(0, 0, 0, 0.2) transparent',
-					'border-radius': 'inherit',
-					'padding-right': '0.5rem'
+					'border-radius': 'inherit'
 				},
 				'.custom-scrollbar::-webkit-scrollbar': {
 					width: '8px'

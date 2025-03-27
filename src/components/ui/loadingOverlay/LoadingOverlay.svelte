@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onDestroy, onMount } from 'svelte';
-	import { loadingStore } from '../../../stores/loading';
+	import { loadingStore } from '$lib/stores/loading';
 
 	let loadingText = 'Något tar längre tid än väntat...';
 	let timer: ReturnType<typeof setTimeout> | null = null;

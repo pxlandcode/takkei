@@ -2,9 +2,22 @@ import { query } from '$lib/db';
 
 export async function GET() {
 	const queryStr = `
-        SELECT id, firstname, lastname, email
+        SELECT 
+            clients.id, 
+            clients.firstname, 
+            clients.lastname, 
+            clients.email, 
+            clients.phone,
+            clients.active,
+            clients.membership_status,
+            clients.primary_trainer_id,
+            users.id AS trainer_id, 
+            users.firstname AS trainer_firstname, 
+            users.lastname AS trainer_lastname 
+
         FROM clients
-        ORDER BY firstname ASC, lastname ASC
+        LEFT JOIN users ON clients.primary_trainer_id = users.id
+        ORDER BY clients.firstname ASC, clients.lastname ASC
     `;
 
 	try {

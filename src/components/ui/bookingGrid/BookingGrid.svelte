@@ -1,42 +1,52 @@
 <script>
 	import { onMount } from 'svelte';
 	import { profileStore } from '$lib/stores/profileStore';
+	import { clientProfileStore } from '$lib/stores/clientProfileStore';
 	import { tooltip } from '$lib/actions/tooltip';
 
-	export let trainerId;
-	export let daysToShow = 365; // Default to 1 year
-	let trainerBookings = [];
+	export let trainerId = null;
+	export let clientId = null;
+	export let daysToShow = 365;
 
-	// ✅ Compute the original start date
+	let bookings = [];
+
+	// Calculate date ranges
 	const today = new Date();
-	let startDate = new Date(today);
-	startDate.setDate(today.getDate() - (daysToShow - 1)); // Exact range
+	const halfRange = Math.floor(daysToShow / 2);
 
-	// ✅ Ensure the grid starts on a **Monday** (aligning the first day)
-	let weekStart = new Date(startDate);
-	const dayOfWeek = weekStart.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+	// Adjust time to start of day to avoid timezone inconsistencies
+	today.setHours(0, 0, 0, 0);
+
+	let firstValidDate = new Date(today);
+	let lastValidDate = new Date(today);
+
+	if (clientId) {
+		// For clients, center the view around today
+		firstValidDate.setDate(today.getDate() - halfRange);
+		lastValidDate.setDate(today.getDate() + halfRange);
+	} else {
+		// For trainers, show backwards only
+		firstValidDate.setDate(today.getDate() - (daysToShow - 1));
+		lastValidDate = new Date(today); // end on today
+	}
+
+	// Align to Monday
+	let weekStart = new Date(firstValidDate);
+	const dayOfWeek = weekStart.getDay(); // 0 = Sunday
 	const daysToSubtract = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
 	weekStart.setDate(weekStart.getDate() - daysToSubtract);
-
 	let days = [];
 	let months = [];
-
 	const weekDays = ['Mån', 'Tis', 'Ons', 'Tors', 'Fre', 'Lör', 'Sön'];
 
-	// ✅ Track grid width
 	let gridContainer;
 	let gridWidth = 0;
 
-	console.log('daysToShow:', daysToShow);
-	console.log('startDate (Before aligning to Monday):', startDate.toISOString().slice(0, 10));
-	console.log('weekStart (Monday-aligned start):', weekStart.toISOString().slice(0, 10));
-
-	// ✅ Populate days dynamically
+	// Fill the calendar
 	let monthLoop = null;
 	let currentDate = new Date(weekStart);
-	while (currentDate <= today) {
+	while (currentDate <= lastValidDate) {
 		const date = new Date(currentDate);
-
 		if (date.getMonth() !== monthLoop) {
 			monthLoop = date.getMonth();
 			months.push({
@@ -44,82 +54,95 @@
 				index: Math.floor(days.length / 7) + 1
 			});
 		}
-
-		days.push({ date, count: 0 });
-
-		// Move to the next day
+		const isBlank = date < firstValidDate;
+		days.push({ date, count: isBlank ? null : 0 });
 		currentDate.setDate(currentDate.getDate() + 1);
 	}
 
-	// ✅ Ensure last date is today
-	console.log('First date in days array:', days[0]?.date.toISOString().slice(0, 10));
-	console.log(
-		'Last date in days array (should be today):',
-		days[days.length - 1]?.date.toISOString().slice(0, 10)
-	);
-
-	// ✅ Fetch bookings when component mounts
+	// On Mount
 	onMount(async () => {
-		await profileStore.loadUser(trainerId, fetch);
-		trainerBookings = profileStore.getBookings(trainerId);
+		if (trainerId && clientId) {
+			console.warn('Pass only trainerId OR clientId, not both.');
+			return;
+		}
+
+		if (trainerId) {
+			await profileStore.loadUser(trainerId, fetch);
+			bookings = profileStore.getBookings(trainerId);
+		} else if (clientId) {
+			await clientProfileStore.loadClient(clientId, fetch);
+			bookings = clientProfileStore.getBookings(clientId);
+		} else {
+			console.warn('No ID provided for bookings.');
+		}
+
 		updateDays();
 
-		// ✅ Get grid width
 		if (gridContainer) {
 			gridWidth = gridContainer.offsetWidth;
 		}
 	});
 
-	// ✅ Function to update days with booking counts
+	// Update day counts
 	function updateDays() {
-		console.log('Updating days...');
+		if (bookings.length === 0) return;
 
-		// Log first and last booking date in `trainerBookings`
-		if (trainerBookings.length > 0) {
-			const sortedBookings = trainerBookings
-				.map((b) => new Date(b.booking.startTime))
-				.sort((a, b) => a - b);
-
-			console.log('Earliest booking date:', sortedBookings[0].toISOString().slice(0, 10));
-			console.log(
-				'Latest booking date:',
-				sortedBookings[sortedBookings.length - 1].toISOString().slice(0, 10)
-			);
-		} else {
-			console.log('No bookings found in trainerBookings.');
-		}
-
-		// Update `days` with correct counts
 		days = days.map((day) => {
-			const bookingCount = trainerBookings.filter((b) => {
+			if (day.count === null) return day;
+
+			const bookingCount = bookings.filter((b) => {
 				const bookingDate = new Date(b.booking.startTime);
 				return bookingDate.toISOString().slice(0, 10) === day.date.toISOString().slice(0, 10);
 			}).length;
-
-			console.log(`Date: ${day.date.toISOString().slice(0, 10)}, Bookings: ${bookingCount}`);
 
 			return { ...day, count: bookingCount };
 		});
 	}
 
-	// ✅ Recalculate when trainerBookings updates
-	$: if (trainerBookings.length) {
+	$: if (bookings.length) {
 		updateDays();
 	}
 </script>
 
 <div class="max-w-[820px] rounded-lg bg-white p-6 shadow-md">
 	<div class="mb-4 flex flex-row items-center justify-between">
-		<h4 class="text-xl font-semibold">Bokningar senaste {daysToShow} dagar</h4>
+		{#if trainerId}
+			<h4 class="text-xl font-semibold">Bokningar senaste {daysToShow} dagar</h4>
+		{:else if clientId}
+			<h3 class="text-lg font-semibold text-gray-800">
+				Bokningar
+				{daysToShow < 60
+					? `${Math.floor(daysToShow / 2)} dagar`
+					: `${Math.round(daysToShow / 2 / 30)} ${
+							Math.round(daysToShow / 2 / 30) === 1 ? 'månad' : 'månader'
+						}`}
+				bakåt och
+				{daysToShow < 60
+					? `${Math.ceil(daysToShow / 2)} dagar`
+					: `${Math.round(daysToShow / 2 / 30)} ${
+							Math.round(daysToShow / 2 / 30) === 1 ? 'månad' : 'månader'
+						}`}
+				framåt
+			</h3>
+		{/if}
+
 		<div class="flex flex-row items-center gap-[2px]">
-			<p class="day-label">0</p>
-			<div use:tooltip={{ content: '0 bokningar' }} class="cell bg-gray-200"></div>
-			<div use:tooltip={{ content: '1 bokning' }} class="cell bg-orange/10"></div>
-			<div use:tooltip={{ content: '2 bokningar' }} class="cell bg-orange/30"></div>
-			<div use:tooltip={{ content: '3 bokningar' }} class="cell bg-orange/55"></div>
-			<div use:tooltip={{ content: '4 bokningar' }} class="cell bg-orange/80"></div>
-			<div use:tooltip={{ content: '5 eller fler bokningar' }} class="cell bg-orange"></div>
-			<p class="day-label">5+</p>
+			{#if trainerId}
+				<p class="day-label">0</p>
+				<div use:tooltip={{ content: '0 bokningar' }} class="cell bg-gray-200"></div>
+				<div use:tooltip={{ content: '1 bokning' }} class="cell bg-orange/10"></div>
+				<div use:tooltip={{ content: '2 bokningar' }} class="cell bg-orange/30"></div>
+				<div use:tooltip={{ content: '3 bokningar' }} class="cell bg-orange/55"></div>
+				<div use:tooltip={{ content: '4 bokningar' }} class="cell bg-orange/80"></div>
+				<div use:tooltip={{ content: '5 eller fler bokningar' }} class="cell bg-orange"></div>
+				<p class="day-label">5+</p>
+			{:else}
+				<div
+					use:tooltip={{ content: '1 bokning har utförst denna dag' }}
+					class="cell bg-orange"
+				></div>
+				<p class="day-label">1 bokning</p>
+			{/if}
 		</div>
 	</div>
 
@@ -146,19 +169,38 @@
 			bind:this={gridContainer}
 		>
 			{#each days as day, i}
-				<div
-					use:tooltip={{
-						content: `Datum: ${day.date.toISOString().slice(0, 10)}, Bokningar: ${day.count}`
-					}}
-					class="cell
+				{#if day.count === null}
+					<div
+						class="cell bg-transparent"
+						style="grid-column: {Math.floor(i / 7) + 1}; grid-row: {(i % 7) + 1};"
+					></div>
+				{:else if trainerId}
+					<div
+						use:tooltip={{
+							content: `Datum: ${day.date.toISOString().slice(0, 10)}, Bokningar: ${day.count}`
+						}}
+						class="cell
+
                         {day.count === 0 ? 'bg-gray-200' : ''}
                         {day.count === 1 ? 'bg-orange/10' : ''}
 						{day.count === 2 ? 'bg-orange/30' : ''}
 						{day.count === 3 ? 'bg-orange/55' : ''}
 						{day.count === 4 ? 'bg-orange/80' : ''}
 						{day.count >= 5 ? 'bg-orange' : ''}"
-					style="grid-column: {Math.floor(i / 7) + 1}; grid-row: {(i % 7) + 1};"
-				></div>
+						style="grid-column: {Math.floor(i / 7) + 1}; grid-row: {(i % 7) + 1};"
+					></div>
+				{:else if clientId}
+					<div
+						use:tooltip={{
+							content: `Datum: ${day.date.toISOString().slice(0, 10)} ${trainerId ? `, Bokningar: ${day.count}` : ''}`
+						}}
+						class="cell
+
+                        {day.count === 0 ? 'bg-gray-200' : ''}
+                        {day.count > 0 ? 'bg-orange' : ''}
+"
+						style="grid-column: {Math.floor(i / 7) + 1}; grid-row: {(i % 7) + 1};"
+					></div>{/if}
 			{/each}
 		</div>
 	</div>

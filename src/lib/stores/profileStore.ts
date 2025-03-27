@@ -7,7 +7,7 @@ import { fetchUser } from '$lib/services/api/userService';
  * Type for the Profile Store
  */
 type ProfileStoreData = {
-	users: Record<number, { user: User; bookingsShort: FullBooking[] }>;
+	users: Record<number, { user: User; booking: FullBooking[] }>;
 };
 
 const createProfileStore = () => {
