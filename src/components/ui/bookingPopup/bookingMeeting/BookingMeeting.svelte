@@ -62,7 +62,6 @@
 			<Button icon="Trash" iconColor="red" variant="secondary" on:click={onDeSelectAllUsers} />
 		</div>
 	</div>
-	§
 
 	<!-- Location Selection -->
 	<Dropdown

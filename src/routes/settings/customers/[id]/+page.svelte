@@ -69,7 +69,7 @@
 						on:click={() => (selectedTab = tab)}
 					>
 						<Icon
-							icon={tab === 'Profil' ? 'Organization' : tab === 'Bokningar' ? 'Calendar' : 'Notes'}
+							icon={tab === 'Profil' ? 'Customer' : tab === 'Bokningar' ? 'Calendar' : 'Notes'}
 							size="18px"
 						/>
 						{tab}

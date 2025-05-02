@@ -43,12 +43,54 @@ export async function GET({ params }) {
 
 		// Get packages
 		const packagesSql = `
-			SELECT *
-			FROM packages
-			WHERE customer_id = $1
-		`;
-		const packages = await query(packagesSql, [id]);
+  SELECT 
+    p.*,
+    cl.id AS client_id,
+    cl.firstname AS client_firstname,
+    cl.lastname AS client_lastname,
+    a.id AS article_id,
+    a.name AS article_name,
+    a.price AS article_price,
+    a.kind AS article_kind
+  FROM packages p
+  LEFT JOIN clients cl ON cl.id = p.client_id
+  LEFT JOIN articles a ON a.id = p.article_id
+  WHERE p.customer_id = $1
+`;
 
+		const rawPackages = await query(packagesSql, [id]);
+
+		const packages = rawPackages.map((p) => ({
+			id: p.id,
+			customer_id: p.customer_id,
+			article_id: p.article_id,
+			client_id: p.client_id,
+			created_at: p.created_at,
+			updated_at: p.updated_at,
+			paid_price: p.paid_price,
+			invoice_no: p.invoice_no,
+			first_payment_date: p.first_payment_date,
+			payment_installments: p.payment_installments,
+			invoice_numbers: p.invoice_numbers,
+			autogiro: p.autogiro,
+			payment_installment_sums: p.payment_installment_sums,
+			payment_installments_per_date: p.payment_installments_per_date,
+			frozen_from_date: p.frozen_from_date,
+			upgraded: p.upgraded,
+			client: p.client_id
+				? {
+						id: p.client_id,
+						firstname: p.client_firstname,
+						lastname: p.client_lastname
+					}
+				: null,
+			article: {
+				id: p.article_id,
+				name: p.article_name,
+				price: p.article_price,
+				kind: p.article_kind
+			}
+		}));
 		// Final structure
 		const responseData = {
 			...customer,

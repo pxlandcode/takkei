@@ -20,6 +20,8 @@
 
 	export let data: TableType = [];
 
+	export let noSelect = false;
+
 	// Sorting state
 	let sortedColumn: string | null = null;
 	let sortOrder: 'asc' | 'desc' = 'asc';
@@ -58,16 +60,19 @@
 </script>
 
 <!-- Desktop Table -->
-<div class="overflow-x-auto border-gray sm:rounded-xl lg:border lg:shadow-md">
+<div class="overflow-x-auto border-gray sm:rounded-md lg:border lg:shadow-md">
 	<table class="hidden w-full table-fixed lg:table">
 		<thead class="rounded-t-lg bg-gray text-left text-white">
 			<tr>
-				<th class="w-12 rounded-tl-lg p-4">
-					<input type="checkbox" class="h-5 w-5 rounded border-gray" />
-				</th>
+				{#if !noSelect}
+					<th class="w-12 p-2 py-4 pl-4">
+						<input type="checkbox" class="h-5 w-5 rounded border-gray" />
+					</th>
+				{/if}
+
 				{#each headers as header}
 					<th
-						class="{header.sort ? 'cursor-pointer' : ''} items-center gap-2 p-4"
+						class="{header.sort ? 'cursor-pointer' : ''} items-center gap-2 p-2 py-4"
 						on:click={() => header.sort && sortTable(header.key)}
 						style={header.width ? `width: ${header.width}` : ''}
 					>
@@ -98,9 +103,11 @@
 		<tbody class="divide-y divide-gray-bright bg-white">
 			{#each $sortedData as row}
 				<tr class="hover:bg-gray-100">
-					<td class="p-4">
-						<input type="checkbox" class="h-5 w-5 rounded border-gray" />
-					</td>
+					{#if !noSelect}
+						<td class="p-4">
+							<input type="checkbox" class="h-5 w-5 rounded border-gray" />
+						</td>
+					{/if}
 					{#each headers as header}
 						<td class="p-4" style={header.width ? `width: ${header.width}` : ''}>
 							{#if Array.isArray(row[header.key])}
@@ -118,6 +125,14 @@
 												variant={item.variant}
 												icon={item.label ? undefined : item.icon}
 											/>
+										{:else if item.type === 'link'}
+											<a
+												href="javascript:void(0);"
+												on:click={item.action}
+												class="font-medium text-orange hover:underline"
+											>
+												{item.label}
+											</a>
 										{:else}
 											<p class="text-gray-700">{item.content}</p>
 										{/if}
@@ -139,7 +154,9 @@
 			<div class="rounded-lg border border-gray p-4 shadow-md">
 				<div class="flex items-center justify-between">
 					<h3 class="text-lg font-semibold">{row[headers[0].key]}</h3>
-					<input type="checkbox" class="h-5 w-5 rounded border-gray" />
+					{#if !noSelect}
+						<input type="checkbox" class="h-5 w-5 rounded border-gray" />
+					{/if}
 				</div>
 				{#each headers as header, i}
 					{#if i > 0}
@@ -154,9 +171,18 @@
 												on:click={item.action}
 												text={item.label}
 												iconLeft={item.label ? item.icon : undefined}
+												iconLeftSize="14px"
 												variant={item.variant}
 												icon={item.label ? undefined : item.icon}
 											/>
+										{:else if item.type === 'link'}
+											<a
+												href="javascript:void(0);"
+												on:click={item.action}
+												class="font-medium text-orange hover:underline"
+											>
+												{item.label}
+											</a>
 										{:else}
 											<p class="text-gray-700">{item.content}</p>
 										{/if}

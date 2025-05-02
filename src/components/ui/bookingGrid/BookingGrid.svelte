@@ -138,10 +138,12 @@
 				<p class="day-label">5+</p>
 			{:else}
 				<div
-					use:tooltip={{ content: '1 bokning har utförst denna dag' }}
+					use:tooltip={{ content: '1 bokning har genomförts denna dag' }}
 					class="cell bg-orange"
 				></div>
-				<p class="day-label">1 bokning</p>
+				<p class="day-label">Genomförd bokning</p>
+				<div use:tooltip={{ content: '1 bokning denna dag' }} class="cell bg-orange/55"></div>
+				<p class="day-label">Bokning</p>
 			{/if}
 		</div>
 	</div>
@@ -197,8 +199,8 @@
 						class="cell
 
                         {day.count === 0 ? 'bg-gray-200' : ''}
-                        {day.count > 0 ? 'bg-orange' : ''}
-"
+                     {day.count > 0 && day.date <= today ? 'bg-orange' : ''}
+                     {day.count > 0 && day.date > today ? 'bg-orange/55' : ''}"
 						style="grid-column: {Math.floor(i / 7) + 1}; grid-row: {(i % 7) + 1};"
 					></div>{/if}
 			{/each}

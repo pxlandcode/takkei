@@ -1,13 +1,60 @@
 <script lang="ts">
 	import Button from '../../bits/button/Button.svelte';
 	import CustomerEdit from '../CustomerEdit/CustomerEdit.svelte';
+	import Table from '../../bits/table/Table.svelte';
+	import { goto } from '$app/navigation';
+	import PopupWrapper from '../popupWrapper/PopupWrapper.svelte';
+	import PackagePopup from '../packagePopup/PackagePopup.svelte';
 
 	export let customer;
-
 	let isEditing = false;
+
+	// 📦 Transform packages into TableType format
+	const packageTable = customer.packages?.map((pkg) => ({
+		id: pkg.id,
+		type: [
+			{
+				type: 'link',
+				label: pkg.article?.name || 'Okänd typ',
+				action: () => goto(`/settings/packages/${pkg.id}`)
+			}
+		],
+		client: [
+			{
+				type: 'link',
+				label: `${pkg.client?.firstname} ${pkg.client?.lastname}`,
+				action: () => goto(`/clients/${pkg.client?.id}`)
+			}
+		],
+		frozen: pkg.frozen_from_date ? 'Ja' : 'Nej',
+		autogiro: pkg.autogiro ? 'Ja' : 'Nej',
+		invoice_no: pkg.invoice_no || '-',
+		balance: pkg.balance ?? '-' // optional field you might calculate server-side
+	}));
+
+	const packageHeaders = [
+		{ label: 'Typ', key: 'type' },
+		{ label: 'Klient', key: 'client' },
+		{ label: 'Fryst', key: 'frozen' },
+		{ label: 'Autogiro', key: 'autogiro' },
+		{ label: 'Fakturanummer', key: 'invoice_no' },
+		{ label: 'Saldo', key: 'balance' }
+	];
+
+	let showAddPackageModal = false;
+
+	function handleCreatePackage(pkgData) {
+		console.log('Create package with:', pkgData);
+		showAddPackageModal = false;
+	}
+
+	function closePackagePopup() {
+		showAddPackageModal = false;
+	}
 </script>
 
 <div class="flex flex-col gap-4">
+	<!-- 👤 Customer Info -->
 	<div class="rounded-lg bg-white p-6 shadow-md">
 		<div class="mb-4 flex items-center justify-between">
 			<h4 class="text-xl font-semibold">{!isEditing ? 'Profil' : 'Redigera kund'}</h4>
@@ -36,4 +83,30 @@
 			<CustomerEdit {customer} onSave={() => (isEditing = false)} />
 		{/if}
 	</div>
+
+	<!-- 📦 Package Table -->
+	<div class="rounded-lg bg-white p-6 shadow-md">
+		<div class="mb-4 flex items-center justify-between">
+			<h4 class="text-xl font-semibold">Paket</h4>
+			<Button
+				text="Lägg till paket"
+				variant="secondary"
+				iconLeft="Plus"
+				iconLeftSize="14px"
+				on:click={() => (showAddPackageModal = true)}
+			/>
+		</div>
+
+		{#if packageTable?.length > 0}
+			<Table headers={packageHeaders} data={packageTable} />
+		{:else}
+			<p class="text-gray-600">Inga paket kopplade till denna kund.</p>
+		{/if}
+	</div>
 </div>
+
+{#if showAddPackageModal}
+	<PopupWrapper width="1000px" header="Lägg till paket" icon="Plus" on:close={closePackagePopup}>
+		<PackagePopup customerId={customer.id} onSave={handleCreatePackage} />
+	</PopupWrapper>
+{/if}

@@ -2,6 +2,7 @@
 	import Icon from '../../components/bits/icon-component/Icon.svelte';
 	import CustomerSettings from '../../components/ui/customerSettings/CustomerSettings.svelte';
 	import LocationSettings from '../../components/ui/locationSettings/LocationSettings.svelte';
+	import PackagesSettings from '../../components/ui/packagesSettings/PackagesSettings.svelte';
 
 	// Import your actual content components
 
@@ -10,7 +11,8 @@
 		{ label: 'Användare', icon: 'Person', component: Icon },
 		{ label: 'Notifikationer', icon: 'Notification', component: Icon },
 		{ label: 'Kunder', icon: 'Customer', component: CustomerSettings },
-		{ label: 'Lokaler', icon: 'Building', component: LocationSettings }
+		{ label: 'Lokaler', icon: 'Building', component: LocationSettings },
+		{ label: 'Paket', icon: 'Package', component: PackagesSettings }
 	];
 
 	let selectedTab = menuItems[0];
@@ -43,11 +45,11 @@
 	<!-- 🔹 Main Layout -->
 	<div class="flex flex-1 overflow-hidden border-t">
 		<!-- 🔹 Sidebar Navigation (Hidden on small screens) -->
-		<aside class="hidden w-64 shrink-0 border-r p-6 lg:block">
+		<aside class="hidden w-52 shrink-0 border-r p-6 lg:block">
 			<ul class="space-y-2 text-gray-600">
 				{#each menuItems as item}
 					<li
-						class="flex cursor-pointer items-center gap-2 rounded-md p-2 hover:bg-gray-200 {selectedTab.label ===
+						class="flex cursor-pointer items-center gap-2 rounded-md p-2 underline-offset-4 hover:text-orange hover:underline {selectedTab.label ===
 							item.label && 'selected'}"
 						on:click={() => (selectedTab = item)}
 					>
@@ -67,9 +69,9 @@
 
 <style>
 	.tab-button {
-		@apply flex items-center gap-2 rounded-md p-2 text-gray-600 hover:bg-gray-200;
+		@apply flex items-center gap-2 rounded-md p-2 text-gray-600 hover:text-orange;
 	}
 	.selected {
-		@apply bg-gray-200 font-semibold;
+		@apply font-semibold text-orange;
 	}
 </style>
