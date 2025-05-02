@@ -108,7 +108,7 @@
 			<Icon icon={labelIcon} size={labelIconSize} color="gray" />
 		{/if}
 
-		<label for={id} class="block text-base font-medium text-gray">{label}</label>
+		<label for={id} class="mb-1 block text-sm font-medium text-gray">{label}</label>
 	</div>
 	<!-- Dropdown Button -->
 	<button
@@ -124,6 +124,7 @@
 				: 'bg-white text-black'
 		} 
         ${variant === 'black' ? 'hover:bg-black' : 'hover:bg-gray'}
+        ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}
 		transition-colors duration-150`}
 		on:click={toggleDropdown}
 		aria-haspopup="listbox"

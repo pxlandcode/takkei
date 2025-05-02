@@ -4,7 +4,7 @@ const orangeDark = '#c47a0a';
 
 //green
 const brightGreen = '#33c759';
-const green = '#29793D';
+const green = '#24A691';
 const darkGreen = '#061B15';
 
 //bronze

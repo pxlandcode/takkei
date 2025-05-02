@@ -28,3 +28,4 @@ src/lib/paraglide
 # Other
 dist/
 .vscode/
+sendgrid.env

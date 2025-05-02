@@ -7,6 +7,18 @@ export async function GET({ url }) {
 	const sortOrder = url.searchParams.get('sortOrder')?.toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
 	const search = url.searchParams.get('search')?.trim() || '';
 
+	const short = url.searchParams.get('short') === 'true';
+
+	if (short) {
+		try {
+			const result = await query(`SELECT id, name FROM customers ORDER BY name ASC`);
+			return new Response(JSON.stringify(result), { status: 200 });
+		} catch (error) {
+			console.error('Error fetching short customers:', error);
+			return new Response(JSON.stringify({ error: 'Internal Server Error' }), { status: 500 });
+		}
+	}
+
 	const validSortFields = ['name', 'email']; // whitelist
 	const safeSortBy = validSortFields.includes(sortBy) ? sortBy : 'name';
 
