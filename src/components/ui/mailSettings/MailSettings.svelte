@@ -63,17 +63,6 @@
 		}
 	}
 
-	function removeEmail(email: string) {
-		manualEmails = manualEmails.filter((e) => e !== email);
-	}
-
-	function handleKeyDown(event: KeyboardEvent) {
-		if (event.key === 'Enter') {
-			event.preventDefault();
-			addEmail();
-		}
-	}
-
 	// Send mail
 	async function handleSend() {
 		loadingStore.loading(true, 'Skickar mail...');
@@ -165,7 +154,7 @@
 	</div>
 
 	<!-- Users -->
-	<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+	<div class="grid grid-cols-1 gap-4 xl:grid-cols-2">
 		<div class="flex flex-row gap-2">
 			<DropdownCheckbox
 				label="Tränare"
