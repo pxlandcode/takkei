@@ -168,8 +168,8 @@
 	<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
 		<div class="flex flex-row gap-2">
 			<DropdownCheckbox
-				label="Användare"
-				placeholder="Välj användare"
+				label="Tränare"
+				placeholder="Välj tränare"
 				id="users"
 				options={($users || []).map((user) => ({
 					name: `${user.firstname} ${user.lastname}`,
