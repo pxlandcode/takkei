@@ -3,6 +3,7 @@
 	import CustomerSettings from '../../components/ui/customerSettings/CustomerSettings.svelte';
 	import LocationSettings from '../../components/ui/locationSettings/LocationSettings.svelte';
 	import PackagesSettings from '../../components/ui/packagesSettings/PackagesSettings.svelte';
+	import MailSettings from '../../components/ui/mailSettings/MailSettings.svelte';
 
 	// Import your actual content components
 
@@ -12,7 +13,8 @@
 		{ label: 'Notifikationer', icon: 'Notification', component: Icon },
 		{ label: 'Kunder', icon: 'Customer', component: CustomerSettings },
 		{ label: 'Lokaler', icon: 'Building', component: LocationSettings },
-		{ label: 'Paket', icon: 'Package', component: PackagesSettings }
+		{ label: 'Paket', icon: 'Package', component: PackagesSettings },
+		{ label: 'Mailutskick', icon: 'Mail', component: MailSettings }
 	];
 
 	let selectedTab = menuItems[0];

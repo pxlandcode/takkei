@@ -1,55 +1,52 @@
 <script lang="ts">
 	import { onMount, onDestroy, createEventDispatcher } from 'svelte';
-	import Quill from 'quill';
 	import 'quill/dist/quill.snow.css';
 
-	let editor: Quill | null = null;
+	let editor: any = null;
 	let container: HTMLDivElement | null = null;
-	export let content = ''; // Initial content
-	export let placeholder = 'Skriv din anteckning här...';
+	export let content = '';
+	export let placeholder = 'Skriv ditt meddelande här...';
+
 	const dispatch = createEventDispatcher();
 
-	// ✅ Initialize Quill
-	onMount(() => {
-		if (container) {
-			editor = new Quill(container, {
-				modules: {
-					toolbar: [
-						['bold', 'italic', 'underline', 'strike'], // Text styles
-						[{ list: 'ordered' }, { list: 'bullet' }], // Lists
-						['link'], // Links
-						[{ header: [1, 2, false] }], // Headers
-						[{ align: [] }], // Alignments
-						['clean'] // Remove formatting
-					]
-				},
-				theme: 'snow',
-				placeholder
-			});
+	onMount(async () => {
+		// ✅ SSR safety check
+		if (typeof window === 'undefined' || !container) return;
 
-			// ✅ Set initial content
-			editor.root.innerHTML = content;
+		// ✅ Dynamically import only in browser
+		const Quill = (await import('quill')).default;
 
-			// ✅ Listen for changes
-			editor.on('text-change', () => {
-				const htmlContent = editor.root.innerHTML;
-				dispatch('change', htmlContent);
-			});
-		}
+		editor = new Quill(container, {
+			theme: 'snow',
+			placeholder,
+			modules: {
+				toolbar: [
+					['bold', 'italic', 'underline', 'strike'],
+					[{ list: 'ordered' }, { list: 'bullet' }],
+					['link'],
+					[{ header: [1, 2, false] }],
+					[{ align: [] }],
+					['clean']
+				]
+			}
+		});
+
+		// ✅ Set initial content
+		if (content) editor.root.innerHTML = content;
+
+		// ✅ Handle changes
+		editor.on('text-change', () => {
+			dispatch('change', editor.root.innerHTML);
+		});
 	});
 
-	// ✅ Cleanup
 	onDestroy(() => {
-		if (editor) {
-			editor.off('text-change');
-			editor = null;
-		}
+		if (editor) editor.off('text-change');
 	});
 </script>
 
-<!-- Quill Container -->
 <div class="quill-container">
-	<div bind:this={container} class="editor"></div>
+	<div bind:this={container} class="editor" />
 </div>
 
 <style>

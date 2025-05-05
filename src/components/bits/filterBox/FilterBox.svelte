@@ -4,6 +4,8 @@
 	export let selectedUsers = [];
 	export let selectedLocations = [];
 	export let selectedClients = [];
+	export let selectedEmails: string[] = [];
+	export let title: string = 'Filter';
 
 	const dispatch = createEventDispatcher();
 
@@ -14,7 +16,14 @@
 
 <!-- Filter Box -->
 <div class="filter-box">
-	<span class="text-sm text-gray-medium">Filter:</span>
+	<span class="text-sm text-gray-medium">{title}:</span>
+
+	{#each selectedEmails as email}
+		<span class="filter-pill email-pill">
+			{email}
+			<span class="remove-button" on:click={() => removeFilter('email', email)}>×</span>
+		</span>
+	{/each}
 
 	<!-- Trainers -->
 	{#each selectedUsers as user}
@@ -52,6 +61,9 @@
 		@apply flex items-center gap-2 rounded-full border border-dashed px-3 py-1 text-sm;
 	}
 
+	.email-pill {
+		@apply border-gray-500 bg-gray-500/10 text-gray-500;
+	}
 	.trainer-pill {
 		@apply border-orange bg-orange/10 text-orange;
 	}

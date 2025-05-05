@@ -49,6 +49,8 @@ import IconPackage from './IconPackage.svelte';
 import IconLock from './IconLock.svelte';
 import IconUnlocked from './IconUnlocked.svelte';
 import IconCalculator from './IconCalculator.svelte';
+import IconMail from './IconMail.svelte';
+import IconSend from './IconSend.svelte';
 
 export {
 	IconClose,
@@ -101,5 +103,7 @@ export {
 	IconPackage,
 	IconLock,
 	IconUnlocked,
-	IconCalculator
+	IconCalculator,
+	IconMail,
+	IconSend
 };

@@ -1,13 +1,21 @@
 <script lang="ts">
+	import { createEventDispatcher } from 'svelte';
+
 	export let label: string = '';
 	export let name: string = '';
 	export let type: string = 'text';
 	export let placeholder: string = '';
 	export let value: string = '';
 	export let disabled: boolean = false;
-
-	// Accept errors object where `name` is the key for this input's error
 	export let errors: Record<string, string> = {};
+
+	const dispatch = createEventDispatcher();
+
+	function handleKeydown(event: KeyboardEvent) {
+		if (event.key === 'Enter') {
+			dispatch('enter', event);
+		}
+	}
 </script>
 
 <div class="mb-4 w-full">
@@ -25,6 +33,7 @@
 			{placeholder}
 			{disabled}
 			bind:value
+			on:keydown={handleKeydown}
 			class="
 				w-full
 				rounded
