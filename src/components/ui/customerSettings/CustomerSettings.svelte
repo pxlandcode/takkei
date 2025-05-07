@@ -1,22 +1,30 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import type { TableType } from '$lib/types/componentTypes';
-
 	import { goto } from '$app/navigation';
 	import Button from '../../bits/button/Button.svelte';
 	import OptionButton from '../../bits/optionButton/OptionButton.svelte';
 	import Table from '../../bits/table/Table.svelte';
+	import PopupWrapper from '../../ui/popupWrapper/PopupWrapper.svelte';
+	import CustomerForm from '../../ui/customerForm/CustomerForm.svelte';
 	import { debounce } from '$lib/utils/debounce';
 	import { loadingStore } from '$lib/stores/loading';
 
-	// State
+	let showCustomerModal = false;
+
+	function openCustomerForm() {
+		showCustomerModal = true;
+	}
+	function closeCustomerForm() {
+		showCustomerModal = false;
+	}
+
 	let data: TableType = [];
 	let filteredData: TableType = [];
 	let selectedStatusOption = { value: 'active', label: 'Aktiva kunder' };
 	let searchQuery = '';
 	let debouncedSearch = debounce(() => fetchPaginatedCustomers(true), 300);
 
-	// Pagination
 	let page = 0;
 	let limit = 50;
 	let isLoading = false;
@@ -30,7 +38,6 @@
 		{ label: 'Actions', key: 'actions', isSearchable: false, width: '100px' }
 	];
 
-	// Go to customer page
 	function onGoToCustomer(id: number) {
 		goto(`/settings/customers/${id}`);
 	}
@@ -39,9 +46,9 @@
 		const { column, order } = event.detail;
 		sortBy = column;
 		sortOrder = order;
-		await fetchPaginatedCustomers(true); // Refetch data with new sort
+		await fetchPaginatedCustomers(true);
 	}
-	// Fetch paginated customers
+
 	async function fetchPaginatedCustomers(reset = false) {
 		if (isLoading || (!hasMore && !reset)) return;
 
@@ -93,12 +100,10 @@
 		}
 	}
 
-	// Initial mount
 	onMount(() => {
 		fetchPaginatedCustomers(true);
 	});
 
-	// Filter logic
 	$: {
 		const query = searchQuery.toLowerCase();
 		filteredData = data.filter((row) => {
@@ -120,12 +125,9 @@
 		});
 	}
 
-	// Scroll handler
 	function handleScroll(event: Event) {
 		const el = event.target as HTMLElement;
-		const nearBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 100;
-
-		if (nearBottom && hasMore && !isLoading) {
+		if (el.scrollTop + el.clientHeight >= el.scrollHeight - 100) {
 			fetchPaginatedCustomers();
 		}
 	}
@@ -133,13 +135,8 @@
 
 <!-- UI -->
 <div class="h-full overflow-x-scroll custom-scrollbar" on:scroll={handleScroll}>
-	<!-- Filters -->
 	<div class="my-4 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-		<Button
-			text="Lägg till kund"
-			variant="primary"
-			on:click={() => alert('Add Customer clicked')}
-		/>
+		<Button text="Lägg till kund" variant="primary" on:click={openCustomerForm} />
 
 		<div class="flex flex-col gap-2 xl:flex-row xl:items-center xl:gap-4">
 			<input
@@ -166,13 +163,23 @@
 
 	<Table {headers} data={filteredData} on:sortChange={handleSortChange} />
 
-	<!-- Loading Indicator -->
 	{#if isLoading}
 		<p class="my-4 text-center text-sm text-gray-400">Laddar fler kunder...</p>
 	{/if}
 
-	<!-- End Message -->
 	{#if !hasMore && data.length > 0}
 		<p class="my-4 text-center text-sm text-gray-400">Inga fler kunder att visa.</p>
 	{/if}
 </div>
+
+<!-- Modal for CustomerForm -->
+{#if showCustomerModal}
+	<PopupWrapper header="Ny kund" icon="Plus" on:close={closeCustomerForm}>
+		<CustomerForm
+			on:created={() => {
+				closeCustomerForm();
+				fetchPaginatedCustomers(true);
+			}}
+		/>
+	</PopupWrapper>
+{/if}

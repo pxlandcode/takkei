@@ -28,15 +28,34 @@
 	onDestroy(() => {
 		window.removeEventListener('keydown', handleKeyDown);
 	});
+
+	let mouseDownInside = false;
+
+	function handleMouseDown(event: MouseEvent) {
+		const target = event.target as HTMLElement;
+		mouseDownInside = popupElement?.contains(target);
+	}
+
+	function handleMouseUp(event: MouseEvent) {
+		const target = event.target as HTMLElement;
+		const mouseUpInside = popupElement?.contains(target);
+
+		if (!mouseDownInside && !mouseUpInside) {
+			onClose();
+		}
+	}
+
+	let popupElement: HTMLElement;
 </script>
 
 <div
 	class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"
 	role="backdrop"
-	on:click={onClose}
-	on:keydown={handleKeyDown}
+	on:mousedown={handleMouseDown}
+	on:mouseup={handleMouseUp}
 >
 	<div
+		bind:this={popupElement}
 		class="modal-content overflow-visible rounded-lg bg-white shadow-lg transition-all"
 		on:click|stopPropagation
 		style="width: {width}; height: {height};"
@@ -53,7 +72,7 @@
 				</div>
 				<IconButton on:click={onClose} size="18px" icon="Close" transparent />
 			</div>
-			<div class="popup-scroll max-h-[80dvh] overflow-visible p-4">
+			<div class="popup-scroll max-h-[80dvh] overflow-scroll p-4">
 				<slot />
 			</div>
 		</div>

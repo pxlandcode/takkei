@@ -17,6 +17,9 @@
 	export let maxNumberOfSuggestions: number = 20; // Safe default
 	export let infiniteScroll: boolean = false;
 	export let search: boolean = false;
+	export let openPosition: 'up' | 'down' | null = null;
+
+	let dropdownPosition: 'up' | 'down' = 'down';
 
 	const dispatch = createEventDispatcher();
 	let showDropdown = false;
@@ -34,9 +37,23 @@
 
 	function toggleDropdown(event?: MouseEvent) {
 		event?.stopPropagation();
-		showDropdown = !showDropdown;
-		activeIndex = -1;
-		if (showDropdown) visibleCount = maxNumberOfSuggestions; // reset
+
+		if (!disabled) {
+			const target = event?.currentTarget as HTMLElement;
+			const rect = target?.getBoundingClientRect();
+			const spaceBelow = window.innerHeight - rect.bottom;
+			const spaceAbove = rect.top;
+
+			if (openPosition) {
+				dropdownPosition = openPosition;
+			} else {
+				dropdownPosition = spaceBelow < 250 && spaceAbove > spaceBelow ? 'up' : 'down';
+			}
+
+			showDropdown = !showDropdown;
+			activeIndex = -1;
+			if (showDropdown) visibleCount = maxNumberOfSuggestions;
+		}
 	}
 
 	function closeDropdown() {
@@ -122,7 +139,8 @@
 	{#if showDropdown}
 		<ul
 			bind:this={suggestionsListElement}
-			class="absolute top-full z-50 mt-1 max-h-60 w-full overflow-auto rounded-md border border-gray-300 bg-white shadow-md"
+			class={`absolute z-50 max-h-60 w-full overflow-auto rounded-md border border-gray-300 bg-white shadow-md
+		${dropdownPosition === 'up' ? 'bottom-full mb-1' : 'top-full mt-1'}`}
 			role="listbox"
 			on:keydown={handleKeydown}
 			on:scroll={onSuggestionsScroll}

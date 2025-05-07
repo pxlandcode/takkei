@@ -31,7 +31,10 @@
 	function handleInput(event: Event) {
 		const input = (event.target as HTMLInputElement).value;
 
-		value = name === 'person_number' ? formatPersonnummer(input) : input;
+		value =
+			name === 'person_number' || name === 'organization_number'
+				? formatPersonnummer(input)
+				: input;
 	}
 </script>
 
