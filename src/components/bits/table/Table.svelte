@@ -15,21 +15,18 @@
 		icon?: string;
 		iconSize?: string;
 		sort?: boolean;
-		width?: string; // ← Add this
+		width?: string;
 	}[] = [];
 
 	export let data: TableType = [];
 
 	export let noSelect = false;
 
-	// Sorting state
 	let sortedColumn: string | null = null;
 	let sortOrder: 'asc' | 'desc' = 'asc';
 
-	// Store for sorted data
 	const sortedData = writable([...data]);
 
-	// Update sortedData when new data is received
 	$: sortedData.set([...data]);
 
 	// Sorting function

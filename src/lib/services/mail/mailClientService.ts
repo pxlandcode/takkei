@@ -3,18 +3,22 @@ export async function sendMail({
 	subject,
 	header,
 	subheader,
-	body
+	body,
+	from
 }: {
 	to: string | string[];
 	subject: string;
 	header: string;
 	subheader: string;
 	body: string;
+	from?: { name: string; email: string };
 }) {
+	console.log('Sending email:', { to, subject, header, subheader, body, from });
+
 	const res = await fetch('/api/send-email', {
 		method: 'POST',
 		headers: { 'content-type': 'application/json' },
-		body: JSON.stringify({ to, subject, header, subheader, body })
+		body: JSON.stringify({ to, subject, header, subheader, body, from })
 	});
 
 	if (!res.ok) {

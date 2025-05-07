@@ -62,7 +62,7 @@
 			</div>
 
 			<!-- ✅ MOBILE -->
-			<div class="relative flex w-full items-center justify-center md:hidden">
+			<div class="relative flex w-full items-start justify-center md:hidden">
 				<div class="z-0 p-4">
 					<Dashboard />
 				</div>

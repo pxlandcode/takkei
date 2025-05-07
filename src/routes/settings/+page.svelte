@@ -3,7 +3,7 @@
 	import CustomerSettings from '../../components/ui/customerSettings/CustomerSettings.svelte';
 	import LocationSettings from '../../components/ui/locationSettings/LocationSettings.svelte';
 	import PackagesSettings from '../../components/ui/packagesSettings/PackagesSettings.svelte';
-	import MailSettings from '../../components/ui/mailSettings/MailSettings.svelte';
+	import MailComponent from '../../components/ui/mailComponent/MailComponent.svelte';
 	import Navigation from '../../components/bits/navigation/Navigation.svelte';
 
 	// Import your actual content components
@@ -15,13 +15,22 @@
 		{ label: 'Kunder', icon: 'Customer', component: CustomerSettings },
 		{ label: 'Lokaler', icon: 'Building', component: LocationSettings },
 		{ label: 'Paket', icon: 'Package', component: PackagesSettings },
-		{ label: 'Mailutskick', icon: 'Mail', component: MailSettings }
+		{ label: 'Mailutskick', icon: 'Mail', component: MailComponent }
 	];
 
 	let selectedTab = menuItems[0];
 </script>
 
-<Navigation {menuItems} bind:selectedTab title="Inställningar">
+<div class="m-4 ml-3 flex shrink-0 items-center gap-2">
+	<div class="flex h-7 w-7 items-center justify-center rounded-full bg-text text-white">
+		<!-- Use your icon -->
+		<Icon icon="Settings" size="18px" />
+	</div>
+	<h2 class="text-3xl font-semibold text-text">Inställningar</h2>
+</div>
+
+<!-- Navigation with slot for content -->
+<Navigation {menuItems} bind:selectedTab>
 	<svelte:component this={selectedTab.component} />
 </Navigation>
 
