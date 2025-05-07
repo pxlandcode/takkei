@@ -1,13 +1,41 @@
 <script lang="ts">
+	import { createEventDispatcher } from 'svelte';
+
 	export let label: string = '';
 	export let name: string = '';
 	export let type: string = 'text';
 	export let placeholder: string = '';
 	export let value: string = '';
 	export let disabled: boolean = false;
-
-	// Accept errors object where `name` is the key for this input's error
 	export let errors: Record<string, string> = {};
+
+	const dispatch = createEventDispatcher();
+
+	function handleKeydown(event: KeyboardEvent) {
+		if (event.key === 'Enter') {
+			dispatch('enter', event);
+		}
+	}
+
+	// Format yymmdd-xxxx
+	function formatPersonnummer(input: string) {
+		const digitsOnly = input.replace(/[^\d]/g, '').slice(0, 10);
+
+		if (digitsOnly.length <= 6) {
+			return digitsOnly;
+		}
+
+		return `${digitsOnly.slice(0, 6)}-${digitsOnly.slice(6)}`;
+	}
+
+	function handleInput(event: Event) {
+		const input = (event.target as HTMLInputElement).value;
+
+		value =
+			name === 'person_number' || name === 'organization_number'
+				? formatPersonnummer(input)
+				: input;
+	}
 </script>
 
 <div class="mb-4 w-full">
@@ -25,6 +53,8 @@
 			{placeholder}
 			{disabled}
 			bind:value
+			on:keydown={handleKeydown}
+			on:input={handleInput}
 			class="
 				w-full
 				rounded

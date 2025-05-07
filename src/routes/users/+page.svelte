@@ -6,6 +6,9 @@
 	import { goto } from '$app/navigation';
 	import Icon from '../../components/bits/icon-component/Icon.svelte';
 	import Button from '../../components/bits/button/Button.svelte';
+	import UserForm from '../../components/ui/userForm/UserForm.svelte';
+	import PopupWrapper from '../../components/ui/popupWrapper/PopupWrapper.svelte';
+	import { hasRole } from '$lib/helpers/userHelpers/roleHelper';
 
 	// Headers Configuration with isSearchable
 	const headers = [
@@ -19,6 +22,18 @@
 	let data: TableType = [];
 	let filteredData: TableType = [];
 	let searchQuery = '';
+
+	let showUserModal = false;
+
+	function openUserForm() {
+		showUserModal = true;
+	}
+
+	function closeUserForm() {
+		showUserModal = false;
+	}
+
+	$: isAdmin = hasRole('Administrator');
 
 	function onGoToTrainer(id: number) {
 		goto(`/users/${id}`);
@@ -93,11 +108,11 @@
 		<h2 class="text-3xl font-semibold text-text">Tränare</h2>
 	</div>
 	<div class="my-4 flex flex-row items-center justify-between">
-		<Button
-			text="Lägg till användare"
-			variant="primary"
-			on:click={() => alert('Add Trainer clicked')}
-		></Button>
+		<div>
+			{#if isAdmin}
+				<Button text="Lägg till användare" variant="primary" on:click={openUserForm} />
+			{/if}
+		</div>
 
 		<div class="ml-4 flex flex-row gap-4">
 			<input
@@ -114,3 +129,14 @@
 
 	<Table {headers} data={filteredData} />
 </div>
+
+{#if showUserModal}
+	<PopupWrapper header="Ny användare" icon="Plus" on:close={closeUserForm}>
+		<UserForm
+			on:created={() => {
+				closeUserForm();
+				fetchUsers();
+			}}
+		/>
+	</PopupWrapper>
+{/if}

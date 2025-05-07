@@ -8,6 +8,20 @@
 	import Icon from '../../components/bits/icon-component/Icon.svelte';
 	import Button from '../../components/bits/button/Button.svelte';
 	import OptionButton from '../../components/bits/optionButton/OptionButton.svelte';
+	import { hasRole } from '$lib/helpers/userHelpers/roleHelper';
+
+	import ClientForm from '../../components/ui/clientForm/ClientForm.svelte';
+	import PopupWrapper from '../../components/ui/popupWrapper/PopupWrapper.svelte';
+
+	let showClientModal = false;
+
+	function openClientForm() {
+		showClientModal = true;
+	}
+
+	function closeClientForm() {
+		showClientModal = false;
+	}
 
 	// Headers
 	const headers = [
@@ -24,6 +38,8 @@
 	let data: TableType = [];
 	let filteredData: TableType = [];
 	let searchQuery = '';
+
+	$: isAdmin = hasRole('Administrator');
 
 	function onGoToClient(id: number) {
 		goto(`/clients/${id}`);
@@ -108,11 +124,11 @@
 
 	<!-- Filters -->
 	<div class="my-4 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-		<Button
-			text="Lägg till klient"
-			variant="primary"
-			on:click={() => alert('Add Client clicked')}
-		/>
+		<div>
+			{#if isAdmin}
+				<Button text="Lägg till klient" variant="primary" on:click={openClientForm} />
+			{/if}
+		</div>
 
 		<div class="flex flex-col gap-2 xl:flex-row xl:items-center xl:gap-4">
 			<input
@@ -148,3 +164,14 @@
 
 	<Table {headers} data={filteredData} />
 </div>
+
+{#if showClientModal}
+	<PopupWrapper header="Ny klient" icon="Plus" on:close={closeClientForm}>
+		<ClientForm
+			on:created={() => {
+				closeClientForm();
+				fetchClients();
+			}}
+		/>
+	</PopupWrapper>
+{/if}

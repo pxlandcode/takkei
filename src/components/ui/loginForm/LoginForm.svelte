@@ -24,6 +24,7 @@
 				throw new Error(data.message || 'Login failed');
 			}
 
+			console.log(data.user);
 			user.set(data.user as User);
 			calendarStore.updateFilters({ trainerIds: [data.user.id] }, fetch);
 

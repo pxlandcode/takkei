@@ -14,36 +14,53 @@
 	export let errorMessage: string = '';
 	export let errors: string[] | undefined = undefined;
 	export let extraWrapperClasses: string = '';
-	export let maxNumberOfSuggestions: number | undefined = undefined;
+	export let maxNumberOfSuggestions: number = 20; // Safe default
 	export let infiniteScroll: boolean = false;
-	export let search: boolean = false; // Enables search input
+	export let search: boolean = false;
+	export let openPosition: 'up' | 'down' | null = null;
+
+	let dropdownPosition: 'up' | 'down' = 'down';
 
 	const dispatch = createEventDispatcher();
 	let showDropdown = false;
 	let activeIndex = -1;
 	let searchQuery = '';
 	let suggestionsListElement: HTMLUListElement;
-	let totalAvailableSuggestions = options.length;
+	let visibleCount = maxNumberOfSuggestions;
 
-	// Toggle dropdown
+	$: totalAvailableSuggestions = options.length;
+
+	// 🔄 Reactive filtered list
+	$: filteredOptions = options
+		.filter((option) => option.name.toLowerCase().includes(searchQuery.toLowerCase()))
+		.slice(0, visibleCount);
+
 	function toggleDropdown(event?: MouseEvent) {
 		event?.stopPropagation();
-		showDropdown = !showDropdown;
-		activeIndex = -1;
+
+		if (!disabled) {
+			const target = event?.currentTarget as HTMLElement;
+			const rect = target?.getBoundingClientRect();
+			const spaceBelow = window.innerHeight - rect.bottom;
+			const spaceAbove = rect.top;
+
+			if (openPosition) {
+				dropdownPosition = openPosition;
+			} else {
+				dropdownPosition = spaceBelow < 250 && spaceAbove > spaceBelow ? 'up' : 'down';
+			}
+
+			showDropdown = !showDropdown;
+			activeIndex = -1;
+			if (showDropdown) visibleCount = maxNumberOfSuggestions;
+		}
 	}
 
-	// Close dropdown
 	function closeDropdown() {
 		showDropdown = false;
 		activeIndex = -1;
 	}
 
-	// Filter options based on search query
-	$: filteredOptions = options
-		.filter((option) => option.name.toLowerCase().includes(searchQuery.toLowerCase()))
-		.slice(0, maxNumberOfSuggestions);
-
-	// Handle selection change
 	function handleCheckboxChange(optionValue: any, checked: boolean) {
 		let updatedSelection = checked
 			? [...selectedValues, optionValue]
@@ -52,12 +69,9 @@
 		dispatch('change', { selected: updatedSelection });
 	}
 
-	// Handle keyboard navigation
 	function handleKeydown(event: KeyboardEvent) {
 		if (!showDropdown) {
-			if (event.key === 'ArrowDown' || event.key === 'Enter') {
-				toggleDropdown();
-			}
+			if (event.key === 'ArrowDown' || event.key === 'Enter') toggleDropdown();
 			return;
 		}
 
@@ -69,10 +83,10 @@
 				activeIndex = (activeIndex - 1 + filteredOptions.length) % filteredOptions.length;
 				break;
 			case 'Enter':
-				handleCheckboxChange(
-					filteredOptions[activeIndex].value,
-					!selectedValues.includes(filteredOptions[activeIndex].value)
-				);
+				const option = filteredOptions[activeIndex];
+				if (option) {
+					handleCheckboxChange(option.value, !selectedValues.includes(option.value));
+				}
 				break;
 			case 'Escape':
 				closeDropdown();
@@ -80,24 +94,22 @@
 		}
 	}
 
-	// Handle infinite scroll
 	function onSuggestionsScroll() {
-		if (!infiniteScroll || !maxNumberOfSuggestions) return;
+		if (!infiniteScroll) return;
 
 		const { scrollTop, scrollHeight, clientHeight } = suggestionsListElement;
-		const isAtBottom = scrollHeight - scrollTop === clientHeight;
+		const isAtBottom = scrollHeight - scrollTop <= clientHeight + 1;
 
-		if (isAtBottom && maxNumberOfSuggestions < totalAvailableSuggestions) {
-			maxNumberOfSuggestions += 20;
+		if (isAtBottom && visibleCount < totalAvailableSuggestions) {
+			visibleCount = visibleCount + 20;
 		}
 	}
 </script>
 
-<!-- Wrapper -->
 <div class="relative flex w-full flex-col gap-1" use:clickOutside={closeDropdown}>
-	<label for={id} class="block text-base font-medium text-gray">{label}</label>
+	<label for={id} class="mb-2 block text-sm font-medium text-gray">{label}</label>
 
-	<!-- Dropdown Button -->
+	<!-- Dropdown button -->
 	<button
 		type="button"
 		{id}
@@ -117,24 +129,22 @@
 		/>
 	</button>
 
-	<!-- Show Error Message if exists -->
+	<!-- Error display -->
 	{#if error && errorMessage}
 		<p class="mt-1 text-sm text-red-500">{errorMessage}</p>
-	{/if}
-	{#if errors && errors.length > 0}
+	{:else if errors && errors.length > 0}
 		<p class="mt-1 text-sm text-red-500">{errors[0]}</p>
 	{/if}
 
-	<!-- Dropdown List -->
 	{#if showDropdown}
 		<ul
 			bind:this={suggestionsListElement}
-			class="absolute top-full z-50 mt-1 max-h-60 w-full overflow-auto rounded-md border border-gray-300 bg-white shadow-md"
+			class={`absolute z-50 max-h-60 w-full overflow-auto rounded-md border border-gray-300 bg-white shadow-md
+		${dropdownPosition === 'up' ? 'bottom-full mb-1' : 'top-full mt-1'}`}
 			role="listbox"
 			on:keydown={handleKeydown}
 			on:scroll={onSuggestionsScroll}
 		>
-			<!-- Search Input -->
 			{#if search}
 				<li class="p-2">
 					<input
