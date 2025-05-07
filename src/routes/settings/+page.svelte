@@ -5,28 +5,57 @@
 	import PackagesSettings from '../../components/ui/packagesSettings/PackagesSettings.svelte';
 	import MailComponent from '../../components/ui/mailComponent/MailComponent.svelte';
 	import Navigation from '../../components/bits/navigation/Navigation.svelte';
-
-	// Import your actual content components
+	import UserForm from '../../components/ui/userForm/UserForm.svelte';
+	import Button from '../../components/bits/button/Button.svelte';
+	import { goto } from '$app/navigation';
 
 	const menuItems = [
 		{ label: 'Allmänt', icon: 'Settings', component: Icon },
-		{ label: 'Användare', icon: 'Person', component: Icon },
-		{ label: 'Notifikationer', icon: 'Notification', component: Icon },
-		{ label: 'Kunder', icon: 'Customer', component: CustomerSettings },
-		{ label: 'Lokaler', icon: 'Building', component: LocationSettings },
+		{
+			label: 'Ny användare',
+			icon: 'Person',
+			component: UserForm,
+			requiredRoles: ['Administrator']
+		},
+		{
+			label: 'Kunder',
+			icon: 'Customer',
+			component: CustomerSettings
+		},
+		{
+			label: 'Lokaler',
+			icon: 'Building',
+			component: LocationSettings,
+			requiredRoles: ['Administrator']
+		},
 		{ label: 'Paket', icon: 'Package', component: PackagesSettings },
 		{ label: 'Mailutskick', icon: 'Mail', component: MailComponent }
 	];
 
 	let selectedTab = menuItems[0];
+
+	async function logout() {
+		await fetch('/api/logout', { method: 'POST' });
+		window.location.href = '/login';
+	}
 </script>
 
-<div class="m-4 ml-3 flex shrink-0 items-center gap-2">
-	<div class="flex h-7 w-7 items-center justify-center rounded-full bg-text text-white">
-		<!-- Use your icon -->
-		<Icon icon="Settings" size="18px" />
+<div class="m-4 ml-3 flex items-center justify-between">
+	<div class="flex shrink-0 items-center gap-2">
+		<div class="flex h-7 w-7 items-center justify-center rounded-full bg-text text-white">
+			<Icon icon="Settings" size="18px" />
+		</div>
+		<h2 class="text-3xl font-semibold text-text">Inställningar</h2>
 	</div>
-	<h2 class="text-3xl font-semibold text-text">Inställningar</h2>
+
+	<Button
+		text="Logga ut"
+		iconLeft="Logout"
+		iconLeftSize="16"
+		variant="secondary"
+		small
+		on:click={logout}
+	/>
 </div>
 
 <!-- Navigation with slot for content -->
@@ -35,10 +64,4 @@
 </Navigation>
 
 <style>
-	.tab-button {
-		@apply flex items-center gap-2 rounded-md p-2 text-gray-600 hover:text-orange;
-	}
-	.selected {
-		@apply font-semibold text-orange;
-	}
 </style>

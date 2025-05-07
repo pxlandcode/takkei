@@ -90,7 +90,7 @@
 </script>
 
 <div class="relative flex w-full flex-col gap-1" use:clickOutside={closeDropdown}>
-	<label for={id} class="block text-base font-medium text-gray">{label}</label>
+	<label for={id} class="mb-2 block text-sm font-medium text-gray">{label}</label>
 
 	<!-- Dropdown button -->
 	<button

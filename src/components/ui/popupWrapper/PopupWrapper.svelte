@@ -37,7 +37,7 @@
 	on:keydown={handleKeyDown}
 >
 	<div
-		class="modal-content overflow-hidden rounded-lg bg-white shadow-lg transition-all"
+		class="modal-content overflow-visible rounded-lg bg-white shadow-lg transition-all"
 		on:click|stopPropagation
 		style="width: {width}; height: {height};"
 	>
@@ -53,7 +53,7 @@
 				</div>
 				<IconButton on:click={onClose} size="18px" icon="Close" transparent />
 			</div>
-			<div class="popup-scroll max-h-[80dvh] overflow-y-scroll p-4">
+			<div class="popup-scroll max-h-[80dvh] overflow-visible p-4">
 				<slot />
 			</div>
 		</div>

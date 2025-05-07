@@ -9,7 +9,7 @@ function encryptPassword(password, salt) {
 export async function POST({ request, cookies }) {
 	const { email, password } = await request.json();
 
-	// Query the database for the user
+	// Get user
 	const result = await query('SELECT * FROM users WHERE email = $1', [email]);
 	const user = result[0];
 
@@ -17,12 +17,17 @@ export async function POST({ request, cookies }) {
 		return new Response(JSON.stringify({ message: 'Invalid email or password' }), { status: 401 });
 	}
 
-	// Hash the provided password and compare
+	// Check password
 	const hashedPassword = encryptPassword(password, user.salt);
 	if (hashedPassword !== user.crypted_password) {
 		return new Response(JSON.stringify({ message: 'Invalid email or password' }), { status: 401 });
 	}
 
+	// ✅ Fetch roles
+	const roles = await query('SELECT * FROM roles WHERE user_id = $1', [user.id]);
+	user.roles = roles;
+
+	// Set session cookie
 	cookies.set('session', user.id, {
 		httpOnly: true,
 		secure: process.env.NODE_ENV === 'production',

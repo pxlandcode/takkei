@@ -1,8 +1,21 @@
 <script lang="ts">
 	import Icon from '../icon-component/Icon.svelte';
+	import { user } from '$lib/stores/userStore';
+	import { get } from 'svelte/store';
+	import { hasRole } from '$lib/helpers/userHelpers/roleHelper';
 
 	export let menuItems = [];
 	export let selectedTab;
+
+	const currentUser = get(user);
+	const userRoles = currentUser?.roles?.map((r) => r.name) || [];
+
+	console.log('userRoles', userRoles);
+	console.log('currentUser', currentUser);
+
+	$: visibleMenuItems = menuItems.filter((item) => {
+		return !item.requiredRoles || hasRole(item.requiredRoles);
+	});
 
 	function selectTab(item) {
 		selectedTab = item;
@@ -14,7 +27,7 @@
 	<!-- 🔹 Sidebar Nav (Desktop) -->
 	<aside class="hidden w-52 shrink-0 border-r p-6 lg:block">
 		<ul class="space-y-2 text-gray-600">
-			{#each menuItems as item}
+			{#each visibleMenuItems as item}
 				<li
 					class="flex cursor-pointer items-center gap-2 rounded-md p-2 underline-offset-4 hover:text-orange hover:underline {selectedTab.label ===
 						item.label && 'selected'}"
@@ -31,7 +44,7 @@
 	<div class="flex flex-1 flex-col overflow-hidden">
 		<!-- 🔹 Mobile Nav (Top) -->
 		<nav class="flex w-full shrink-0 flex-wrap justify-around border-b p-4 lg:hidden">
-			{#each menuItems as item}
+			{#each visibleMenuItems as item}
 				<button
 					on:click={() => selectTab(item)}
 					class="tab-button {selectedTab.label === item.label && 'selected'}"

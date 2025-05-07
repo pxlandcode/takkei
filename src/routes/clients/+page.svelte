@@ -9,6 +9,19 @@
 	import Button from '../../components/bits/button/Button.svelte';
 	import OptionButton from '../../components/bits/optionButton/OptionButton.svelte';
 
+	import ClientForm from '../../components/ui/clientForm/ClientForm.svelte';
+	import PopupWrapper from '../../components/ui/popupWrapper/PopupWrapper.svelte';
+
+	let showClientModal = false;
+
+	function openClientForm() {
+		showClientModal = true;
+	}
+
+	function closeClientForm() {
+		showClientModal = false;
+	}
+
 	// Headers
 	const headers = [
 		{ label: 'Klient', key: 'name', icon: 'Person', sort: true, isSearchable: true },
@@ -108,11 +121,7 @@
 
 	<!-- Filters -->
 	<div class="my-4 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-		<Button
-			text="Lägg till klient"
-			variant="primary"
-			on:click={() => alert('Add Client clicked')}
-		/>
+		<Button text="Lägg till klient" variant="primary" on:click={openClientForm} />
 
 		<div class="flex flex-col gap-2 xl:flex-row xl:items-center xl:gap-4">
 			<input
@@ -148,3 +157,14 @@
 
 	<Table {headers} data={filteredData} />
 </div>
+
+{#if showClientModal}
+	<PopupWrapper header="Ny klient" icon="Plus" on:close={closeClientForm}>
+		<ClientForm
+			on:created={() => {
+				closeClientForm();
+				fetchClients();
+			}}
+		/>
+	</PopupWrapper>
+{/if}

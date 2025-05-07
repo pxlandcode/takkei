@@ -16,6 +16,23 @@
 			dispatch('enter', event);
 		}
 	}
+
+	// Format yymmdd-xxxx
+	function formatPersonnummer(input: string) {
+		const digitsOnly = input.replace(/[^\d]/g, '').slice(0, 10);
+
+		if (digitsOnly.length <= 6) {
+			return digitsOnly;
+		}
+
+		return `${digitsOnly.slice(0, 6)}-${digitsOnly.slice(6)}`;
+	}
+
+	function handleInput(event: Event) {
+		const input = (event.target as HTMLInputElement).value;
+
+		value = name === 'person_number' ? formatPersonnummer(input) : input;
+	}
 </script>
 
 <div class="mb-4 w-full">
@@ -34,6 +51,7 @@
 			{disabled}
 			bind:value
 			on:keydown={handleKeydown}
+			on:input={handleInput}
 			class="
 				w-full
 				rounded

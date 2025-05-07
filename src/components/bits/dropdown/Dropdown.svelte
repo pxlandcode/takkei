@@ -52,10 +52,20 @@
 	}
 
 	// Toggle dropdown visibility when clicking the button
+	let dropdownPosition: 'up' | 'down' = 'down';
+
 	function toggleDropdown(event: Event) {
 		if (disabled) return;
 		event.stopPropagation();
-		showDropdown = !showDropdown;
+
+		const buttonElement = event.currentTarget as HTMLElement;
+		const rect = buttonElement.getBoundingClientRect();
+		const spaceBelow = window.innerHeight - rect.bottom;
+		const spaceAbove = rect.top;
+
+		dropdownPosition = spaceBelow < 250 && spaceAbove > spaceBelow ? 'up' : 'down';
+
+		showDropdown = !showDropdown; // moved AFTER measuring
 		activeIndex = -1;
 	}
 
@@ -151,14 +161,14 @@
 	{#if showDropdown && options.length > 0}
 		<ul
 			bind:this={suggestionsListElement}
-			class="absolute top-full z-50 mt-1 max-h-60 w-full overflow-auto rounded-md border border-gray-bright bg-white shadow-md"
+			class={`absolute z-50 max-h-60 w-full overflow-auto rounded-md border border-gray-bright bg-white shadow-md
+			${dropdownPosition === 'up' ? 'bottom-full mb-1' : 'top-full mt-1'}`}
 			role="listbox"
 			on:keydown={handleKeydown}
 			on:scroll={onSuggestionsScroll}
 			aria-labelledby={id}
 			aria-disabled={disabled}
 		>
-			<!-- Search Input -->
 			{#if search}
 				<li class="p-2">
 					<input
@@ -180,7 +190,7 @@
 					<button
 						on:click={() => selectOption(option)}
 						class={`w-full px-3 py-2 text-left hover:text-white focus:text-white focus:outline-white
-                          ${variant === 'black' ? 'hover:bg-black focus:bg-black' : 'hover:bg-gray focus:bg-gray'}`}
+						${variant === 'black' ? 'hover:bg-black focus:bg-black' : 'hover:bg-gray focus:bg-gray'}`}
 						aria-label={isObjectOption(option) ? option.label : option}
 					>
 						{isObjectOption(option) ? option.label : option}
