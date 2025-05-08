@@ -40,7 +40,7 @@
 	}
 </script>
 
-<div class="m-4 ml-3 flex items-center justify-between">
+<div class="m-4 ml-3 flex flex-wrap items-center justify-between">
 	<div class="flex shrink-0 items-center gap-2">
 		<div class="flex h-7 w-7 items-center justify-center rounded-full bg-text text-white">
 			<Icon icon="Settings" size="18px" />
@@ -48,14 +48,16 @@
 		<h2 class="text-3xl font-semibold text-text">Inställningar</h2>
 	</div>
 
-	<Button
-		text="Logga ut"
-		iconLeft="Logout"
-		iconLeftSize="16"
-		variant="secondary"
-		small
-		on:click={logout}
-	/>
+	<div class="mr-14 md:mr-0">
+		<Button
+			text="Logga ut"
+			iconLeft="Logout"
+			iconLeftSize="16"
+			variant="secondary"
+			small
+			on:click={logout}
+		/>
+	</div>
 </div>
 
 <!-- Navigation with slot for content -->

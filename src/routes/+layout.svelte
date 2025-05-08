@@ -80,7 +80,7 @@
 						</div>
 					{/if}
 
-					<div class="flex h-full flex-col overflow-hidden rounded-t-xl bg-white p-4">
+					<div class="flex h-full flex-col overflow-hidden rounded-t-xl bg-white">
 						<slot />
 					</div>
 				</div>
