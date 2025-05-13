@@ -1,4 +1,4 @@
-import { writable } from 'svelte/store';
+import { get, writable } from 'svelte/store';
 import { fetchBookings } from '$lib/services/api/calendarService';
 
 /**
@@ -36,22 +36,21 @@ const createCalendarStore = () => {
 	/**
 	 * Fetch & Update Bookings based on current filters
 	 */
-	async function refresh(fetchFn: typeof fetch) {
-		let storeData;
-		subscribe((store) => (storeData = store))();
+	async function refresh(fetchFn: typeof fetch, overrideFilters?: CalendarFilters) {
+		const filtersToUse = overrideFilters ?? getCurrentFilters();
 
-		if (!storeData.filters.from && !storeData.filters.to) {
+		if (!filtersToUse.from && !filtersToUse.to) {
 			const { weekStart, weekEnd } = getWeekStartAndEnd(new Date());
-			storeData.filters.from = weekStart;
-			storeData.filters.to = weekEnd;
+			filtersToUse.from = weekStart;
+			filtersToUse.to = weekEnd;
 		}
 
-		// ✅ Only auto-set personalBookings if it wasn't explicitly set
-		if (storeData.filters.personalBookings === undefined) {
-			storeData.filters.personalBookings = storeData.filters.trainerIds?.length === 1;
+		// Handle personalBookings fallback if needed
+		if (filtersToUse.personalBookings === undefined) {
+			filtersToUse.personalBookings = filtersToUse.trainerIds?.length === 1;
 		}
 
-		const newBookings = await fetchBookings(storeData.filters, fetchFn);
+		const newBookings = await fetchBookings(filtersToUse, fetchFn);
 
 		update((store) => ({
 			...store,
@@ -59,24 +58,27 @@ const createCalendarStore = () => {
 		}));
 	}
 
-	function updateFilters(newFilters: Partial<CalendarFilters>, fetchFn: typeof fetch) {
-		let storeData;
-		subscribe((store) => (storeData = store))();
+	function getCurrentFilters(): CalendarFilters {
+		let current;
+		subscribe((s) => (current = s))();
+		return current.filters;
+	}
 
-		console.log('[calendarStore] Updating filters:', newFilters);
+	function updateFilters(newFilters: Partial<CalendarFilters>, fetchFn: typeof fetch) {
+		const updatedFilters = {
+			...getCurrentFilters(),
+			...newFilters,
+			personalBookings: newFilters.personalBookings ?? newFilters.trainerIds?.length === 1
+		};
 
 		update((store) => ({
 			...store,
-			filters: {
-				...store.filters,
-				...newFilters,
-				// ✅ Only auto-set if `personalBookings` wasn't explicitly set
-				personalBookings: newFilters.personalBookings ?? newFilters.trainerIds?.length === 1
-			}
+			filters: updatedFilters
 		}));
-		console.log('[calendarStore] Updated filters:', storeData.filters);
 
-		refresh(fetchFn);
+		console.log('[calendarStore] ✅ Final filters after update:', updatedFilters);
+
+		refresh(fetchFn, updatedFilters); // ← pass directly
 	}
 
 	/**
@@ -88,105 +90,88 @@ const createCalendarStore = () => {
 		const to = weekEnd;
 		const formattedDate = date.toISOString().slice(0, 10);
 
-		updateFilters({ from, to, date: formattedDate }, fetchFn);
+		const currentFilters = getCurrentFilters();
+
+		updateFilters(
+			{
+				...currentFilters, // ✅ Keep existing filters
+				from,
+				to,
+				date: formattedDate
+			},
+			fetchFn
+		);
 	}
-
 	function goToNextWeek(fetchFn: typeof fetch) {
-		update((store) => {
-			const currentDate = store.filters.from ? new Date(store.filters.from) : new Date();
-			currentDate.setDate(currentDate.getDate() + 7); // Move forward one week
+		const currentFilters = getCurrentFilters();
+		const currentDate = currentFilters.from ? new Date(currentFilters.from) : new Date();
 
-			const { weekStart, weekEnd } = getWeekStartAndEnd(currentDate);
+		currentDate.setDate(currentDate.getDate() + 7); // Move forward one week
+		const { weekStart, weekEnd } = getWeekStartAndEnd(currentDate);
 
-			return {
-				...store,
-				filters: {
-					...store.filters,
-					from: weekStart,
-					to: weekEnd,
-					date: weekStart // Move the displayed date to the start of the new week
-				}
-			};
-		});
-
-		refresh(fetchFn);
+		updateFilters(
+			{
+				from: weekStart,
+				to: weekEnd,
+				date: weekStart
+			},
+			fetchFn
+		);
 	}
 
 	function goToPreviousWeek(fetchFn: typeof fetch) {
-		update((store) => {
-			const currentDate = store.filters.from ? new Date(store.filters.from) : new Date();
-			currentDate.setDate(currentDate.getDate() - 7); // Move backward one week
+		const currentFilters = getCurrentFilters();
+		const currentDate = currentFilters.from ? new Date(currentFilters.from) : new Date();
 
-			const { weekStart, weekEnd } = getWeekStartAndEnd(currentDate);
+		currentDate.setDate(currentDate.getDate() - 7); // Move back one week
+		const { weekStart, weekEnd } = getWeekStartAndEnd(currentDate);
 
-			return {
-				...store,
-				filters: {
-					...store.filters,
-					from: weekStart,
-					to: weekEnd,
-					date: weekStart // Move the displayed date to the start of the new week
-				}
-			};
-		});
-
-		refresh(fetchFn);
+		updateFilters(
+			{
+				from: weekStart,
+				to: weekEnd,
+				date: weekStart
+			},
+			fetchFn
+		);
 	}
 
 	function goToNextDay(fetchFn: typeof fetch) {
-		let needsWeekUpdate = false;
+		const currentFilters = getCurrentFilters();
+		const currentDate = currentFilters.date ? new Date(currentFilters.date) : new Date();
 
-		update((store) => {
-			const currentDate = store.filters.date ? new Date(store.filters.date) : new Date();
-			currentDate.setDate(currentDate.getDate() + 1); // Move forward one day
+		currentDate.setDate(currentDate.getDate() + 1); // Move forward one day
+		const newDateStr = currentDate.toISOString().slice(0, 10);
 
-			const newDateStr = currentDate.toISOString().slice(0, 10);
-			const { weekStart, weekEnd } = getWeekStartAndEnd(currentDate);
+		const { weekStart, weekEnd } = getWeekStartAndEnd(currentDate);
+		const needsWeekUpdate = newDateStr < currentFilters.from || newDateStr > currentFilters.to;
 
-			// Check if the new date is outside the current week range
-			needsWeekUpdate = newDateStr < store.filters.from || newDateStr > store.filters.to;
-
-			return {
-				...store,
-				filters: {
-					...store.filters,
-					date: newDateStr,
-					...(needsWeekUpdate ? { from: weekStart, to: weekEnd } : {})
-				}
-			};
-		});
-
-		if (needsWeekUpdate) {
-			refresh(fetchFn);
-		}
+		updateFilters(
+			{
+				date: newDateStr,
+				...(needsWeekUpdate ? { from: weekStart, to: weekEnd } : {})
+			},
+			fetchFn
+		);
 	}
 
 	function goToPreviousDay(fetchFn: typeof fetch) {
-		let needsWeekUpdate = false;
+		const currentFilters = getCurrentFilters();
+		const currentDate = currentFilters.date ? new Date(currentFilters.date) : new Date();
 
-		update((store) => {
-			const currentDate = store.filters.date ? new Date(store.filters.date) : new Date();
-			currentDate.setDate(currentDate.getDate() - 1); // Move backward one day
+		currentDate.setDate(currentDate.getDate() - 1); // Move back one day
+		const newDateStr = currentDate.toISOString().slice(0, 10);
 
-			const newDateStr = currentDate.toISOString().slice(0, 10);
-			const { weekStart, weekEnd } = getWeekStartAndEnd(currentDate);
+		const { weekStart, weekEnd } = getWeekStartAndEnd(currentDate);
+		const needsWeekUpdate = newDateStr < currentFilters.from || newDateStr > currentFilters.to;
 
-			// Check if the new date is outside the current week range
-			needsWeekUpdate = newDateStr < store.filters.from || newDateStr > store.filters.to;
-
-			return {
-				...store,
-				filters: {
-					...store.filters,
-					date: newDateStr,
-					...(needsWeekUpdate ? { from: weekStart, to: weekEnd } : {})
-				}
-			};
-		});
-
-		if (needsWeekUpdate) {
-			refresh(fetchFn);
-		}
+		updateFilters(
+			{
+				date: newDateStr,
+				...(needsWeekUpdate ? { from: weekStart, to: weekEnd } : {})
+			},
+			fetchFn
+		);
 	}
 
 	/**

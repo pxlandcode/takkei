@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { capitalizeFirstLetter } from '$lib/helpers/generic/genericHelpers';
 	import { calendarStore } from '$lib/stores/calendarStore';
+	import { onMount } from 'svelte';
 	import Button from '../../components/bits/button/Button.svelte';
 	import OptionButton from '../../components/bits/optionButton/OptionButton.svelte';
 	import BookingPopup from '../../components/ui/bookingPopup/BookingPopup.svelte';
@@ -14,6 +15,8 @@
 
 	let bookingOpen = false;
 
+	let isMobile = false;
+
 	$: filters = $calendarStore.filters;
 
 	$: selectedDate = filters.date ? new Date(filters.date) : new Date();
@@ -25,12 +28,17 @@
 		})
 	);
 
-	if (data.firstVisit) {
-		calendarStore.updateFilters(data.filters, fetch);
-		data.firstVisit = false;
-	}
-
 	let calendarView = { value: false, label: 'Vecka', icon: 'Week' };
+
+	onMount(() => {
+		if (window.innerWidth < 768) {
+			isMobile = true;
+		}
+	});
+
+	$: if (isMobile) {
+		calendarView = { value: true, label: 'Dag', icon: 'Day' };
+	}
 
 	let dayOrWeekOptions = [
 		{ value: false, label: 'Vecka', icon: 'Week' },
@@ -73,10 +81,10 @@
 </script>
 
 <div class="h-full overflow-x-scroll custom-scrollbar">
-	<div class="flex flex-row items-center justify-between">
-		<div class="flex flex-row items-center gap-4">
+	<div class="mt-2 flex flex-col items-center gap-4 lg:flex-row lg:items-center lg:justify-between">
+		<div class="flex flex-row flex-wrap items-center md:gap-4">
 			<p class="p-4 text-2xl font-thin">{formattedMonthYear}</p>
-			<div class="w-60">
+			<div class="hidden w-60 lg:block">
 				<OptionButton
 					options={dayOrWeekOptions}
 					size="small"
@@ -85,26 +93,34 @@
 				/>
 			</div>
 		</div>
-		<div class="flex flex-row gap-2">
-			<Button icon="ChevronLeft" variant="secondary" iconSize="16px" on:click={onPrevious}></Button>
-			<Button text="Idag" variant="secondary" on:click={onToday}></Button>
-			<Button icon="ChevronRight" variant="secondary" iconSize="16px" on:click={onNext}></Button>
-		</div>
-		<div class="flex flex-row gap-2">
-			<Button on:click={() => (filterOpen = true)} icon="Filter" variant="secondary" iconSize="16px"
-			></Button>
+		<div class="mx-auto mb-4 mr-14 flex flex-row gap-2 md:mr-0 md:gap-4 lg:mb-0">
+			<div class="flex flex-row gap-2">
+				<Button icon="ChevronLeft" variant="secondary" iconSize="16px" on:click={onPrevious}
+				></Button>
+				<Button text="Idag" variant="secondary" on:click={onToday}></Button>
+				<Button icon="ChevronRight" variant="secondary" iconSize="16px" on:click={onNext}></Button>
+			</div>
+			<div class="flex flex-row gap-2">
+				<Button
+					on:click={() => (filterOpen = true)}
+					icon="Filter"
+					variant="secondary"
+					iconSize="16px"
+				></Button>
 
-			<Button
-				iconLeft="Plus"
-				variant="primary"
-				text="Boka"
-				iconLeftSize="13px"
-				on:click={() => (bookingOpen = true)}
-			></Button>
+				<Button
+					iconLeft="Plus"
+					variant="primary"
+					text="Boka"
+					iconLeftSize="13px"
+					on:click={() => (bookingOpen = true)}
+				></Button>
+			</div>
 		</div>
 	</div>
-
-	<CalendarComponent singleDayView={calendarView.value} />
+	{#key calendarView.value}
+		<CalendarComponent singleDayView={calendarView.value} />
+	{/key}
 </div>
 
 {#if filterOpen}

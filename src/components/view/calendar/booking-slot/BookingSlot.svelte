@@ -76,7 +76,7 @@
 	function checkNameWidth() {
 		if (fullNameWidth === 0) return;
 
-		const containerWidth = bookingSlot.offsetWidth;
+		const containerWidth = bookingSlot?.offsetWidth;
 
 		// Use initials if full name is too wide
 		useInitials = fullNameWidth > containerWidth - 8;
@@ -93,7 +93,7 @@
 			if (debounceTimer) clearTimeout(debounceTimer);
 
 			debounceTimer = setTimeout(() => {
-				width = bookingSlot.offsetWidth || 200;
+				width = bookingSlot?.offsetWidth || 200;
 				checkNameWidth();
 			}, 100);
 		});

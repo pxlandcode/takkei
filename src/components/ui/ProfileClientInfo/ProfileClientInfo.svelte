@@ -13,8 +13,6 @@
 	$: if (client?.trainer_firstname && client?.trainer_lastname) {
 		primaryTrainerName = `${client.trainer_firstname} ${client.trainer_lastname}`;
 	}
-
-	console.log(client);
 </script>
 
 <div class="flex flex-col gap-4">

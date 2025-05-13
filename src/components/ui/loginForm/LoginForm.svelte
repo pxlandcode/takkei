@@ -26,7 +26,9 @@
 
 			console.log(data.user);
 			user.set(data.user as User);
-			calendarStore.updateFilters({ trainerIds: [data.user.id] }, fetch);
+			const trainerIds = data.user?.id ? [data.user.id] : null;
+
+			calendarStore.updateFilters({ trainerIds }, fetch);
 
 			goto('/dashboard');
 		} catch (error) {

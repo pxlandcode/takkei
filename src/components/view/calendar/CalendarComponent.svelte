@@ -35,7 +35,7 @@
 	let weekDays: { day: string; date: string }[] = [];
 
 	$: {
-		if (singleDayView && filters.date) {
+		if (singleDayView) {
 			// If `singleDayView` is enabled, show only the selected date
 			const selectedDate = new Date(filters.date);
 

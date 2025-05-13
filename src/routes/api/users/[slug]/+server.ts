@@ -33,3 +33,44 @@ export async function GET({ params }) {
 		return json({ error: 'Internal Server Error' }, { status: 500 });
 	}
 }
+
+export async function PUT({ request, params }) {
+	const userId = params.slug;
+
+	try {
+		const { firstname, lastname, initials, email, mobile, default_location_id, active } =
+			await request.json();
+
+		// Validate required fields
+		if (!firstname || !lastname || !email) {
+			return json(
+				{ success: false, errors: { general: 'Obligatoriska fält saknas' } },
+				{ status: 400 }
+			);
+		}
+
+		await query(
+			`
+			UPDATE users SET
+				firstname = $1,
+				lastname = $2,
+				initials = $3,
+				email = $4,
+				mobile = $5,
+				default_location_id = $6,
+				active = $7,
+				updated_at = NOW()
+			WHERE id = $8
+			`,
+			[firstname, lastname, initials, email, mobile, default_location_id, active, userId]
+		);
+
+		return json({ success: true });
+	} catch (err) {
+		console.error('Update user error:', err);
+		return json(
+			{ success: false, errors: { general: 'Ett fel uppstod vid uppdatering' } },
+			{ status: 500 }
+		);
+	}
+}

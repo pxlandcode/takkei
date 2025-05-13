@@ -42,6 +42,8 @@
 		}
 
 		await Promise.all([fetchUsers(), fetchLocations(), fetchClients(), fetchBookingContents()]);
+
+		console.log('locations', get(locations));
 	});
 	// API call to create booking
 	async function submitBooking() {
@@ -85,18 +87,6 @@
 			bookingContents={($bookingContents || []).map((content) => ({
 				value: content.id,
 				label: capitalizeFirstLetter(content.kind)
-			}))}
-			users={($users || []).map((user) => ({
-				label: `${user.firstname} ${user.lastname}`,
-				value: user.id
-			}))}
-			clients={($clients || []).map((client) => ({
-				label: `${client.firstname} ${client.lastname}`,
-				value: client.id
-			}))}
-			locations={($locations || []).map((location) => ({
-				label: location.name,
-				value: location.id
 			}))}
 		/>
 	{:else if selectedBookingComponent === 'meeting'}
