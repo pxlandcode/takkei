@@ -5,8 +5,8 @@
 	import Input from '../../bits/Input/Input.svelte';
 	import Button from '../../bits/button/Button.svelte';
 	import { loadingStore } from '$lib/stores/loading';
-	import { addNotification } from '$lib/stores/notificationStore';
-	import { AppNotificationType } from '$lib/types/notificationTypes';
+	import { addToast } from '$lib/stores/toastStore';
+	import { AppToastType } from '$lib/types/toastTypes';
 
 	export let trainer;
 	export let onSave;
@@ -31,16 +31,16 @@
 
 			if (!res.ok) {
 				errors = result.errors || { general: 'Kunde inte spara ändringar' };
-				addNotification({
-					type: AppNotificationType.CANCEL,
+				addToast({
+					type: AppToastType.CANCEL,
 					message: 'Fel',
 					description: errors.general
 				});
 				return;
 			}
 
-			addNotification({
-				type: AppNotificationType.SUCCESS,
+			addToast({
+				type: AppToastType.SUCCESS,
 				message: 'Profil uppdaterad',
 				description: `${trainer.firstname} ${trainer.lastname} har uppdaterats korrekt.`
 			});
@@ -48,8 +48,8 @@
 			if (onSave) onSave();
 		} catch (err) {
 			console.error('Save error', err);
-			addNotification({
-				type: AppNotificationType.CANCEL,
+			addToast({
+				type: AppToastType.CANCEL,
 				message: 'Fel',
 				description: 'Ett fel uppstod vid uppdatering.'
 			});

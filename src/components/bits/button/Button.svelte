@@ -17,6 +17,7 @@
 	export let iconSize: string = '20px';
 	export let full: boolean = false;
 	export let iconColor: string = 'currentColor';
+	export let notificationCount: number = 0;
 	export let confirmOptions: {
 		title?: string;
 		description?: string;
@@ -48,32 +49,41 @@
 	`;
 </script>
 
-{#if confirmOptions}
-	<button use:confirm={confirmOptions} {type} class={buttonClasses}>
-		{#if icon && !text}
-			<Icon {icon} size={iconSize} color={iconColor} />
-		{:else}
-			{#if iconLeft}
-				<Icon icon={iconLeft} size={small ? '15px' : iconLeftSize} color={iconColor} />
+<div class="relative inline-block">
+	{#if confirmOptions}
+		<button use:confirm={confirmOptions} {type} class={buttonClasses}>
+			{#if icon && !text}
+				<Icon {icon} size={iconSize} color={iconColor} />
+			{:else}
+				{#if iconLeft}
+					<Icon icon={iconLeft} size={small ? '15px' : iconLeftSize} color={iconColor} />
+				{/if}
+				{text}
+				{#if iconRight}
+					<Icon icon={iconRight} size={small ? '15px' : iconRightSize} color={iconColor} />
+				{/if}
 			{/if}
-			{text}
-			{#if iconRight}
-				<Icon icon={iconRight} size={small ? '15px' : iconRightSize} color={iconColor} />
+		</button>
+	{:else}
+		<button {type} class={buttonClasses} on:click={handleClick}>
+			{#if icon && !text}
+				<Icon {icon} size={iconSize} color={iconColor} />
+			{:else}
+				{#if iconLeft}
+					<Icon icon={iconLeft} size={small ? '15px' : iconLeftSize} color={iconColor} />
+				{/if}
+				{text}
+				{#if iconRight}
+					<Icon icon={iconRight} size={small ? '15px' : iconRightSize} color={iconColor} />
+				{/if}
 			{/if}
-		{/if}
-	</button>
-{:else}
-	<button {type} class={buttonClasses} on:click={handleClick}>
-		{#if icon && !text}
-			<Icon {icon} size={iconSize} color={iconColor} />
-		{:else}
-			{#if iconLeft}
-				<Icon icon={iconLeft} size={small ? '15px' : iconLeftSize} color={iconColor} />
-			{/if}
-			{text}
-			{#if iconRight}
-				<Icon icon={iconRight} size={small ? '15px' : iconRightSize} color={iconColor} />
-			{/if}
-		{/if}
-	</button>
-{/if}
+		</button>
+	{/if}
+	{#if notificationCount > 0}
+		<span
+			class="bg-notification absolute -right-1 -top-1 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full px-1 text-xs font-semibold text-white"
+		>
+			{notificationCount}
+		</span>
+	{/if}
+</div>

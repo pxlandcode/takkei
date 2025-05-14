@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { calendarStore } from '$lib/stores/calendarStore';
+	import { notificationStore } from '$lib/stores/notificationStore';
 	import { user } from '$lib/stores/userStore';
 	import type { User } from '$lib/types/userTypes';
 	import Button from '../../bits/button/Button.svelte';
@@ -26,6 +27,7 @@
 
 			console.log(data.user);
 			user.set(data.user as User);
+
 			const trainerIds = data.user?.id ? [data.user.id] : null;
 
 			calendarStore.updateFilters({ trainerIds }, fetch);

@@ -1,18 +1,53 @@
-import type { AppNotification } from '$lib/types/notificationTypes';
 import { writable } from 'svelte/store';
 
-export const notifications = writable<AppNotification[]>([]);
+type NotificationType = 'alert' | 'client' | 'info';
 
-export function addNotification(notification: Omit<AppNotification, 'id'>) {
-    const id = Date.now().toString();
-    notifications.update((all) => [
-        ...all,
-        { ...notification, id, timeout: notification.timeout || 5000 },
-    ]);
+export type NotificationSummary = {
+	total: number;
+	byType: Record<NotificationType, number>;
+};
 
-    setTimeout(() => removeNotification(id), notification.timeout || 5000);
-}
+const createNotificationStore = () => {
+	const { subscribe, set } = writable<NotificationSummary>({
+		total: 0,
+		byType: {
+			alert: 0,
+			client: 0,
+			info: 0
+		}
+	});
 
-export function removeNotification(id: string) {
-    notifications.update((all) => all.filter((n) => n.id !== id));
-}
+	return {
+		subscribe,
+
+		async updateFromServer(userId: number) {
+			if (!userId) return;
+
+			try {
+				const res = await fetch(`/api/notifications?user_id=${userId}`);
+				if (!res.ok) throw new Error('Kunde inte hämta notifikationer');
+				const notifications = await res.json();
+
+				const byType = {
+					alert: 0,
+					client: 0,
+					info: 0
+				};
+
+				for (const n of notifications) {
+					const type = (n.event_type ?? 'info') as NotificationType;
+					if (byType[type] !== undefined) byType[type]++;
+				}
+
+				set({
+					total: notifications.length,
+					byType
+				});
+			} catch (e) {
+				console.error('notificationStore.updateFromServer failed:', e);
+			}
+		}
+	};
+};
+
+export const notificationStore = createNotificationStore();

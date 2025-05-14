@@ -8,6 +8,7 @@
 	import UserForm from '../../components/ui/userForm/UserForm.svelte';
 	import Button from '../../components/bits/button/Button.svelte';
 	import { goto } from '$app/navigation';
+	import NotificationCreator from '../../components/ui/notificationCreator/NotificationCreator.svelte';
 
 	const menuItems = [
 		{ label: 'Allmänt', icon: 'Settings', component: Icon },
@@ -29,7 +30,13 @@
 			requiredRoles: ['Administrator']
 		},
 		{ label: 'Paket', icon: 'Package', component: PackagesSettings },
-		{ label: 'Mailutskick', icon: 'Mail', component: MailComponent }
+		{ label: 'Mailutskick', icon: 'Mail', component: MailComponent },
+		{
+			label: 'Skapa Notis',
+			icon: 'Notification',
+			component: NotificationCreator,
+			requiredRoles: ['Administrator']
+		}
 	];
 
 	let selectedTab = menuItems[0];

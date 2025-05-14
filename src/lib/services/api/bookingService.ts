@@ -1,5 +1,5 @@
 import { addNotification } from '$lib/stores/notificationStore';
-import { AppNotificationType } from '$lib/types/notificationTypes';
+import { AppToastType } from '$lib/types/notificationTypes';
 
 export async function createBooking(
 	bookingObject: any,

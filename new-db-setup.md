@@ -182,3 +182,44 @@ export async function getAchievements(userId: number) {
 ALTER TABLE locations
 ADD COLUMN color TEXT DEFAULT '#6b7280';
 
+
+
+
+-- 1. Create the event_types table
+CREATE TABLE event_types (
+    id SERIAL PRIMARY KEY,
+    type VARCHAR(255)
+);
+
+-- 2. Add event_type_id to the events table
+ALTER TABLE events
+ADD COLUMN event_type_id INTEGER;
+
+-- 3. (Optional) Add foreign key constraint if you want referential integrity
+-- ALTER TABLE events
+-- ADD CONSTRAINT fk_event_type
+-- FOREIGN KEY (event_type_id)
+-- REFERENCES event_types(id);
+
+-- 4. Insert default event types
+INSERT INTO event_types (type) VALUES ('client');
+INSERT INTO event_types (type) VALUES ('alert');
+
+
+---5. update done handling
+
+CREATE TABLE events_done (
+	id SERIAL PRIMARY KEY,
+	event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+	user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+	done_at TIMESTAMP NOT NULL DEFAULT now(),
+	UNIQUE (event_id, user_id)
+);
+
+
+CREATE INDEX idx_events_done_user_event ON events_done (user_id, event_id);
+
+---6. created_by added
+
+ALTER TABLE events
+ADD COLUMN created_by INTEGER REFERENCES users(id);

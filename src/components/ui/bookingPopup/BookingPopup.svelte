@@ -13,8 +13,8 @@
 	import BookingPersonal from './bookingPersonal/BookingPersonal.svelte';
 	import OptionsSelect from '../../bits/options-select/OptionsSelect.svelte';
 	import { get } from 'svelte/store';
-	import { addNotification } from '$lib/stores/notificationStore';
-	import { AppNotificationType } from '$lib/types/notificationTypes';
+	import { addToast } from '$lib/stores/toastStore';
+	import { AppToastType } from '$lib/types/toastTypes';
 
 	// Store selected booking type component
 	let selectedBookingComponent: 'training' | 'meeting' = 'training';
@@ -51,14 +51,14 @@
 		const result = await createBooking(bookingObject, type);
 
 		if (result.success) {
-			addNotification({
-				type: AppNotificationType.SUCCESS,
+			addToast({
+				type: AppToastType.SUCCESS,
 				message: 'Bokning genomförd',
 				description: `Bokningen skapades klockan ${bookingObject.time} den ${bookingObject.date}.`
 			});
 		} else {
-			addNotification({
-				type: AppNotificationType.CANCEL,
+			addToast({
+				type: AppToastType.CANCEL,
 				message: 'Något gick fel',
 				description: `Något gick fel, försök igen eller kontakta IT.`
 			});

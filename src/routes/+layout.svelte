@@ -8,7 +8,7 @@
 	import HeaderComponent from '../components/view/header/HeaderComponent.svelte';
 	import LoadingOverlay from '../components/ui/loadingOverlay/LoadingOverlay.svelte';
 	import Dashboard from '../components/view/dashboard/Dashboard.svelte';
-	import NotificationContainer from '../components/ui/notification-container/NotificationContainer.svelte';
+	import ToastContainer from '../components/ui/toast-container/ToastContainer.svelte';
 
 	import { onMount } from 'svelte';
 	import { browser } from '$app/environment';
@@ -88,7 +88,7 @@
 		</main>
 
 		<LoadingOverlay />
-		<NotificationContainer />
+		<ToastContainer />
 	{/if}
 </ParaglideJS>
 
