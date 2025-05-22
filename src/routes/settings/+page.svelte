@@ -7,8 +7,8 @@
 	import Navigation from '../../components/bits/navigation/Navigation.svelte';
 	import UserForm from '../../components/ui/userForm/UserForm.svelte';
 	import Button from '../../components/bits/button/Button.svelte';
-	import { goto } from '$app/navigation';
-	import NotificationCreator from '../../components/ui/notificationCreator/NotificationCreator.svelte';
+
+	import NotificationAdministration from '../../components/ui/notificationAdministration/NotificationAdministration.svelte';
 
 	const menuItems = [
 		{ label: 'Allmänt', icon: 'Settings', component: Icon },
@@ -32,9 +32,9 @@
 		{ label: 'Paket', icon: 'Package', component: PackagesSettings },
 		{ label: 'Mailutskick', icon: 'Mail', component: MailComponent },
 		{
-			label: 'Skapa Notis',
+			label: 'Notifikationer',
 			icon: 'Notification',
-			component: NotificationCreator,
+			component: NotificationAdministration,
 			requiredRoles: ['Administrator']
 		}
 	];

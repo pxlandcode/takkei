@@ -7,6 +7,7 @@
 	export let trainerId = null;
 	export let clientId = null;
 	export let daysToShow = 365;
+	export let border = false;
 
 	let bookings = [];
 
@@ -104,7 +105,9 @@
 	}
 </script>
 
-<div class="max-w-[820px] rounded-lg bg-white p-6 shadow-md">
+<div
+	class="max-w-[820px] rounded-lg bg-white {border ? 'border border-gray-200' : ''} p-6 shadow-md"
+>
 	<div class="mb-4 flex flex-row items-center justify-between">
 		{#if trainerId}
 			<h4 class="text-xl font-semibold">Bokningar senaste {daysToShow} dagar</h4>

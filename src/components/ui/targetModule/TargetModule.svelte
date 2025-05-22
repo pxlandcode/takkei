@@ -3,11 +3,11 @@
 	import { onMount } from 'svelte';
 	import Button from '../../bits/button/Button.svelte';
 	import ProgressBar from '../../bits/progress-bar/ProgressBar.svelte';
+	import { goto } from '$app/navigation';
 
-	let userId = 19; // Replace with actual user ID
+	let userId = 19;
 	let selectedDate = new Date();
 
-	// Fetch targets on mount
 	onMount(() => {
 		const formattedDate = selectedDate.toISOString().slice(0, 10);
 		updateTargets(userId, formattedDate);
@@ -20,7 +20,14 @@
 	<!-- Header -->
 	<div class="mb-4 flex items-center justify-between">
 		<h2 class="text-xl text-white">Mål</h2>
-		<Button small text="Min sida" variant="secondary" iconLeft="Person" iconRight="ChevronRight" />
+		<Button
+			small
+			text="Min sida"
+			variant="secondary"
+			iconLeft="Person"
+			iconRight="ChevronRight"
+			on:click={() => goto('/')}
+		/>
 	</div>
 
 	<!-- Targets List -->

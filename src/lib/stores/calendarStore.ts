@@ -94,7 +94,7 @@ const createCalendarStore = () => {
 
 		updateFilters(
 			{
-				...currentFilters, // ✅ Keep existing filters
+				...currentFilters,
 				from,
 				to,
 				date: formattedDate
@@ -111,6 +111,7 @@ const createCalendarStore = () => {
 
 		updateFilters(
 			{
+				...currentFilters,
 				from: weekStart,
 				to: weekEnd,
 				date: weekStart
@@ -128,6 +129,7 @@ const createCalendarStore = () => {
 
 		updateFilters(
 			{
+				...currentFilters,
 				from: weekStart,
 				to: weekEnd,
 				date: weekStart
@@ -148,6 +150,7 @@ const createCalendarStore = () => {
 
 		updateFilters(
 			{
+				...currentFilters,
 				date: newDateStr,
 				...(needsWeekUpdate ? { from: weekStart, to: weekEnd } : {})
 			},
@@ -167,6 +170,7 @@ const createCalendarStore = () => {
 
 		updateFilters(
 			{
+				...currentFilters,
 				date: newDateStr,
 				...(needsWeekUpdate ? { from: weekStart, to: weekEnd } : {})
 			},

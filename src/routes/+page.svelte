@@ -1,60 +1,33 @@
-<!-- +page.svelte  (or any component you like) -->
 <script lang="ts">
-	// optional: make subject/text reactive inputs instead of hard‑coded
-	const payload = {
-		to: 'pierre.elmen@gmail.com',
-		subject: 'Sending with SvelteKit is Fun',
-		text: 'and easy to do anywhere, even with SvelteKit',
-		html: '<strong>and easy to do anywhere, even with SvelteKit</strong>'
-	};
-
-	let status: 'idle' | 'sending' | 'sent' | 'error' = 'idle';
-
-	async function sendMail() {
-		try {
-			status = 'sending';
-
-			const res = await fetch('/api/send-email', {
-				method: 'POST',
-				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify(payload)
-			});
-
-			if (!res.ok) throw new Error(await res.text());
-			status = 'sent';
-		} catch (err) {
-			console.error(err);
-			status = 'error';
-		}
-	}
+	import Icon from '../components/bits/icon-component/Icon.svelte';
+	import NotificationsModule from '../components/bits/modules-for-mina-sidor/notificationsModule/NotificationsModule.svelte';
+	import NoBookingsClientModule from '../components/bits/modules-for-mina-sidor/noBookingsClientModule/NoNookingsClientModule.svelte';
+	import { user } from '../lib/stores/userStore';
+	import TodaysBookingsModule from '../components/bits/modules-for-mina-sidor/todaysBookingsModule/TodaysBookingsModule.svelte';
+	import BookingGrid from '../components/ui/bookingGrid/BookingGrid.svelte';
+	import GoalsAndAchievementsModule from '../components/bits/modules-for-mina-sidor/goalsAndAchievementsModule/GoalsAndAchievementsModule.svelte';
+	// Components to be created next
 </script>
 
-<h1>Welcome to SvelteKit</h1>
-<p>
-	Visit
-	<a href="https://svelte.dev/docs/kit">svelte.dev/docs/kit</a>
-	to read the documentation
-</p>
+<div class="m-4 h-full overflow-x-scroll custom-scrollbar">
+	<!-- Greeting -->
+	<div class="mb-6 flex items-center gap-2">
+		<div class="flex h-7 w-7 items-center justify-center rounded-full bg-text text-white">
+			<Icon icon="Person" size="14px" />
+		</div>
+		<h2 class="text-3xl font-semibold text-text">Hej, {$user?.firstname} 👋</h2>
+	</div>
 
-<button
-	class="rounded bg-blue-600 px-4 py-2 text-white disabled:opacity-60"
-	disabled={status === 'sending'}
-	on:click={sendMail}
->
-	{#if status === 'sending'}
-		Sending…
-	{:else if status === 'sent'}
-		Sent ✅
-	{:else if status === 'error'}
-		Try again ❌
-	{:else}
-		Send test email
-	{/if}
-</button>
+	<!-- Bento Grid -->
+	<div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+		<NotificationsModule />
+		<TodaysBookingsModule />
+		<NoBookingsClientModule />
 
-<style>
-	/* quick utility if you’re not using Tailwind */
-	button {
-		transition: opacity 0.2s;
-	}
-</style>
+		<GoalsAndAchievementsModule />
+
+		<div class="mx-auto md:col-span-2">
+			<BookingGrid fullWidth border trainerId={$user?.id} />
+		</div>
+	</div>
+</div>

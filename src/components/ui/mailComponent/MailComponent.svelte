@@ -127,6 +127,13 @@
 	}
 </script>
 
+<div class="mb-4 flex flex-row items-center justify-between">
+	<h2 class="text-xl font-semibold">Mailutskick</h2>
+</div>
+
+<div class="mb-4 flex flex-row items-center justify-between">
+	<p class="text-sm text-gray-500">Skicka mail från din adress eller info@takkei.se</p>
+</div>
 <div class="flex flex-col gap-4">
 	{#if !lockedFields.includes('subject')}
 		<Input

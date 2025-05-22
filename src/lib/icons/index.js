@@ -56,6 +56,7 @@ import IconEyeOff from './IconEyeOff.svelte';
 import IconLogout from './IconLogout.svelte';
 import IconCircleUser from './IconCircleUser.svelte';
 import IconCircleAlert from './IconCircleAlert.svelte';
+import IconTrophy from './IconTrophy.svelte';
 
 export {
 	IconClose,
@@ -115,5 +116,6 @@ export {
 	IconEyeOff,
 	IconLogout,
 	IconCircleUser,
-	IconCircleAlert
+	IconCircleAlert,
+	IconTrophy
 };

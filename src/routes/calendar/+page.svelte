@@ -80,8 +80,10 @@
 	}
 </script>
 
-<div class="h-full overflow-x-scroll custom-scrollbar">
-	<div class="mt-2 flex flex-col items-center gap-4 lg:flex-row lg:items-center lg:justify-between">
+<div class="h-full overflow-x-hidden overflow-y-hidden custom-scrollbar">
+	<div
+		class="mx-2 mt-2 flex flex-col items-center gap-4 lg:flex-row lg:items-center lg:justify-between"
+	>
 		<div class="flex flex-row flex-wrap items-center md:gap-4">
 			<p class="p-4 text-2xl font-thin">{formattedMonthYear}</p>
 			<div class="hidden w-60 lg:block">

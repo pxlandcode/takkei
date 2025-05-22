@@ -2,7 +2,7 @@ import { query } from '$lib/db';
 
 export async function GET({ url }) {
 	const fromDate = url.searchParams.get('from');
-	const toDate = url.searchParams.get('to');
+	let toDate = url.searchParams.get('to');
 	const date = url.searchParams.get('date');
 
 	const userIds = url.searchParams.getAll('trainerId').map(Number).filter(Boolean);

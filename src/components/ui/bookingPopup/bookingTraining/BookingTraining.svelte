@@ -8,6 +8,7 @@
 	import { users, fetchUsers } from '$lib/stores/usersStore';
 	import { onMount } from 'svelte';
 	import { get } from 'svelte/store';
+	import SlotTimePicker from '../../../bits/slotTimePicker/SlotTimePicker.svelte';
 
 	export let bookingObject: any;
 	export let bookingContents: { value: string; label: string }[] = [];
@@ -67,6 +68,7 @@
 	// $: console.log('Booking Object:', bookingObject);
 	// console.log('users', $users);
 
+	$: bookingObject && console.log('Booking Object:', bookingObject);
 	// Reset client if not found in filtered list
 	$: {
 		const exists = filteredClients.some((c) => c.value === bookingObject.clientId);
@@ -74,6 +76,8 @@
 			bookingObject.clientId = null;
 		}
 	}
+
+	$: locations && console.log('Locations:', $locations);
 
 	// Auto-assign room if only one available
 	$: {
@@ -181,27 +185,13 @@
 		full
 	/>
 	<!-- Date & Time -->
-	<div class="grid grid-cols-2 gap-4">
-		<div>
-			<label for="date" class="text-sm font-medium text-gray-700">Datum</label>
-			<input
-				type="date"
-				id="date"
-				bind:value={bookingObject.date}
-				class="w-full rounded-lg border p-2 text-gray-700"
-			/>
-		</div>
-
-		<div>
-			<label for="time" class="text-sm font-medium text-gray-700">Starttid</label>
-			<input
-				type="time"
-				id="time"
-				bind:value={bookingObject.time}
-				class="w-full rounded-lg border p-2 text-gray-700"
-			/>
-		</div>
-	</div>
+	<SlotTimePicker
+		bind:selectedDate={bookingObject.date}
+		bind:selectedTime={bookingObject.time}
+		trainerId={bookingObject.trainerId}
+		locationId={bookingObject.locationId}
+		roomId={bookingObject.roomId}
+	/>
 
 	<!-- Repeat Booking -->
 	<label class="flex items-center gap-2 text-sm font-medium text-gray-700">

@@ -139,9 +139,11 @@
 	}
 </script>
 
-<!-- UI -->
+<div class="mb-4 flex flex-row items-center justify-between">
+	<h2 class="text-xl font-semibold">Paket</h2>
+</div>
 <div class="h-full overflow-x-scroll custom-scrollbar" on:scroll={handleScroll}>
-	<div class="my-4 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+	<div class="mb-4 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
 		<Button text="Lägg till paket" variant="primary" on:click={() => alert('Add Package')} />
 
 		<div class="flex flex-col gap-2 xl:flex-row xl:items-center xl:gap-4">

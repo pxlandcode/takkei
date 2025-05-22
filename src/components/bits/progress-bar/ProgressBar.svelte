@@ -4,6 +4,7 @@
 	export let value: number = 0;
 	export let max: number = 100;
 	export let icon: string = '';
+	export let iconColor: string = 'white';
 
 	$: progress = max > 0 ? Math.min(100, (value / max) * 100) : 0;
 </script>
@@ -19,7 +20,7 @@
 
 		<div class="absolute -translate-y-1/2 transform" style="left: calc({progress}% - 0.5rem);">
 			{#if icon}
-				<Icon {icon} color="white" size="20px" />
+				<Icon {icon} color={iconColor} size="20px" />
 			{/if}
 		</div>
 	</div>

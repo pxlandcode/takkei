@@ -22,6 +22,8 @@
 	export let columnIndex = 0;
 	export let columnCount = 1;
 
+	console.log('BookingSlot', booking);
+
 	let bookingSlot: HTMLDivElement | null = null;
 	let trainerNameElement: HTMLSpanElement | null = null;
 	let width = 200;
@@ -34,7 +36,7 @@
 
 	$: topOffset = getTopOffset(booking.booking.startTime, startHour, hourHeight);
 	$: meetingHeight = getMeetingHeight(booking.booking.startTime, endTime, hourHeight);
-	$: bookingColor = booking.location?.color;
+	$: bookingColor = booking.location?.color ?? booking.trainer?.color ?? '#000000';
 
 	$: bookingIcon = (() => {
 		const kind = booking.additionalInfo?.bookingContent?.kind?.toLowerCase() ?? '';

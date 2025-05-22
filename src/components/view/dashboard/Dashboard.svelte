@@ -10,10 +10,15 @@
 	import { on } from 'svelte/events';
 	import { onMount } from 'svelte';
 	import { user } from '$lib/stores/userStore';
+	import PopupWrapper from '../../ui/popupWrapper/PopupWrapper.svelte';
+	import AlertPopup from '../../ui/alertPopup/AlertPopup.svelte';
+
+	import { get } from 'svelte/store';
 
 	onMount(() => {
-		if ($user) {
-			notificationStore.updateFromServer($user.id);
+		const currentUser = get(user);
+		if (currentUser) {
+			notificationStore.updateFromServer(currentUser.id);
 		}
 	});
 
@@ -27,6 +32,7 @@
 	}
 
 	$: clientNotifications = $notificationStore.byType.client ?? 0;
+	$: alertNotifications = $notificationStore.byType.alert ?? 0;
 
 	$: buttons = [
 		{ label: 'Kalender', icon: 'Calendar', href: '/calendar' },
@@ -41,6 +47,8 @@
 		{ label: 'Rapporter', icon: 'Charts', href: '/reports' },
 		{ label: 'Inställningar', icon: 'Settings', href: '/settings' }
 	];
+
+	console.log('notificationStore', $notificationStore);
 </script>
 
 <div class="flex h-full w-[320px] flex-col justify-between gap-4">
@@ -65,3 +73,9 @@
 		<DashboardIcon></DashboardIcon>
 	</div>
 </div>
+
+{#if alertNotifications > 0}
+	<PopupWrapper noClose header="Viktigt meddelande" icon="CircleAlert">
+		<AlertPopup on:finished={() => (alertNotifications = 0)} />
+	</PopupWrapper>
+{/if}

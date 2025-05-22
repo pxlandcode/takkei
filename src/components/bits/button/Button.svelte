@@ -39,7 +39,7 @@
 		flex items-center justify-center gap-2 rounded-md shadow-sm transition-all duration-200 
 		${variant === 'primary' ? 'bg-primary text-white hover:bg-primary-hover' : ''}
 		${variant === 'secondary' ? 'bg-white text-gray border border-gray hover:bg-white/80' : ''}
-		${variant === 'cancel' ? 'bg-red-600 text-white hover:bg-red-500' : ''}
+		${variant === 'cancel' ? 'bg-error text-white hover:bg-error-hover' : ''}
 		${transparent ? 'bg-transparent text-gray shadow-none hover:bg-gray hover:text-white' : ''}
 		${transparent && variant === 'cancel' ? 'hover:text-red' : ''}
 		${icon && !text ? (small ? 'h-8 w-8' : 'h-[45px] w-[45px]') : 'p-2'}
