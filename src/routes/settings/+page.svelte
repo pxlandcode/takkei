@@ -3,6 +3,7 @@
 	import CustomerSettings from '../../components/ui/customerSettings/CustomerSettings.svelte';
 	import LocationSettings from '../../components/ui/locationSettings/LocationSettings.svelte';
 	import PackagesSettings from '../../components/ui/packagesSettings/PackagesSettings.svelte';
+	import TargetsSettings from '../../components/ui/targetsSettings/TargetsSettings.svelte';
 	import MailComponent from '../../components/ui/mailComponent/MailComponent.svelte';
 	import Navigation from '../../components/bits/navigation/Navigation.svelte';
 	import UserForm from '../../components/ui/userForm/UserForm.svelte';
@@ -35,6 +36,12 @@
 			label: 'Notifikationer',
 			icon: 'Notification',
 			component: NotificationAdministration,
+			requiredRoles: ['Administrator']
+		},
+		{
+			label: 'Mål',
+			icon: 'Trophy',
+			component: TargetsSettings,
 			requiredRoles: ['Administrator']
 		}
 	];

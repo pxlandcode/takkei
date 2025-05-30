@@ -223,3 +223,17 @@ CREATE INDEX idx_events_done_user_event ON events_done (user_id, event_id);
 
 ALTER TABLE events
 ADD COLUMN created_by INTEGER REFERENCES users(id);
+
+
+--------
+
+Alter table with sequence id
+
+-- If not already serial:
+CREATE SEQUENCE IF NOT EXISTS targets_id_seq OWNED BY targets.id;
+
+-- Attach the sequence to the `id` column
+ALTER TABLE targets ALTER COLUMN id SET DEFAULT nextval('targets_id_seq');
+
+-- Set the sequence to continue from the highest used id
+SELECT setval('targets_id_seq', (SELECT MAX(id) FROM targets));

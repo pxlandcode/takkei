@@ -19,7 +19,7 @@
 	</div>
 
 	<!-- Bento Grid -->
-	<div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+	<div class="flex flex-col gap-4 xl:grid xl:grid-cols-2">
 		<NotificationsModule />
 		<TodaysBookingsModule />
 		<NoBookingsClientModule />
