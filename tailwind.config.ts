@@ -13,6 +13,7 @@ const bronze = '#AA8554';
 
 //red
 const lightRed = '#F4F6FF';
+const brightRed = '#E87979';
 const red = '#c04c3d';
 const darkRed = '#C0645F';
 
@@ -86,6 +87,9 @@ module.exports = {
 				success: {
 					DEFAULT: green,
 					hover: brightGreen
+				},
+				notification: {
+					DEFAULT: brightRed
 				}
 			},
 			screens: {

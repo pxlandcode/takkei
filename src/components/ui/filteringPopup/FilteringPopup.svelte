@@ -11,8 +11,8 @@
 	import { calendarStore } from '$lib/stores/calendarStore';
 	import { get } from 'svelte/store';
 	import FilterBox from '../../bits/filterBox/FilterBox.svelte';
-	import { addNotification } from '$lib/stores/notificationStore';
-	import { AppNotificationType } from '$lib/types/notificationTypes';
+	import { addToast } from '$lib/stores/toastStore';
+	import { AppToastType } from '$lib/types/toastTypes';
 
 	// Reactive stores
 	let filters = get(calendarStore).filters;
@@ -87,8 +87,8 @@
 			fetch
 		);
 
-		addNotification({
-			type: AppNotificationType.NOTE,
+		addToast({
+			type: AppToastType.NOTE,
 			message: 'Filter uppdaterade',
 			description: `Filtrerar bokningar baserat på nya filter. `
 		});

@@ -30,7 +30,7 @@
 		<div class="mb-4 flex items-center justify-between">
 			<h4 class="text-xl font-semibold">{!isEditing ? 'Profil' : 'Redigera'}</h4>
 			<Button
-				text={isEditing ? 'Spara' : 'Redigera'}
+				text={isEditing ? 'Avbryt' : 'Redigera'}
 				on:click={() => (isEditing = !isEditing)}
 				variant="primary"
 			/>

@@ -7,7 +7,16 @@
 	export let variant: 'black' | 'gray' = 'gray';
 	export let size: 'small' | 'medium' = 'medium';
 	export let full: boolean = false;
+	export let label: string = '';
+	export let labelIcon: string = '';
+	export let labelIconSize: string = '20px';
+	export let id: string | null = null;
 
+	let generatedId = `option-button-${Math.random().toString(36).slice(2, 9)}`;
+
+	if (!id) {
+		id = generatedId;
+	}
 	const dispatch = createEventDispatcher();
 
 	function selectOption(option: { value: any; label: string }) {
@@ -23,7 +32,7 @@
 	`;
 
 	$: wrapperClasses = `
-    w-full  rounded-lg   bg-white p-[2px]
+    w-full  rounded   bg-white p-[2px]
     ${variant === 'black' ? 'border-white border-2' : '  '}
     ${variant === 'gray' ? 'border-gray border' : ''}
     ${full ? '' : 'max-w-md'}`;
@@ -35,21 +44,32 @@
 </script>
 
 <!-- Outer container -->
-<div class={wrapperClasses}>
-	<div class="flex gap-[2px] rounded-lg">
-		{#each options as option, index}
-			<button
-				type="button"
-				class={`${buttonClasses} ${selectedOption?.value === option.value ? selectedClasses : ''} 
-					${index === 0 ? 'rounded-l-md' : ''} 
-					${index === options.length - 1 ? 'rounded-r-md' : ''}`}
-				on:click={() => selectOption(option)}
-			>
-				{#if selectedOption?.value === option.value || option.icon}
-					<Icon icon={option.icon ? option.icon : 'Check'} size="16px" />
-				{/if}
-				{option.label}
-			</button>
-		{/each}
+<div class="flex flex-col gap-2">
+	{#if label}
+		<div class="mb-1 flex flex-row items-center gap-2">
+			{#if labelIcon}
+				<Icon icon={labelIcon} size={labelIconSize} color="gray" />
+			{/if}
+
+			<label for={id} class="mb-1 block text-sm font-medium text-gray">{label}</label>
+		</div>
+	{/if}
+	<div class={wrapperClasses}>
+		<div {id} class="flex gap-[2px] rounded">
+			{#each options as option, index}
+				<button
+					type="button"
+					class={`${buttonClasses} ${selectedOption?.value === option.value ? selectedClasses : ''} 
+					${index === 0 ? 'rounded-l' : ''} 
+					${index === options.length - 1 ? 'rounded-r' : ''}`}
+					on:click={() => selectOption(option)}
+				>
+					{#if selectedOption?.value === option.value || option.icon}
+						<Icon icon={option.icon ? option.icon : 'Check'} size="16px" />
+					{/if}
+					{option.label}
+				</button>
+			{/each}
+		</div>
 	</div>
 </div>

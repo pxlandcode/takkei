@@ -1,11 +1,11 @@
-export enum AppNotificationType {
+export enum AppToastType {
 	SUCCESS = 'success',
 	CANCEL = 'cancel',
 	NOTE = 'note'
 }
 
-export interface AppNotification {
-	type: AppNotificationType;
+export interface AppToasts {
+	type: AppToastType;
 	message: string;
 	description: string;
 	timeout?: number;

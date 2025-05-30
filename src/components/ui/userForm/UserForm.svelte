@@ -121,6 +121,14 @@
 		}}
 	/>
 {:else}
+	<div class="mb-4 flex flex-row items-center justify-between">
+		<h2 class="text-xl font-semibold">Ny användare</h2>
+	</div>
+
+	<div class="mb-4 flex flex-row items-center justify-between">
+		<p class="text-sm text-gray-500">Skapa ny användare</p>
+	</div>
+
 	<div class="flex flex-col gap-4">
 		<div class="grid grid-cols-1 gap-4 xl:grid-cols-2">
 			<Input

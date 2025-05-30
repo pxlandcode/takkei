@@ -3,11 +3,13 @@
 	import CustomerSettings from '../../components/ui/customerSettings/CustomerSettings.svelte';
 	import LocationSettings from '../../components/ui/locationSettings/LocationSettings.svelte';
 	import PackagesSettings from '../../components/ui/packagesSettings/PackagesSettings.svelte';
+	import TargetsSettings from '../../components/ui/targetsSettings/TargetsSettings.svelte';
 	import MailComponent from '../../components/ui/mailComponent/MailComponent.svelte';
 	import Navigation from '../../components/bits/navigation/Navigation.svelte';
 	import UserForm from '../../components/ui/userForm/UserForm.svelte';
 	import Button from '../../components/bits/button/Button.svelte';
-	import { goto } from '$app/navigation';
+
+	import NotificationAdministration from '../../components/ui/notificationAdministration/NotificationAdministration.svelte';
 
 	const menuItems = [
 		{ label: 'Allmänt', icon: 'Settings', component: Icon },
@@ -29,7 +31,19 @@
 			requiredRoles: ['Administrator']
 		},
 		{ label: 'Paket', icon: 'Package', component: PackagesSettings },
-		{ label: 'Mailutskick', icon: 'Mail', component: MailComponent }
+		{ label: 'Mailutskick', icon: 'Mail', component: MailComponent },
+		{
+			label: 'Notifikationer',
+			icon: 'Notification',
+			component: NotificationAdministration,
+			requiredRoles: ['Administrator']
+		},
+		{
+			label: 'Mål',
+			icon: 'Trophy',
+			component: TargetsSettings,
+			requiredRoles: ['Administrator']
+		}
 	];
 
 	let selectedTab = menuItems[0];
@@ -40,7 +54,7 @@
 	}
 </script>
 
-<div class="m-4 ml-3 flex items-center justify-between">
+<div class="m-4 ml-3 flex flex-wrap items-center justify-between">
 	<div class="flex shrink-0 items-center gap-2">
 		<div class="flex h-7 w-7 items-center justify-center rounded-full bg-text text-white">
 			<Icon icon="Settings" size="18px" />
@@ -48,14 +62,16 @@
 		<h2 class="text-3xl font-semibold text-text">Inställningar</h2>
 	</div>
 
-	<Button
-		text="Logga ut"
-		iconLeft="Logout"
-		iconLeftSize="16"
-		variant="secondary"
-		small
-		on:click={logout}
-	/>
+	<div class="mr-14 md:mr-0">
+		<Button
+			text="Logga ut"
+			iconLeft="Logout"
+			iconLeftSize="16"
+			variant="secondary"
+			small
+			on:click={logout}
+		/>
+	</div>
 </div>
 
 <!-- Navigation with slot for content -->

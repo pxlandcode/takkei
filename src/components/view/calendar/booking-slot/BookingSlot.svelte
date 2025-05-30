@@ -22,6 +22,8 @@
 	export let columnIndex = 0;
 	export let columnCount = 1;
 
+	console.log('BookingSlot', booking);
+
 	let bookingSlot: HTMLDivElement | null = null;
 	let trainerNameElement: HTMLSpanElement | null = null;
 	let width = 200;
@@ -34,7 +36,7 @@
 
 	$: topOffset = getTopOffset(booking.booking.startTime, startHour, hourHeight);
 	$: meetingHeight = getMeetingHeight(booking.booking.startTime, endTime, hourHeight);
-	$: bookingColor = booking.location?.color;
+	$: bookingColor = booking.location?.color ?? booking.trainer?.color ?? '#000000';
 
 	$: bookingIcon = (() => {
 		const kind = booking.additionalInfo?.bookingContent?.kind?.toLowerCase() ?? '';
@@ -76,7 +78,7 @@
 	function checkNameWidth() {
 		if (fullNameWidth === 0) return;
 
-		const containerWidth = bookingSlot.offsetWidth;
+		const containerWidth = bookingSlot?.offsetWidth;
 
 		// Use initials if full name is too wide
 		useInitials = fullNameWidth > containerWidth - 8;
@@ -93,7 +95,7 @@
 			if (debounceTimer) clearTimeout(debounceTimer);
 
 			debounceTimer = setTimeout(() => {
-				width = bookingSlot.offsetWidth || 200;
+				width = bookingSlot?.offsetWidth || 200;
 				checkNameWidth();
 			}, 100);
 		});

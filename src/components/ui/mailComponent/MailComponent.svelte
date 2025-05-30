@@ -13,8 +13,8 @@
 	import Button from '../../bits/button/Button.svelte';
 	import Input from '../../bits/Input/Input.svelte';
 	import OptionButton from '../../bits/optionButton/OptionButton.svelte';
-	import { addNotification } from '$lib/stores/notificationStore';
-	import { AppNotificationType } from '$lib/types/notificationTypes';
+	import { addToast } from '$lib/stores/toastStore';
+	import { AppToastType } from '$lib/types/toastTypes';
 
 	export let autoFetchUsersAndClients: boolean = true;
 
@@ -100,8 +100,8 @@
 				from: selectedFromOption.value
 			});
 
-			addNotification({
-				type: AppNotificationType.SUCCESS,
+			addToast({
+				type: AppToastType.SUCCESS,
 				message: 'Mail skickat',
 				description: `Mailet skickades till ${recipients.length} mottagare.`
 			});
@@ -116,8 +116,8 @@
 			selectedClients = [];
 		} catch (e) {
 			console.error(e);
-			addNotification({
-				type: AppNotificationType.CANCEL,
+			addToast({
+				type: AppToastType.CANCEL,
 				message: 'Fel vid utskick',
 				description: 'Ett fel inträffade vid utskick av mailet.'
 			});
@@ -127,6 +127,13 @@
 	}
 </script>
 
+<div class="mb-4 flex flex-row items-center justify-between">
+	<h2 class="text-xl font-semibold">Mailutskick</h2>
+</div>
+
+<div class="mb-4 flex flex-row items-center justify-between">
+	<p class="text-sm text-gray-500">Skicka mail från din adress eller info@takkei.se</p>
+</div>
 <div class="flex flex-col gap-4">
 	{#if !lockedFields.includes('subject')}
 		<Input

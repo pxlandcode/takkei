@@ -14,6 +14,8 @@
 	export let totalHours = 18;
 	export let singleDayView = false; // ✅ Determines single-day or week mode
 
+	let timePillRef: HTMLDivElement | null = null;
+
 	// Subscribe to calendar store
 	let bookings: FullBooking[] = [];
 	let filters;
@@ -35,7 +37,7 @@
 	let weekDays: { day: string; date: string }[] = [];
 
 	$: {
-		if (singleDayView && filters.date) {
+		if (singleDayView) {
 			// If `singleDayView` is enabled, show only the selected date
 			const selectedDate = new Date(filters.date);
 
@@ -140,10 +142,16 @@
 	}
 
 	// 📌 Scroll to current time on mount
-	onMount(async () => {
-		await tick();
+	onMount(() => {
+		const now = new Date();
+		const currentHour = now.getHours();
+		const offset = (currentHour - startHour) * hourHeight - hourHeight * 2;
+
 		if (calendarContainer) {
-			calendarContainer.scrollTop = getCurrentTimeOffset(startHour, hourHeight) - hourHeight;
+			calendarContainer.scrollTo({
+				top: Math.max(offset, 0),
+				behavior: 'smooth'
+			});
 		}
 	});
 
@@ -153,8 +161,8 @@
 	});
 </script>
 
-<!-- WEEK HEADER -->
-<div class="flex flex-col gap-10 overflow-x-auto rounded-tl-md rounded-tr-md">
+<div class="flex h-full flex-col gap-10 overflow-x-auto rounded-tl-md rounded-tr-md">
+	<!-- WEEK HEADER -->
 	<div
 		class="relative grid h-16"
 		style="grid-template-columns: minmax(60px, 8%) repeat({weekDays.length}, minmax(100px, 1fr));"
@@ -176,8 +184,7 @@
 	<!-- CALENDAR GRID -->
 	<div
 		bind:this={calendarContainer}
-		class="relative grid grid-cols-{weekDays.length +
-			1} overflow-y-auto overflow-x-hidden bg-gray-bright/20"
+		class="relative grid grid-cols-{weekDays.length + 1}  overflow-x-hidden bg-gray-bright/20"
 		style="grid-template-columns: minmax(60px, 8%) repeat({weekDays.length}, minmax(100px, 1fr));"
 	>
 		<CurrentTimeIndicator {startHour} {hourHeight} />

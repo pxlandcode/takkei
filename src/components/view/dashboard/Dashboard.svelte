@@ -6,6 +6,21 @@
 	import TargetModule from '../../ui/targetModule/TargetModule.svelte';
 	import DashboardButton from '../../bits/dashboardButton/DashboardButton.svelte';
 	import DashboardIcon from './DashboardIcon.svelte';
+	import { notificationStore } from '$lib/stores/notificationStore';
+	import { on } from 'svelte/events';
+	import { onMount } from 'svelte';
+	import { user } from '$lib/stores/userStore';
+	import PopupWrapper from '../../ui/popupWrapper/PopupWrapper.svelte';
+	import AlertPopup from '../../ui/alertPopup/AlertPopup.svelte';
+
+	import { get } from 'svelte/store';
+
+	onMount(() => {
+		const currentUser = get(user);
+		if (currentUser) {
+			notificationStore.updateFromServer(currentUser.id);
+		}
+	});
 
 	async function handleDateSelect(date: Date) {
 		date.setHours(2, 0, 0, 0);
@@ -16,14 +31,24 @@
 		goto(`/calendar?from=${weekStart}&to=${weekEnd}`);
 	}
 
-	const buttons = [
+	$: clientNotifications = $notificationStore.byType.client ?? 0;
+	$: alertNotifications = $notificationStore.byType.alert ?? 0;
+
+	$: buttons = [
 		{ label: 'Kalender', icon: 'Calendar', href: '/calendar' },
 		{ label: 'Tränare', icon: 'Person', href: '/users' },
-		{ label: 'Klienter', icon: 'Clients', href: '/clients' },
+		{
+			label: 'Klienter',
+			icon: 'Clients',
+			href: '/clients',
+			notificationCount: clientNotifications
+		},
 		{ label: 'Nyheter', icon: 'Newspaper', href: '/news' },
 		{ label: 'Rapporter', icon: 'Charts', href: '/reports' },
 		{ label: 'Inställningar', icon: 'Settings', href: '/settings' }
 	];
+
+	console.log('notificationStore', $notificationStore);
 </script>
 
 <div class="flex h-full w-[320px] flex-col justify-between gap-4">
@@ -34,7 +59,12 @@
 
 		<div class="space-between flex w-full flex-row flex-wrap gap-4">
 			{#each buttons as button}
-				<DashboardButton label={button.label} icon={button.icon} href={button.href} />
+				<DashboardButton
+					label={button.label}
+					icon={button.icon}
+					href={button.href}
+					notificationCount={button.notificationCount}
+				/>
 			{/each}
 		</div>
 	</div>
@@ -43,3 +73,9 @@
 		<DashboardIcon></DashboardIcon>
 	</div>
 </div>
+
+{#if alertNotifications > 0}
+	<PopupWrapper noClose header="Viktigt meddelande" icon="CircleAlert">
+		<AlertPopup on:finished={() => (alertNotifications = 0)} />
+	</PopupWrapper>
+{/if}

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { clickOutside } from '$lib/actions/clickOutside';
 	import IconArrowDown from '$lib/icons/IconArrowDown.svelte';
-	import { createEventDispatcher } from 'svelte';
+	import { createEventDispatcher, onMount } from 'svelte';
 	import Icon from '../icon-component/Icon.svelte';
 
 	export let id: string;
@@ -27,6 +27,8 @@
 	let initialMaxNumberOfSuggestions = maxNumberOfSuggestions;
 	let suggestionsListElement: HTMLUListElement;
 	let totalAvailableSuggestions = options.length;
+
+	$: totalAvailableSuggestions = options.length;
 
 	const dispatch = createEventDispatcher();
 
@@ -65,7 +67,10 @@
 
 		dropdownPosition = spaceBelow < 250 && spaceAbove > spaceBelow ? 'up' : 'down';
 
-		showDropdown = !showDropdown; // moved AFTER measuring
+		// Reset scroll and search
+		maxNumberOfSuggestions = initialMaxNumberOfSuggestions ?? 50;
+		searchQuery = '';
+		showDropdown = !showDropdown;
 		activeIndex = -1;
 	}
 
@@ -104,12 +109,18 @@
 		if (!infiniteScroll || !maxNumberOfSuggestions) return;
 
 		const { scrollTop, scrollHeight, clientHeight } = suggestionsListElement;
-		const isAtBottom = scrollHeight - scrollTop === clientHeight;
+		const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
 
-		if (isAtBottom && maxNumberOfSuggestions < totalAvailableSuggestions) {
+		if (distanceFromBottom <= 5 && maxNumberOfSuggestions < totalAvailableSuggestions) {
 			maxNumberOfSuggestions += 20;
 		}
 	}
+
+	onMount(() => {
+		if (!initialMaxNumberOfSuggestions) {
+			initialMaxNumberOfSuggestions = 50;
+		}
+	});
 </script>
 
 <div class="relative flex w-full flex-col gap-1" use:clickOutside={closeDropdown}>

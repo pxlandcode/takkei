@@ -26,9 +26,12 @@
 
 			console.log(data.user);
 			user.set(data.user as User);
-			calendarStore.updateFilters({ trainerIds: [data.user.id] }, fetch);
 
-			goto('/dashboard');
+			const trainerIds = data.user?.id ? [data.user.id] : null;
+
+			calendarStore.updateFilters({ trainerIds }, fetch);
+
+			goto('/');
 		} catch (error) {
 			errorMessage = error.message;
 		}

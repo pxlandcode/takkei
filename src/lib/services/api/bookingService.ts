@@ -1,6 +1,3 @@
-import { addNotification } from '$lib/stores/notificationStore';
-import { AppNotificationType } from '$lib/types/notificationTypes';
-
 export async function createBooking(
 	bookingObject: any,
 	type: 'training' | 'personal' | 'meeting' = 'training'
@@ -66,4 +63,17 @@ export async function createBooking(
 			error: error.message
 		};
 	}
+}
+
+export async function fetchAvailableSlots({ date, trainerId, locationId, roomId }) {
+	const res = await fetch('/api/available-slots', {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ date, trainerId, locationId, roomId })
+	});
+	if (res.ok) {
+		const data = await res.json();
+		return data.availableSlots;
+	}
+	return [];
 }

@@ -53,7 +53,7 @@
 	});
 </script>
 
-<div class="m-4 flex items-center justify-between">
+<div class="m-4 flex flex-wrap items-center justify-between gap-2">
 	<div class="flex items-center gap-2">
 		<div class="flex h-7 w-7 items-center justify-center rounded-full bg-text text-white">
 			<Icon icon="Customer" size="18px" />
@@ -63,7 +63,7 @@
 		</h2>
 	</div>
 
-	<div class="flex space-x-2">
+	<div class="mr-14 flex space-x-2 md:mr-0">
 		<Button icon="Mail" variant="secondary" on:click={() => (showMailPopup = true)} />
 	</div>
 </div>

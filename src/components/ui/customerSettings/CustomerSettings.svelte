@@ -133,7 +133,10 @@
 	}
 </script>
 
-<!-- UI -->
+<div class="my-b flex flex-row items-center justify-between">
+	<h2 class="text-xl font-semibold">Kunder</h2>
+</div>
+
 <div class="h-full overflow-x-scroll custom-scrollbar" on:scroll={handleScroll}>
 	<div class="my-4 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
 		<Button text="Lägg till kund" variant="primary" on:click={openCustomerForm} />

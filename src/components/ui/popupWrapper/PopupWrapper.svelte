@@ -6,6 +6,7 @@
 	export let header: string = 'Popup';
 	export let width: string = 'fit-content';
 	export let height: string = 'fit-content';
+	export let noClose: boolean = false;
 
 	export let icon: string;
 
@@ -40,7 +41,7 @@
 		const target = event.target as HTMLElement;
 		const mouseUpInside = popupElement?.contains(target);
 
-		if (!mouseDownInside && !mouseUpInside) {
+		if (!mouseDownInside && !mouseUpInside && !noClose) {
 			onClose();
 		}
 	}
@@ -70,7 +71,9 @@
 					{/if}
 					<h2 class="text-3xl font-semibold text-black text-text" id="popup-title">{header}</h2>
 				</div>
-				<IconButton on:click={onClose} size="18px" icon="Close" transparent />
+				{#if !noClose}
+					<IconButton on:click={onClose} size="18px" icon="Close" transparent />
+				{/if}
 			</div>
 			<div class="popup-scroll max-h-[80dvh] overflow-scroll p-4">
 				<slot />

@@ -84,8 +84,11 @@
 	}
 </script>
 
+<div class="mb-4 flex flex-row items-center justify-between">
+	<h2 class="text-xl font-semibold">Lokaler</h2>
+</div>
 <div class="h-full overflow-x-scroll custom-scrollbar">
-	<div class="my-4 flex flex-row items-center justify-between">
+	<div class="mb-4 flex flex-row items-center justify-between">
 		<Button text="Lägg till plats" variant="primary" on:click={() => (showAddModal = true)} />
 
 		<div class="ml-4 flex flex-row gap-4">

@@ -4,8 +4,8 @@
 	import DropdownCheckbox from '../../bits/dropdown-checkbox/DropdownCheckbox.svelte';
 	import FilterBox from '../../bits/filterBox/FilterBox.svelte';
 	import Button from '../../bits/button/Button.svelte';
-	import { addNotification } from '$lib/stores/notificationStore';
-	import { AppNotificationType } from '$lib/types/notificationTypes';
+	import { addToast } from '$lib/stores/toastStore';
+	import { AppToastType } from '$lib/types/toastTypes';
 	import { loadingStore } from '$lib/stores/loading';
 
 	export let customerId: number | null = null;
@@ -70,16 +70,16 @@
 
 			if (!res.ok) {
 				errors = result.errors || { general: 'Något gick fel vid skapande av kund' };
-				addNotification({
-					type: AppNotificationType.CANCEL,
+				addToast({
+					type: AppToastType.CANCEL,
 					message: 'Fel vid skapande',
 					description: errors.general || 'Valideringsfel'
 				});
 				return;
 			}
 
-			addNotification({
-				type: AppNotificationType.SUCCESS,
+			addToast({
+				type: AppToastType.SUCCESS,
 				message: 'Kund skapad',
 				description: `${name} skapades korrekt.`
 			});
@@ -97,8 +97,8 @@
 		} catch (err) {
 			console.error('Request failed', err);
 			errors.general = 'Något gick fel vid skapande av kund.';
-			addNotification({
-				type: AppNotificationType.CANCEL,
+			addToast({
+				type: AppToastType.CANCEL,
 				message: 'Fel vid skapande',
 				description: errors.general
 			});

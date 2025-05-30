@@ -1,8 +1,8 @@
 <script lang="ts">
 	import Button from '../../bits/button/Button.svelte';
 	import { loadingStore } from '$lib/stores/loading';
-	import { addNotification } from '$lib/stores/notificationStore';
-	import { AppNotificationType } from '$lib/types/notificationTypes';
+	import { addToast } from '$lib/stores/toastStore';
+	import { AppToastType } from '$lib/types/toastTypes';
 	import Input from '../../bits/Input/Input.svelte';
 
 	export let customer;
@@ -34,16 +34,16 @@
 
 			if (!res.ok) throw new Error('Kunde inte spara kund');
 
-			addNotification({
-				type: AppNotificationType.SUCCESS,
+			addToast({
+				type: AppToastType.SUCCESS,
 				message: 'Kund uppdaterad',
 				description: `${form.name} uppdaterades korrekt.`
 			});
 			onSave();
 		} catch (e) {
 			console.error(e);
-			addNotification({
-				type: AppNotificationType.CANCEL,
+			addToast({
+				type: AppToastType.CANCEL,
 				message: 'Fel vid sparande',
 				description: 'Något gick fel vid uppdatering av kund.'
 			});
