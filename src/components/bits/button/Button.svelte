@@ -18,6 +18,7 @@
 	export let full: boolean = false;
 	export let iconColor: string = 'currentColor';
 	export let notificationCount: number = 0;
+	export let disabled: boolean = false;
 	export let confirmOptions: {
 		title?: string;
 		description?: string;
@@ -51,7 +52,7 @@
 
 <div class="relative inline-block">
 	{#if confirmOptions}
-		<button use:confirm={confirmOptions} {type} class={buttonClasses}>
+		<button {disabled} use:confirm={confirmOptions} {type} class={buttonClasses}>
 			{#if icon && !text}
 				<Icon {icon} size={iconSize} color={iconColor} />
 			{:else}
@@ -65,7 +66,7 @@
 			{/if}
 		</button>
 	{:else}
-		<button {type} class={buttonClasses} on:click={handleClick}>
+		<button {disabled} {type} class={buttonClasses} on:click={handleClick}>
 			{#if icon && !text}
 				<Icon {icon} size={iconSize} color={iconColor} />
 			{:else}
@@ -81,7 +82,7 @@
 	{/if}
 	{#if notificationCount > 0}
 		<span
-			class="bg-notification absolute -right-1 -top-1 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full px-1 text-xs font-semibold text-white"
+			class="absolute -right-1 -top-1 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-notification px-1 text-xs font-semibold text-white"
 		>
 			{notificationCount}
 		</span>

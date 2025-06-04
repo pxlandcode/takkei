@@ -8,6 +8,7 @@
 	import CurrentTimeIndicator from './current-time-indicator/current-time-indicator.svelte';
 	import { calendarStore } from '$lib/stores/calendarStore';
 	import ClockIcon from '../../bits/clock-icon/ClockIcon.svelte';
+	import { createEventDispatcher } from 'svelte';
 
 	// Props
 	export let startHour = 5;
@@ -16,6 +17,8 @@
 
 	let timePillRef: HTMLDivElement | null = null;
 
+	const dispatch = createEventDispatcher();
+
 	// Subscribe to calendar store
 	let bookings: FullBooking[] = [];
 	let filters;
@@ -23,6 +26,17 @@
 		bookings = store.bookings;
 		filters = store.filters;
 	});
+
+	function isTimeSlotOccupied(start: Date, end: Date, bookingsForDay: FullBooking[]): boolean {
+		const startMs = start.getTime();
+		const endMs = end.getTime();
+
+		return bookingsForDay.some((b) => {
+			const bStart = getStart(b);
+			const bEnd = getEnd(b);
+			return !(bEnd <= startMs || bStart >= endMs); // overlaps
+		});
+	}
 
 	// 🔥 Ensure week starts on Monday
 	function getMondayOfWeek(date: Date): Date {
@@ -141,6 +155,52 @@
 		return results;
 	}
 
+	function getEmptySlotBlocks(dayIndex: number): { top: number; start: Date }[] {
+		const results: { top: number; start: Date }[] = [];
+
+		const dayDate = singleDayView
+			? new Date(filters.date)
+			: getMondayOfWeek(filters.from ? new Date(filters.from) : new Date());
+
+		dayDate.setDate(dayDate.getDate() + dayIndex);
+
+		const dayBookings = bookings.filter((b) =>
+			singleDayView
+				? new Date(b.booking.startTime).toDateString() === dayDate.toDateString()
+				: shiftUTCIndex(new Date(b.booking.startTime)) === dayIndex
+		);
+
+		for (let i = 0; i < totalHours * 2 - 1; i++) {
+			// Only allow blocks starting at half past
+			if (i % 2 === 0) continue;
+
+			const hour = startHour + Math.floor(i / 2);
+			const minute = 30;
+
+			const slotStart = new Date(dayDate);
+			slotStart.setHours(hour, minute, 0, 0);
+
+			const slotEnd = new Date(slotStart);
+			slotEnd.setMinutes(slotEnd.getMinutes() + 60);
+
+			const isOccupied = isTimeSlotOccupied(slotStart, slotEnd, dayBookings);
+
+			if (!isOccupied) {
+				results.push({
+					top: i * (hourHeight / 2),
+					start: slotStart
+				});
+			}
+		}
+
+		return results;
+	}
+
+	function openBookingPopup(startTime: Date) {
+		console.log('🟢 Open booking popup for:', startTime.toISOString());
+		dispatch('onTimeSlotClick', { startTime });
+	}
+
 	// 📌 Scroll to current time on mount
 	onMount(() => {
 		const now = new Date();
@@ -199,6 +259,14 @@
 		<!-- DAYS & BOOKINGS -->
 		{#each weekDays as { day, date }, dayIndex}
 			<div class="border-gray-dark relative flex flex-col gap-1 border-l">
+				{#each getEmptySlotBlocks(dayIndex) as slot}
+					<button
+						class="absolute left-0 right-0 cursor-pointer hover:bg-orange/20"
+						style="top: {slot.top}px; height: {hourHeight}px; z-index: 0;"
+						title="Klicka för att boka"
+						on:click={() => openBookingPopup(slot.start)}
+					/>
+				{/each}
 				{#each layoutDayBookings( bookings.filter( (b) => (singleDayView ? new Date(b.booking.startTime).toDateString() === new Date(filters.date).toDateString() : shiftUTCIndex(new Date(b.booking.startTime)) === dayIndex) ), singleDayView ? new Date(filters.date) : undefined ) as layoutItem, i}
 					<BookingSlot
 						booking={layoutItem.booking}

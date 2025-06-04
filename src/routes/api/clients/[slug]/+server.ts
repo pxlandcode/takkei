@@ -31,3 +31,48 @@ export async function GET({ params }) {
 		return json({ error: 'Internal Server Error' }, { status: 500 });
 	}
 }
+
+export async function PUT({ request, params }) {
+	const clientId = params.slug;
+	const body = await request.json();
+
+	try {
+		const updateQuery = `
+			UPDATE clients SET
+				firstname = $1,
+				lastname = $2,
+				person_number = $3,
+				email = $4,
+				alternative_email = $5,
+				phone = $6,
+				primary_trainer_id = $7,
+				active = $8,
+				updated_at = NOW()
+			WHERE id = $9
+			RETURNING *
+		`;
+
+		const values = [
+			body.firstname,
+			body.lastname,
+			body.person_number,
+			body.email,
+			body.alternative_email,
+			body.phone,
+			body.primary_trainer_id,
+			body.active,
+			clientId
+		];
+
+		const result = await query(updateQuery, values);
+
+		if (result.length === 0) {
+			return json({ error: 'Client not found or not updated' }, { status: 404 });
+		}
+
+		return json(result[0]);
+	} catch (error) {
+		console.error('Error updating client:', error);
+		return json({ error: 'Internal Server Error' }, { status: 500 });
+	}
+}

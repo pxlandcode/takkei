@@ -17,6 +17,11 @@
 
 	let isMobile = false;
 
+	let startTime = null;
+	let selectedTrainerId = null;
+	let selectedLocationId = null;
+	let selectedClientId = null;
+
 	$: filters = $calendarStore.filters;
 
 	$: selectedDate = filters.date ? new Date(filters.date) : new Date();
@@ -78,6 +83,12 @@
 	function onToday() {
 		calendarStore.goToDate(new Date(), fetch);
 	}
+
+	function handleTimeSlotClick(event) {
+		const timeSlot = event.detail.startTime;
+		startTime = timeSlot;
+		bookingOpen = true;
+	}
 </script>
 
 <div class="h-full overflow-x-hidden overflow-y-hidden custom-scrollbar">
@@ -115,13 +126,19 @@
 					variant="primary"
 					text="Boka"
 					iconLeftSize="13px"
-					on:click={() => (bookingOpen = true)}
+					on:click={() => {
+						startTime = null;
+						bookingOpen = true;
+					}}
 				></Button>
 			</div>
 		</div>
 	</div>
 	{#key calendarView.value}
-		<CalendarComponent singleDayView={calendarView.value} />
+		<CalendarComponent
+			singleDayView={calendarView.value}
+			on:onTimeSlotClick={handleTimeSlotClick}
+		/>
 	{/key}
 </div>
 
@@ -133,6 +150,6 @@
 
 {#if bookingOpen}
 	<PopupWrapper header="Bokning" icon="Plus" on:close={closePopup}>
-		<BookingPopup on:close={closePopup} />
+		<BookingPopup on:close={closePopup} {startTime} />
 	</PopupWrapper>
 {/if}

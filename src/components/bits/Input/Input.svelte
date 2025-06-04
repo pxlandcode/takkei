@@ -8,6 +8,8 @@
 	export let value: string = '';
 	export let disabled: boolean = false;
 	export let errors: Record<string, string> = {};
+	export let min: number | undefined = undefined;
+	export let max: number | undefined = undefined;
 
 	const dispatch = createEventDispatcher();
 
@@ -52,6 +54,8 @@
 			{type}
 			{placeholder}
 			{disabled}
+			{min}
+			{max}
 			bind:value
 			on:keydown={handleKeydown}
 			on:input={handleInput}

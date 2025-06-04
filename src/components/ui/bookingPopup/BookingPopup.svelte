@@ -2,7 +2,7 @@
 	import { onMount } from 'svelte';
 	import { users, fetchUsers } from '$lib/stores/usersStore';
 	import { locations, fetchLocations } from '$lib/stores/locationsStore';
-	import { clients, fetchClients } from '$lib/stores/clientsStore';
+	import { clients, fetchClients, getClientEmails } from '$lib/stores/clientsStore';
 	import { bookingContents, fetchBookingContents } from '$lib/stores/bookingContentStore';
 	import { capitalizeFirstLetter } from '$lib/helpers/generic/genericHelpers';
 	import Button from '../../bits/button/Button.svelte';
@@ -15,9 +15,17 @@
 	import { get } from 'svelte/store';
 	import { addToast } from '$lib/stores/toastStore';
 	import { AppToastType } from '$lib/types/toastTypes';
+	import { sendMail } from '$lib/services/mail/mailClientService';
+	import { calendarStore } from '$lib/stores/calendarStore';
+
+	export let startTime: Date | null = null;
 
 	// Store selected booking type component
 	let selectedBookingComponent: 'training' | 'meeting' = 'training';
+
+	let repeatedBookings = [];
+
+	let currentUser = get(user);
 
 	let bookingObject = {
 		user_id: null,
@@ -27,15 +35,27 @@
 		clientId: null,
 		attendees: [],
 		locationId: null,
-		date: new Date().toISOString().split('T')[0],
-		time: '12:30',
-		endTime: '13:30',
+		date: startTime
+			? startTime.toISOString().split('T')[0]
+			: new Date().toISOString().split('T')[0],
+		time: startTime
+			? startTime.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit', hour12: false })
+			: '12:30',
+		endTime: startTime
+			? new Date(new Date(startTime).getTime() + 60 * 60 * 1000).toLocaleTimeString('sv-SE', {
+					hour: '2-digit',
+					minute: '2-digit',
+					hour12: false
+				})
+			: '13:30',
 		repeat: false
 	};
 
+	console.log('bookingObject when opening', bookingObject);
+
 	// Fetch all required data
 	onMount(async () => {
-		const currentUser = get(user); // Get user store value
+		currentUser = get(user);
 		if (currentUser) {
 			bookingObject.user_id = currentUser.id;
 			bookingObject.booked_by_id = currentUser.id;
@@ -43,25 +63,146 @@
 
 		await Promise.all([fetchUsers(), fetchLocations(), fetchClients(), fetchBookingContents()]);
 
+		if (startTime) {
+			const currentFilters = get(calendarStore).filters;
+
+			if (currentFilters.trainerIds?.length === 1) {
+				bookingObject.trainerId = currentFilters.trainerIds[0];
+			} else {
+				bookingObject.trainerId = null;
+			}
+
+			if (currentFilters.locationIds?.length === 1) {
+				bookingObject.locationId = currentFilters.locationIds[0];
+			} else {
+				bookingObject.locationId = null;
+			}
+
+			if (currentFilters.clientIds?.length === 1) {
+				bookingObject.clientId = currentFilters.clientIds[0];
+			} else {
+				bookingObject.clientId = null;
+			}
+		}
+
 		console.log('locations', get(locations));
 	});
-	// API call to create booking
+
 	async function submitBooking() {
 		const type = selectedBookingComponent;
-		const result = await createBooking(bookingObject, type);
 
-		if (result.success) {
-			addToast({
-				type: AppToastType.SUCCESS,
-				message: 'Bokning genomförd',
-				description: `Bokningen skapades klockan ${bookingObject.time} den ${bookingObject.date}.`
-			});
+		let bookedDates = [];
+
+		if (repeatedBookings.length > 0) {
+			let successCount = 0;
+
+			for (let i = 0; i < repeatedBookings.length; i++) {
+				const repeated = repeatedBookings[i];
+				const singleBooking = {
+					...bookingObject,
+					date: repeated.date,
+					time: repeated.selectedTime
+				};
+
+				const result = await createBooking(singleBooking, type);
+
+				if (result.success) {
+					successCount++;
+					bookedDates.push(`${repeated.date} kl ${repeated.selectedTime}`);
+				} else {
+					addToast({
+						type: AppToastType.CANCEL,
+						message: `Fel vid bokning ${i + 1}`,
+						description: `Misslyckades: ${singleBooking.date} kl ${singleBooking.time}.`
+					});
+				}
+			}
+
+			if (successCount === repeatedBookings.length) {
+				addToast({
+					type: AppToastType.SUCCESS,
+					message: 'Alla bokningar klara!',
+					description: `${successCount} av ${repeatedBookings.length} lyckades.`
+				});
+
+				const clientEmail = getClientEmails(bookingObject.clientId);
+				if (clientEmail) {
+					const result = await sendMail({
+						to: clientEmail,
+						subject: 'Bokningsbekräftelse',
+						header: 'Bekräftelse på dina bokningar',
+						subheader: 'Tack för din bokning!',
+						body: `
+						Hej! Här är dina bekräftade bokningar:<br><br>
+						${bookedDates.map((d) => `• ${d}`).join('<br>')}<br><br>
+						Vänligen kontakta oss om något behöver ändras.
+					`,
+						from: {
+							name: currentUser.firstname + ' ' + currentUser.lastname,
+							email: currentUser.email
+						}
+					});
+
+					if (result.ok) {
+						addToast({
+							type: AppToastType.SUCCESS,
+							message: 'Bekräftelsemail skickat',
+							description: `Ett bekräftelsemail skickades till ${clientEmail}.`
+						});
+					} else {
+						addToast({
+							type: AppToastType.CANCEL,
+							message: 'Fel vid utskick',
+							description: `Kunde inte skicka bekräftelsemail till ${clientEmail}.`
+						});
+					}
+				} else {
+					addToast({
+						type: AppToastType.CANCEL,
+						message: 'Ingen e-post hittades',
+						description: `Kunde inte hitta e-post för klienten ${bookingObject.clientId}.`
+					});
+				}
+			}
 		} else {
-			addToast({
-				type: AppToastType.CANCEL,
-				message: 'Något gick fel',
-				description: `Något gick fel, försök igen eller kontakta IT.`
-			});
+			// handle single booking
+			const result = await createBooking(bookingObject, type);
+
+			if (result.success) {
+				addToast({
+					type: AppToastType.SUCCESS,
+					message: 'Bokning genomförd',
+					description: `Bokningen skapades klockan ${bookingObject.time} den ${bookingObject.date}.`
+				});
+
+				const clientEmail = getClientEmails(bookingObject.clientId); // implement this
+				if (clientEmail) {
+					await sendMail({
+						to: clientEmail,
+						subject: 'Bekräftelse på din bokning',
+						header: 'Tack för din bokning!',
+						subheader: '',
+						body: `
+						Hej! Din bokning är bekräftad:<br><br>
+						${bookingObject.date} kl ${bookingObject.time}<br><br>
+						Vänligen kontakta oss om något behöver ändras.
+					`,
+						from: { name: 'Takkei', email: 'info@takkei.se' }
+					});
+
+					addToast({
+						type: AppToastType.SUCCESS,
+						message: 'Bekräftelsemail skickat',
+						description: `Ett bekräftelsemail skickades till ${clientEmail}.`
+					});
+				}
+			} else {
+				addToast({
+					type: AppToastType.CANCEL,
+					message: 'Något gick fel',
+					description: `Något gick fel, försök igen eller kontakta IT.`
+				});
+			}
 		}
 	}
 </script>
@@ -84,6 +225,7 @@
 	{#if selectedBookingComponent === 'training'}
 		<BookingTraining
 			bind:bookingObject
+			bind:repeatedBookings
 			bookingContents={($bookingContents || []).map((content) => ({
 				value: content.id,
 				label: capitalizeFirstLetter(content.kind)
@@ -116,8 +258,9 @@
 		full
 		variant="primary"
 		text="Slutför Bokning"
-		iconLeft="Check"
-		iconLeftSize="14px"
+		iconLeft="CalendarCheck"
+		iconLeftSize="18px"
 		on:click={submitBooking}
+		disabled={repeatedBookings.length > 0 && repeatedBookings.some((b) => b.conflict)}
 	/>
 </div>
