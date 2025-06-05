@@ -21,10 +21,10 @@ export const POST: RequestHandler = async ({ request }) => {
 	const dayStart = `${date} 00:00:00`;
 	const dayEnd = `${date} 23:59:59`;
 
-	// Fetch regular bookings that conflict
 	const bookings = await query(
 		`
-      SELECT id, start_time FROM bookings
+      SELECT id, start_time, location_id
+      FROM bookings
       WHERE start_time BETWEEN $1 AND $2
         AND status != 'Cancelled'
         AND (
@@ -35,11 +35,20 @@ export const POST: RequestHandler = async ({ request }) => {
 		[dayStart, dayEnd, trainerId, roomId]
 	);
 
-	// Add regular booking blocks (60 min duration)
-	const blockedIntervals = bookings.map((row) => {
+	const travelBuffer = 15; // minutes required between locations
+	const blockedIntervals: { start: number; end: number }[] = [];
+
+	for (const row of bookings) {
 		const start = extractTimeInMinutes(row.start_time);
-		return { start, end: start + 60 };
-	});
+		const end = start + 60;
+
+		if (row.location_id !== locationId) {
+			// Booking is at a different location → add buffer before and after
+			blockedIntervals.push({ start: start - travelBuffer, end: end + travelBuffer });
+		} else {
+			blockedIntervals.push({ start, end });
+		}
+	}
 
 	// Fetch personal bookings where the trainer is involved
 	const personalBookings = await query(
@@ -55,7 +64,6 @@ export const POST: RequestHandler = async ({ request }) => {
 		[dayStart, dayEnd, trainerId]
 	);
 
-	// Add actual blocked personal booking intervals
 	for (const row of personalBookings) {
 		const start = extractTimeInMinutes(row.start_time);
 		const end = extractTimeInMinutes(row.end_time);
@@ -65,7 +73,7 @@ export const POST: RequestHandler = async ({ request }) => {
 	const availableSlots: string[] = [];
 
 	for (let h = 5; h <= 21; h++) {
-		for (let m of [0, 30]) {
+		for (let m of [30]) {
 			const slotStart = h * 60 + m;
 			const slotEnd = slotStart + 60;
 

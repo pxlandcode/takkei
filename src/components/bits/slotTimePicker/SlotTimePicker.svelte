@@ -66,7 +66,7 @@
 		</svg>
 		Laddar tillgängliga tider...
 	</div>
-{:else if !showWarning && availableTimes.length > 0}
+{:else if !showWarning || availableTimes.length > 0}
 	<div class="grid grid-cols-1 gap-2 xl:grid-cols-2">
 		<Input label="Datum" type="date" bind:value={selectedDate} />
 
@@ -75,7 +75,9 @@
 			{label}
 			bind:selectedValue={selectedTime}
 			options={availableTimes.map((t) => ({ label: t, value: t }))}
-			placeholder="Välj tid"
+			placeholder={availableTimes.length !== 0 ? 'Välj tid' : 'Inga tillgängliga tider'}
+			openPosition="up"
+			disabled={availableTimes.length === 0}
 		/>
 	</div>
 {/if}

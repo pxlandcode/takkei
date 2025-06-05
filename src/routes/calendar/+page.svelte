@@ -8,6 +8,8 @@
 	import FilteringPopup from '../../components/ui/filteringPopup/FilteringPopup.svelte';
 	import PopupWrapper from '../../components/ui/popupWrapper/PopupWrapper.svelte';
 	import CalendarComponent from '../../components/view/calendar/CalendarComponent.svelte';
+	import type { FullBooking } from '$lib/types/calendarTypes';
+	import BookingDetailsPopup from '../../components/ui/bookingDetailsPopup/BookingDetailsPopup.svelte';
 
 	export let data;
 
@@ -32,6 +34,15 @@
 			year: 'numeric'
 		})
 	);
+
+	let selectedBooking: FullBooking | null = null;
+	let showBookingDetailsPopup = false;
+
+	function handleBookingClick(booking: FullBooking) {
+		console.log('Booking clicked out in calendar:', booking);
+		selectedBooking = booking;
+		showBookingDetailsPopup = true;
+	}
 
 	let calendarView = { value: false, label: 'Vecka', icon: 'Week' };
 
@@ -138,6 +149,9 @@
 		<CalendarComponent
 			singleDayView={calendarView.value}
 			on:onTimeSlotClick={handleTimeSlotClick}
+			on:onBookingClick={(e) => {
+				handleBookingClick(e.detail.booking);
+			}}
 		/>
 	{/key}
 </div>
@@ -151,5 +165,18 @@
 {#if bookingOpen}
 	<PopupWrapper header="Bokning" icon="Plus" on:close={closePopup}>
 		<BookingPopup on:close={closePopup} {startTime} />
+	</PopupWrapper>
+{/if}
+
+{#if showBookingDetailsPopup && selectedBooking}
+	<PopupWrapper
+		header="Bokningsdetaljer"
+		icon="CircleInfo"
+		on:close={() => {
+			showBookingDetailsPopup = false;
+			selectedBooking = null;
+		}}
+	>
+		<BookingDetailsPopup booking={selectedBooking} />
 	</PopupWrapper>
 {/if}

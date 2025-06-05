@@ -11,11 +11,12 @@
 	export let disabled: boolean = false;
 	export let variant: 'black' | 'gray' = 'gray';
 	export let selectedValue: any = '';
-	export let search: boolean = false; // Enables search input
+	export let search: boolean = false;
 	export let maxNumberOfSuggestions: number | undefined = undefined;
 	export let infiniteScroll: boolean = false;
 	export let labelIcon: string = '';
 	export let labelIconSize: string = '20px';
+	export let openPosition: 'up' | 'down' | null = null;
 
 	// Accept an errors object for validation handling
 	export let errors: Record<string, string> = {};
@@ -65,7 +66,11 @@
 		const spaceBelow = window.innerHeight - rect.bottom;
 		const spaceAbove = rect.top;
 
-		dropdownPosition = spaceBelow < 250 && spaceAbove > spaceBelow ? 'up' : 'down';
+		if (openPosition) {
+			dropdownPosition = openPosition;
+		} else {
+			dropdownPosition = spaceBelow < 250 && spaceAbove > spaceBelow ? 'up' : 'down';
+		}
 
 		// Reset scroll and search
 		maxNumberOfSuggestions = initialMaxNumberOfSuggestions ?? 50;

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { createEventDispatcher, onMount } from 'svelte';
 	import { users, fetchUsers } from '$lib/stores/usersStore';
+	import { user } from '$lib/stores/userStore';
 	import { locations, fetchLocations } from '$lib/stores/locationsStore';
 	import { clients, fetchClients } from '$lib/stores/clientsStore';
 	import type { User } from '$lib/types/userTypes';
@@ -14,15 +15,15 @@
 	import { addToast } from '$lib/stores/toastStore';
 	import { AppToastType } from '$lib/types/toastTypes';
 
-	// Reactive stores
 	let filters = get(calendarStore).filters;
 	let selectedUsers: User[] = [];
 	let selectedLocations: Location[] = [];
 	let selectedClients: Client[] = [];
 
+	$: $user;
+
 	const dispatch = createEventDispatcher();
 
-	// Fetch initial data & set selected filters
 	onMount(async () => {
 		await Promise.all([fetchUsers(), fetchLocations(), fetchClients()]);
 
@@ -34,7 +35,6 @@
 		selectedClients = get(clients).filter((client) => filters.clientIds?.includes(client.id));
 	});
 
-	// Handle selection updates
 	function handleUserSelection(event) {
 		selectedUsers = [...event.detail.selected];
 	}
@@ -71,6 +71,38 @@
 		selectedLocations = [];
 	}
 
+	function onSelectMe() {
+		const allUsers = get(users);
+		const currentUser = allUsers.find((u) => u.id === get(user)?.id);
+
+		if (currentUser) {
+			selectedUsers = [currentUser];
+		} else {
+			addToast({
+				type: AppToastType.CANCEL,
+				message: 'Fel vid val av dig själv',
+				description: 'Kunde inte hitta aktuell användare.'
+			});
+		}
+	}
+
+	function onSelectMyPrimaryLocation() {
+		const allLocations = get(locations);
+		const currentUser = get(user);
+
+		console.log('Current user:', currentUser);
+		const primaryLocation = allLocations.find((l) => l.id === currentUser?.default_location_id);
+		if (primaryLocation) {
+			selectedLocations = [primaryLocation];
+		} else {
+			addToast({
+				type: AppToastType.CANCEL,
+				message: 'Fel vid val av din primära plats',
+				description: 'Kunde inte hitta aktuell primära plats.'
+			});
+		}
+	}
+
 	function onClose() {
 		dispatch('close');
 	}
@@ -96,10 +128,8 @@
 	}
 </script>
 
-<!-- UI Layout -->
 <div class="flex max-h-dvh min-h-[450px] w-[600px] flex-col bg-white p-4">
 	<div class="flex flex-col gap-4">
-		<!-- Trainers Dropdown -->
 		<div class="flex flex-row gap-2">
 			<DropdownCheckbox
 				label="Tränare"
@@ -115,7 +145,14 @@
 				bind:selectedValues={selectedUsers}
 				on:change={handleUserSelection}
 			/>
-			<div class="mt-6 flex flex-row gap-2">
+			<div class="mt-7 flex flex-row gap-2">
+				<Button
+					icon="Person"
+					iconColor="orange"
+					iconSize="16"
+					variant="secondary"
+					on:click={onSelectMe}
+				/>
 				<Button
 					icon="MultiCheck"
 					variant="secondary"
@@ -123,39 +160,9 @@
 					iconColor="green"
 				/>
 
-				<Button icon="Trash" iconColor="red" variant="secondary" on:click={onDeSelectAllUsers} />
+				<Button icon="Trash" iconColor="error" variant="secondary" on:click={onDeSelectAllUsers} />
 			</div>
 		</div>
-
-		<div class="flex flex-row gap-2">
-			<DropdownCheckbox
-				label="Kunder"
-				placeholder="Välj kunder"
-				id="clients"
-				options={($clients || []).map((client) => ({
-					name: `${client.firstname} ${client.lastname}`,
-					value: client
-				}))}
-				search
-				maxNumberOfSuggestions={15}
-				infiniteScroll={true}
-				bind:selectedValues={selectedClients}
-				on:change={handleClientSelection}
-			/>
-
-			<div class="mt-6 flex flex-row gap-2">
-				<Button
-					icon="MultiCheck"
-					variant="secondary"
-					on:click={onSelectAllClients}
-					iconColor="green"
-				/>
-
-				<Button icon="Trash" iconColor="red" variant="secondary" on:click={onDeSelectAllClients} />
-			</div>
-		</div>
-
-		<!-- Locations Dropdown -->
 
 		<div class="flex flex-row gap-2">
 			<DropdownCheckbox
@@ -172,7 +179,14 @@
 				on:change={handleLocationSelection}
 			/>
 
-			<div class="mt-6 flex flex-row gap-2">
+			<div class="mt-7 flex flex-row gap-2">
+				<Button
+					icon="Building"
+					iconColor="orange"
+					iconSize="16"
+					variant="secondary"
+					on:click={onSelectMyPrimaryLocation}
+				/>
 				<Button
 					icon="MultiCheck"
 					variant="secondary"
@@ -182,7 +196,7 @@
 
 				<Button
 					icon="Trash"
-					iconColor="red"
+					iconColor="error"
 					variant="secondary"
 					on:click={onDeSelectAllLocations}
 				/>
@@ -190,7 +204,34 @@
 		</div>
 	</div>
 
-	<!-- Filter Box (Shows selected filters immediately) -->
+	<div class="flex flex-row gap-2">
+		<DropdownCheckbox
+			label="Kunder"
+			placeholder="Välj kunder"
+			id="clients"
+			options={($clients || []).map((client) => ({
+				name: `${client.firstname} ${client.lastname}`,
+				value: client
+			}))}
+			search
+			maxNumberOfSuggestions={15}
+			infiniteScroll={true}
+			bind:selectedValues={selectedClients}
+			on:change={handleClientSelection}
+		/>
+
+		<div class="mt-7 flex flex-row gap-2">
+			<Button
+				icon="MultiCheck"
+				variant="secondary"
+				on:click={onSelectAllClients}
+				iconColor="green"
+			/>
+
+			<Button icon="Trash" iconColor="error" variant="secondary" on:click={onDeSelectAllClients} />
+		</div>
+	</div>
+
 	<div class="mt-4">
 		<FilterBox
 			{selectedUsers}

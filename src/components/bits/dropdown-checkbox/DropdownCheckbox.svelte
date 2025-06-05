@@ -14,7 +14,7 @@
 	export let errorMessage: string = '';
 	export let errors: string[] | undefined = undefined;
 	export let extraWrapperClasses: string = '';
-	export let maxNumberOfSuggestions: number = 20; // Safe default
+	export let maxNumberOfSuggestions: number = 20;
 	export let infiniteScroll: boolean = false;
 	export let search: boolean = false;
 	export let openPosition: 'up' | 'down' | null = null;

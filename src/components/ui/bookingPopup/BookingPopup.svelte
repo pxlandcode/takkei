@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { createEventDispatcher, onMount } from 'svelte';
 	import { users, fetchUsers } from '$lib/stores/usersStore';
 	import { locations, fetchLocations } from '$lib/stores/locationsStore';
 	import { clients, fetchClients, getClientEmails } from '$lib/stores/clientsStore';
@@ -19,6 +19,13 @@
 	import { calendarStore } from '$lib/stores/calendarStore';
 
 	export let startTime: Date | null = null;
+
+	const dispatch = createEventDispatcher();
+
+	function onClose() {
+		calendarStore.refresh(fetch);
+		dispatch('close');
+	}
 
 	// Store selected booking type component
 	let selectedBookingComponent: 'training' | 'meeting' = 'training';
@@ -163,6 +170,8 @@
 						description: `Kunde inte hitta e-post för klienten ${bookingObject.clientId}.`
 					});
 				}
+
+				onClose();
 			}
 		} else {
 			// handle single booking
@@ -179,15 +188,18 @@
 				if (clientEmail) {
 					await sendMail({
 						to: clientEmail,
-						subject: 'Bekräftelse på din bokning',
-						header: 'Tack för din bokning!',
-						subheader: '',
+						subject: 'Bokningsbekräftelse',
+						header: 'Bekräftelse på din bokning',
+						subheader: 'Tack för din bokning!',
 						body: `
 						Hej! Din bokning är bekräftad:<br><br>
 						${bookingObject.date} kl ${bookingObject.time}<br><br>
 						Vänligen kontakta oss om något behöver ändras.
 					`,
-						from: { name: 'Takkei', email: 'info@takkei.se' }
+						from: {
+							name: currentUser.firstname + ' ' + currentUser.lastname,
+							email: currentUser.email
+						}
 					});
 
 					addToast({
@@ -196,6 +208,7 @@
 						description: `Ett bekräftelsemail skickades till ${clientEmail}.`
 					});
 				}
+				onClose();
 			} else {
 				addToast({
 					type: AppToastType.CANCEL,

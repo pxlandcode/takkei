@@ -42,7 +42,7 @@
 
 <div class="mb-4 w-full">
 	{#if label}
-		<label for={name} class="mb-1 block text-sm font-medium">
+		<label for={name} class="mb-3 block text-sm font-medium">
 			{label}
 		</label>
 	{/if}

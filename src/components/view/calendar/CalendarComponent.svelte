@@ -9,6 +9,7 @@
 	import { calendarStore } from '$lib/stores/calendarStore';
 	import ClockIcon from '../../bits/clock-icon/ClockIcon.svelte';
 	import { createEventDispatcher } from 'svelte';
+	import { tooltip } from '$lib/actions/tooltip';
 
 	// Props
 	export let startHour = 5;
@@ -215,6 +216,11 @@
 		}
 	});
 
+	function onOpenBooking(booking: FullBooking) {
+		console.log('Booking clicked:', booking);
+		dispatch('onBookingClick', { booking });
+	}
+
 	// Cleanup store subscription
 	onDestroy(() => {
 		unsubscribe();
@@ -263,9 +269,12 @@
 					<button
 						class="absolute left-0 right-0 cursor-pointer hover:bg-orange/20"
 						style="top: {slot.top}px; height: {hourHeight}px; z-index: 0;"
-						title="Klicka för att boka"
 						on:click={() => openBookingPopup(slot.start)}
-					/>
+						use:tooltip={{
+							content: `${slot.start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - ${new Date(slot.start.getTime() + 60 * 60 * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+						}}
+					>
+					</button>
 				{/each}
 				{#each layoutDayBookings( bookings.filter( (b) => (singleDayView ? new Date(b.booking.startTime).toDateString() === new Date(filters.date).toDateString() : shiftUTCIndex(new Date(b.booking.startTime)) === dayIndex) ), singleDayView ? new Date(filters.date) : undefined ) as layoutItem, i}
 					<BookingSlot
@@ -275,7 +284,10 @@
 						{i}
 						columnIndex={layoutItem.columnIndex}
 						columnCount={layoutItem.columnCount}
-						toolTipText={new Date(layoutItem.booking.booking.startTime).toLocaleString('sv-SE')}
+						toolTipText={layoutItem.booking.client?.firstname +
+							' ' +
+							layoutItem.booking.client?.lastname || ''}
+						on:onClick={(e) => onOpenBooking(e.detail.booking)}
 					/>
 				{/each}
 			</div>
