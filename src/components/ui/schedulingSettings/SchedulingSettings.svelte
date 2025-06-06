@@ -17,8 +17,7 @@
 		saveVacations,
 		removeDateAvailability,
 		removeVacation,
-		saveOrUpdateAbsences,
-		removeAbsence
+		saveOrUpdateAbsences
 	} from '$lib/services/api/availabilityService';
 	import AbsenceAvailability from './absenceAvailability/AbsenceAvailability.svelte';
 
