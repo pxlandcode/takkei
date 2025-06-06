@@ -17,7 +17,7 @@
 	export let labelIcon: string = '';
 	export let labelIconSize: string = '20px';
 	export let openPosition: 'up' | 'down' | null = null;
-
+	export let noLabel: boolean = false;
 	// Accept an errors object for validation handling
 	export let errors: Record<string, string> = {};
 
@@ -129,7 +129,7 @@
 </script>
 
 <div class="relative flex w-full flex-col gap-1" use:clickOutside={closeDropdown}>
-	<div class="mb-1 flex flex-row items-center gap-2">
+	<div class="mb-1 flex flex-row items-center gap-2 {noLabel ? 'hidden' : ''}">
 		{#if labelIcon}
 			<Icon icon={labelIcon} size={labelIconSize} color="gray" />
 		{/if}
