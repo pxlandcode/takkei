@@ -23,9 +23,11 @@
 	// Subscribe to calendar store
 	let bookings: FullBooking[] = [];
 	let filters;
+	let availability;
 	const unsubscribe = calendarStore.subscribe((store) => {
 		bookings = store.bookings;
 		filters = store.filters;
+		availability = store.availability;
 	});
 
 	function isTimeSlotOccupied(start: Date, end: Date, bookingsForDay: FullBooking[]): boolean {
@@ -171,9 +173,12 @@
 				: shiftUTCIndex(new Date(b.booking.startTime)) === dayIndex
 		);
 
+		const dateStr = dayDate.toISOString().split('T')[0];
+		const onlyOneTrainer = filters?.trainerIds && filters.trainerIds.length === 1;
+		const dayAvailability = onlyOneTrainer ? availability?.[dateStr] : null;
+
 		for (let i = 0; i < totalHours * 2 - 1; i++) {
-			// Only allow blocks starting at half past
-			if (i % 2 === 0) continue;
+			if (i % 2 === 0) continue; // Only allow blocks starting at half past
 
 			const hour = startHour + Math.floor(i / 2);
 			const minute = 30;
@@ -186,7 +191,27 @@
 
 			const isOccupied = isTimeSlotOccupied(slotStart, slotEnd, dayBookings);
 
-			if (!isOccupied) {
+			// ✅ Check availability if only one trainer
+			let isAvailable = true;
+			if (onlyOneTrainer) {
+				if (!dayAvailability || dayAvailability === null || dayAvailability.length === 0) {
+					isAvailable = false;
+				} else {
+					isAvailable = dayAvailability.some((slot) => {
+						const [fromHour, fromMin] = slot.from.split(':').map(Number);
+						const [toHour, toMin] = slot.to.split(':').map(Number);
+
+						const availableStart = new Date(dayDate);
+						availableStart.setHours(fromHour, fromMin, 0, 0);
+						const availableEnd = new Date(dayDate);
+						availableEnd.setHours(toHour, toMin, 0, 0);
+
+						return slotStart >= availableStart && slotEnd <= availableEnd;
+					});
+				}
+			}
+
+			if (!isOccupied && isAvailable) {
 				results.push({
 					top: i * (hourHeight / 2),
 					start: slotStart
@@ -195,6 +220,55 @@
 		}
 
 		return results;
+	}
+
+	function getUnavailableBlocks(dayIndex: number): { top: number; height: number }[] {
+		if (!filters?.trainerIds || filters.trainerIds.length !== 1) return [];
+
+		const startOfWeek = filters.from
+			? getMondayOfWeek(new Date(filters.from))
+			: getMondayOfWeek(new Date());
+
+		const date = new Date(startOfWeek);
+		date.setDate(date.getDate() + dayIndex);
+		const dateStr = date.toISOString().split('T')[0];
+
+		const blocks: { top: number; height: number }[] = [];
+
+		if (!(dateStr in availability) || availability[dateStr] === null) {
+			blocks.push({
+				top: 0,
+				height: totalHours * hourHeight
+			});
+			return blocks;
+		}
+
+		const available = availability[dateStr];
+		if (!available || available.length === 0) return [];
+
+		let lastEnd = startHour;
+		for (const slot of available) {
+			const [fromHour, fromMin] = slot.from.split(':').map(Number);
+			const [toHour, toMin] = slot.to.split(':').map(Number);
+
+			const start = fromHour + fromMin / 60;
+			if (start > lastEnd) {
+				blocks.push({
+					top: (lastEnd - startHour) * hourHeight,
+					height: (start - lastEnd) * hourHeight
+				});
+			}
+			lastEnd = toHour + toMin / 60;
+		}
+
+		if (lastEnd < startHour + totalHours) {
+			blocks.push({
+				top: (lastEnd - startHour) * hourHeight,
+				height: (startHour + totalHours - lastEnd) * hourHeight
+			});
+		}
+		console.log('Unavailable blocks for day', dayIndex, 'at', dateStr, ':', blocks);
+		return blocks;
 	}
 
 	function openBookingPopup(startTime: Date) {
@@ -265,6 +339,13 @@
 		<!-- DAYS & BOOKINGS -->
 		{#each weekDays as { day, date }, dayIndex}
 			<div class="border-gray-dark relative flex flex-col gap-1 border-l">
+				{#each getUnavailableBlocks(dayIndex) as block}
+					<div
+						class="unavailable-striped absolute left-0 right-0"
+						style="top: {block.top}px; height: {block.height}px; z-index: 0;"
+					/>
+				{/each}
+
 				{#each getEmptySlotBlocks(dayIndex) as slot}
 					<button
 						class="absolute left-0 right-0 cursor-pointer hover:bg-orange/20"
@@ -294,3 +375,16 @@
 		{/each}
 	</div>
 </div>
+
+<style>
+	.unavailable-striped {
+		background-image: repeating-linear-gradient(
+			45deg,
+			rgba(255, 0, 0, 0.1) 0px,
+			rgba(255, 0, 0, 0.1) 5px,
+			transparent 5px,
+			transparent 10px
+		);
+		pointer-events: none;
+	}
+</style>

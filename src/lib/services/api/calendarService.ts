@@ -188,3 +188,16 @@ function transformPersonalBooking(raw: any): FullBooking {
 		}
 	};
 }
+
+export async function fetchUserAvailability(
+	userId: number,
+	from: string,
+	to: string,
+	fetchFn: typeof fetch = fetch
+) {
+	const res = await fetchFn(
+		`/api/availability/users-availability?userId=${userId}&from=${from}&to=${to}`
+	);
+	if (!res.ok) throw new Error('Kunde inte hämta tillgänglighet');
+	return await res.json();
+}

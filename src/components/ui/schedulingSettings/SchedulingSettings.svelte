@@ -109,7 +109,7 @@
 		if (!selectedUserId) return;
 		try {
 			await saveVacations(selectedUserId, data);
-			vacations = [...vacations, data]; // ✅ Update local state
+			vacations = [...vacations, data];
 			console.log('✅ Vacation saved');
 		} catch (err) {
 			console.error('❌ Vacation save failed', err);
@@ -129,8 +129,17 @@
 	async function saveAbsence(data) {
 		if (!selectedUserId) return;
 		try {
-			await saveOrUpdateAbsences(selectedUserId, data);
-			absences = [...absences, ...data]; // or update existing if needed
+			const saved = await saveOrUpdateAbsences(selectedUserId, data);
+
+			for (const a of saved) {
+				const index = absences.findIndex((x) => x.id === a.id);
+				if (index !== -1) {
+					absences[index] = a;
+				} else {
+					absences = [a, ...absences];
+				}
+			}
+
 			console.log('✅ Absence(s) saved');
 		} catch (err) {
 			console.error('❌ Failed to save absence(s):', err);
@@ -161,17 +170,15 @@
 		try {
 			const now = new Date().toISOString();
 
-			await saveOrUpdateAbsences(currentUserId, [
+			const updated = await saveOrUpdateAbsences(currentUserId, [
 				{
 					id: absence.id,
-					endTime: now,
+					end_time: now,
 					status: 'Closed'
 				}
 			]);
 
-			absences = absences.map((a) =>
-				a.id === absence.id ? { ...a, end_time: now, status: 'Closed' } : a
-			);
+			absences = absences.map((a) => (a.id === absence.id ? updated[0] : a));
 
 			console.log('✅ Absence closed');
 		} catch (err) {
@@ -243,7 +250,6 @@
 			{canEdit}
 			{canApprove}
 			on:save={(e) => {
-				absences = [...absences, e.detail];
 				saveAbsence([e.detail]);
 			}}
 			on:close={(e) => {

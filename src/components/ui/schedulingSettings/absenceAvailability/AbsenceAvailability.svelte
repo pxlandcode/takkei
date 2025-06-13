@@ -54,7 +54,7 @@
 
 	{#if absences.length > 0}
 		<ul class="space-y-3">
-			{#each absences as a (a.id || a.start_time)}
+			{#each absences as a (`${a.id ?? a.start_time}-${a.description ?? ''}`)}
 				<li class="flex items-start justify-between gap-4 rounded border px-4 py-3 text-sm">
 					<div class="flex flex-grow flex-col gap-1">
 						<div class="flex items-center gap-2">

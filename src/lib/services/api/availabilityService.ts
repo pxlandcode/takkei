@@ -87,10 +87,11 @@ export async function saveOrUpdateAbsences(
 		end_time?: string;
 		status?: string;
 	}[]
-) {
+): Promise<any[]> {
+	const saved: any[] = [];
+
 	for (const absence of absences) {
 		if (absence.id) {
-			// PATCH = approve or close
 			const res = await fetch('/api/availability/absence', {
 				method: 'PATCH',
 				headers: { 'Content-Type': 'application/json' },
@@ -105,8 +106,10 @@ export async function saveOrUpdateAbsences(
 			if (!res.ok) {
 				throw new Error(`Misslyckades att uppdatera frånvaro (id: ${absence.id})`);
 			}
+
+			const { absence: updatedAbsence } = await res.json();
+			saved.push(updatedAbsence);
 		} else {
-			// POST = new absence
 			const payload = {
 				userId,
 				description: absence.description ?? ''
@@ -122,6 +125,11 @@ export async function saveOrUpdateAbsences(
 				throw new Error(
 					`Misslyckades att spara frånvaro (${absence.description || 'utan beskrivning'})`
 				);
+
+			const { absence: newAbsence } = await res.json();
+			saved.push(newAbsence);
 		}
 	}
+
+	return saved;
 }

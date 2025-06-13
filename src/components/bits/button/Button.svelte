@@ -6,7 +6,7 @@
 	// Props
 	export let type: 'button' | 'submit' | 'reset' = 'button';
 	export let text: string = '';
-	export let icon: string | null = null; // For icon-only button
+	export let icon: string | null = null;
 	export let iconLeft: string | null = null;
 	export let iconRight: string | null = null;
 	export let variant: 'primary' | 'secondary' | 'cancel' = 'primary';
