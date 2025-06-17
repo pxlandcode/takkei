@@ -177,6 +177,12 @@
 			selectedBooking = null;
 		}}
 	>
-		<BookingDetailsPopup booking={selectedBooking} />
+		<BookingDetailsPopup
+			booking={selectedBooking}
+			on:close={() => {
+				showBookingDetailsPopup = false;
+				selectedBooking = null;
+			}}
+		/>
 	</PopupWrapper>
 {/if}

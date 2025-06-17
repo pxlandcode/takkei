@@ -71,9 +71,86 @@ export async function fetchAvailableSlots({ date, trainerId, locationId, roomId 
 		headers: { 'Content-Type': 'application/json' },
 		body: JSON.stringify({ date, trainerId, locationId, roomId })
 	});
+
 	if (res.ok) {
 		const data = await res.json();
-		return data.availableSlots;
+		return {
+			availableSlots: data.availableSlots,
+			outsideAvailabilitySlots: data.outsideAvailabilitySlots
+		};
 	}
-	return [];
+
+	return {
+		availableSlots: [],
+		outsideAvailabilitySlots: []
+	};
+}
+
+export async function updateBooking(bookingObject: any) {
+	try {
+		const requestData = {
+			booking_id: bookingObject.id,
+			client_id: bookingObject.clientId ?? null,
+			trainer_id: bookingObject.trainerId ?? null,
+			user_id:
+				bookingObject.attendees?.length > 0 ? `{${bookingObject.attendees.join(',')}}` : null,
+			start_time: `${bookingObject.date}T${bookingObject.time}:00`,
+			location_id: bookingObject.locationId ?? null,
+			booking_content_id: bookingObject.bookingType?.value ?? null,
+			status: bookingObject.status ?? 'New',
+			room_id: bookingObject.roomId ?? null
+		};
+
+		const response = await fetch('/api/update-booking', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify(requestData)
+		});
+
+		const responseData = await response.json();
+		if (!response.ok) throw new Error(responseData.error || 'Update failed');
+
+		return {
+			success: true,
+			message: 'Booking updated successfully',
+			booking: responseData.booking
+		};
+	} catch (error) {
+		console.error('Error Updating Booking:', error);
+		return {
+			success: false,
+			message: 'Error updating booking',
+			error: error.message
+		};
+	}
+}
+
+export async function cancelBooking(bookingId: number, reason: string, actualCancelTime: string) {
+	try {
+		const res = await fetch('/api/cancel-booking', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({
+				booking_id: bookingId,
+				reason,
+				actual_cancel_time: actualCancelTime
+			})
+		});
+
+		const data = await res.json();
+
+		if (!res.ok) throw new Error(data.error || 'Cancellation failed');
+
+		return {
+			success: true,
+			message: 'Booking cancelled successfully',
+			data: data.cancelled
+		};
+	} catch (err) {
+		console.error('Error cancelling booking:', err);
+		return {
+			success: false,
+			message: err.message ?? 'Unknown cancellation error'
+		};
+	}
 }

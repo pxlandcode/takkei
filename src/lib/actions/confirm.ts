@@ -72,14 +72,42 @@ export function confirm(node: HTMLElement, params: ConfirmParams) {
 		const trigger = node.getBoundingClientRect();
 		const box = confirmBox.getBoundingClientRect();
 
-		let top = trigger.bottom + 8;
-		let left = trigger.left + trigger.width / 2 - box.width / 2;
+		const spacing = 8;
+		let top: number;
+		let left: number;
 
-		// Clamp
-		if (left + box.width > window.innerWidth - 10) {
-			left = window.innerWidth - box.width - 10;
+		const hasSpaceBelow = trigger.bottom + spacing + box.height < window.innerHeight;
+		const hasSpaceAbove = trigger.top - spacing - box.height > 0;
+		const hasSpaceRight = trigger.right + spacing + box.width < window.innerWidth;
+		const hasSpaceLeft = trigger.left - spacing - box.width > 0;
+
+		if (hasSpaceBelow) {
+			// Place below
+			top = trigger.bottom + spacing;
+			left = trigger.left + trigger.width / 2 - box.width / 2;
+		} else if (hasSpaceAbove) {
+			// Place above
+			top = trigger.top - box.height - spacing;
+			left = trigger.left + trigger.width / 2 - box.width / 2;
+		} else if (hasSpaceRight) {
+			// Place to the right
+			top = trigger.top + trigger.height / 2 - box.height / 2;
+			left = trigger.right + spacing;
+		} else if (hasSpaceLeft) {
+			// Place to the left
+			top = trigger.top + trigger.height / 2 - box.height / 2;
+			left = trigger.left - box.width - spacing;
+		} else {
+			// Center in viewport as last resort
+			top = Math.max(spacing, window.innerHeight / 2 - box.height / 2);
+			left = Math.max(spacing, window.innerWidth / 2 - box.width / 2);
 		}
-		if (left < 10) left = 10;
+
+		// Clamp to viewport edges
+		top = Math.min(top, window.innerHeight - box.height - spacing);
+		left = Math.min(left, window.innerWidth - box.width - spacing);
+		top = Math.max(top, spacing);
+		left = Math.max(left, spacing);
 
 		confirmBox.style.top = `${top}px`;
 		confirmBox.style.left = `${left}px`;

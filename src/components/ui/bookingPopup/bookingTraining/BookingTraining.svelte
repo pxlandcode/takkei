@@ -16,6 +16,7 @@
 	export let bookingObject: any;
 	export let bookingContents: { value: string; label: string }[] = [];
 	export let repeatedBookings: any;
+	export let selectedIsUnavailable: boolean = false;
 
 	let availableRooms = [];
 
@@ -79,7 +80,6 @@
 		}
 	});
 
-	// Format client to expected shape
 	function formatClient(c) {
 		const fullName = `${c.firstname} ${c.lastname}`;
 		return {
@@ -229,6 +229,7 @@
 		trainerId={bookingObject.trainerId}
 		locationId={bookingObject.locationId}
 		roomId={bookingObject.roomId}
+		on:unavailabilityChange={(e) => (selectedIsUnavailable = e.detail)}
 	/>
 
 	<!-- Repeat Booking Section -->

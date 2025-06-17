@@ -41,6 +41,7 @@ export const POST: RequestHandler = async ({ request }) => {
 			[trainerId, date]
 		);
 		if (absences.length > 0) {
+			console.log('Trainer is absent:', absences);
 			return new Response(JSON.stringify({ availableSlots: [] }));
 		}
 	}
@@ -52,6 +53,7 @@ export const POST: RequestHandler = async ({ request }) => {
 		[trainerId, date]
 	);
 	if (vacations.length > 0) {
+		console.log('Trainer is on vacation:', vacations);
 		return new Response(JSON.stringify({ availableSlots: [] }));
 	}
 
@@ -79,10 +81,6 @@ export const POST: RequestHandler = async ({ request }) => {
 			from: extractTime(a.start_time),
 			to: extractTime(a.end_time)
 		}));
-	}
-
-	if (availability.length === 0) {
-		return new Response(JSON.stringify({ availableSlots: [] }));
 	}
 
 	// ✅ Bookings and Personal Bookings
@@ -120,26 +118,37 @@ export const POST: RequestHandler = async ({ request }) => {
 		blockedIntervals.push({ start, end });
 	}
 
-	// ✅ Generate 60-min slots starting every half hour from 05:30 to 21:30
 	const availableSlots: string[] = [];
+	const outsideAvailabilitySlots: string[] = [];
+
 	for (let h = 5; h <= 21; h++) {
-		for (const m of [30]) {
+		for (const m of [0, 30]) {
 			const slotStart = h * 60 + m;
 			const slotEnd = slotStart + 60;
+			const label = `${h.toString().padStart(2, '0')}:${m === 0 ? '00' : '30'}`;
 
 			const hasConflict = blockedIntervals.some((b) =>
 				overlaps(slotStart, slotEnd, b.start, b.end)
 			);
 
-			const isWithinAvailableTime = availability.some(
-				(a) => slotStart >= a.from && slotEnd <= a.to
+			const overlapsAvailability = availability.some((a) =>
+				overlaps(slotStart, slotEnd, a.from, a.to)
 			);
 
-			if (!hasConflict && isWithinAvailableTime) {
-				availableSlots.push(`${h.toString().padStart(2, '0')}:${m === 0 ? '00' : '30'}`);
+			if (hasConflict) continue;
+
+			if (overlapsAvailability) {
+				availableSlots.push(label);
+			} else {
+				outsideAvailabilitySlots.push(label);
 			}
 		}
 	}
 
-	return new Response(JSON.stringify({ availableSlots }));
+	return new Response(
+		JSON.stringify({
+			availableSlots,
+			outsideAvailabilitySlots
+		})
+	);
 };

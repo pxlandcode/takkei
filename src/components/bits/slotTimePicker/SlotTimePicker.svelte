@@ -9,18 +9,30 @@
 	export let locationId: number;
 	export let roomId: number;
 	export let label = 'Tid';
+	import { createEventDispatcher } from 'svelte';
+
+	const dispatch = createEventDispatcher();
 
 	let loading = false;
-	let availableTimes: string[] = [];
+	let availableSlots: string[] = [];
+	let outsideAvailabilitySlots: string[] = [];
+	let sortedOptions: { label: string; value: string; unavailable: boolean }[] = [];
 
 	let showWarning = false;
+
+	function timeToMinutes(time: string): number {
+		const [h, m] = time.split(':').map(Number);
+		return h * 60 + m;
+	}
 
 	// Fetch available slots
 	async function updateSlots() {
 		showWarning = false;
 		if (selectedDate && trainerId != null && locationId != null && roomId != null) {
 			loading = true;
-			availableTimes = [];
+			availableSlots = [];
+			outsideAvailabilitySlots = [];
+			sortedOptions = [];
 
 			try {
 				const res = await fetchAvailableSlots({
@@ -29,7 +41,17 @@
 					locationId,
 					roomId
 				});
-				availableTimes = res;
+				availableSlots = res.availableSlots;
+				outsideAvailabilitySlots = res.outsideAvailabilitySlots;
+
+				const merged = [
+					...availableSlots.map((t) => ({ label: t, value: t, unavailable: false })),
+					...outsideAvailabilitySlots.map((t) => ({ label: t, value: t, unavailable: true }))
+				];
+
+				sortedOptions = merged.sort((a, b) => timeToMinutes(a.value) - timeToMinutes(b.value));
+
+				console.log('Sorted options:', sortedOptions);
 			} catch (e) {
 				console.error('Error fetching available slots:', e);
 				showWarning = true;
@@ -38,7 +60,9 @@
 			}
 		} else {
 			showWarning = true;
-			availableTimes = [];
+			availableSlots = [];
+			outsideAvailabilitySlots = [];
+			sortedOptions = [];
 		}
 	}
 
@@ -66,18 +90,21 @@
 		</svg>
 		Laddar tillgängliga tider...
 	</div>
-{:else if !showWarning || availableTimes.length > 0}
+{:else if !showWarning || availableSlots.length > 0 || outsideAvailabilitySlots.length > 0}
 	<div class="grid grid-cols-1 gap-2 xl:grid-cols-2">
 		<Input label="Datum" type="date" bind:value={selectedDate} />
-
 		<Dropdown
 			id="available-times"
 			{label}
 			bind:selectedValue={selectedTime}
-			options={availableTimes.map((t) => ({ label: t, value: t }))}
-			placeholder={availableTimes.length !== 0 ? 'Välj tid' : 'Inga tillgängliga tider'}
+			options={sortedOptions}
+			placeholder="Välj tid"
 			openPosition="up"
-			disabled={availableTimes.length === 0}
+			disabled={sortedOptions.length === 0}
+			on:change={() => {
+				const selected = sortedOptions.find((opt) => opt.value === selectedTime);
+				dispatch('unavailabilityChange', selected?.unavailable ?? false);
+			}}
 		/>
 	</div>
 {/if}

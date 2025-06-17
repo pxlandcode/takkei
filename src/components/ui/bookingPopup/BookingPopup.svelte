@@ -31,6 +31,9 @@
 	let selectedBookingComponent: 'training' | 'meeting' = 'training';
 
 	let repeatedBookings = [];
+	let selectedIsUnavailable = false;
+
+	$: selectedIsUnavailable && console.log('Selected time is unavailable:', selectedIsUnavailable);
 
 	let currentUser = get(user);
 
@@ -239,6 +242,7 @@
 		<BookingTraining
 			bind:bookingObject
 			bind:repeatedBookings
+			bind:selectedIsUnavailable
 			bookingContents={($bookingContents || []).map((content) => ({
 				value: content.id,
 				label: capitalizeFirstLetter(content.kind)
@@ -267,13 +271,29 @@
 	{/if}
 
 	<!-- Shared Booking Button -->
-	<Button
-		full
-		variant="primary"
-		text="Slutför Bokning"
-		iconLeft="CalendarCheck"
-		iconLeftSize="18px"
-		on:click={submitBooking}
-		disabled={repeatedBookings.length > 0 && repeatedBookings.some((b) => b.conflict)}
-	/>
+	{#if selectedIsUnavailable}
+		<Button
+			full
+			variant="primary"
+			text="Slutför Bokning"
+			iconLeft="CalendarCheck"
+			iconLeftSize="18px"
+			disabled={repeatedBookings.length > 0 && repeatedBookings.some((b) => b.conflict)}
+			confirmOptions={{
+				title: 'Är du säker?',
+				description:
+					'Den valda tiden ligger utanför den valda tränarens schema. Är du säker på att du vill slutföra bokningen ändå?',
+				action: submitBooking
+			}}
+		/>
+	{:else}
+		<Button
+			full
+			variant="primary"
+			text="Slutför Bokning"
+			iconLeft="CalendarCheck"
+			iconLeftSize="18px"
+			on:click={submitBooking}
+			disabled={repeatedBookings.length > 0 && repeatedBookings.some((b) => b.conflict)}
+		/>{/if}
 </div>
