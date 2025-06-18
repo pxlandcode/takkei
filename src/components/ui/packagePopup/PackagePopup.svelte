@@ -7,7 +7,7 @@
 		getClientsForCustomer
 	} from '$lib/services/api/packageService';
 	import Dropdown from '../../bits/dropdown/Dropdown.svelte';
-	import Input from '../../bits/input/Input.svelte';
+	import Input from '../../bits/Input/Input.svelte';
 	import Checkbox from '../../bits/checkbox/Checkbox.svelte';
 	import Button from '../../bits/button/Button.svelte';
 

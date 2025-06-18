@@ -5,7 +5,7 @@
 	import DropdownCheckbox from '../../bits/dropdown-checkbox/DropdownCheckbox.svelte';
 	import FilterBox from '../../bits/filterBox/FilterBox.svelte';
 	import Button from '../../bits/button/Button.svelte';
-	import Input from '../../bits/input/Input.svelte';
+	import Input from '../../bits/Input/Input.svelte';
 	import TextArea from '../../bits/textarea/TextArea.svelte';
 	import { addToast } from '$lib/stores/toastStore';
 	import { AppToastType } from '$lib/types/toastTypes';

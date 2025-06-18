@@ -2,7 +2,7 @@
 	import Button from '../../bits/button/Button.svelte';
 	import Icon from '../../bits/icon-component/Icon.svelte';
 	import ColorPicker from '../../bits/colorPicker/ColorPicker.svelte';
-	import Input from '../../bits/input/Input.svelte';
+	import Input from '../../bits/Input/Input.svelte';
 	import { nanoid } from 'nanoid';
 
 	export let location = {
