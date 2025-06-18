@@ -72,9 +72,6 @@
 
 	// Sync user_ids and user_id from attendees
 
-	// Track availability issues
-	$: selectedIsUnavailable && console.log('Selected time is unavailable:', selectedIsUnavailable);
-
 	// Load initial data
 	onMount(async () => {
 		currentUser = get(user);
@@ -105,6 +102,7 @@
 	async function submitBooking() {
 		const type = selectedBookingComponent;
 		let bookedDates = [];
+		bookingObject.currentUser = currentUser;
 
 		if (repeatedBookings.length > 0) {
 			let successCount = 0;
@@ -262,13 +260,7 @@
 			}))}
 		/>
 	{:else if selectedBookingComponent === 'personal'}
-		<BookingPersonal
-			bind:bookingObject
-			locations={($locations || []).map((location) => ({
-				label: location.name,
-				value: location.id
-			}))}
-		/>
+		<BookingMeeting bind:bookingObject isMeeting={false} />
 	{/if}
 
 	<!-- Shared Booking Button -->

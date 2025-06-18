@@ -40,7 +40,6 @@
 
 	function handleClientSelection(event) {
 		selectedClients = [...event.detail.selected];
-		console.log('Selected clients:', selectedClients);
 	}
 
 	async function handleSubmit() {

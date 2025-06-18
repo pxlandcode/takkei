@@ -2,7 +2,7 @@
 	import type { FullBooking } from '$lib/types/calendarTypes';
 	import Button from '../../bits/button/Button.svelte';
 	import { formatTime } from '$lib/helpers/calendarHelpers/calendar-utils';
-	import { createEventDispatcher } from 'svelte';
+	import { createEventDispatcher, onMount } from 'svelte';
 	import BookingEditor from '../bookingEditor/BookingEditor.svelte';
 	import { bookingContents } from '$lib/stores/bookingContentStore';
 	import { calendarStore } from '$lib/stores/calendarStore';
@@ -15,16 +15,31 @@
 	import { getClientEmails } from '$lib/stores/clientsStore';
 	import { get } from 'svelte/store';
 	import { user } from '$lib/stores/userStore';
+	import { users, fetchUsers } from '$lib/stores/usersStore';
 
 	export let booking: FullBooking;
 
 	const dispatch = createEventDispatcher();
-
 	const startTime = new Date(booking.booking.startTime);
 	const endTime = new Date(booking.booking.endTime ?? startTime.getTime() + 60 * 60 * 1000);
 
 	let showEditor = false;
 	let editedBooking = null;
+	let participantNames: string[] = [];
+
+	onMount(async () => {
+		if (booking.isPersonalBooking && get(users).length === 0) {
+			await fetchUsers();
+		}
+
+		if (booking.isPersonalBooking && booking.personalBooking?.userIds?.length) {
+			const loadedUsers = get(users);
+			const idSet = new Set(booking.personalBooking.userIds);
+			participantNames = loadedUsers
+				.filter((u) => idSet.has(u.id))
+				.map((u) => `${u.firstname} ${u.lastname}`);
+		}
+	});
 
 	function handleEdit() {
 		editedBooking = {
@@ -117,24 +132,42 @@
 			</div>
 		</div>
 
-		<p class="text-gray-600">
-			<strong>Kund:</strong>
-			{booking.client?.firstname}
-			{booking.client?.lastname}
-		</p>
-		<p class="text-gray-600">
-			<strong>Tränare:</strong>
-			{booking.trainer?.firstname}
-			{booking.trainer?.lastname}
-		</p>
-		<p class="text-gray-600">
-			<strong>Plats:</strong>
-			{booking.location?.name ?? 'Saknas'}
-		</p>
-		<p class="text-gray-600">
-			<strong>Typ:</strong>
-			{booking.additionalInfo.bookingContent?.kind ?? 'Okänd'}
-		</p>
+		{#if booking.isPersonalBooking}
+			<p class="text-gray-600">
+				<strong>Namn:</strong>
+				{booking.personalBooking.name}
+			</p>
+			{#if booking.personalBooking.text}
+				<p class="text-gray-600">
+					<strong>Beskrivning:</strong>
+					{booking.personalBooking.text}
+				</p>
+			{/if}
+			<p class="text-gray-600">
+				<strong>Deltagare:</strong>
+			</p>
+			<ul class="ml-4 list-disc text-sm text-gray-700">
+				{#each participantNames as name}
+					<li>{name}</li>
+				{/each}
+			</ul>
+		{:else}
+			<p class="text-gray-600">
+				<strong>Kund:</strong>
+				{booking.client?.firstname}
+				{booking.client?.lastname}
+			</p>
+			<p class="text-gray-600">
+				<strong>Tränare:</strong>
+				{booking.trainer?.firstname}
+				{booking.trainer?.lastname}
+			</p>
+			<p class="text-gray-600">
+				<strong>Plats:</strong>
+				{booking.location?.name ?? 'Saknas'}
+			</p>
+		{/if}
+
 		<p class="text-gray-600">
 			<strong>Tid:</strong>
 			{formatTime(startTime.toISOString())} – {formatTime(endTime.toISOString())}

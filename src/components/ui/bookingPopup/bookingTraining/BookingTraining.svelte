@@ -106,7 +106,6 @@
 		return [];
 	})();
 
-	$: bookingObject && console.log('Booking Object:', bookingObject);
 	// Reset client if not found in filtered list
 	$: {
 		const exists = filteredClients.some((c) => c.value === bookingObject.clientId);
@@ -114,8 +113,6 @@
 			bookingObject.clientId = null;
 		}
 	}
-
-	$: locations && console.log('Locations:', $locations);
 
 	// Auto-assign room if only one available
 	$: {

@@ -44,7 +44,6 @@
 	let showAddPackageModal = false;
 
 	function handleCreatePackage(pkgData) {
-		console.log('Create package with:', pkgData);
 		showAddPackageModal = false;
 	}
 

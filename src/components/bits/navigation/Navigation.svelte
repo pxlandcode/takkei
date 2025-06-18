@@ -10,9 +10,6 @@
 	const currentUser = get(user);
 	const userRoles = currentUser?.roles?.map((r) => r.name) || [];
 
-	console.log('userRoles', userRoles);
-	console.log('currentUser', currentUser);
-
 	$: visibleMenuItems = menuItems.filter((item) => {
 		return !item.requiredRoles || hasRole(item.requiredRoles);
 	});

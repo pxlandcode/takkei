@@ -54,13 +54,6 @@
 			dateAvailabilities = result.dates || [];
 			vacations = result.vacations || [];
 			absences = result.absences || [];
-
-			console.log('Tillgänglighet laddad:', {
-				weeklyAvailability,
-				dateAvailabilities,
-				vacations,
-				absences
-			});
 		} catch (err) {
 			console.error('Kunde inte ladda tillgänglighet:', err);
 		}
@@ -75,11 +68,9 @@
 	}
 
 	async function saveWeekly(data) {
-		console.log('Saving weekly availability:', data);
 		if (!selectedUserId) return;
 		try {
 			await saveWeeklyAvailability(selectedUserId, data);
-			console.log('✅ Weekly saved');
 		} catch (err) {
 			console.error('❌ Weekly save failed', err);
 		}
@@ -89,7 +80,6 @@
 		if (!selectedUserId) return;
 		try {
 			await saveDateAvailability(selectedUserId, data);
-			console.log('✅ Date availabilities saved');
 		} catch (err) {
 			console.error('❌ Date save failed', err);
 		}
@@ -99,7 +89,6 @@
 		try {
 			await removeDateAvailability(id);
 			dateAvailabilities = dateAvailabilities.filter((d) => d.id !== id);
-			console.log('✅ Date availability removed:', id);
 		} catch (err) {
 			console.error('❌ Failed to remove date availability:', err);
 		}
@@ -110,7 +99,6 @@
 		try {
 			await saveVacations(selectedUserId, data);
 			vacations = [...vacations, data];
-			console.log('✅ Vacation saved');
 		} catch (err) {
 			console.error('❌ Vacation save failed', err);
 		}
@@ -120,7 +108,6 @@
 		try {
 			await removeVacation(id);
 			vacations = vacations.filter((v) => v.id !== id);
-			console.log('✅ Vacation removed:', id);
 		} catch (err) {
 			console.error('❌ Failed to remove vacation:', err);
 		}
@@ -139,8 +126,6 @@
 					absences = [a, ...absences];
 				}
 			}
-
-			console.log('✅ Absence(s) saved');
 		} catch (err) {
 			console.error('❌ Failed to save absence(s):', err);
 		}
@@ -158,7 +143,6 @@
 			absences = absences.map((a) =>
 				a.id === absence.id ? { ...a, approved_by_id: currentUserId } : a
 			);
-			console.log('✅ Absence approved');
 		} catch (err) {
 			console.error('❌ Failed to approve absence:', err);
 		}
@@ -179,8 +163,6 @@
 			]);
 
 			absences = absences.map((a) => (a.id === absence.id ? updated[0] : a));
-
-			console.log('✅ Absence closed');
 		} catch (err) {
 			console.error('❌ Failed to close absence:', err);
 		}

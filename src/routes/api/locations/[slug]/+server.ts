@@ -23,7 +23,7 @@ export async function GET({ params }) {
 
 export async function PATCH({ request, params }) {
 	const id = params.slug;
-	console.log('id', id);
+
 	const { name, color } = await request.json();
 
 	if (!id || (!name && !color)) {

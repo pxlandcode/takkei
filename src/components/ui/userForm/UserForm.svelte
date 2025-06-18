@@ -13,7 +13,6 @@
 
 	const dispatch = createEventDispatcher();
 
-	console.log('user,', $user);
 	let firstname = '';
 	let lastname = '';
 	let email = '';

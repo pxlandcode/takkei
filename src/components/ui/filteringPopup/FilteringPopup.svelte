@@ -90,7 +90,6 @@
 		const allLocations = get(locations);
 		const currentUser = get(user);
 
-		console.log('Current user:', currentUser);
 		const primaryLocation = allLocations.find((l) => l.id === currentUser?.default_location_id);
 		if (primaryLocation) {
 			selectedLocations = [primaryLocation];

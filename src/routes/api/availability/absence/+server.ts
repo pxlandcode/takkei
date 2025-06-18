@@ -3,7 +3,6 @@ import { query } from '$lib/db';
 
 export async function POST({ request }) {
 	const body = await request.json();
-	console.log('📥 Incoming absence POST body:', body);
 
 	const { userId, description } = body;
 
@@ -21,8 +20,6 @@ export async function POST({ request }) {
              RETURNING *`,
 			[userId, userId, now, description || null]
 		);
-
-		console.log('✅ Absence saved:', result[0]);
 
 		return json({ success: true, absence: result[0] });
 	} catch (err) {

@@ -50,8 +50,6 @@
 				];
 
 				sortedOptions = merged.sort((a, b) => timeToMinutes(a.value) - timeToMinutes(b.value));
-
-				console.log('Sorted options:', sortedOptions);
 			} catch (e) {
 				console.error('Error fetching available slots:', e);
 				showWarning = true;

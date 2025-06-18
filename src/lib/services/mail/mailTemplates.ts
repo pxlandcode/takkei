@@ -32,7 +32,7 @@ export function buildTakkeiEmail({
 	image?: EmailImage | null;
 }) {
 	const index = image ? -1 : randomInt(fallbackImages.length);
-	console.log('index', index);
+
 	const selected = image ?? fallbackImages[index];
 
 	return `

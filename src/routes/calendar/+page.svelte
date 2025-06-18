@@ -39,7 +39,6 @@
 	let showBookingDetailsPopup = false;
 
 	function handleBookingClick(booking: FullBooking) {
-		console.log('Booking clicked out in calendar:', booking);
 		selectedBooking = booking;
 		showBookingDetailsPopup = true;
 	}

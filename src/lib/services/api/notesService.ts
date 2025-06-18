@@ -31,14 +31,6 @@ export async function addNote(
 	fetchFn: typeof fetch,
 	noteKindId?: number
 ) {
-	console.log('🚀 Sending Note:', {
-		target_id: targetId,
-		target_type: targetType,
-		writer_id: writerId,
-		text,
-		note_kind_id: noteKindId
-	});
-
 	try {
 		const response = await fetchFn('/api/notes', {
 			method: 'POST',
@@ -53,7 +45,6 @@ export async function addNote(
 		});
 
 		const result = await response.json();
-		console.log('📥 Server Response:', result);
 
 		if (!response.ok) {
 			throw new Error(`Failed to add note: ${result.error || response.status}`);

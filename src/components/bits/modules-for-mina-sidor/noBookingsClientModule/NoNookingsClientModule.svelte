@@ -54,9 +54,6 @@
 				clientsWeek1 = data.week1;
 				clientsWeek2 = data.week2;
 			}
-
-			console.log('clientsWeek1', clientsWeek1);
-			console.log('clientsWeek2', clientsWeek2);
 		} finally {
 			isLoading = false;
 		}

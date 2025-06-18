@@ -98,8 +98,6 @@ const createCalendarStore = () => {
 			filters: updatedFilters
 		}));
 
-		console.log('[calendarStore] ✅ Final filters after update:', updatedFilters);
-
 		refresh(fetchFn, updatedFilters); // ← pass directly
 	}
 

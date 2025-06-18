@@ -41,7 +41,6 @@ export const POST: RequestHandler = async ({ request }) => {
 			[trainerId, date]
 		);
 		if (absences.length > 0) {
-			console.log('Trainer is absent:', absences);
 			return new Response(JSON.stringify({ availableSlots: [] }));
 		}
 	}
@@ -53,7 +52,6 @@ export const POST: RequestHandler = async ({ request }) => {
 		[trainerId, date]
 	);
 	if (vacations.length > 0) {
-		console.log('Trainer is on vacation:', vacations);
 		return new Response(JSON.stringify({ availableSlots: [] }));
 	}
 

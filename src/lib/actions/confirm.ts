@@ -20,7 +20,7 @@ export function confirm(node: HTMLElement, params: ConfirmParams) {
 	function onClick(e: MouseEvent) {
 		e.preventDefault();
 		e.stopPropagation();
-		console.log('onClick', 'confirm');
+
 		if (!visible) {
 			show();
 		}

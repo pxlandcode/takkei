@@ -90,7 +90,6 @@
 			...selectedClients.map((c) => c.email)
 		];
 		try {
-			console.log('from', selectedFromOption.value);
 			await sendMail({
 				to: recipients,
 				subject,

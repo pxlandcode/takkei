@@ -48,17 +48,12 @@ export async function fetchBookings(
 		const bookingsUrl = `/api/bookings?${params.toString()}`;
 		const bookingsResponse = await fetchFn(bookingsUrl);
 
-		console.log('Bookings URL:', bookingsUrl); // Debugging line
-		console.log('Bookings Response:', bookingsResponse); // Debugging line
-
 		if (!bookingsResponse.ok) {
 			const errorText = await bookingsResponse.text();
 			throw new Error(`Error fetching bookings (${bookingsResponse.status}): ${errorText}`);
 		}
 
 		const standardBookings = await bookingsResponse.json();
-
-		console.log('Standard Bookings:', standardBookings); // Debugging line
 
 		let transformedPersonalBookings: FullBooking[] = [];
 		// Fetch personal bookings with pagination

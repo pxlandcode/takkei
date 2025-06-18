@@ -47,8 +47,6 @@
 		{ label: 'Rapporter', icon: 'Charts', href: '/reports' },
 		{ label: 'Inställningar', icon: 'Settings', href: '/settings' }
 	];
-
-	console.log('notificationStore', $notificationStore);
 </script>
 
 <div class="flex h-full w-[320px] flex-col justify-between gap-4">

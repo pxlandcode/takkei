@@ -43,7 +43,7 @@
 					text="Spara schema"
 					on:click={() => {
 						editing = false;
-						console.log('Saving weekly availability:', fullWeekAvailability);
+
 						dispatch('save', fullWeekAvailability);
 					}}
 				/>

@@ -267,12 +267,11 @@
 				height: (startHour + totalHours - lastEnd) * hourHeight
 			});
 		}
-		console.log('Unavailable blocks for day', dayIndex, 'at', dateStr, ':', blocks);
+
 		return blocks;
 	}
 
 	function openBookingPopup(startTime: Date) {
-		console.log('🟢 Open booking popup for:', startTime.toISOString());
 		dispatch('onTimeSlotClick', { startTime });
 	}
 
@@ -291,7 +290,6 @@
 	});
 
 	function onOpenBooking(booking: FullBooking) {
-		console.log('Booking clicked:', booking);
 		dispatch('onBookingClick', { booking });
 	}
 

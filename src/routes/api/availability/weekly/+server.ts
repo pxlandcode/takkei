@@ -3,7 +3,6 @@ import { query } from '$lib/db';
 
 export async function POST({ request }) {
 	const data = await request.json();
-	console.log('📥 Incoming data:', data);
 
 	const { userId, weeklyAvailability } = data;
 

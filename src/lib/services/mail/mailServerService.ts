@@ -51,7 +51,7 @@ export async function sendEmail({
 
 	await sgMail
 		.send(msg)
-		.then(() => console.log('Email sent:', msg))
+		.then()
 		.catch((error) => {
 			console.error('SendGrid error:', error?.response?.body || error.message);
 			throw error;

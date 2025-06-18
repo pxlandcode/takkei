@@ -33,7 +33,6 @@
 	};
 
 	$: noteKindId = selectedNoteKindForNewNote;
-	$: selectedKind && console.log($selectedKind);
 
 	// 🧠 Load on mount
 	onMount(async () => {
@@ -49,9 +48,6 @@
 
 		filterNotes(); // Initial filter
 	});
-
-	console.log(noteKinds);
-	$: allNotes && console.log($allNotes);
 
 	$: filterNotes();
 
@@ -87,7 +83,6 @@
 			filterNotes();
 		}
 
-		console.log('New note:', newNote);
 		isSubmitting.set(false);
 	}
 </script>

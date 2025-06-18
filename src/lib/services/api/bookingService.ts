@@ -1,5 +1,13 @@
 import { capitalizeFirstLetter } from '$lib/helpers/generic/genericHelpers';
 
+async function notify(data) {
+	await fetch('/api/notifications', {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify(data)
+	});
+}
+
 export async function createBooking(
 	bookingObject: any,
 	type: 'training' | 'personal' | 'meeting' = 'training'
@@ -48,9 +56,50 @@ export async function createBooking(
 		});
 
 		const responseData = await response.json();
+		const currentUser = bookingObject.currentUser;
+		if (response.ok) {
+			// ✅ Notify for personal booking created by someone else
+			if (type === 'personal' && bookingObject.user_id !== currentUser.id) {
+				await notify({
+					name: 'Personlig bokning skapad',
+					description: `En personlig bokning har lagts till i ditt schema av ${currentUser.firstname} ${currentUser.lastname}.`,
+					user_ids: [bookingObject.user_id],
+					start_time: requestData.start_time,
+					end_time: requestData.end_time ?? null,
+					created_by: currentUser.id
+				});
+			}
 
-		if (!response.ok) throw new Error(responseData.error || 'Booking failed');
+			// ✅ Notify for meeting with multiple attendees
+			if (type === 'meeting' && bookingObject.user_ids?.length > 0) {
+				await notify({
+					name: 'Nytt möte inbokat',
+					description: `Ett nytt möte har lagts till i ditt schema av ${currentUser.firstname} ${currentUser.lastname}.`,
+					user_ids: bookingObject.user_ids,
+					start_time: requestData.start_time,
+					end_time: requestData.end_time ?? null,
+					created_by: currentUser.id
+				});
+			}
 
+			// ✅ Notify trainer for a client booking if not created by them
+			if (
+				type === 'training' &&
+				bookingObject.trainerId &&
+				bookingObject.trainerId !== currentUser.id
+			) {
+				await notify({
+					name: 'Ny klientbokning',
+					description: `En klientbokning har lagts till i ditt schema av ${currentUser.firstname} ${currentUser.lastname}.`,
+					user_ids: [bookingObject.trainerId],
+					start_time: requestData.start_time,
+					end_time: null,
+					created_by: currentUser.id
+				});
+			}
+		} else {
+			throw new Error(responseData.error || 'Booking creation failed');
+		}
 		return {
 			success: true,
 			message: 'Booking created successfully',
