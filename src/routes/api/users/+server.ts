@@ -10,6 +10,7 @@ export async function GET() {
         LEFT JOIN roles ON users.id = roles.user_id
         LEFT JOIN locations ON users.default_location_id = locations.id
         GROUP BY users.id, locations.name
+        ORDER BY users.firstname
     `;
 
 	try {

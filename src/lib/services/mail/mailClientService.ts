@@ -13,8 +13,6 @@ export async function sendMail({
 	body: string;
 	from?: { name: string; email: string };
 }) {
-	console.log('Sending email:', { to, subject, header, subheader, body, from });
-
 	const res = await fetch('/api/send-email', {
 		method: 'POST',
 		headers: { 'content-type': 'application/json' },

@@ -37,7 +37,6 @@
 			};
 
 			bookings = await fetchBookings(filters, fetch);
-			console.log('Bookings:', bookings);
 		} catch (error) {
 			console.error('Error loading bookings:', error);
 		} finally {

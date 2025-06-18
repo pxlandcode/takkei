@@ -58,7 +58,6 @@
 			if (!res.ok) throw new Error('Failed to fetch packages');
 
 			const fetched = await res.json();
-			console.log('fetched', fetched);
 
 			const newData = fetched.map((pkg) => ({
 				id: pkg.id,

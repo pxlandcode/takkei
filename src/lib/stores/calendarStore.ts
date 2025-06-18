@@ -1,5 +1,5 @@
 import { get, writable } from 'svelte/store';
-import { fetchBookings } from '$lib/services/api/calendarService';
+import { fetchBookings, fetchUserAvailability } from '$lib/services/api/calendarService';
 
 /**
  * Type for Calendar Filters
@@ -19,23 +19,29 @@ export type CalendarFilters = {
  * Calendar Store - Manages filters & bookings
  */
 const createCalendarStore = () => {
-	const { subscribe, update } = writable<{ filters: CalendarFilters; bookings: any[] }>({
+	const { subscribe, update } = writable<{
+		filters: CalendarFilters;
+		bookings: any[];
+		availability: Record<string, { from: string; to: string }[] | null>;
+	}>({
 		filters: {
 			from: null,
 			to: null,
-			date: new Date().toISOString().slice(0, 10), // Default: today
+			date: new Date().toISOString().slice(0, 10),
 			roomId: null,
 			locationIds: [],
 			trainerIds: null,
 			clientIds: null,
 			personalBookings: false
 		},
-		bookings: []
+		bookings: [],
+		availability: {}
 	});
 
 	/**
 	 * Fetch & Update Bookings based on current filters
 	 */
+
 	async function refresh(fetchFn: typeof fetch, overrideFilters?: CalendarFilters) {
 		const filtersToUse = overrideFilters ?? getCurrentFilters();
 
@@ -45,16 +51,32 @@ const createCalendarStore = () => {
 			filtersToUse.to = weekEnd;
 		}
 
-		// Handle personalBookings fallback if needed
 		if (filtersToUse.personalBookings === undefined) {
 			filtersToUse.personalBookings = filtersToUse.trainerIds?.length === 1;
 		}
 
 		const newBookings = await fetchBookings(filtersToUse, fetchFn);
 
+		let newAvailability = {};
+		if (filtersToUse.trainerIds?.length === 1 && filtersToUse.from && filtersToUse.to) {
+			const userId = filtersToUse.trainerIds[0];
+			try {
+				const res = await fetchUserAvailability(
+					userId,
+					filtersToUse.from,
+					filtersToUse.to,
+					fetchFn
+				);
+				newAvailability = res.availability ?? {};
+			} catch (err) {
+				console.error('❌ Failed to fetch availability:', err);
+			}
+		}
+
 		update((store) => ({
 			...store,
-			bookings: newBookings
+			bookings: newBookings,
+			availability: newAvailability
 		}));
 	}
 
@@ -75,8 +97,6 @@ const createCalendarStore = () => {
 			...store,
 			filters: updatedFilters
 		}));
-
-		console.log('[calendarStore] ✅ Final filters after update:', updatedFilters);
 
 		refresh(fetchFn, updatedFilters); // ← pass directly
 	}

@@ -28,7 +28,6 @@
 
 	async function loadLocations() {
 		const locations = await getLocations();
-		console.log('locations', locations);
 
 		data = locations.map((loc) => ({
 			name: loc.name,
@@ -56,7 +55,6 @@
 	}
 
 	async function handleUpdateLocation(locationData) {
-		console.log('locationData', locationData);
 		await updateLocation(locationData.id, locationData);
 		await loadLocations();
 		showEditModal = false;

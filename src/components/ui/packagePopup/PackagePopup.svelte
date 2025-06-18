@@ -45,14 +45,11 @@
 		const res = await fetch('/api/customers?short=true');
 		customers = await res.json();
 		articles = await getArticles();
-		console.log('Articles:', articles);
-		console.log('Customers:', customers);
 
 		if (customerId) {
 			selectedCustomerId = customerId;
 			selectedCustomer = customers.find((c) => c.id === customerId) ?? null;
 			await loadClientsForCustomer(customerId);
-			console.log('Selected customer:', selectedCustomer);
 		}
 	});
 
@@ -96,21 +93,6 @@
 	async function save() {
 		errors = {}; // clear previous errors
 
-		console.log('Saving package with data:', {
-			selectedArticleId,
-			selectedCustomerId,
-			selectedClientId,
-			price,
-			invoiceNumber,
-			firstPaymentDate,
-			autogiro,
-			installments,
-			installmentBreakdown
-		});
-
-		console.log('Selected article:', selectedArticle);
-		console.log('Selected customer:', selectedCustomer);
-
 		if (!selectedArticle || !selectedCustomer) {
 			if (!selectedArticle) errors.articleId = 'Produkt måste väljas';
 			if (!selectedCustomer) errors.customerId = 'Kund måste väljas';
@@ -130,7 +112,6 @@
 				installmentBreakdown
 			});
 
-			console.log('Created package with ID', result.id);
 			onSave?.();
 		} catch (err) {
 			console.error('Failed to create package', err);

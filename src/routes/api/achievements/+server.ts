@@ -33,8 +33,6 @@ export async function GET({ url }) {
 			(achievement) => achievement.achieved > 0
 		);
 
-		console.log('Earned Achievements:', earnedAchievements);
-
 		return json(earnedAchievements);
 	} catch (error) {
 		console.error('Error fetching achievements:', error);
@@ -46,9 +44,8 @@ export async function GET({ url }) {
 async function processAchievement(achievement: any, userId: number, date: string) {
 	const rules = achievement.rules ? JSON.parse(achievement.rules) : {};
 	let achieved = 0;
-	console.log('rules:', rules.filter_by);
+
 	if (rules.filter_by === 'daily_booking_count') {
-		console.log('hello');
 		achieved = await getDaysWithMinBookings(userId, rules.min_bookings);
 	}
 
@@ -72,8 +69,6 @@ async function getDaysWithMinBookings(userId: number, minBookings: number) {
 
 	const params = [userId, minBookings];
 	const result = await query(bookingQuery, params);
-
-	console.log('result:', result);
 
 	return result.length ? Number(result[0].streak_count) : 0;
 }

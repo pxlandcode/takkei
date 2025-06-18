@@ -8,6 +8,8 @@
 	import FilteringPopup from '../../components/ui/filteringPopup/FilteringPopup.svelte';
 	import PopupWrapper from '../../components/ui/popupWrapper/PopupWrapper.svelte';
 	import CalendarComponent from '../../components/view/calendar/CalendarComponent.svelte';
+	import type { FullBooking } from '$lib/types/calendarTypes';
+	import BookingDetailsPopup from '../../components/ui/bookingDetailsPopup/BookingDetailsPopup.svelte';
 
 	export let data;
 
@@ -16,6 +18,11 @@
 	let bookingOpen = false;
 
 	let isMobile = false;
+
+	let startTime = null;
+	let selectedTrainerId = null;
+	let selectedLocationId = null;
+	let selectedClientId = null;
 
 	$: filters = $calendarStore.filters;
 
@@ -27,6 +34,14 @@
 			year: 'numeric'
 		})
 	);
+
+	let selectedBooking: FullBooking | null = null;
+	let showBookingDetailsPopup = false;
+
+	function handleBookingClick(booking: FullBooking) {
+		selectedBooking = booking;
+		showBookingDetailsPopup = true;
+	}
 
 	let calendarView = { value: false, label: 'Vecka', icon: 'Week' };
 
@@ -78,6 +93,12 @@
 	function onToday() {
 		calendarStore.goToDate(new Date(), fetch);
 	}
+
+	function handleTimeSlotClick(event) {
+		const timeSlot = event.detail.startTime;
+		startTime = timeSlot;
+		bookingOpen = true;
+	}
 </script>
 
 <div class="h-full overflow-x-hidden overflow-y-hidden custom-scrollbar">
@@ -115,13 +136,22 @@
 					variant="primary"
 					text="Boka"
 					iconLeftSize="13px"
-					on:click={() => (bookingOpen = true)}
+					on:click={() => {
+						startTime = null;
+						bookingOpen = true;
+					}}
 				></Button>
 			</div>
 		</div>
 	</div>
 	{#key calendarView.value}
-		<CalendarComponent singleDayView={calendarView.value} />
+		<CalendarComponent
+			singleDayView={calendarView.value}
+			on:onTimeSlotClick={handleTimeSlotClick}
+			on:onBookingClick={(e) => {
+				handleBookingClick(e.detail.booking);
+			}}
+		/>
 	{/key}
 </div>
 
@@ -133,6 +163,25 @@
 
 {#if bookingOpen}
 	<PopupWrapper header="Bokning" icon="Plus" on:close={closePopup}>
-		<BookingPopup on:close={closePopup} />
+		<BookingPopup on:close={closePopup} {startTime} />
+	</PopupWrapper>
+{/if}
+
+{#if showBookingDetailsPopup && selectedBooking}
+	<PopupWrapper
+		header="Bokningsdetaljer"
+		icon="CircleInfo"
+		on:close={() => {
+			showBookingDetailsPopup = false;
+			selectedBooking = null;
+		}}
+	>
+		<BookingDetailsPopup
+			booking={selectedBooking}
+			on:close={() => {
+				showBookingDetailsPopup = false;
+				selectedBooking = null;
+			}}
+		/>
 	</PopupWrapper>
 {/if}

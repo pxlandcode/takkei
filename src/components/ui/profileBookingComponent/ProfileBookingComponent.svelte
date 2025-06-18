@@ -28,9 +28,6 @@
 		loadMoreBookings(true);
 	});
 
-	// ✅ Log bookings in console for debugging
-	$: console.log('Bookings:', get(bookings));
-
 	// ✅ Fetch more bookings when scrolling
 	async function loadMoreBookings(reset = false) {
 		if (get(isLoading) || (!get(hasMore) && !reset)) return;
@@ -59,9 +56,7 @@
 
 		const fetchCancelled = get(selectedCancelledOption).value;
 
-		console.log('Fetching with filters:', filters);
 		try {
-			console.log('Fetching with filters:', filters);
 			const newBookings = await fetchBookings(
 				filters,
 				fetch,
@@ -69,7 +64,6 @@
 				get(page) * LIMIT,
 				fetchCancelled
 			);
-			console.log('New bookings:', newBookings);
 
 			if (newBookings.length < LIMIT) hasMore.set(false); // Stop pagination if fewer results
 			bookings.update((prev) => [...prev, ...newBookings]); // Append new bookings

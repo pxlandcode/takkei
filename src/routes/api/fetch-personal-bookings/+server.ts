@@ -37,7 +37,11 @@ export async function GET({ url }) {
 	// ✅ Filtering by `trainerId`
 	if (userIds.length > 0) {
 		params.push(userIds);
-		queryStr += ` AND personal_bookings.user_id = ANY($${params.length}::int[])`;
+		const index = params.length;
+		queryStr += ` AND (
+            personal_bookings.user_id = ANY($${index}::int[])
+            OR personal_bookings.user_ids && $${index}::int[]
+        )`;
 	}
 
 	// ✅ Apply ORDER BY
