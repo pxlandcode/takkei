@@ -21,7 +21,6 @@ const createClientProfileStore = () => {
 	async function loadClient(clientId: number, fetchFn: typeof fetch) {
 		const data = await fetchClient(clientId, fetchFn);
 
-		console.log('data', data);
 		if (data) {
 			update((store) => {
 				const newClients = {

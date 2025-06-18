@@ -41,15 +41,6 @@
 		try {
 			loadingStore.loading(true, 'Skapar klient...');
 
-			console.log('clientForm', {
-				firstname,
-				lastname,
-				email,
-				phone,
-				person_number,
-				primary_trainer_id
-			});
-
 			const res = await fetch('/api/create-client', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },

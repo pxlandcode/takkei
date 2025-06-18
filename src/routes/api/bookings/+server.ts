@@ -55,23 +55,30 @@ export async function GET({ url }) {
 	}
 
 	// ✅ Additional filters
-	if (roomId) {
-		params.push(Number(roomId));
-		queryStr += ` AND bookings.room_id = $${params.length}`;
-	}
-	if (locationIds.length > 0) {
-		params.push(locationIds.map(Number));
-		queryStr += ` AND bookings.location_id = ANY($${params.length}::int[])`;
-	}
-	if (trainerIds.length > 0) {
+	let hasTrainer = trainerIds.length > 0;
+	let hasClient = !!clientId;
+	let hasLocation = locationIds.length > 0;
+
+	let orConditions: string[] = [];
+
+	// Individual filter conditions pushed to the OR group
+	if (hasTrainer) {
 		params.push(trainerIds.map(Number));
-		queryStr += ` AND bookings.trainer_id = ANY($${params.length}::int[])`;
+		orConditions.push(`bookings.trainer_id = ANY($${params.length}::int[])`);
 	}
-	if (clientId) {
+	if (hasClient) {
 		params.push(Number(clientId));
-		queryStr += ` AND bookings.client_id = $${params.length}`;
+		orConditions.push(`bookings.client_id = $${params.length}`);
+	}
+	if (hasLocation) {
+		params.push(locationIds.map(Number));
+		orConditions.push(`bookings.location_id = ANY($${params.length}::int[])`);
 	}
 
+	// Add OR group only if there's at least one filter
+	if (orConditions.length > 0) {
+		queryStr += ` AND (${orConditions.join(' OR ')})`;
+	}
 	// ✅ Apply pagination *only* if `limit` is set
 	if (limit !== null) {
 		queryStr += ` ORDER BY bookings.start_time DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;

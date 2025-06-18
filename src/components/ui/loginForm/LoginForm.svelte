@@ -24,7 +24,6 @@
 				throw new Error(data.message || 'Login failed');
 			}
 
-			console.log(data.user);
 			user.set(data.user as User);
 
 			const trainerIds = data.user?.id ? [data.user.id] : null;

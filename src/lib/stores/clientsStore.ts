@@ -1,4 +1,4 @@
-import { writable } from 'svelte/store';
+import { get, writable } from 'svelte/store';
 
 export type Trainer = {
 	id: number;
@@ -46,4 +46,15 @@ export async function fetchClients() {
 	} catch (error) {
 		console.error('Error fetching clients:', error);
 	}
+}
+
+export function getClientEmails(ids: number | number[]): string[] {
+	const allClients = get(clients);
+	if (!Array.isArray(allClients) || allClients.length === 0) return [];
+
+	const idList = Array.isArray(ids) ? ids : [ids];
+
+	return idList
+		.map((id) => allClients.find((c) => c.id === id)?.email)
+		.filter((email): email is string => !!email); // Removes undefined/null
 }

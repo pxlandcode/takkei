@@ -1,24 +1,56 @@
 <script lang="ts">
+	import { get } from 'svelte/store';
 	import Button from '../../../bits/button/Button.svelte';
 	import DropdownCheckbox from '../../../bits/dropdown-checkbox/DropdownCheckbox.svelte';
 	import Dropdown from '../../../bits/dropdown/Dropdown.svelte';
 	import Input from '../../../bits/Input/Input.svelte';
 	import TextArea from '../../../bits/textarea/TextArea.svelte';
+	import { user } from '$lib/stores/userStore';
+	import { onMount } from 'svelte';
 
-	export let bookingObject: any;
-	export let users: { name: string; value: string }[] = [];
-	export let locations: { label: string; value: string }[] = [];
+	export let bookingObject: {
+		name?: string;
+		text?: string;
+		user_id?: number | null;
+		user_ids?: number[];
+		attendees?: number[];
+		locationId?: number | null;
+		date: string;
+		time: string;
+		endTime: string;
+		repeat: boolean;
+	};
+
+	export let users: { name: string; value: number }[] = [];
+	export let locations: { label: string; value: number }[] = [];
+	export let isMeeting: boolean = true;
+
+	onMount(() => {
+		if (!isMeeting) {
+			const currentUser = get(user);
+			bookingObject.user_id = currentUser?.id ?? null;
+			bookingObject.attendees = [currentUser?.id];
+			bookingObject.user_ids = [currentUser?.id];
+		}
+	});
 
 	function handleUserSelection(event) {
 		bookingObject.attendees = [...event.detail.selected];
+		bookingObject.user_ids = [...event.detail.selected];
+		bookingObject.user_id = bookingObject.attendees?.[0] ?? null;
 	}
 
 	function onSelectAllUsers() {
-		bookingObject.attendees = users.map((user) => user.value);
+		const selectedIds = users.map((user) => user.value);
+		bookingObject.attendees = selectedIds;
+		bookingObject.user_ids = selectedIds;
+		bookingObject.user_id = selectedIds[0] ?? null;
 	}
 
 	function onDeSelectAllUsers() {
 		bookingObject.attendees = [];
+		bookingObject.user_ids = [];
+		bookingObject.user_id = null;
 	}
 </script>
 
@@ -44,33 +76,40 @@
 	/>
 
 	<!-- Attendees Selection -->
-	<div class="flex flex-row gap-2">
-		<DropdownCheckbox
-			label="Deltagare"
-			placeholder="Välj deltagare"
-			id="users"
-			options={users}
-			maxNumberOfSuggestions={15}
-			infiniteScroll={true}
-			search
-			bind:selectedValues={bookingObject.attendees}
-			on:change={handleUserSelection}
-		/>
-		<div class="mt-6 flex flex-row gap-2">
-			<Button icon="MultiCheck" variant="secondary" on:click={onSelectAllUsers} iconColor="green" />
-
-			<Button icon="Trash" iconColor="red" variant="secondary" on:click={onDeSelectAllUsers} />
+	{#if isMeeting}
+		<!-- Attendees Selection -->
+		<div class="flex flex-row gap-2">
+			<DropdownCheckbox
+				label="Deltagare"
+				placeholder="Välj deltagare"
+				id="users"
+				options={users}
+				maxNumberOfSuggestions={15}
+				infiniteScroll={true}
+				search
+				bind:selectedValues={bookingObject.attendees}
+				on:change={handleUserSelection}
+			/>
+			<div class="mt-6 flex flex-row gap-2">
+				<Button
+					icon="MultiCheck"
+					variant="secondary"
+					on:click={onSelectAllUsers}
+					iconColor="green"
+				/>
+				<Button icon="Trash" iconColor="red" variant="secondary" on:click={onDeSelectAllUsers} />
+			</div>
 		</div>
-	</div>
 
-	<!-- Location Selection -->
-	<Dropdown
-		label="Plats"
-		placeholder="Välj plats"
-		id="locations"
-		options={locations}
-		bind:selectedValue={bookingObject.locationId}
-	/>
+		<!-- Location Selection -->
+		<Dropdown
+			label="Plats"
+			placeholder="Välj plats"
+			id="locations"
+			options={locations}
+			bind:selectedValue={bookingObject.locationId}
+		/>
+	{/if}
 
 	<!-- Date & Time -->
 	<div class="grid grid-cols-2 gap-4">

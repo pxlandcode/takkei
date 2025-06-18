@@ -8,6 +8,8 @@
 	export let value: string = '';
 	export let disabled: boolean = false;
 	export let errors: Record<string, string> = {};
+	export let min: number | undefined = undefined;
+	export let max: number | undefined = undefined;
 
 	const dispatch = createEventDispatcher();
 
@@ -40,7 +42,7 @@
 
 <div class="mb-4 w-full">
 	{#if label}
-		<label for={name} class="mb-1 block text-sm font-medium">
+		<label for={name} class="mb-3 block text-sm font-medium">
 			{label}
 		</label>
 	{/if}
@@ -52,6 +54,8 @@
 			{type}
 			{placeholder}
 			{disabled}
+			{min}
+			{max}
 			bind:value
 			on:keydown={handleKeydown}
 			on:input={handleInput}

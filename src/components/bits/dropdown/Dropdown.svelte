@@ -11,12 +11,13 @@
 	export let disabled: boolean = false;
 	export let variant: 'black' | 'gray' = 'gray';
 	export let selectedValue: any = '';
-	export let search: boolean = false; // Enables search input
+	export let search: boolean = false;
 	export let maxNumberOfSuggestions: number | undefined = undefined;
 	export let infiniteScroll: boolean = false;
 	export let labelIcon: string = '';
 	export let labelIconSize: string = '20px';
-
+	export let openPosition: 'up' | 'down' | null = null;
+	export let noLabel: boolean = false;
 	// Accept an errors object for validation handling
 	export let errors: Record<string, string> = {};
 
@@ -33,7 +34,9 @@
 	const dispatch = createEventDispatcher();
 
 	// Helper function to check if options are objects
-	function isObjectOption(option: any): option is { label: string; value: any } {
+	function isObjectOption(
+		option: any
+	): option is { label: string; value: any; unavailable?: boolean } {
 		return typeof option === 'object' && option !== null && 'label' in option && 'value' in option;
 	}
 
@@ -56,6 +59,13 @@
 	// Toggle dropdown visibility when clicking the button
 	let dropdownPosition: 'up' | 'down' = 'down';
 
+	$: isSelectedUnavailable = (() => {
+		const selected = options.find((opt) =>
+			isObjectOption(opt) ? opt.value === selectedValue : opt === selectedValue
+		);
+		return isObjectOption(selected) && selected.unavailable;
+	})();
+
 	function toggleDropdown(event: Event) {
 		if (disabled) return;
 		event.stopPropagation();
@@ -65,7 +75,11 @@
 		const spaceBelow = window.innerHeight - rect.bottom;
 		const spaceAbove = rect.top;
 
-		dropdownPosition = spaceBelow < 250 && spaceAbove > spaceBelow ? 'up' : 'down';
+		if (openPosition) {
+			dropdownPosition = openPosition;
+		} else {
+			dropdownPosition = spaceBelow < 250 && spaceAbove > spaceBelow ? 'up' : 'down';
+		}
 
 		// Reset scroll and search
 		maxNumberOfSuggestions = initialMaxNumberOfSuggestions ?? 50;
@@ -124,7 +138,7 @@
 </script>
 
 <div class="relative flex w-full flex-col gap-1" use:clickOutside={closeDropdown}>
-	<div class="mb-1 flex flex-row items-center gap-2">
+	<div class="mb-1 flex flex-row items-center gap-2 {noLabel ? 'hidden' : ''}">
 		{#if labelIcon}
 			<Icon icon={labelIcon} size={labelIconSize} color="gray" />
 		{/if}
@@ -136,17 +150,19 @@
 		type="button"
 		{id}
 		class={`group flex w-full flex-row items-center justify-between rounded border px-3 py-2 text-left hover:text-white focus:outline-blue-500
-		${errors[id] ? 'border-red-500' : variant === 'black' ? 'border-white' : 'border-gray'} 
-		${
-			showDropdown
+	${errors[id] ? 'border-red-500' : variant === 'black' ? 'border-white' : 'border-gray'} 
+	${
+		isSelectedUnavailable
+			? 'text-red-500'
+			: showDropdown
 				? variant === 'black'
 					? 'bg-black text-white'
 					: 'bg-gray text-white'
 				: 'bg-white text-black'
-		} 
-        ${variant === 'black' ? 'hover:bg-black' : 'hover:bg-gray'}
-        ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}
-		transition-colors duration-150`}
+	}
+	${variant === 'black' ? 'hover:bg-black' : 'hover:bg-gray'}
+	${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}
+	transition-colors duration-150`}
 		on:click={toggleDropdown}
 		aria-haspopup="listbox"
 		aria-expanded={showDropdown}
@@ -194,14 +210,16 @@
 
 			{#each filteredOptions as option, i}
 				<li
-					class={`cursor-pointer hover:bg-black ${i === activeIndex ? 'bg-black text-white' : 'text-black'}`}
+					class={`cursor-pointer hover:bg-black 
+			${i === activeIndex ? 'bg-black text-white' : ''}
+			${isObjectOption(option) && option.unavailable ? 'text-red-500' : 'text-black'}`}
 					aria-selected={selectedValue === (isObjectOption(option) ? option.value : option)}
 					role="option"
 				>
 					<button
 						on:click={() => selectOption(option)}
 						class={`w-full px-3 py-2 text-left hover:text-white focus:text-white focus:outline-white
-						${variant === 'black' ? 'hover:bg-black focus:bg-black' : 'hover:bg-gray focus:bg-gray'}`}
+				${variant === 'black' ? 'hover:bg-black focus:bg-black' : 'hover:bg-gray focus:bg-gray'}`}
 						aria-label={isObjectOption(option) ? option.label : option}
 					>
 						{isObjectOption(option) ? option.label : option}

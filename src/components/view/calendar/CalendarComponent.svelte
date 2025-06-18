@@ -8,6 +8,8 @@
 	import CurrentTimeIndicator from './current-time-indicator/current-time-indicator.svelte';
 	import { calendarStore } from '$lib/stores/calendarStore';
 	import ClockIcon from '../../bits/clock-icon/ClockIcon.svelte';
+	import { createEventDispatcher } from 'svelte';
+	import { tooltip } from '$lib/actions/tooltip';
 
 	// Props
 	export let startHour = 5;
@@ -16,13 +18,28 @@
 
 	let timePillRef: HTMLDivElement | null = null;
 
+	const dispatch = createEventDispatcher();
+
 	// Subscribe to calendar store
 	let bookings: FullBooking[] = [];
 	let filters;
+	let availability;
 	const unsubscribe = calendarStore.subscribe((store) => {
 		bookings = store.bookings;
 		filters = store.filters;
+		availability = store.availability;
 	});
+
+	function isTimeSlotOccupied(start: Date, end: Date, bookingsForDay: FullBooking[]): boolean {
+		const startMs = start.getTime();
+		const endMs = end.getTime();
+
+		return bookingsForDay.some((b) => {
+			const bStart = getStart(b);
+			const bEnd = getEnd(b);
+			return !(bEnd <= startMs || bStart >= endMs); // overlaps
+		});
+	}
 
 	// 🔥 Ensure week starts on Monday
 	function getMondayOfWeek(date: Date): Date {
@@ -141,6 +158,123 @@
 		return results;
 	}
 
+	function getEmptySlotBlocks(dayIndex: number): { top: number; start: Date }[] {
+		const results: { top: number; start: Date }[] = [];
+
+		const dayDate = singleDayView
+			? new Date(filters.date)
+			: getMondayOfWeek(filters.from ? new Date(filters.from) : new Date());
+
+		dayDate.setDate(dayDate.getDate() + dayIndex);
+
+		const dayBookings = bookings.filter((b) => {
+			const bookingDate = new Date(b.booking.startTime);
+			return singleDayView
+				? bookingDate.toDateString() === dayDate.toDateString()
+				: shiftUTCIndex(bookingDate) === dayIndex;
+		});
+		const dateStr = dayDate.toISOString().split('T')[0];
+		const onlyOneTrainer = filters?.trainerIds && filters.trainerIds.length === 1;
+		const dayAvailability = onlyOneTrainer ? availability?.[dateStr] : null;
+
+		for (let i = 0; i < totalHours * 2 - 1; i++) {
+			if (i % 2 === 0) continue; // Only allow blocks starting at half past
+
+			const hour = startHour + Math.floor(i / 2);
+			const minute = 30;
+
+			const slotStart = new Date(dayDate);
+			slotStart.setHours(hour, minute, 0, 0);
+
+			const slotEnd = new Date(slotStart);
+			slotEnd.setMinutes(slotEnd.getMinutes() + 60);
+
+			const isOccupied = isTimeSlotOccupied(slotStart, slotEnd, dayBookings);
+
+			// ✅ Check availability if only one trainer
+			let isAvailable = true;
+			if (onlyOneTrainer) {
+				if (!dayAvailability || dayAvailability === null || dayAvailability.length === 0) {
+					isAvailable = false;
+				} else {
+					isAvailable = dayAvailability.some((slot) => {
+						const [fromHour, fromMin] = slot.from.split(':').map(Number);
+						const [toHour, toMin] = slot.to.split(':').map(Number);
+
+						const availableStart = new Date(dayDate);
+						availableStart.setHours(fromHour, fromMin, 0, 0);
+						const availableEnd = new Date(dayDate);
+						availableEnd.setHours(toHour, toMin, 0, 0);
+
+						return slotStart >= availableStart && slotEnd <= availableEnd;
+					});
+				}
+			}
+
+			if (!isOccupied && isAvailable) {
+				results.push({
+					top: i * (hourHeight / 2),
+					start: slotStart
+				});
+			}
+		}
+
+		return results;
+	}
+
+	function getUnavailableBlocks(dayIndex: number): { top: number; height: number }[] {
+		if (!filters?.trainerIds || filters.trainerIds.length !== 1) return [];
+
+		const startOfWeek = filters.from
+			? getMondayOfWeek(new Date(filters.from))
+			: getMondayOfWeek(new Date());
+
+		const date = new Date(startOfWeek);
+		date.setDate(date.getDate() + dayIndex);
+		const dateStr = date.toISOString().split('T')[0];
+
+		const blocks: { top: number; height: number }[] = [];
+
+		if (!(dateStr in availability) || availability[dateStr] === null) {
+			blocks.push({
+				top: 0,
+				height: totalHours * hourHeight
+			});
+			return blocks;
+		}
+
+		const available = availability[dateStr];
+		if (!available || available.length === 0) return [];
+
+		let lastEnd = startHour;
+		for (const slot of available) {
+			const [fromHour, fromMin] = slot.from.split(':').map(Number);
+			const [toHour, toMin] = slot.to.split(':').map(Number);
+
+			const start = fromHour + fromMin / 60;
+			if (start > lastEnd) {
+				blocks.push({
+					top: (lastEnd - startHour) * hourHeight,
+					height: (start - lastEnd) * hourHeight
+				});
+			}
+			lastEnd = toHour + toMin / 60;
+		}
+
+		if (lastEnd < startHour + totalHours) {
+			blocks.push({
+				top: (lastEnd - startHour) * hourHeight,
+				height: (startHour + totalHours - lastEnd) * hourHeight
+			});
+		}
+
+		return blocks;
+	}
+
+	function openBookingPopup(startTime: Date) {
+		dispatch('onTimeSlotClick', { startTime });
+	}
+
 	// 📌 Scroll to current time on mount
 	onMount(() => {
 		const now = new Date();
@@ -154,6 +288,10 @@
 			});
 		}
 	});
+
+	function onOpenBooking(booking: FullBooking) {
+		dispatch('onBookingClick', { booking });
+	}
 
 	// Cleanup store subscription
 	onDestroy(() => {
@@ -199,6 +337,24 @@
 		<!-- DAYS & BOOKINGS -->
 		{#each weekDays as { day, date }, dayIndex}
 			<div class="border-gray-dark relative flex flex-col gap-1 border-l">
+				{#each getUnavailableBlocks(dayIndex) as block}
+					<div
+						class="unavailable-striped absolute left-0 right-0"
+						style="top: {block.top}px; height: {block.height}px; z-index: 0;"
+					/>
+				{/each}
+
+				{#each getEmptySlotBlocks(dayIndex) as slot}
+					<button
+						class="absolute left-0 right-0 cursor-pointer hover:bg-orange/20"
+						style="top: {slot.top}px; height: {hourHeight}px; z-index: 0;"
+						on:click={() => openBookingPopup(slot.start)}
+						use:tooltip={{
+							content: `${slot.start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - ${new Date(slot.start.getTime() + 60 * 60 * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+						}}
+					>
+					</button>
+				{/each}
 				{#each layoutDayBookings( bookings.filter( (b) => (singleDayView ? new Date(b.booking.startTime).toDateString() === new Date(filters.date).toDateString() : shiftUTCIndex(new Date(b.booking.startTime)) === dayIndex) ), singleDayView ? new Date(filters.date) : undefined ) as layoutItem, i}
 					<BookingSlot
 						booking={layoutItem.booking}
@@ -207,10 +363,26 @@
 						{i}
 						columnIndex={layoutItem.columnIndex}
 						columnCount={layoutItem.columnCount}
-						toolTipText={new Date(layoutItem.booking.booking.startTime).toLocaleString('sv-SE')}
+						toolTipText={layoutItem.booking.client?.firstname +
+							' ' +
+							layoutItem.booking.client?.lastname || ''}
+						on:onClick={(e) => onOpenBooking(e.detail.booking)}
 					/>
 				{/each}
 			</div>
 		{/each}
 	</div>
 </div>
+
+<style>
+	.unavailable-striped {
+		background-image: repeating-linear-gradient(
+			45deg,
+			rgba(255, 0, 0, 0.1) 0px,
+			rgba(255, 0, 0, 0.1) 5px,
+			transparent 5px,
+			transparent 10px
+		);
+		pointer-events: none;
+	}
+</style>

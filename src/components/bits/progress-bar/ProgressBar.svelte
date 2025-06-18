@@ -7,6 +7,7 @@
 	export let iconColor: string = 'white';
 
 	$: progress = max > 0 ? Math.min(100, (value / max) * 100) : 0;
+	$: exceedMax = value > max;
 </script>
 
 <div class="relative flex w-full items-center text-sm text-white">
@@ -19,8 +20,10 @@
 		></div>
 
 		<div class="absolute -translate-y-1/2 transform" style="left: calc({progress}% - 0.5rem);">
-			{#if icon}
+			{#if icon && !exceedMax}
 				<Icon {icon} color={iconColor} size="20px" />
+			{:else if exceedMax}
+				<Icon icon="Check" color={iconColor} size="20px" />
 			{/if}
 		</div>
 	</div>

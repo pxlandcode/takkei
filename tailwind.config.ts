@@ -70,6 +70,9 @@ module.exports = {
 					DEFAULT: blue,
 					background: lightBlue
 				},
+				gold: {
+					DEFAULT: '#FFD700'
+				},
 				text: {
 					DEFAULT: text
 				},

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount, tick } from 'svelte';
+	import { createEventDispatcher, onMount, tick } from 'svelte';
 	import { tooltip } from '$lib/actions/tooltip';
 	import {
 		getMeetingHeight,
@@ -22,7 +22,7 @@
 	export let columnIndex = 0;
 	export let columnCount = 1;
 
-	console.log('BookingSlot', booking);
+	const dispatch = createEventDispatcher();
 
 	let bookingSlot: HTMLDivElement | null = null;
 	let trainerNameElement: HTMLSpanElement | null = null;
@@ -64,15 +64,15 @@
 
 	let fullNameWidth = 0; // Store full name width
 
-	function measureFullNameWidth() {
-		setTimeout(() => {
-			if (!trainerNameElement) return; // Ensure element exists
-
-			useInitials = false; // Ensure full name is measured
+	async function measureFullNameWidth() {
+		await tick();
+		requestAnimationFrame(() => {
+			if (!trainerNameElement) return;
+			useInitials = false;
 			fullNameWidth = trainerNameElement.offsetWidth;
 
 			checkNameWidth();
-		}, 10); // Small delay to allow rendering
+		});
 	}
 
 	function checkNameWidth() {
@@ -87,9 +87,7 @@
 	onMount(async () => {
 		await tick(); // Ensure DOM elements are rendered
 
-		setTimeout(() => {
-			measureFullNameWidth(); // Measure full name after ensuring it exists
-		}, 10);
+		measureFullNameWidth();
 
 		const resizeObserver = new ResizeObserver(() => {
 			if (debounceTimer) clearTimeout(debounceTimer);
@@ -111,12 +109,13 @@
 	});
 </script>
 
-<div
+<button
+	on:click={() => dispatch('onClick', { booking })}
 	bind:this={bookingSlot}
-	class="absolute z-20 flex flex-col gap-[2px] rounded-md p-1 text-xs text-gray shadow-sm {useInitials
+	class="absolute z-20 flex flex-col gap-[2px] p-1 text-xs text-gray shadow-sm {useInitials
 		? 'items-center'
 		: 'items-start'}
-        {booking.trainer?.id === $user.id ? 'border ' : ''}"
+        {booking.trainer?.id === $user.id ? 'border-2' : ''}"
 	style="
 		top: {topOffset}px;
 		height: {meetingHeight - 4}px;
@@ -125,6 +124,7 @@
 	
         background-color: {bookingColor}20;
         border-color: {bookingColor};
+  
 	"
 	use:tooltip={{ content: toolTipText }}
 >
@@ -164,4 +164,4 @@
 			<p>{booking.personalBooking.name}</p>
 		</div>
 	{/if}
-</div>
+</button>

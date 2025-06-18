@@ -48,17 +48,12 @@ export async function fetchBookings(
 		const bookingsUrl = `/api/bookings?${params.toString()}`;
 		const bookingsResponse = await fetchFn(bookingsUrl);
 
-		console.log('Bookings URL:', bookingsUrl); // Debugging line
-		console.log('Bookings Response:', bookingsResponse); // Debugging line
-
 		if (!bookingsResponse.ok) {
 			const errorText = await bookingsResponse.text();
 			throw new Error(`Error fetching bookings (${bookingsResponse.status}): ${errorText}`);
 		}
 
 		const standardBookings = await bookingsResponse.json();
-
-		console.log('Standard Bookings:', standardBookings); // Debugging line
 
 		let transformedPersonalBookings: FullBooking[] = [];
 		// Fetch personal bookings with pagination
@@ -187,4 +182,17 @@ function transformPersonalBooking(raw: any): FullBooking {
 			userIds: raw.user_ids ? raw.user_ids : []
 		}
 	};
+}
+
+export async function fetchUserAvailability(
+	userId: number,
+	from: string,
+	to: string,
+	fetchFn: typeof fetch = fetch
+) {
+	const res = await fetchFn(
+		`/api/availability/users-availability?userId=${userId}&from=${from}&to=${to}`
+	);
+	if (!res.ok) throw new Error('Kunde inte hämta tillgänglighet');
+	return await res.json();
 }
