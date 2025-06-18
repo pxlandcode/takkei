@@ -8,15 +8,15 @@
 	import Button from '../../bits/button/Button.svelte';
 	import BookingTraining from './bookingTraining/BookingTraining.svelte';
 	import BookingMeeting from './bookingMeeting/BookingMeeting.svelte';
-	import { user } from '$lib/stores/userStore';
-	import { createBooking } from '$lib/services/api/bookingService';
 	import BookingPersonal from './bookingPersonal/BookingPersonal.svelte';
 	import OptionsSelect from '../../bits/options-select/OptionsSelect.svelte';
+	import { user } from '$lib/stores/userStore';
+	import { createBooking } from '$lib/services/api/bookingService';
+	import { sendMail } from '$lib/services/mail/mailClientService';
+	import { calendarStore } from '$lib/stores/calendarStore';
 	import { get } from 'svelte/store';
 	import { addToast } from '$lib/stores/toastStore';
 	import { AppToastType } from '$lib/types/toastTypes';
-	import { sendMail } from '$lib/services/mail/mailClientService';
-	import { calendarStore } from '$lib/stores/calendarStore';
 
 	export let startTime: Date | null = null;
 
@@ -27,24 +27,22 @@
 		dispatch('close');
 	}
 
-	// Store selected booking type component
-	let selectedBookingComponent: 'training' | 'meeting' = 'training';
-
+	let selectedBookingComponent: 'training' | 'meeting' | 'personal' = 'training';
 	let repeatedBookings = [];
 	let selectedIsUnavailable = false;
-
-	$: selectedIsUnavailable && console.log('Selected time is unavailable:', selectedIsUnavailable);
-
 	let currentUser = get(user);
 
 	let bookingObject = {
 		user_id: null,
 		booked_by_id: null,
-		bookingType: null, // training or meeting
+		user_ids: [],
+		attendees: [],
+		bookingType: null, // used for training: { label, value }, meeting/personal: { label, value } like 'Private'
 		trainerId: null,
 		clientId: null,
-		attendees: [],
 		locationId: null,
+		name: '',
+		text: '',
 		date: startTime
 			? startTime.toISOString().split('T')[0]
 			: new Date().toISOString().split('T')[0],
@@ -52,7 +50,7 @@
 			? startTime.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit', hour12: false })
 			: '12:30',
 		endTime: startTime
-			? new Date(new Date(startTime).getTime() + 60 * 60 * 1000).toLocaleTimeString('sv-SE', {
+			? new Date(startTime.getTime() + 60 * 60 * 1000).toLocaleTimeString('sv-SE', {
 					hour: '2-digit',
 					minute: '2-digit',
 					hour12: false
@@ -61,9 +59,23 @@
 		repeat: false
 	};
 
-	console.log('bookingObject when opening', bookingObject);
+	// Reactive booking type fallback
+	$: {
+		if (selectedBookingComponent === 'personal') {
+			bookingObject.bookingType = { label: 'Privat', value: 'Private' };
+		} else if (selectedBookingComponent === 'meeting') {
+			bookingObject.bookingType = { label: 'Möte', value: 'Meeting' };
+		} else if (selectedBookingComponent === 'training') {
+			bookingObject.bookingType = null;
+		}
+	}
 
-	// Fetch all required data
+	// Sync user_ids and user_id from attendees
+
+	// Track availability issues
+	$: selectedIsUnavailable && console.log('Selected time is unavailable:', selectedIsUnavailable);
+
+	// Load initial data
 	onMount(async () => {
 		currentUser = get(user);
 		if (currentUser) {
@@ -78,29 +90,20 @@
 
 			if (currentFilters.trainerIds?.length === 1) {
 				bookingObject.trainerId = currentFilters.trainerIds[0];
-			} else {
-				bookingObject.trainerId = null;
 			}
 
 			if (currentFilters.locationIds?.length === 1) {
 				bookingObject.locationId = currentFilters.locationIds[0];
-			} else {
-				bookingObject.locationId = null;
 			}
 
 			if (currentFilters.clientIds?.length === 1) {
 				bookingObject.clientId = currentFilters.clientIds[0];
-			} else {
-				bookingObject.clientId = null;
 			}
 		}
-
-		console.log('locations', get(locations));
 	});
 
 	async function submitBooking() {
 		const type = selectedBookingComponent;
-
 		let bookedDates = [];
 
 		if (repeatedBookings.length > 0) {
@@ -135,49 +138,44 @@
 					description: `${successCount} av ${repeatedBookings.length} lyckades.`
 				});
 
-				const clientEmail = getClientEmails(bookingObject.clientId);
-				if (clientEmail) {
-					const result = await sendMail({
-						to: clientEmail,
-						subject: 'Bokningsbekräftelse',
-						header: 'Bekräftelse på dina bokningar',
-						subheader: 'Tack för din bokning!',
-						body: `
-						Hej! Här är dina bekräftade bokningar:<br><br>
-						${bookedDates.map((d) => `• ${d}`).join('<br>')}<br><br>
-						Vänligen kontakta oss om något behöver ändras.
-					`,
-						from: {
-							name: currentUser.firstname + ' ' + currentUser.lastname,
-							email: currentUser.email
-						}
-					});
+				if (type === 'training' && bookingObject.clientId) {
+					const clientEmail = getClientEmails(bookingObject.clientId);
+					if (clientEmail) {
+						const result = await sendMail({
+							to: clientEmail,
+							subject: 'Bokningsbekräftelse',
+							header: 'Bekräftelse på dina bokningar',
+							subheader: 'Tack för din bokning!',
+							body: `
+								Hej! Här är dina bekräftade bokningar:<br><br>
+								${bookedDates.map((d) => `• ${d}`).join('<br>')}<br><br>
+								Vänligen kontakta oss om något behöver ändras.
+							`,
+							from: {
+								name: currentUser.firstname + ' ' + currentUser.lastname,
+								email: currentUser.email
+							}
+						});
 
-					if (result.ok) {
-						addToast({
-							type: AppToastType.SUCCESS,
-							message: 'Bekräftelsemail skickat',
-							description: `Ett bekräftelsemail skickades till ${clientEmail}.`
-						});
-					} else {
-						addToast({
-							type: AppToastType.CANCEL,
-							message: 'Fel vid utskick',
-							description: `Kunde inte skicka bekräftelsemail till ${clientEmail}.`
-						});
+						if (result.ok) {
+							addToast({
+								type: AppToastType.SUCCESS,
+								message: 'Bekräftelsemail skickat',
+								description: `Ett bekräftelsemail skickades till ${clientEmail}.`
+							});
+						} else {
+							addToast({
+								type: AppToastType.CANCEL,
+								message: 'Fel vid utskick',
+								description: `Kunde inte skicka bekräftelsemail till ${clientEmail}.`
+							});
+						}
 					}
-				} else {
-					addToast({
-						type: AppToastType.CANCEL,
-						message: 'Ingen e-post hittades',
-						description: `Kunde inte hitta e-post för klienten ${bookingObject.clientId}.`
-					});
 				}
 
 				onClose();
 			}
 		} else {
-			// handle single booking
 			const result = await createBooking(bookingObject, type);
 
 			if (result.success) {
@@ -187,30 +185,33 @@
 					description: `Bokningen skapades klockan ${bookingObject.time} den ${bookingObject.date}.`
 				});
 
-				const clientEmail = getClientEmails(bookingObject.clientId); // implement this
-				if (clientEmail) {
-					await sendMail({
-						to: clientEmail,
-						subject: 'Bokningsbekräftelse',
-						header: 'Bekräftelse på din bokning',
-						subheader: 'Tack för din bokning!',
-						body: `
-						Hej! Din bokning är bekräftad:<br><br>
-						${bookingObject.date} kl ${bookingObject.time}<br><br>
-						Vänligen kontakta oss om något behöver ändras.
-					`,
-						from: {
-							name: currentUser.firstname + ' ' + currentUser.lastname,
-							email: currentUser.email
-						}
-					});
+				if (type === 'training' && bookingObject.clientId) {
+					const clientEmail = getClientEmails(bookingObject.clientId);
+					if (clientEmail) {
+						await sendMail({
+							to: clientEmail,
+							subject: 'Bokningsbekräftelse',
+							header: 'Bekräftelse på din bokning',
+							subheader: 'Tack för din bokning!',
+							body: `
+								Hej! Din bokning är bekräftad:<br><br>
+								${bookingObject.date} kl ${bookingObject.time}<br><br>
+								Vänligen kontakta oss om något behöver ändras.
+							`,
+							from: {
+								name: currentUser.firstname + ' ' + currentUser.lastname,
+								email: currentUser.email
+							}
+						});
 
-					addToast({
-						type: AppToastType.SUCCESS,
-						message: 'Bekräftelsemail skickat',
-						description: `Ett bekräftelsemail skickades till ${clientEmail}.`
-					});
+						addToast({
+							type: AppToastType.SUCCESS,
+							message: 'Bekräftelsemail skickat',
+							description: `Ett bekräftelsemail skickades till ${clientEmail}.`
+						});
+					}
 				}
+
 				onClose();
 			} else {
 				addToast({

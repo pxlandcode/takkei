@@ -5,20 +5,39 @@
 	import Input from '../../../bits/Input/Input.svelte';
 	import TextArea from '../../../bits/textarea/TextArea.svelte';
 
-	export let bookingObject: any;
-	export let users: { name: string; value: string }[] = [];
-	export let locations: { label: string; value: string }[] = [];
+	export let bookingObject: {
+		name?: string;
+		text?: string;
+		user_id?: number | null;
+		user_ids?: number[];
+		attendees?: number[];
+		locationId?: number | null;
+		date: string;
+		time: string;
+		endTime: string;
+		repeat: boolean;
+	};
+
+	export let users: { name: string; value: number }[] = [];
+	export let locations: { label: string; value: number }[] = [];
 
 	function handleUserSelection(event) {
 		bookingObject.attendees = [...event.detail.selected];
+		bookingObject.user_ids = [...event.detail.selected];
+		bookingObject.user_id = bookingObject.attendees?.[0] ?? null;
 	}
 
 	function onSelectAllUsers() {
-		bookingObject.attendees = users.map((user) => user.value);
+		const selectedIds = users.map((user) => user.value);
+		bookingObject.attendees = selectedIds;
+		bookingObject.user_ids = selectedIds;
+		bookingObject.user_id = selectedIds[0] ?? null;
 	}
 
 	function onDeSelectAllUsers() {
 		bookingObject.attendees = [];
+		bookingObject.user_ids = [];
+		bookingObject.user_id = null;
 	}
 </script>
 

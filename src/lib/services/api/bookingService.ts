@@ -1,3 +1,5 @@
+import { capitalizeFirstLetter } from '$lib/helpers/generic/genericHelpers';
+
 export async function createBooking(
 	bookingObject: any,
 	type: 'training' | 'personal' | 'meeting' = 'training'
@@ -13,13 +15,13 @@ export async function createBooking(
 
 		if (type === 'personal' || type === 'meeting') {
 			requestData = {
-				name: bookingObject.bookingType?.label ?? 'Personal Booking',
-				text: '',
-				user_id: bookingObject.user_id ?? null, // First attendee as main user
+				name: bookingObject.name ?? 'Personal Booking',
+				text: bookingObject.text ?? '',
+				user_id: bookingObject.user_id ?? null,
 				user_ids: bookingObject.attendees,
 				start_time: `${bookingObject.date}T${bookingObject.time}:00`,
-				end_time: `${bookingObject.date}T${parseInt(bookingObject.time) + 1}:00`, // Example: 1-hour duration
-				kind: bookingObject.bookingType?.value ?? 'Corporate',
+				end_time: `${bookingObject.date}T${bookingObject.endTime}:00`,
+				kind: capitalizeFirstLetter(bookingObject.bookingType?.value ?? 'Corporate'),
 				repeat_of: bookingObject.repeat ? 1 : null,
 				booked_by_id: bookingObject.booked_by_id
 			};
@@ -31,7 +33,7 @@ export async function createBooking(
 					bookingObject.attendees.length > 0 ? `{${bookingObject.attendees.join(',')}}` : null,
 				start_time: `${bookingObject.date}T${bookingObject.time}:00`,
 				location_id: bookingObject.locationId ?? null,
-				booking_content_id: bookingObject.bookingType?.value ?? null,
+				booking_content_id: capitalizeFirstLetter(bookingObject.bookingType?.value ?? 'Corporate'),
 				status: 'New',
 				created_by_id: bookingObject.booked_by_id,
 				repeat_index: bookingObject.repeat ? 1 : null

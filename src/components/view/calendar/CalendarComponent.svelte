@@ -167,12 +167,12 @@
 
 		dayDate.setDate(dayDate.getDate() + dayIndex);
 
-		const dayBookings = bookings.filter((b) =>
-			singleDayView
-				? new Date(b.booking.startTime).toDateString() === dayDate.toDateString()
-				: shiftUTCIndex(new Date(b.booking.startTime)) === dayIndex
-		);
-
+		const dayBookings = bookings.filter((b) => {
+			const bookingDate = new Date(b.booking.startTime);
+			return singleDayView
+				? bookingDate.toDateString() === dayDate.toDateString()
+				: shiftUTCIndex(bookingDate) === dayIndex;
+		});
 		const dateStr = dayDate.toISOString().split('T')[0];
 		const onlyOneTrainer = filters?.trainerIds && filters.trainerIds.length === 1;
 		const dayAvailability = onlyOneTrainer ? availability?.[dateStr] : null;
