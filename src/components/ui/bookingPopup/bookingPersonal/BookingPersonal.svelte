@@ -1,5 +1,5 @@
 <script lang="ts">
-	import Input from '../../../bits/input/Input.svelte';
+	import Input from '../../../bits/Input/Input.svelte';
 	import TextArea from '../../../bits/textarea/TextArea.svelte';
 	import Dropdown from '../../../bits/dropdown/Dropdown.svelte';
 
