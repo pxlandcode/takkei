@@ -5,7 +5,7 @@
 	import Icon from '../../../components/bits/icon-component/Icon.svelte';
 	import Button from '../../../components/bits/button/Button.svelte';
 	import Navigation from '../../../components/bits/navigation/Navigation.svelte';
-	import ProfileInfo from '../../../components/ui/profileInfo/ProfileInfo.svelte';
+	import ProfileInfo from '../../../components/ui/ProfileInfo/ProfileInfo.svelte';
 	import ProfileBookingComponent from '../../../components/ui/profileBookingComponent/ProfileBookingComponent.svelte';
 	import ProfileNotesComponent from '../../../components/ui/profileNotesComponent/ProfileNotesComponent.svelte';
 	import PopupWrapper from '../../../components/ui/popupWrapper/PopupWrapper.svelte';
