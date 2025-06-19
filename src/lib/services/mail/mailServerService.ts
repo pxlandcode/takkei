@@ -12,23 +12,33 @@ function chunkArray<T>(array: T[], size: number): T[][] {
 	return chunks;
 }
 
+function isValidEmail(email: string): boolean {
+	return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
 async function sendFailureAlert({
-	failedRecipients,
-	error
+	invalidEmails,
+	failedRecipients
 }: {
-	failedRecipients: string[];
-	error: any;
+	invalidEmails: string[];
+	failedRecipients: { batch: string[]; error: any }[];
 }) {
-	const subject = `❌ Mailutskick misslyckades (${failedRecipients.length} mottagare)`;
+	if (invalidEmails.length === 0 && failedRecipients.length === 0) return;
 
-	const text = `
-Följande mailutskick misslyckades:
+	const subject = `Problem med mailutskick (${invalidEmails.length} ogiltiga, ${failedRecipients.length} fel)`;
 
-${failedRecipients.join(', ')}
+	let text = '';
 
-Felmeddelande:
-${JSON.stringify(error?.response?.body || error.message, null, 2)}
-	`;
+	if (invalidEmails.length) {
+		text += `Ogiltiga e-postadresser (validerades innan utskick):\n${invalidEmails.join(', ')}\n\n`;
+	}
+
+	if (failedRecipients.length) {
+		text += ` Misslyckade utskick:\n`;
+		for (const { batch, error } of failedRecipients) {
+			text += `\nBatch:\n${batch.join(', ')}\nFel:\n${JSON.stringify(error?.response?.body || error.message, null, 2)}\n\n`;
+		}
+	}
 
 	try {
 		await sgMail.send({
@@ -76,9 +86,19 @@ export async function sendEmail({
 		...(replyTo && { reply_to: replyTo })
 	};
 
+	const invalidEmails: string[] = [];
+	const failedBatches: { batch: string[]; error: any }[] = [];
+
 	if (Array.isArray(to)) {
+		// Filter invalid emails
+		const validRecipients = to.filter((email) => {
+			const isValid = isValidEmail(email);
+			if (!isValid) invalidEmails.push(email);
+			return isValid;
+		});
+
 		const CHUNK_SIZE = 100;
-		const batches = chunkArray(to, CHUNK_SIZE);
+		const batches = chunkArray(validRecipients, CHUNK_SIZE);
 
 		for (const batch of batches) {
 			const msg = {
@@ -92,23 +112,31 @@ export async function sendEmail({
 				await sgMail.send(msg);
 			} catch (error) {
 				console.error('❌ SendGrid batch error:', error?.response?.body || error.message);
-				await sendFailureAlert({ failedRecipients: batch, error });
-				throw error;
+				failedBatches.push({ batch, error });
 			}
 		}
 	} else {
-		const msg = {
-			...msgBase,
-			to
-		};
+		if (!isValidEmail(to)) {
+			invalidEmails.push(to);
+		} else {
+			const msg = {
+				...msgBase,
+				to
+			};
 
-		try {
-			await sgMail.send(msg);
-		} catch (error) {
-			console.error('❌ SendGrid single error:', error?.response?.body || error.message);
-			await sendFailureAlert({ failedRecipients: [to], error });
-			throw error;
+			try {
+				await sgMail.send(msg);
+			} catch (error) {
+				console.error('❌ SendGrid single error:', error?.response?.body || error.message);
+				failedBatches.push({ batch: [to], error });
+			}
 		}
+	}
+
+	await sendFailureAlert({ invalidEmails, failedRecipients: failedBatches });
+
+	if (invalidEmails.length || failedBatches.length) {
+		throw new Error('Vissa mail misslyckades, se logg/avisering.');
 	}
 }
 
