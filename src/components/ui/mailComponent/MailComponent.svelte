@@ -28,8 +28,13 @@
 
 	let emailInput = '';
 	let manualEmails: string[] = [...prefilledRecipients];
+
+	let filteredClients = [];
 	let selectedUsers = [];
 	let selectedClients = [];
+
+	let selectedStatusOption = { value: 'active', label: 'Visa aktiva' };
+	let selectedOwnershipOption = { value: 'mine', label: 'Mina klienter' };
 
 	$: isLoading = $loadingStore.isLoading;
 
@@ -44,11 +49,39 @@
 
 	$: selectedFromOption = selectedFromOption || fromOptions[0]; // fallback if not set
 
+	$: if ($clients && $user && selectedUsers && selectedOwnershipOption && selectedStatusOption) {
+		filterClients();
+	}
+
 	onMount(async () => {
 		if (autoFetchUsersAndClients) {
 			await Promise.all([fetchUsers(), fetchClients()]);
 		}
 	});
+
+	function filterClients() {
+		if (!$clients || !$user || !selectedStatusOption || !selectedOwnershipOption) return;
+
+		const status = selectedStatusOption.value;
+		const ownership = selectedOwnershipOption.value;
+		const currentUserId = $user.id;
+		const selectedTrainerIds = selectedUsers.map((u) => u.id);
+
+		filteredClients = $clients.filter((client) => {
+			if (status === 'active' && !client.isActive) return false;
+			if (status === 'inactive' && client.isActive) return false;
+
+			if (ownership === 'mine') {
+				return client.trainer?.id === currentUserId;
+			}
+
+			if (ownership === 'selected') {
+				return client.trainer?.id && selectedTrainerIds.includes(client.trainer.id);
+			}
+
+			return true; // 'all'
+		});
+	}
 
 	function handleUserSelection(event) {
 		selectedUsers = [...event.detail.selected];
@@ -63,7 +96,7 @@
 		selectedUsers = [];
 	}
 	function onSelectAllClients() {
-		selectedClients = get(clients);
+		selectedClients = [...filteredClients];
 	}
 	function onDeSelectAllClients() {
 		selectedClients = [];
@@ -170,17 +203,29 @@
 	</div>
 
 	{#if !lockedFields.includes('recipients')}
-		<div class="flex items-center gap-2">
-			<Input
-				label="Lägg till mailadresser manuellt"
-				name="email"
-				placeholder="mail@example.com"
-				bind:value={emailInput}
-				on:keydown={handleKeyDown}
+		<p class="text-sm font-semibold text-text">Filtrera kundlistan</p>
+		<div class="grid grid-cols-1 gap-4 xl:grid-cols-2">
+			<OptionButton
+				options={[
+					{ value: 'mine', label: 'Mina klienter' },
+					{ value: 'selected', label: 'Valda tränares klienter' },
+					{ value: 'all', label: 'Alla klienter' }
+				]}
+				bind:selectedOption={selectedOwnershipOption}
+				size="small"
+				full
 			/>
-			<div class="mt-1 flex flex-row gap-2">
-				<Button icon="Plus" variant="secondary" iconSize="14" on:click={addEmail} />
-			</div>
+
+			<OptionButton
+				options={[
+					{ value: 'active', label: 'Visa aktiva' },
+					{ value: 'inactive', label: 'Visa inaktiva' },
+					{ value: 'all', label: 'Visa alla' }
+				]}
+				bind:selectedOption={selectedStatusOption}
+				size="small"
+				full
+			/>
 		</div>
 
 		<div class="grid grid-cols-1 gap-4 xl:grid-cols-2">
@@ -199,7 +244,7 @@
 					maxNumberOfSuggestions={10}
 					infiniteScroll
 				/>
-				<div class="mt-6 flex flex-row gap-2">
+				<div class="mt-8 flex flex-row gap-2">
 					<Button
 						icon="MultiCheck"
 						iconColor="green"
@@ -215,7 +260,7 @@
 					label="Kunder"
 					placeholder="Välj kunder"
 					id="clients"
-					options={($clients || []).map((client) => ({
+					options={filteredClients.map((client) => ({
 						name: `${client.firstname} ${client.lastname}`,
 						value: client
 					}))}
@@ -225,7 +270,8 @@
 					maxNumberOfSuggestions={10}
 					infiniteScroll
 				/>
-				<div class="mt-6 flex flex-row gap-2">
+
+				<div class="mt-8 flex flex-row gap-2">
 					<Button
 						icon="MultiCheck"
 						iconColor="green"
@@ -239,6 +285,18 @@
 						on:click={onDeSelectAllClients}
 					/>
 				</div>
+			</div>
+		</div>
+		<div class="flex items-center gap-2">
+			<Input
+				label="Lägg till mailadresser manuellt"
+				name="email"
+				placeholder="mail@example.com"
+				bind:value={emailInput}
+				on:keydown={handleKeyDown}
+			/>
+			<div class="mt-4 flex flex-row gap-2">
+				<Button icon="Plus" variant="secondary" iconSize="14" on:click={addEmail} />
 			</div>
 		</div>
 

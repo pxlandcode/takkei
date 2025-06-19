@@ -162,7 +162,7 @@
 		</div>
 	</div>
 
-	<Table {headers} data={filteredData} />
+	<Table {headers} data={filteredData} noSelect />
 </div>
 
 {#if showClientModal}

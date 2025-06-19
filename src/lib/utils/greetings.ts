@@ -13,7 +13,7 @@ export const greetings: Greeting[] = [
 	{ message: 'TAKKEI ❤️ DIG!', icon: '' },
 	{ message: 'Nu kör vi!', icon: '🚗' },
 	{ message: 'Du är bäst!', icon: '💪' },
-	{ message: 'Du är en:', icon: '🌟' },
+	{ message: 'Du är en', icon: '🌟' },
 	{ message: 'Du rockar!', icon: '🤘' },
 	{ message: 'Dags att svettas!', icon: '🔥' },
 	{ message: 'Kämpa på!', icon: '🏋️' },
