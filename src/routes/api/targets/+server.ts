@@ -5,15 +5,20 @@ export async function GET({ url }) {
 	const userId = url.searchParams.get('userId');
 	const date = url.searchParams.get('date');
 
+	console.log('Received GET /targets with params:', { userId, date });
+
 	if (!userId || !date) {
+		console.warn('Missing required parameters', { userId, date });
 		return new Response(JSON.stringify({ error: 'Missing required parameters' }), { status: 400 });
 	}
 
 	try {
+		console.log('Calling getUserTargets with:', Number(userId), date);
 		const targets = await getUserTargets(Number(userId), date);
+		console.log('Fetched targets:', targets);
 		return new Response(JSON.stringify(targets), { status: 200 });
 	} catch (error) {
-		console.error('Error fetching targets:', error);
+		console.error('❌ Error fetching targets:', error);
 		return new Response(JSON.stringify({ error: 'Internal Server Error' }), { status: 500 });
 	}
 }
