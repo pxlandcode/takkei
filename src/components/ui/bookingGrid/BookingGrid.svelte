@@ -1,108 +1,136 @@
-<script>
-	import { onMount } from 'svelte';
-	import { profileStore } from '$lib/stores/profileStore';
-	import { clientProfileStore } from '$lib/stores/clientProfileStore';
+<script lang="ts">
+	import { onMount, tick } from 'svelte';
 	import { tooltip } from '$lib/actions/tooltip';
 
-	export let trainerId = null;
-	export let clientId = null;
-	export let daysToShow = 365;
+	export let trainerId: number | null = null;
+	export let clientId: number | null = null;
 	export let border = false;
 
-	let bookings = [];
+	const SQUARE_SIZE = 12;
+	const GAP = 2;
 
-	// Calculate date ranges
-	const today = new Date();
-	const halfRange = Math.floor(daysToShow / 2);
+	let gridContainer;
+	let gridWidth = 0;
+	let squareLimit = 53;
+	let daysToShow = 365;
 
-	// Adjust time to start of day to avoid timezone inconsistencies
-	today.setHours(0, 0, 0, 0);
+	let countsPerDay: Record<string, number> = {};
+	let today = new Date();
+	let firstValidDate: Date;
+	let lastValidDate: Date;
 
-	let firstValidDate = new Date(today);
-	let lastValidDate = new Date(today);
-
-	if (clientId) {
-		// For clients, center the view around today
-		firstValidDate.setDate(today.getDate() - halfRange);
-		lastValidDate.setDate(today.getDate() + halfRange);
-	} else {
-		// For trainers, show backwards only
-		firstValidDate.setDate(today.getDate() - (daysToShow - 1));
-		lastValidDate = new Date(today); // end on today
-	}
-
-	// Align to Monday
-	let weekStart = new Date(firstValidDate);
-	const dayOfWeek = weekStart.getDay(); // 0 = Sunday
-	const daysToSubtract = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-	weekStart.setDate(weekStart.getDate() - daysToSubtract);
 	let days = [];
 	let months = [];
 	const weekDays = ['Mån', 'Tis', 'Ons', 'Tors', 'Fre', 'Lör', 'Sön'];
 
-	let gridContainer;
-	let gridWidth = 0;
+	$: if (gridContainer) {
+		gridWidth = gridContainer.offsetWidth;
+		const visibleBlocks = Math.floor(gridWidth / (SQUARE_SIZE + GAP));
 
-	// Fill the calendar
-	let monthLoop = null;
-	let currentDate = new Date(weekStart);
-	while (currentDate <= lastValidDate) {
-		const date = new Date(currentDate);
-		if (date.getMonth() !== monthLoop) {
-			monthLoop = date.getMonth();
-			months.push({
-				name: date.toLocaleString('sv-SE', { month: 'short' }),
-				index: Math.floor(days.length / 7) + 1
-			});
+		if (visibleBlocks !== squareLimit) {
+			squareLimit = visibleBlocks;
+			daysToShow = squareLimit * 7;
+			setupDates();
+			fetchCountsAndRender();
 		}
-		const isBlank = date < firstValidDate;
-		days.push({ date, count: isBlank ? null : 0 });
-		currentDate.setDate(currentDate.getDate() + 1);
 	}
 
-	// On Mount
-	onMount(async () => {
+	function formatLocalDate(date: Date) {
+		return date.toLocaleDateString('sv-SE', {
+			timeZone: 'Europe/Stockholm',
+			year: 'numeric',
+			month: '2-digit',
+			day: '2-digit'
+		});
+	}
+
+	function setupDates() {
+		today.setHours(0, 0, 0, 0);
+		const halfRange = Math.floor(daysToShow / 2);
+		firstValidDate = new Date(today);
+		lastValidDate = new Date(today);
+
+		if (clientId) {
+			firstValidDate.setDate(today.getDate() - halfRange);
+			lastValidDate.setDate(today.getDate() + halfRange);
+		} else {
+			firstValidDate.setDate(today.getDate() - (daysToShow - 1));
+			lastValidDate = new Date(today);
+		}
+
+		// Align to Monday
+		const dayOfWeek = firstValidDate.getDay();
+		const daysToSubtract = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+		const weekStart = new Date(firstValidDate);
+		weekStart.setDate(weekStart.getDate() - daysToSubtract);
+
+		// Fill days and months
+		days = [];
+		months = [];
+		let currentDate = new Date(weekStart);
+		let monthLoop = null;
+
+		while (currentDate <= lastValidDate) {
+			const date = new Date(currentDate);
+			if (date.getMonth() !== monthLoop) {
+				monthLoop = date.getMonth();
+				months.push({
+					name: date.toLocaleString('sv-SE', { month: 'short' }),
+					index: Math.floor(days.length / 7) + 1
+				});
+			}
+			const isBlank = date < firstValidDate;
+			days.push({ date, count: isBlank ? null : 0 });
+			currentDate.setDate(currentDate.getDate() + 1);
+		}
+	}
+
+	async function fetchCountsAndRender() {
 		if (trainerId && clientId) {
 			console.warn('Pass only trainerId OR clientId, not both.');
 			return;
 		}
 
-		if (trainerId) {
-			await profileStore.loadUser(trainerId, fetch);
-			bookings = profileStore.getBookings(trainerId);
-		} else if (clientId) {
-			await clientProfileStore.loadClient(clientId, fetch);
-			bookings = clientProfileStore.getBookings(clientId);
-		} else {
-			console.warn('No ID provided for bookings.');
+		const from = formatLocalDate(firstValidDate);
+		const to = formatLocalDate(lastValidDate);
+		const params = new URLSearchParams({ from, to });
+
+		if (trainerId) params.append('trainerId', trainerId.toString());
+		if (clientId) params.append('clientId', clientId.toString());
+
+		const res = await fetch(`/api/bookings/counts-per-day?${params}`);
+		if (!res.ok) {
+			console.error(await res.text());
+			return;
 		}
 
+		countsPerDay = await res.json();
+
+		console.log('Counts per day:', countsPerDay);
+		console.log(from, to, firstValidDate, lastValidDate);
 		updateDays();
+	}
 
-		if (gridContainer) {
-			gridWidth = gridContainer.offsetWidth;
-		}
-	});
-
-	// Update day counts
 	function updateDays() {
-		if (bookings.length === 0) return;
-
 		days = days.map((day) => {
 			if (day.count === null) return day;
-
-			const bookingCount = bookings.filter((b) => {
-				const bookingDate = new Date(b.booking.startTime);
-				return bookingDate.toISOString().slice(0, 10) === day.date.toISOString().slice(0, 10);
-			}).length;
-
-			return { ...day, count: bookingCount };
+			const key = day.date.toISOString().slice(0, 10);
+			return { ...day, count: countsPerDay[key] || 0 };
 		});
+		console.log('Updated days:', days);
 	}
 
-	$: if (bookings.length) {
-		updateDays();
-	}
+	onMount(async () => {
+		await tick(); // Wait for DOM
+		if (gridContainer) {
+			gridWidth = gridContainer.offsetWidth;
+			const visibleBlocks = Math.floor(gridWidth / (SQUARE_SIZE + GAP));
+			squareLimit = visibleBlocks;
+			daysToShow = squareLimit * 7;
+			setupDates();
+			await fetchCountsAndRender();
+		}
+	});
 </script>
 
 <div
@@ -168,10 +196,11 @@
 		</div>
 
 		<!-- Booking Grid -->
+
 		<div
 			class="grid-container"
-			style="grid-template-columns: repeat({Math.ceil(days.length / 7)}, 12px);"
 			bind:this={gridContainer}
+			style="grid-template-columns: repeat({Math.ceil(days.length / 7)}, 12px);"
 		>
 			{#each days as day, i}
 				{#if day.count === null}
@@ -182,7 +211,7 @@
 				{:else if trainerId}
 					<div
 						use:tooltip={{
-							content: `Datum: ${day.date.toISOString().slice(0, 10)}, Bokningar: ${day.count}`
+							content: `Datum: ${formatLocalDate(day.date)}, Bokningar: ${day.count}`
 						}}
 						class="cell
 
@@ -197,7 +226,7 @@
 				{:else if clientId}
 					<div
 						use:tooltip={{
-							content: `Datum: ${day.date.toISOString().slice(0, 10)} ${trainerId ? `, Bokningar: ${day.count}` : ''}`
+							content: `Datum: ${formatLocalDate(day.date)} ${trainerId ? `, Bokningar: ${day.count}` : ''}`
 						}}
 						class="cell
 
@@ -250,9 +279,9 @@
 
 	.grid-container {
 		display: grid;
-		grid-template-columns: repeat(53, 12px); /* Adjusts based on days.length */
 		grid-template-rows: repeat(7, 12px);
 		gap: 2px;
+		width: 100%;
 	}
 
 	.cell {
