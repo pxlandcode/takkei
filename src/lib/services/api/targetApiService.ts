@@ -21,7 +21,7 @@ export async function getUserTargets(userId: number, date: string) {
 
 // Process each target: apply rules & fetch additional data if needed
 async function processTarget(target: any) {
-	const rules = target.rules ? JSON.parse(target.rules) : {};
+	const rules = typeof target.rules === 'string' ? JSON.parse(target.rules) : (target.rules ?? {});
 
 	let achieved = 0;
 

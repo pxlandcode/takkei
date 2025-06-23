@@ -2,8 +2,10 @@
 	import { createEventDispatcher, onMount, tick } from 'svelte';
 	import Icon from '../../bits/icon-component/Icon.svelte';
 	import Button from '../../bits/button/Button.svelte';
-	import { writable } from 'svelte/store';
+	import { get, writable } from 'svelte/store';
 	import { goto } from '$app/navigation';
+	import { user } from '$lib/stores/userStore';
+	import { calendarStore } from '$lib/stores/calendarStore';
 
 	// Props
 	export let selectedDate: Date = new Date();
@@ -21,9 +23,23 @@
 
 	// Store to track the top position of today's row
 	const todayRowIndex = writable(null);
+	const currentUser = get(user);
 
 	// Compute the month days reactively
 	$: monthDays = getMonthDays($currentDate);
+
+	let selectedWeekRowIndex = null;
+
+	$: selectedDateFromStore = $calendarStore.filters.date
+		? new Date($calendarStore.filters.date)
+		: null;
+
+	$: if (selectedDateFromStore) {
+		const selectedIndex = monthDays.findIndex(
+			(d) => d.toDateString() === selectedDateFromStore.toDateString()
+		);
+		selectedWeekRowIndex = selectedIndex !== -1 ? Math.floor(selectedIndex / 7) : null;
+	}
 
 	// Get the first and last day of the month
 	function getMonthDays(date: Date) {
@@ -114,8 +130,8 @@
 		}
 	}
 
-	function openCalender() {
-		goto('/calendar');
+	function openMyCalender() {
+		goto(`/calendar?trainerId=${currentUser.id}`);
 	}
 
 	// Run update when component is mounted
@@ -137,11 +153,12 @@
 			</button>
 		</div>
 		<Button
-			small
 			text="Kalender"
+			small
 			variant="secondary"
 			iconLeft="Calendar"
 			iconRight="ChevronRight"
+			on:click={openMyCalender}
 		/>
 	</div>
 
@@ -155,13 +172,14 @@
 
 		<div class="relative w-full">
 			<!-- Current Week Background Band (Only if Current Month is Selected) -->
-			{#if $todayRowIndex !== null && isCurrentMonth()}
+			{#if selectedWeekRowIndex !== null}
 				<div
-					class="weekband absolute h-8 rounded-full bg-black opacity-50"
-					style="top: calc({$todayRowIndex} * 32px);"
+					class="weekband absolute h-8 rounded-full bg-black opacity-50 transition-all duration-300 ease-in-out"
+					style="top: {selectedWeekRowIndex !== null
+						? `calc(${selectedWeekRowIndex} * 32px)`
+						: '-100px'};"
 				></div>
 			{/if}
-
 			<!-- Days Grid -->
 			<div class="relative z-10 grid grid-cols-7 gap-x-2">
 				{#each monthDays as day, index}
@@ -192,5 +210,6 @@
 	.weekband {
 		width: calc(100% + 16px);
 		left: -8px;
+		transition: top 0.3s ease-in-out;
 	}
 </style>

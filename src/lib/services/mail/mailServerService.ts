@@ -42,7 +42,7 @@ async function sendFailureAlert({
 
 	try {
 		await sgMail.send({
-			to: 'info@takkei.se',
+			to: ['info@takkei.se', 'pierre.elmen@pixelcode.se'],
 			from: {
 				name: 'Takkei System',
 				email: 'info@takkei.se'

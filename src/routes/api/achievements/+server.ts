@@ -42,7 +42,10 @@ export async function GET({ url }) {
 
 // Process achievement rules
 async function processAchievement(achievement: any, userId: number, date: string) {
-	const rules = achievement.rules ? JSON.parse(achievement.rules) : {};
+	const rules =
+		typeof achievement.rules === 'string'
+			? JSON.parse(achievement.rules)
+			: (achievement.rules ?? {});
 	let achieved = 0;
 
 	if (rules.filter_by === 'daily_booking_count') {

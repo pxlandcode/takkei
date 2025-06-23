@@ -15,7 +15,8 @@ export const targetStore = writable<
 export async function updateTargets(userId: number, date: string) {
 	try {
 		const targets = await fetchTargets(userId, date);
-		targetStore.set(targets); // Update the store with fresh data
+		targetStore.set(targets);
+		console.log('Targets updated:', targets);
 	} catch (error) {
 		console.error('Error updating targets:', error);
 	}
