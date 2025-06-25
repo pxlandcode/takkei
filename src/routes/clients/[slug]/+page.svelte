@@ -58,7 +58,7 @@
 	let selectedTab = menuItems[0];
 
 	function goToCalendar() {
-		calendarStore.updateFilters({ clientIds: [clientId] }, fetch);
+		calendarStore.setNewFilters({ clientIds: [clientId] }, fetch);
 		goto(`/calendar?clientId=${clientId}`);
 	}
 </script>

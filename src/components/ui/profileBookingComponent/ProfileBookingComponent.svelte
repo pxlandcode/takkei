@@ -23,7 +23,13 @@
 	const isClient = clientId !== null;
 
 	// ✅ Filters
-	let selectedDate = writable(new Date().toISOString().split('T')[0]); // Default to today
+	const today = new Date();
+	const oneMonthBack = new Date(today);
+	oneMonthBack.setMonth(today.getMonth() - 1);
+
+	let selectedDate = writable(
+		clientId ? oneMonthBack.toISOString().split('T')[0] : today.toISOString().split('T')[0]
+	); // Default to today
 	let selectedCancelledOption = writable({ value: false, label: 'Visa inte avbokade' });
 
 	const LIMIT = 20;

@@ -54,7 +54,7 @@
 	}
 
 	function onGoToClientsCalendar(clientId: number) {
-		calendarStore.updateFilters({ clientIds: [clientId] }, fetch);
+		calendarStore.setNewFilters({ clientIds: [clientId] }, fetch);
 		goto(`/calendar?clientIds=${clientId}`);
 	}
 
