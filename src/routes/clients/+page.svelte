@@ -12,6 +12,9 @@
 
 	import ClientForm from '../../components/ui/clientForm/ClientForm.svelte';
 	import PopupWrapper from '../../components/ui/popupWrapper/PopupWrapper.svelte';
+	import BookingPopup from '../../components/ui/bookingPopup/BookingPopup.svelte';
+	import { calendarStore } from '$lib/stores/calendarStore';
+	import MailComponent from '../../components/ui/mailComponent/MailComponent.svelte';
 
 	let showClientModal = false;
 
@@ -23,12 +26,17 @@
 		showClientModal = false;
 	}
 
+	let showBookingPopup = false;
+	let selectedClientsId = null;
+	let selectedClientEmail: string | null = null;
+	let showMailPopup = false;
+
 	// Headers
 	const headers = [
 		{ label: 'Klient', key: 'name', icon: 'Person', sort: true, isSearchable: true },
 		{ label: 'Kontakt', key: 'contact', isSearchable: true },
 		{ label: 'Primär tränare', key: 'trainer', sort: true, isSearchable: true },
-		{ label: 'Actions', key: 'actions', isSearchable: false }
+		{ label: 'Actions', key: 'actions', isSearchable: false, width: '200px' }
 	];
 
 	// Filters
@@ -45,6 +53,21 @@
 		goto(`/clients/${id}`);
 	}
 
+	function onGoToClientsCalendar(clientId: number) {
+		calendarStore.updateFilters({ clientIds: [clientId] }, fetch);
+		goto(`/calendar?clientIds=${clientId}`);
+	}
+
+	function onBookClient(clientId: number) {
+		selectedClientsId = clientId;
+		showBookingPopup = true;
+	}
+
+	function onSendClientEmail(email: string) {
+		selectedClientEmail = email;
+		showMailPopup = true;
+	}
+
 	// Fetch Clients
 	onMount(async () => {
 		await fetchClients();
@@ -53,9 +76,19 @@
 
 			data = clientList.map((client) => ({
 				id: client.id,
-				name: `${client.firstname} ${client.lastname}`,
+				name: [
+					{
+						type: 'link',
+						label: `${client.firstname} ${client.lastname}`,
+						action: () => onGoToClient(client.id)
+					}
+				],
 				contact: [
-					{ type: 'email', content: client.email },
+					{
+						type: 'link',
+						label: client.email,
+						action: () => onSendClientEmail(client.email)
+					},
 					{ type: 'phone', content: client.phone }
 				],
 				trainer: client.trainer
@@ -66,10 +99,17 @@
 				actions: [
 					{
 						type: 'button',
+						label: 'Boka',
+						icon: 'Plus',
+						variant: 'primary',
+						action: () => onBookClient(client.id)
+					},
+					{
+						type: 'button',
 						label: '',
-						icon: 'Person',
+						icon: 'Calendar',
 						variant: 'secondary',
-						action: () => goto(`/clients/${client.id}`)
+						action: () => onGoToClientsCalendar(client.id)
 					}
 				]
 			}));
@@ -172,6 +212,34 @@
 				closeClientForm();
 				fetchClients();
 			}}
+		/>
+	</PopupWrapper>
+{/if}
+
+{#if showBookingPopup}
+	<PopupWrapper
+		header="Bokning"
+		icon="Plus"
+		on:close={() => ((showBookingPopup = false), (selectedClientsId = null))}
+	>
+		<BookingPopup
+			on:close={() => ((showBookingPopup = false), (selectedClientsId = null))}
+			clientId={selectedClientsId}
+		/>
+	</PopupWrapper>
+{/if}
+
+{#if showMailPopup && selectedClientEmail}
+	<PopupWrapper
+		width="900px"
+		header="Maila {selectedClientEmail}"
+		icon="Mail"
+		on:close={() => ((showMailPopup = false), (selectedClientEmail = null))}
+	>
+		<MailComponent
+			prefilledRecipients={[selectedClientEmail]}
+			lockedFields={['recipients']}
+			autoFetchUsersAndClients={false}
 		/>
 	</PopupWrapper>
 {/if}

@@ -15,7 +15,7 @@
 			const response = await fetch('/api/login', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ email, password })
+				body: JSON.stringify({ email, password, rememberMe })
 			});
 
 			const data = await response.json();
@@ -64,7 +64,7 @@
 		<div class="flex items-center justify-between">
 			<label class="flex items-center text-white">
 				<input id="rememberMe" type="checkbox" bind:checked={rememberMe} class="mr-2" />
-				Håll mig inloggad
+				Håll mig inloggad i 24 timmar
 			</label>
 		</div>
 		<Button type="submit" text="Logga in" full />
