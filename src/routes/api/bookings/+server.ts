@@ -18,6 +18,8 @@ export async function GET({ url }) {
 	const limit = limitParam ? parseInt(limitParam) : null;
 	const offset = offsetParam ? parseInt(offsetParam) : 0;
 
+	const sort = url.searchParams.get('sort') ?? 'desc';
+
 	const params: (string | number | number[])[] = [];
 	let queryStr = `
         SELECT bookings.*, 
@@ -49,6 +51,9 @@ export async function GET({ url }) {
 		params.push(fromDate, toDate);
 		queryStr += ` AND bookings.start_time BETWEEN TO_DATE($${params.length - 1}, 'YYYY-MM-DD') 
                       AND TO_DATE($${params.length}, 'YYYY-MM-DD')`;
+	} else if (fromDate) {
+		params.push(fromDate);
+		queryStr += ` AND bookings.start_time >= TO_DATE($${params.length}, 'YYYY-MM-DD')`;
 	} else if (date) {
 		params.push(date);
 		queryStr += ` AND DATE(bookings.start_time) = TO_DATE($${params.length}, 'YYYY-MM-DD')`;
@@ -81,10 +86,10 @@ export async function GET({ url }) {
 	}
 	// ✅ Apply pagination *only* if `limit` is set
 	if (limit !== null) {
-		queryStr += ` ORDER BY bookings.start_time DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+		queryStr += ` ORDER BY bookings.start_time ${sort.toUpperCase()} LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
 		params.push(limit, offset);
 	} else {
-		queryStr += ` ORDER BY bookings.start_time DESC`; // No limit, return all results
+		queryStr += ` ORDER BY bookings.start_time ${sort.toUpperCase()}`;
 	}
 
 	try {

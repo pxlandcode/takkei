@@ -5,6 +5,8 @@
 
 	import ProfileBookingSlot from '../profileBookingSlot/ProfileBookingSlot.svelte';
 	import OptionButton from '../../bits/optionButton/OptionButton.svelte';
+	import PopupWrapper from '../popupWrapper/PopupWrapper.svelte';
+	import BookingDetailsPopup from '../bookingDetailsPopup/BookingDetailsPopup.svelte';
 
 	export let trainerId: number | null = null;
 	export let clientId: number | null = null;
@@ -15,10 +17,19 @@
 	let isLoading = writable(false);
 	let hasMore = writable(true);
 
+	let selectedBooking = null;
+	let showBookingDetailsPopup = false;
+
 	const isClient = clientId !== null;
 
 	// ✅ Filters
-	let selectedDate = writable(new Date().toISOString().split('T')[0]); // Default to today
+	const today = new Date();
+	const oneMonthBack = new Date(today);
+	oneMonthBack.setMonth(today.getMonth() - 1);
+
+	let selectedDate = writable(
+		clientId ? oneMonthBack.toISOString().split('T')[0] : today.toISOString().split('T')[0]
+	); // Default to today
 	let selectedCancelledOption = writable({ value: false, label: 'Visa inte avbokade' });
 
 	const LIMIT = 20;
@@ -39,13 +50,13 @@
 			hasMore.set(true);
 		}
 
-		const from = '1970-01-01';
-		const to = new Date($selectedDate).toISOString().split('T')[0];
+		const from = new Date($selectedDate).toISOString().split('T')[0];
+		const to = null;
 
 		const filters = {
-			// ✅ Added clientId filter
-			from, // ✅ Fetching older bookings
-			to // ✅ The latest selected date
+			from,
+			forwardOnly: true,
+			sortAsc: true
 		};
 
 		if (trainerId) {
@@ -99,6 +110,11 @@
 		);
 		loadMoreBookings(true);
 	}
+
+	function handleBookingClick(event) {
+		selectedBooking = event.detail;
+		showBookingDetailsPopup = true;
+	}
 </script>
 
 <!-- 🔹 Filters -->
@@ -136,7 +152,7 @@
 		on:scroll={handleScroll}
 	>
 		{#each $bookings as booking}
-			<ProfileBookingSlot {booking} {isClient} />
+			<ProfileBookingSlot {booking} {isClient} on:bookingClick={handleBookingClick} />
 		{/each}
 
 		{#if $isLoading}
@@ -148,6 +164,25 @@
 		{/if}
 	</div>
 </div>
+
+{#if showBookingDetailsPopup && selectedBooking}
+	<PopupWrapper
+		header="Bokningsdetaljer"
+		icon="CircleInfo"
+		on:close={() => {
+			showBookingDetailsPopup = false;
+			selectedBooking = null;
+		}}
+	>
+		<BookingDetailsPopup
+			booking={selectedBooking}
+			on:close={() => {
+				showBookingDetailsPopup = false;
+				selectedBooking = null;
+			}}
+		/>
+	</PopupWrapper>
+{/if}
 
 <style>
 	.custom-scrollbar {

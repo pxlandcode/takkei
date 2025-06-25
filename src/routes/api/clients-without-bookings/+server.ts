@@ -29,36 +29,38 @@ export async function GET({ url }) {
 	];
 
 	const sql = `
-		WITH trainer_clients AS (
-			SELECT id, firstname, lastname
-			FROM clients
-			WHERE active = true AND primary_trainer_id = $1
-		),
-		booked_week1 AS (
-			SELECT DISTINCT client_id
-			FROM bookings
-			WHERE start_time >= $2 AND start_time < $3
-		),
-		booked_week2 AS (
-			SELECT DISTINCT client_id
-			FROM bookings
-			WHERE start_time >= $4 AND start_time < $5
-		)
-		SELECT
-			tc.id,
-			tc.firstname,
-			tc.lastname,
-			CASE
-				WHEN bw1.client_id IS NULL THEN 'week1'
-				ELSE NULL
-			END AS no_booking_week1,
-			CASE
-				WHEN bw2.client_id IS NULL THEN 'week2'
-				ELSE NULL
-			END AS no_booking_week2
-		FROM trainer_clients tc
-		LEFT JOIN booked_week1 bw1 ON tc.id = bw1.client_id
-		LEFT JOIN booked_week2 bw2 ON tc.id = bw2.client_id
+        WITH trainer_clients AS (
+        SELECT id, firstname, lastname
+        FROM clients
+        WHERE active = true AND primary_trainer_id = $1
+    ),
+    booked_week1 AS (
+        SELECT DISTINCT client_id
+        FROM bookings
+        WHERE start_time >= $2 AND start_time < $3
+        AND cancel_time IS NULL
+    ),
+    booked_week2 AS (
+        SELECT DISTINCT client_id
+        FROM bookings
+        WHERE start_time >= $4 AND start_time < $5
+        AND cancel_time IS NULL
+    )
+    SELECT
+        tc.id,
+        tc.firstname,
+        tc.lastname,
+        CASE
+            WHEN bw1.client_id IS NULL THEN 'week1'
+            ELSE NULL
+        END AS no_booking_week1,
+        CASE
+            WHEN bw2.client_id IS NULL THEN 'week2'
+            ELSE NULL
+        END AS no_booking_week2
+    FROM trainer_clients tc
+    LEFT JOIN booked_week1 bw1 ON tc.id = bw1.client_id
+    LEFT JOIN booked_week2 bw2 ON tc.id = bw2.client_id
 	`;
 
 	const results = await query(sql, params);

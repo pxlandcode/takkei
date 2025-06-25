@@ -131,6 +131,7 @@
 	}
 
 	function openMyCalender() {
+		calendarStore.setNewFilters({ trainerIds: [currentUser.id] }, fetch);
 		goto(`/calendar?trainerId=${currentUser.id}`);
 	}
 
@@ -153,11 +154,10 @@
 			</button>
 		</div>
 		<Button
-			text="Kalender"
+			text="Min kalender"
 			small
 			variant="secondary"
 			iconLeft="Calendar"
-			iconRight="ChevronRight"
 			on:click={openMyCalender}
 		/>
 	</div>

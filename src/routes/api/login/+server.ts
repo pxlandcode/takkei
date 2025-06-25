@@ -7,7 +7,7 @@ function encryptPassword(password, salt) {
 }
 
 export async function POST({ request, cookies }) {
-	const { email, password } = await request.json();
+	const { email, password, rememberMe } = await request.json();
 
 	// Get user
 	const result = await query('SELECT * FROM users WHERE email = $1', [email]);
@@ -33,7 +33,7 @@ export async function POST({ request, cookies }) {
 		secure: process.env.NODE_ENV === 'production',
 		sameSite: 'strict',
 		path: '/',
-		maxAge: 60 * 30
+		maxAge: rememberMe ? 60 * 60 * 24 : 60 * 30 // 1 day or 30 mins
 	});
 
 	return new Response(JSON.stringify({ user }), {

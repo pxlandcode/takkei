@@ -11,7 +11,9 @@ export async function fetchBookings(
 	const params = new URLSearchParams();
 
 	// ✅ Add date filters
-	if (filters.from && filters.to) {
+	if (filters.forwardOnly && filters.from) {
+		params.append('from', filters.from);
+	} else if (filters.from && filters.to) {
 		params.append('from', filters.from);
 		params.append('to', filters.to);
 	} else if (filters.date) {
@@ -36,6 +38,13 @@ export async function fetchBookings(
 	if (limit !== undefined) {
 		params.append('limit', limit.toString());
 		params.append('offset', offset.toString());
+	}
+
+	// boolean to decide if asc or desc
+	if (filters.sortAsc) {
+		params.append('sort', 'asc');
+	} else {
+		params.append('sort', 'desc'); // default for legacy support
 	}
 
 	// ✅ Optionally include cancelled bookings

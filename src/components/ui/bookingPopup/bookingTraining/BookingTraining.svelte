@@ -90,12 +90,13 @@
 	}
 
 	// Reactive filtered clients list
-	$: filteredClients = (() => {
+	$: {
+		let newFilteredClients = [];
+
 		if (clientScope?.value === 'all') {
-			return $clients.map(formatClient);
-		}
-		if (clientScope?.value === 'trainer' && bookingObject.trainerId) {
-			return $clients
+			newFilteredClients = $clients.map(formatClient);
+		} else if (clientScope?.value === 'trainer' && bookingObject.trainerId) {
+			newFilteredClients = $clients
 				.filter(
 					(c) =>
 						c.primary_trainer_id === bookingObject.trainerId ||
@@ -103,15 +104,17 @@
 				)
 				.map(formatClient);
 		}
-		return [];
-	})();
 
-	// Reset client if not found in filtered list
-	$: {
-		const exists = filteredClients.some((c) => c.value === bookingObject.clientId);
-		if (!exists) {
-			bookingObject.clientId = null;
+		// If passed-in clientId isn't in the filtered list, switch to "all"
+		if (
+			bookingObject.clientId !== null &&
+			!newFilteredClients.some((c) => c.value === bookingObject.clientId)
+		) {
+			clientScope = clientScopeOptions.find((opt) => opt.value === 'all')!;
+			newFilteredClients = $clients.map(formatClient); // recalculate as "all"
 		}
+
+		filteredClients = newFilteredClients;
 	}
 
 	// Auto-assign room if only one available

@@ -19,6 +19,8 @@
 	import { AppToastType } from '$lib/types/toastTypes';
 
 	export let startTime: Date | null = null;
+	export let clientId: number | null = null;
+	export let trainerId: number | null = null;
 
 	const dispatch = createEventDispatcher();
 
@@ -81,6 +83,17 @@
 		}
 
 		await Promise.all([fetchUsers(), fetchLocations(), fetchClients(), fetchBookingContents()]);
+
+		if (clientId) {
+			bookingObject.clientId = clientId;
+		} else {
+			// fallback: show all clients (or none)
+			bookingObject.clientId = null;
+		}
+
+		if (trainerId) {
+			bookingObject.trainerId = trainerId;
+		}
 
 		if (startTime) {
 			const currentFilters = get(calendarStore).filters;

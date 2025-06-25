@@ -101,6 +101,30 @@ const createCalendarStore = () => {
 		refresh(fetchFn, updatedFilters); // ← pass directly
 	}
 
+	function setNewFilters(newFilters: Partial<CalendarFilters>, fetchFn: typeof fetch) {
+		const baseDefaults: CalendarFilters = {
+			from: null,
+			to: null,
+			date: new Date().toISOString().slice(0, 10),
+			roomId: null,
+			locationIds: [],
+			trainerIds: null,
+			clientIds: null,
+			personalBookings: newFilters.trainerIds?.length === 1 ?? false
+		};
+
+		const filters = {
+			...baseDefaults,
+			...newFilters
+		};
+
+		update((store) => ({
+			...store,
+			filters
+		}));
+
+		refresh(fetchFn, filters);
+	}
 	/**
 	 * Set Week (from Monday → Sunday)
 	 */
@@ -234,7 +258,8 @@ const createCalendarStore = () => {
 		goToNextDay,
 		goToPreviousDay,
 		goToDate,
-		updateFilters
+		updateFilters,
+		setNewFilters
 	};
 };
 

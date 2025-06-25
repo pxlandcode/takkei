@@ -9,13 +9,16 @@
 	import UserForm from '../../components/ui/userForm/UserForm.svelte';
 	import PopupWrapper from '../../components/ui/popupWrapper/PopupWrapper.svelte';
 	import { hasRole } from '$lib/helpers/userHelpers/roleHelper';
+	import BookingPopup from '../../components/ui/bookingPopup/BookingPopup.svelte';
+	import MailComponent from '../../components/ui/mailComponent/MailComponent.svelte';
+	import { calendarStore } from '$lib/stores/calendarStore';
 
 	// Headers Configuration with isSearchable
 	const headers = [
 		{ label: 'Tränare', key: 'name', icon: 'Person', sort: true, isSearchable: true },
 		{ label: 'Kontakt', key: 'contact', isSearchable: true },
 		{ label: 'Primär lokal', key: 'location', sort: true, isSearchable: true },
-		{ label: 'Actions', key: 'actions', isSearchable: false }
+		{ label: 'Actions', key: 'actions', isSearchable: false, width: '161px' }
 	];
 
 	// Data variables
@@ -24,6 +27,11 @@
 	let searchQuery = '';
 
 	let showUserModal = false;
+
+	let showBookingPopup = false;
+	let selectedTrainerId: number | null = null;
+	let showMailPopup = false;
+	let selectedTrainerEmail: string | null = null;
 
 	function openUserForm() {
 		showUserModal = true;
@@ -39,6 +47,21 @@
 		goto(`/users/${id}`);
 	}
 
+	function onGoToTrainerCalendar(trainerId: number) {
+		calendarStore.setNewFilters({ trainerIds: [trainerId] }, fetch);
+		goto(`/calendar?trainerId=${trainerId}`);
+	}
+
+	function onBookTrainer(trainerId: number) {
+		selectedTrainerId = trainerId;
+		showBookingPopup = true;
+	}
+
+	function onSendEmailToTrainer(email: string) {
+		selectedTrainerEmail = email;
+		showMailPopup = true;
+	}
+
 	// Fetch Users on Mount
 	onMount(async () => {
 		await fetchUsers();
@@ -46,9 +69,20 @@
 			if (!userList || userList.length === 0) return;
 
 			data = userList.map((user) => ({
-				name: `${user.firstname} ${user.lastname}`,
+				id: user.id,
+				name: [
+					{
+						type: 'link',
+						label: `${user.firstname} ${user.lastname}`,
+						action: () => onGoToTrainer(user.id)
+					}
+				],
 				contact: [
-					{ type: 'email', content: user.email },
+					{
+						type: 'link',
+						label: user.email,
+						action: () => onSendEmailToTrainer(user.email)
+					},
 					{ type: 'phone', content: user.mobile }
 				],
 				location: user.default_location || '-',
@@ -58,21 +92,14 @@
 						label: 'Boka',
 						icon: 'Plus',
 						variant: 'primary',
-						action: () => alert(`Boka ${user.firstname}`)
+						action: () => onBookTrainer(user.id)
 					},
 					{
 						type: 'button',
 						label: '',
 						icon: 'Calendar',
 						variant: 'secondary',
-						action: () => goto(`/calendar?trainerId=${user.id}`)
-					},
-					{
-						type: 'button',
-						label: '',
-						icon: 'Person',
-						variant: 'secondary',
-						action: () => goto(`/users/${user.id}`)
+						action: () => onGoToTrainerCalendar(user.id)
 					}
 				]
 			}));
@@ -121,13 +148,10 @@
 				placeholder="Sök tränare..."
 				class="w-full max-w-md rounded-lg border border-gray-300 p-2 focus:border-blue-500 focus:outline-none"
 			/>
-			<div class="span">
-				<Button icon="Filter" variant="secondary" on:click={() => alert('Filter clicked')}></Button>
-			</div>
 		</div>
 	</div>
 
-	<Table {headers} data={filteredData} />
+	<Table noSelect {headers} data={filteredData} />
 </div>
 
 {#if showUserModal}
@@ -137,6 +161,34 @@
 				closeUserForm();
 				fetchUsers();
 			}}
+		/>
+	</PopupWrapper>
+{/if}
+
+{#if showBookingPopup}
+	<PopupWrapper
+		header="Bokning"
+		icon="Plus"
+		on:close={() => ((showBookingPopup = false), (selectedTrainerId = null))}
+	>
+		<BookingPopup
+			on:close={() => ((showBookingPopup = false), (selectedTrainerId = null))}
+			trainerId={selectedTrainerId}
+		/>
+	</PopupWrapper>
+{/if}
+
+{#if showMailPopup && selectedTrainerEmail}
+	<PopupWrapper
+		width="900px"
+		header="Maila {selectedTrainerEmail}"
+		icon="Mail"
+		on:close={() => ((showMailPopup = false), (selectedTrainerEmail = null))}
+	>
+		<MailComponent
+			prefilledRecipients={[selectedTrainerEmail]}
+			lockedFields={['recipients']}
+			autoFetchUsersAndClients={false}
 		/>
 	</PopupWrapper>
 {/if}

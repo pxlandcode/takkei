@@ -10,10 +10,14 @@
 	import ProfileNotesComponent from '../../../components/ui/profileNotesComponent/ProfileNotesComponent.svelte';
 	import PopupWrapper from '../../../components/ui/popupWrapper/PopupWrapper.svelte';
 	import MailComponent from '../../../components/ui/mailComponent/MailComponent.svelte';
+	import { goto } from '$app/navigation';
+	import { calendarStore } from '$lib/stores/calendarStore';
+	import BookingPopup from '../../../components/ui/bookingPopup/BookingPopup.svelte';
 
 	let clientId: number;
 	let client = null;
 	let showMailPopup = false;
+	let showBookingPopup = false;
 
 	$: clientId = Number($page.params.slug);
 
@@ -52,6 +56,11 @@
 	];
 
 	let selectedTab = menuItems[0];
+
+	function goToCalendar() {
+		calendarStore.setNewFilters({ clientIds: [clientId] }, fetch);
+		goto(`/calendar?clientId=${clientId}`);
+	}
 </script>
 
 <!-- Header -->
@@ -67,8 +76,15 @@
 
 	<div class="mr-14 flex space-x-2 md:mr-0">
 		<Button icon="Mail" variant="secondary" on:click={() => (showMailPopup = true)} />
-		<Button icon="Calendar" variant="secondary" />
-		<Button iconLeft="Plus" iconLeftSize="12px" text="Boka" variant="primary" icon="Plus" />
+		<Button icon="Calendar" variant="secondary" on:click={goToCalendar} />
+		<Button
+			iconLeft="Plus"
+			iconLeftSize="12px"
+			text="Boka"
+			variant="primary"
+			icon="Plus"
+			on:click={() => (showBookingPopup = true)}
+		/>
 	</div>
 </div>
 
@@ -93,6 +109,12 @@
 			lockedFields={['recipients']}
 			autoFetchUsersAndClients={false}
 		/>
+	</PopupWrapper>
+{/if}
+
+{#if showBookingPopup}
+	<PopupWrapper header="Bokning" icon="Plus" on:close={() => (showBookingPopup = false)}>
+		<BookingPopup on:close={() => (showBookingPopup = false)} {clientId} />
 	</PopupWrapper>
 {/if}
 
