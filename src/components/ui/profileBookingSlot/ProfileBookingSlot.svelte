@@ -6,9 +6,13 @@
 	import IconMobility from '$icons/IconMobility.svelte';
 
 	import type { FullBooking } from '$lib/types/calendarTypes';
+	import { goto } from '$app/navigation';
+	import { createEventDispatcher } from 'svelte';
 
 	export let booking: FullBooking;
 	export let isClient = false;
+
+	const dispatch = createEventDispatcher();
 
 	$: bookingColor = booking.location?.color ? booking.location.color : '#4B5563';
 
@@ -45,8 +49,11 @@
 </script>
 
 <!-- ✅ Full-width Booking Slot -->
-<div
-	class="relative flex items-center justify-between rounded-lg border p-3 text-sm transition-all
+<button
+	on:click={() => {
+		dispatch('bookingClick', booking);
+	}}
+	class="relative flex w-full items-center justify-between rounded-lg border p-3 text-left text-sm transition-all
 		{booking.booking.status === 'Cancelled' || booking.booking.status === 'Late_cancelled'
 		? 'cancelled'
 		: ''}"
@@ -84,14 +91,24 @@
 	</div>
 
 	<!-- ✅ Trainer Info -->
-	<div class="flex items-center text-sm text-gray-700">
+	<div class="flex items-center text-sm">
 		{#if isClient}
-			<p>{`${booking.trainer?.firstname} ${booking.trainer?.lastname}`}</p>
+			<a
+				href="javascript:void(0);"
+				on:click|stopPropagation={() => goto(`/users/${booking.trainer?.id}`)}
+				class="font-medium text-orange hover:underline"
+				>{`${booking.trainer?.firstname} ${booking.trainer?.lastname}`}</a
+			>
 		{:else}
-			<p>{`${booking.client?.firstname} ${booking.client?.lastname}`}</p>
+			<a
+				href="javascript:void(0);"
+				on:click|stopPropagation={() => goto(`/clients/${booking.client?.id}`)}
+				class="font-medium text-orange hover:underline"
+				>{`${booking.client?.firstname} ${booking.client?.lastname}`}</a
+			>
 		{/if}
 	</div>
-</div>
+</button>
 
 <style>
 	/* ✅ Base styling */

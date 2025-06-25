@@ -36,7 +36,7 @@
 		{ label: 'Klient', key: 'name', icon: 'Person', sort: true, isSearchable: true },
 		{ label: 'Kontakt', key: 'contact', isSearchable: true },
 		{ label: 'Primär tränare', key: 'trainer', sort: true, isSearchable: true },
-		{ label: 'Actions', key: 'actions', isSearchable: false, width: '200px' }
+		{ label: 'Actions', key: 'actions', isSearchable: false, width: '161px' }
 	];
 
 	// Filters
