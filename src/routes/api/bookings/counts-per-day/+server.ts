@@ -17,7 +17,7 @@ export const GET: RequestHandler = async ({ url }) => {
 
 	// Build filter
 	const params: any[] = [from, to];
-	let condition = `start_time >= $1::date AND start_time < ($2::date + INTERVAL '1 day')`;
+	let condition = `start_time >= $1::date AND start_time < ($2::date + INTERVAL '1 day') AND cancel_time IS NULL`;
 
 	if (trainerId) {
 		params.push(parseInt(trainerId));

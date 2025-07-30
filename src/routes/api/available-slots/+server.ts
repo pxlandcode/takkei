@@ -15,22 +15,20 @@ function overlaps(startA: number, endA: number, startB: number, endB: number): b
 }
 
 export const POST: RequestHandler = async ({ request }) => {
-	const { date, trainerId, locationId, roomId } = await request.json();
+	const { date, trainerId, locationId } = await request.json();
 
-	if (!date || !trainerId || !locationId || !roomId) {
-		console.warn('Missing parameters');
+	if (!date || !trainerId || !locationId) {
 		return new Response(JSON.stringify({ error: 'Missing parameters' }), { status: 400 });
 	}
 
 	const dayStart = `${date} 00:00:00`;
 	const dayEnd = `${date} 23:59:59`;
-
 	const targetDate = new Date(date);
 	const today = new Date();
 	const oneWeekAhead = new Date(today);
 	oneWeekAhead.setDate(today.getDate() + 7);
 
-	// ✅ Absence (if within one week)
+	// 1. Absences
 	if (targetDate <= oneWeekAhead) {
 		const absences = await query(
 			`SELECT * FROM absences 
@@ -45,7 +43,7 @@ export const POST: RequestHandler = async ({ request }) => {
 		}
 	}
 
-	// ✅ Vacation check
+	// 2. Vacations
 	const vacations = await query(
 		`SELECT * FROM vacations
 		 WHERE user_id = $1 AND start_date <= $2 AND end_date >= $2`,
@@ -55,7 +53,7 @@ export const POST: RequestHandler = async ({ request }) => {
 		return new Response(JSON.stringify({ availableSlots: [] }));
 	}
 
-	// ✅ Date-specific availability
+	// 3. Date or Weekly Availability
 	const dateAvailabilities = await query(
 		`SELECT * FROM date_availabilities
 		 WHERE user_id = $1 AND date = $2 AND available = true`,
@@ -67,28 +65,38 @@ export const POST: RequestHandler = async ({ request }) => {
 		to: extractTime(a.end_time)
 	}));
 
-	// ✅ Weekly fallback if no date-specific
 	if (availability.length === 0) {
 		const weekday = ((targetDate.getDay() + 6) % 7) + 1;
 		const weekly = await query(
 			`SELECT * FROM weekly_availabilities WHERE user_id = $1 AND weekday = $2`,
 			[trainerId, weekday]
 		);
-
 		availability = weekly.map((a) => ({
 			from: extractTime(a.start_time),
 			to: extractTime(a.end_time)
 		}));
 	}
 
-	// ✅ Bookings and Personal Bookings
+	// 4. Get all active rooms for the location
+	const rooms = await query(`SELECT id FROM rooms WHERE location_id = $1 AND active = true`, [
+		locationId
+	]);
+	const roomIds = rooms.map((r) => r.id);
+
+	if (roomIds.length === 0) {
+		return new Response(JSON.stringify({ availableSlots: [] }));
+	}
+
+	// 5. Get bookings for those rooms
 	const bookings = await query(
-		`SELECT id, start_time, location_id FROM bookings
-		 WHERE start_time BETWEEN $1 AND $2 AND status != 'Cancelled'
-		 AND (trainer_id = $3 OR room_id = $4)`,
-		[dayStart, dayEnd, trainerId, roomId]
+		`SELECT room_id, start_time FROM bookings
+		 WHERE start_time BETWEEN $1 AND $2
+		 AND status != 'Cancelled'
+		 AND room_id = ANY($3::int[])`,
+		[dayStart, dayEnd, roomIds]
 	);
 
+	// 6. Get personal bookings (same logic as before)
 	const personalBookings = await query(
 		`SELECT start_time, end_time FROM personal_bookings
 		 WHERE start_time BETWEEN $1 AND $2
@@ -96,50 +104,46 @@ export const POST: RequestHandler = async ({ request }) => {
 		[dayStart, dayEnd, trainerId]
 	);
 
-	const travelBuffer = 15;
-	const blockedIntervals: { start: number; end: number }[] = [];
-
-	for (const row of bookings) {
-		const start = extractTimeInMinutes(new Date(row.start_time));
-		const end = start + 60;
-
-		if (row.location_id !== locationId) {
-			blockedIntervals.push({ start: start - travelBuffer, end: end + travelBuffer });
-		} else {
-			blockedIntervals.push({ start, end });
-		}
-	}
+	const personalBookingIntervals: { start: number; end: number }[] = [];
 
 	for (const row of personalBookings) {
 		const start = extractTimeInMinutes(new Date(row.start_time));
 		const end = extractTimeInMinutes(new Date(row.end_time));
-		blockedIntervals.push({ start, end });
+		personalBookingIntervals.push({ start, end });
 	}
 
 	const availableSlots: string[] = [];
 	const outsideAvailabilitySlots: string[] = [];
 
 	for (let h = 5; h <= 21; h++) {
-		for (const m of [0, 30]) {
+		for (const m of [30]) {
 			const slotStart = h * 60 + m;
 			const slotEnd = slotStart + 60;
-			const label = `${h.toString().padStart(2, '0')}:${m === 0 ? '00' : '30'}`;
+			const label = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
 
-			const hasConflict = blockedIntervals.some((b) =>
+			const bookedRoomIdsAtThisSlot = new Set(
+				bookings
+					.filter((b) => {
+						const bookingStart = extractTimeInMinutes(new Date(b.start_time));
+						const bookingEnd = bookingStart + 60;
+						return overlaps(slotStart, slotEnd, bookingStart, bookingEnd);
+					})
+					.map((b) => b.room_id)
+			);
+			if (bookedRoomIdsAtThisSlot.size === roomIds.length) continue;
+
+			const overlapsTrainer = availability.some((a) => overlaps(slotStart, slotEnd, a.from, a.to));
+			if (!overlapsTrainer) {
+				outsideAvailabilitySlots.push(label);
+				continue;
+			}
+
+			const trainerConflict = personalBookingIntervals.some((b) =>
 				overlaps(slotStart, slotEnd, b.start, b.end)
 			);
+			if (trainerConflict) continue;
 
-			const overlapsAvailability = availability.some((a) =>
-				overlaps(slotStart, slotEnd, a.from, a.to)
-			);
-
-			if (hasConflict) continue;
-
-			if (overlapsAvailability) {
-				availableSlots.push(label);
-			} else {
-				outsideAvailabilitySlots.push(label);
-			}
+			availableSlots.push(label);
 		}
 	}
 

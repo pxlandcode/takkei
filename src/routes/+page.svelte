@@ -26,8 +26,8 @@
 
 		<GoalsAndAchievementsModule />
 
-		<div class="mx-auto md:col-span-2">
-			<BookingGrid fullWidth border trainerId={$user?.id} />
+		<div class="w-full md:col-span-2">
+			<BookingGrid border trainerId={$user?.id} />
 		</div>
 	</div>
 </div>

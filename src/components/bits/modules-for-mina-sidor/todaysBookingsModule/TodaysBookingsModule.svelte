@@ -33,7 +33,8 @@
 			const filters = {
 				from: dateStr,
 				to: todayStr.toISOString().split('T')[0],
-				trainerIds: [$user.id]
+				trainerIds: [$user.id],
+				sortAsc: true
 			};
 
 			bookings = await fetchBookings(filters, fetch);

@@ -120,13 +120,8 @@
 	// Auto-assign room if only one available
 	$: {
 		const selectedLocation = $locations.find((loc) => loc.id === bookingObject.locationId);
-		if (selectedLocation) {
-			availableRooms = selectedLocation.rooms ?? [];
-			bookingObject.roomId = availableRooms.length === 1 ? availableRooms[0].id : null;
-		} else {
-			availableRooms = [];
-			bookingObject.roomId = null;
-		}
+		availableRooms = selectedLocation?.rooms ?? [];
+		bookingObject.roomId = null;
 	}
 
 	// Booking type selection handler
@@ -202,16 +197,6 @@
 				options={$locations.map((loc) => ({ label: loc.name, value: loc.id }))}
 				bind:selectedValue={bookingObject.locationId}
 			/>
-
-			{#if availableRooms.length > 1}
-				<Dropdown
-					label="Rum"
-					placeholder="Välj rum"
-					id="rooms"
-					options={availableRooms.map((room) => ({ label: room.name, value: room.id }))}
-					bind:selectedValue={bookingObject.roomId}
-				/>
-			{/if}
 		</div>
 	</div>
 
@@ -228,7 +213,6 @@
 		bind:selectedTime={bookingObject.time}
 		trainerId={bookingObject.trainerId}
 		locationId={bookingObject.locationId}
-		roomId={bookingObject.roomId}
 		on:unavailabilityChange={(e) => (selectedIsUnavailable = e.detail)}
 	/>
 
