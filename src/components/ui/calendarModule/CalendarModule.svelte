@@ -138,7 +138,7 @@
 	}
 
 	function openMyCalender() {
-		calendarStore.setNewFilters({ trainerIds: [currentUser.id] }, fetch);
+		calendarStore.updateFilters({ trainerIds: [currentUser.id] }, fetch);
 		goto(`/calendar?trainerId=${currentUser.id}`);
 	}
 

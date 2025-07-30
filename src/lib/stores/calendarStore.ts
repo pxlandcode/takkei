@@ -100,23 +100,21 @@ const createCalendarStore = () => {
 
 		refresh(fetchFn, updatedFilters); // ← pass directly
 	}
-
 	function setNewFilters(newFilters: Partial<CalendarFilters>, fetchFn: typeof fetch) {
-		const baseDefaults: CalendarFilters = {
+		const current = getCurrentFilters();
+
+		const filters: CalendarFilters = {
 			from: null,
 			to: null,
-			date: new Date().toISOString().slice(0, 10),
+			date: newFilters.date ?? current.date ?? new Date().toISOString().slice(0, 10),
 			roomId: null,
 			locationIds: [],
 			trainerIds: null,
 			clientIds: null,
-			personalBookings: newFilters.trainerIds?.length === 1 ?? false
+			personalBookings: newFilters.personalBookings ?? newFilters.trainerIds?.length === 1 ?? false
 		};
 
-		const filters = {
-			...baseDefaults,
-			...newFilters
-		};
+		Object.assign(filters, newFilters);
 
 		update((store) => ({
 			...store,
