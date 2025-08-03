@@ -16,6 +16,8 @@
 		handleMeetingOrPersonalBooking,
 		handleTrainingBooking
 	} from '$lib/helpers/bookingHelpers/bookingHelpers';
+	import { popupStore } from '$lib/stores/popupStore';
+	import { handleBookingEmail } from '$lib/helpers/bookingHelpers/bookingHelpers';
 
 	export let startTime: Date | null = null;
 	export let clientId: number | null = null;
@@ -58,7 +60,8 @@
 					hour12: false
 				})
 			: '13:30',
-		repeat: false
+		repeat: false,
+		emailBehavior: { label: 'Skicka inte', value: 'none' }
 	};
 
 	// Reactive booking type fallback
@@ -116,15 +119,58 @@
 		const type = selectedBookingComponent;
 		bookingObject.currentUser = currentUser;
 
+		if (!currentUser) return;
+
+		let bookedDates: string[] = [];
 		let success = false;
 
 		if (type === 'training') {
-			success = await handleTrainingBooking(bookingObject, currentUser, repeatedBookings, type);
+			const result = await handleTrainingBooking(
+				bookingObject,
+				currentUser,
+				repeatedBookings,
+				type
+			);
+			success = result.success;
+			bookedDates = result.bookedDates ?? [];
 		} else {
 			success = await handleMeetingOrPersonalBooking(bookingObject, currentUser, type);
+			bookedDates = [`${bookingObject.date} kl ${bookingObject.time}`];
 		}
 
-		if (success) onClose();
+		if (success && bookingObject.clientId) {
+			const clientEmail = getClientEmails(bookingObject.clientId);
+			console.log('Client email:', clientEmail);
+
+			if (clientEmail) {
+				const emailResult = await handleBookingEmail({
+					emailBehavior: bookingObject.emailBehavior.value,
+					clientEmail,
+					fromUser: currentUser,
+					bookedDates
+				});
+
+				if (emailResult === 'edit') {
+					popupStore.set({
+						type: 'mail',
+						header: `Maila bokningsbekräftelse till ${clientEmail}`,
+						data: {
+							prefilledRecipients: clientEmail,
+							subject: 'Bokningsbekräftelse',
+							header: 'Bekräftelse på dina bokningar',
+							subheader: 'Tack för din bokning!',
+							body: bookedDates.map((d) => `• ${d}`).join('<br>'),
+							lockedFields: ['recipients'],
+							autoFetchUsersAndClients: false
+						}
+					});
+				}
+			}
+		}
+
+		if (success) {
+			onClose();
+		}
 	}
 </script>
 

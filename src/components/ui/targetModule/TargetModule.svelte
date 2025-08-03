@@ -24,7 +24,7 @@
 			variant="secondary"
 			iconLeft="Person"
 			iconRight="ChevronRight"
-			on:click={() => goto('/')}
+			on:click={() => goto('/home')}
 		/>
 	</div>
 

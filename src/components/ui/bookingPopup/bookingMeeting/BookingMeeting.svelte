@@ -8,6 +8,8 @@
 	import Input from '../../../bits/Input/Input.svelte';
 	import TextArea from '../../../bits/textarea/TextArea.svelte';
 	import { user } from '$lib/stores/userStore';
+	import OptionButton from '../../../bits/optionButton/OptionButton.svelte';
+	import { capitalizeFirstLetter } from '$lib/helpers/generic/genericHelpers';
 
 	export let bookingObject: {
 		name?: string;
@@ -20,6 +22,7 @@
 		endTime: string;
 		repeat: boolean;
 		repeatWeeks?: number;
+		emailBehavior?: { label: string; value: string };
 	};
 
 	export let users: { name: string; value: number }[] = [];
@@ -39,6 +42,13 @@
 			bookingObject.user_ids = [currentUser?.id];
 		}
 	});
+
+	function handleEmailBehaviorSelect(event: CustomEvent<string>) {
+		bookingObject.emailBehavior = {
+			value: event.detail,
+			label: capitalizeFirstLetter(event.detail)
+		};
+	}
 
 	function handleUserSelection(event) {
 		bookingObject.attendees = [...event.detail.selected];
@@ -344,5 +354,19 @@
 				{/if}
 			{/if}
 		</div>
+
+		<OptionButton
+			label="Bekräftelsemail"
+			labelIcon="Mail"
+			options={[
+				{ value: 'none', label: 'Skicka inte' },
+				{ value: 'send', label: 'Skicka direkt' },
+				{ value: 'edit', label: 'Redigera innan' }
+			]}
+			bind:selectedOption={bookingObject.emailBehavior}
+			on:select={handleEmailBehaviorSelect}
+			size="small"
+			full
+		/>
 	{/if}
 </div>

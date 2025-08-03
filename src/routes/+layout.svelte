@@ -14,6 +14,10 @@
 	import { browser } from '$app/environment';
 	import { goto } from '$app/navigation';
 	import Button from '../components/bits/button/Button.svelte';
+	import PopupWrapper from '../components/ui/popupWrapper/PopupWrapper.svelte';
+
+	import { popupStore } from '$lib/stores/popupStore';
+	import MailComponent from '../components/ui/mailComponent/MailComponent.svelte';
 
 	export let data;
 	$user = data.user;
@@ -91,6 +95,17 @@
 		<ToastContainer />
 	{/if}
 </ParaglideJS>
+
+{#if $popupStore?.type === 'mail'}
+	<PopupWrapper
+		width="900px"
+		header={$popupStore?.header || 'Skicka E-post'}
+		icon="Mail"
+		on:close={() => popupStore.set(null)}
+	>
+		<MailComponent {...$popupStore.data} />
+	</PopupWrapper>
+{/if}
 
 <style>
 	@media (max-width: 768px) {

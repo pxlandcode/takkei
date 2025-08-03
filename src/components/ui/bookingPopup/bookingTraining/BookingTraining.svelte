@@ -46,6 +46,7 @@
 				repeatWeeks: bookingObject.repeatWeeks
 			})
 		});
+		console.log('checkRepeatAvailability response:', res);
 
 		const data = await res.json();
 
@@ -89,7 +90,6 @@
 		};
 	}
 
-	// Reactive filtered clients list
 	$: {
 		let newFilteredClients = [];
 
@@ -143,6 +143,13 @@
 		clientScope =
 			clientScopeOptions.find((opt) => opt.value === selectedValue) ?? clientScopeOptions[0];
 		bookingObject.clientId = null;
+	}
+
+	function handleEmailBehaviorSelect(event: CustomEvent<string>) {
+		bookingObject.emailBehavior = {
+			value: event.detail,
+			label: capitalizeFirstLetter(event.detail)
+		};
 	}
 </script>
 
@@ -217,6 +224,7 @@
 	/>
 
 	<!-- Repeat Booking Section -->
+
 	<div class="flex flex-col gap-2">
 		<Checkbox
 			id="repeat"
@@ -298,4 +306,18 @@
 			{/if}
 		{/if}
 	</div>
+
+	<OptionButton
+		label="Bekräftelsemail"
+		labelIcon="Mail"
+		options={[
+			{ value: 'none', label: 'Skicka inte' },
+			{ value: 'send', label: 'Skicka direkt' },
+			{ value: 'edit', label: 'Redigera innan' }
+		]}
+		bind:selectedOption={bookingObject.emailBehavior}
+		on:select={handleEmailBehaviorSelect}
+		size="small"
+		full
+	/>
 </div>
