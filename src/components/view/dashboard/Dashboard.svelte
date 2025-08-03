@@ -49,8 +49,8 @@
 	];
 </script>
 
-<div class="flex h-full w-[320px] flex-col justify-between gap-4">
-	<div class="flex flex-col gap-4">
+<div class="hide-scrollbar flex h-full w-[320px] flex-col justify-between gap-4 overflow-scroll">
+	<div class=" flex flex-col gap-4 pt-4">
 		<DashboardHeader />
 		<CalendarModule on:dateSelect={(e) => handleDateSelect(e.detail)} />
 		<TargetModule />
@@ -67,7 +67,7 @@
 		</div>
 	</div>
 
-	<div class="mb-2">
+	<div class="mb-2 pb-4">
 		<DashboardIcon></DashboardIcon>
 	</div>
 </div>
