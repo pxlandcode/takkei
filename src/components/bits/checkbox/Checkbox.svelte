@@ -23,7 +23,7 @@
 				{id}
 				{name}
 				bind:checked
-				on:click={handleClick}
+				on:click|stopPropagation={handleClick}
 				class="peer h-5 w-5 cursor-pointer appearance-none rounded border
 					{errors[name] ? 'border-red-500' : 'border-gray-300'} 
 					bg-white shadow transition-all hover:shadow-md focus:ring-blue-500"

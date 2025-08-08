@@ -7,10 +7,12 @@
 	import OptionButton from '../../bits/optionButton/OptionButton.svelte';
 	import PopupWrapper from '../popupWrapper/PopupWrapper.svelte';
 	import BookingDetailsPopup from '../bookingDetailsPopup/BookingDetailsPopup.svelte';
+	import Button from '../../bits/button/Button.svelte';
+	import { popupStore } from '$lib/stores/popupStore';
 
 	export let trainerId: number | null = null;
 	export let clientId: number | null = null;
-
+	export let client: any = null;
 	// ✅ Reactive Stores
 	let bookings = writable([]);
 	let page = writable(0);
@@ -19,6 +21,7 @@
 
 	let selectedBooking = null;
 	let showBookingDetailsPopup = false;
+	let selectedBookings = writable([]);
 
 	const isClient = clientId !== null;
 
@@ -26,6 +29,8 @@
 	const today = new Date();
 	const oneMonthBack = new Date(today);
 	oneMonthBack.setMonth(today.getMonth() - 1);
+
+	$: bookings && console.log('Bookings updated:', $bookings);
 
 	let selectedDate = writable(
 		clientId ? oneMonthBack.toISOString().split('T')[0] : today.toISOString().split('T')[0]
@@ -84,6 +89,46 @@
 		} finally {
 			isLoading.set(false);
 		}
+	}
+
+	function sendBookingConfirmations() {
+		const bookingsToSend = get(selectedBookings);
+		console.log('Selected bookings to send:', bookingsToSend);
+
+		if (bookingsToSend.length === 0) return;
+
+		// If more than one unique client is selected, show a warning or handle differently
+		const uniqueClients = Array.from(
+			new Set(bookingsToSend.map((b) => b.client?.email).filter(Boolean))
+		);
+
+		if (uniqueClients.length > 1) {
+			alert('You can only send confirmations to one client at a time.');
+			return;
+		}
+
+		const clientEmail = client?.email;
+
+		const bookedDates = bookingsToSend.map((b) => {
+			const start = new Date(b.booking.startTime);
+			const time = start.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' });
+			const date = start.toLocaleDateString('sv-SE');
+			return `${date} kl ${time}`;
+		});
+
+		popupStore.set({
+			type: 'mail',
+			header: `Maila bokningsbekräftelse till ${clientEmail}`,
+			data: {
+				prefilledRecipients: [clientEmail],
+				subject: 'Bokningsbekräftelse',
+				header: 'Bekräftelse på dina bokningar',
+				subheader: 'Tack för din bokning!',
+				body: bookedDates.map((d) => `• ${d}`).join('<br>'),
+				lockedFields: ['recipients'],
+				autoFetchUsersAndClients: false
+			}
+		});
 	}
 
 	// ✅ Handle Infinite Scroll
@@ -146,13 +191,50 @@
 		</div>
 	</div>
 
+	{#if clientId}
+		<div class="mt-4 flex items-center justify-between rounded-lg bg-orange/10 px-4 py-3 shadow-sm">
+			<p class="text-sm text-gray-700">
+				{$selectedBookings.length > 0
+					? `${$selectedBookings.length} bokningar valda`
+					: 'Inga bokningar valda'}
+			</p>
+
+			<Button
+				disabled={$selectedBookings.length === 0}
+				text="Skicka bekräftelse"
+				iconLeft="Mail"
+				variant="primary"
+				small
+				class="!bg-orange text-white disabled:cursor-not-allowed disabled:opacity-50"
+				on:click={() => {
+					sendBookingConfirmations();
+				}}
+			/>
+		</div>
+	{/if}
+
 	<!-- 🔹 Booking List (Infinite Scroll) -->
 	<div
-		class="h-full max-h-[65vh] space-y-3 overflow-y-scroll custom-scrollbar"
+		class="h-full max-h-[65vh] space-y-3 overflow-y-scroll pt-4 custom-scrollbar"
 		on:scroll={handleScroll}
 	>
-		{#each $bookings as booking}
-			<ProfileBookingSlot {booking} {isClient} on:bookingClick={handleBookingClick} />
+		{#each $bookings as booking (booking.booking.id)}
+			<ProfileBookingSlot
+				{booking}
+				{isClient}
+				showSelect={clientId !== null}
+				selected={$selectedBookings.some((b) => b.booking.id === booking.booking.id)}
+				onSelect={(checked, selectedBooking) => {
+					selectedBookings.update((current) => {
+						if (checked) {
+							return [...current, selectedBooking];
+						} else {
+							return current.filter((b) => b.booking.id !== selectedBooking.booking.id);
+						}
+					});
+				}}
+				on:bookingClick={handleBookingClick}
+			/>
 		{/each}
 
 		{#if $isLoading}

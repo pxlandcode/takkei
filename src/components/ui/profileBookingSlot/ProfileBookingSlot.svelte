@@ -12,6 +12,12 @@
 	export let booking: FullBooking;
 	export let isClient = false;
 
+	import Checkbox from '../../bits/checkbox/Checkbox.svelte';
+
+	export let selected: boolean = false;
+	export let onSelect: (checked: boolean, booking: FullBooking) => void = () => {};
+	export let showSelect: boolean = false;
+
 	const dispatch = createEventDispatcher();
 
 	$: bookingColor = booking.location?.color ? booking.location.color : '#4B5563';
@@ -64,8 +70,20 @@
 		<div class="cancelled-overlay"></div>
 	{/if}
 
-	<!-- ✅ Booking Icon & Details -->
 	<div class="flex items-center gap-2 text-gray-700">
+		<!-- ✅ Select Checkbox -->
+		{#if showSelect}
+			<div class="relative">
+				<Checkbox
+					id={`select-${booking.booking.id}`}
+					name={`select-${booking.booking.id}`}
+					checked={selected}
+					on:change={(e) => onSelect(e.detail.checked, booking)}
+					label=""
+				/>
+			</div>
+		{/if}
+
 		<span style="color: {bookingColor}">
 			<svelte:component this={bookingIcon} size="20px" />
 		</span>
