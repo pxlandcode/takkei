@@ -175,7 +175,7 @@
 </script>
 
 <!-- Booking Manager UI -->
-<div class="flex w-[600px] flex-col gap-4 bg-white">
+<div class="flex w-full max-w-[600px] flex-col gap-4 bg-white md:w-[600px]">
 	<!-- Booking Type Selector -->
 
 	<!-- Booking Type Selector -->

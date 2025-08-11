@@ -3,13 +3,45 @@ import { clickOutside } from '$lib/actions/clickOutside';
 
 interface CancelParams {
 	onConfirm: (reason: string, time: string) => void;
+	// NEW: start time of the booking (ISO string)
+	startTimeISO: string;
 }
 
-export function cancelConfirm(node: HTMLElement, { onConfirm }: CancelParams) {
+export function cancelConfirm(node: HTMLElement, { onConfirm, startTimeISO }: CancelParams) {
 	let box: HTMLDivElement | null = null;
 	let visible = false;
-	let reason = '';
-	let time = new Date().toISOString().slice(0, 16);
+	const time = new Date().toISOString().slice(0, 16);
+
+	// --- late-cancel helpers (local time, matches your UI input) ---
+	function sameYMD(a: Date, b: Date) {
+		return (
+			a.getFullYear() === b.getFullYear() &&
+			a.getMonth() === b.getMonth() &&
+			a.getDate() === b.getDate()
+		);
+	}
+	function withinCancellationWindow(start: Date, cancelAt: Date) {
+		// 1) start midnight > cancelAt + 24h
+		const startMidnight = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+		const cancelPlus24 = new Date(cancelAt.getTime() + 24 * 60 * 60 * 1000);
+
+		// 2) cancelling before 12:00 the day before the session
+		const dayAfterCancel = new Date(
+			cancelAt.getFullYear(),
+			cancelAt.getMonth(),
+			cancelAt.getDate() + 1
+		);
+		const okTomorrowBeforeNoon = sameYMD(start, dayAfterCancel) && cancelAt.getHours() < 12;
+
+		return startMidnight > cancelPlus24 || okTomorrowBeforeNoon;
+	}
+	function isLate(startISO: string, cancelLocalValue: string) {
+		// start is a full ISO (UTC); convert to Date -> local comparison is fine for rule thresholds
+		const start = new Date(startISO);
+		// cancel is from <input type="datetime-local">, interpreted in local time
+		const cancel = new Date(cancelLocalValue.replace(' ', 'T'));
+		return !withinCancellationWindow(start, cancel);
+	}
 
 	function show() {
 		if (box) return;
@@ -18,14 +50,16 @@ export function cancelConfirm(node: HTMLElement, { onConfirm }: CancelParams) {
 		box.className =
 			'fixed z-50 max-w-xs rounded-md border border-gray-bright bg-white p-4 shadow-xl';
 		box.innerHTML = `
-			<p class="mb-2 font-semibold text-gray">Avbryt bokning</p>
-			<input data-reason type="text" placeholder="Orsak krävs" class="w-full border px-2 py-1 mb-2 text-sm" />
-			<input data-time type="datetime-local" class="w-full border px-2 py-1 mb-3 text-sm" value="${time}" />
-			<div class="flex justify-end gap-4">
-				<button data-cancel class="text-base text-error hover:text-error-hover hover:underline">Avbryt</button>
-				<button data-confirm disabled class="rounded bg-gray px-6 py-1 text-base text-white cursor-not-allowed">Bekräfta</button>
-			</div>
-		`;
+      <p class="mb-2 font-semibold text-gray">Avbryt bokning</p>
+      <input data-reason type="text" placeholder="Orsak krävs" class="w-full border px-2 py-1 mb-2 text-sm" />
+      <input data-time type="datetime-local" class="w-full border px-2 py-1 text-sm" value="${time}" />
+      <!-- late note (hidden by default; we’ll toggle it) -->
+      <p data-late-note class="mt-2 text-xs text-error hidden">Sen avbokning – debiteringsregler kan gälla.</p>
+      <div class="mt-3 flex justify-end gap-4">
+        <button data-cancel class="text-base text-error hover:text-error-hover hover:underline">Avbryt</button>
+        <button data-confirm disabled class="rounded bg-gray px-6 py-1 text-base text-white cursor-not-allowed">Bekräfta</button>
+      </div>
+    `;
 
 		document.body.appendChild(box);
 
@@ -34,7 +68,12 @@ export function cancelConfirm(node: HTMLElement, { onConfirm }: CancelParams) {
 			clickOutside(box!, hide);
 
 			const reasonInput = box!.querySelector<HTMLInputElement>('[data-reason]')!;
+			const timeInput = box!.querySelector<HTMLInputElement>('[data-time]')!;
 			const confirmBtn = box!.querySelector<HTMLButtonElement>('[data-confirm]')!;
+			const lateNote = box!.querySelector<HTMLParagraphElement>('[data-late-note]')!;
+
+			// initial late state
+			toggleLateNote();
 
 			reasonInput.addEventListener('input', () => {
 				const val = reasonInput.value.trim();
@@ -43,6 +82,13 @@ export function cancelConfirm(node: HTMLElement, { onConfirm }: CancelParams) {
 					? 'rounded bg-success hover:bg-success-hover px-6 py-1 text-base text-white'
 					: 'rounded bg-gray px-6 py-1 text-base text-white cursor-not-allowed';
 			});
+
+			timeInput.addEventListener('input', toggleLateNote);
+
+			function toggleLateNote() {
+				const late = isLate(startTimeISO, timeInput.value);
+				lateNote.classList.toggle('hidden', !late);
+			}
 		});
 
 		box.querySelector('[data-cancel]')?.addEventListener('click', hide);
@@ -64,7 +110,6 @@ export function cancelConfirm(node: HTMLElement, { onConfirm }: CancelParams) {
 
 	function positionBox() {
 		if (!box) return;
-
 		const trigger = node.getBoundingClientRect();
 		const boxRect = box.getBoundingClientRect();
 		const spacing = 8;

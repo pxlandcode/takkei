@@ -27,6 +27,23 @@
 	let editedBooking = null;
 	let participantNames: string[] = [];
 
+	const isCancelled =
+		(booking.booking.status && booking.booking.status.toLowerCase() === 'cancelled') ||
+		!!booking.booking.cancelTime;
+
+	function fmtDateTime(d?: string | Date | null) {
+		if (!d) return '';
+		const date = typeof d === 'string' ? new Date(d) : d;
+		// Swedish date + time, short
+		return date.toLocaleString('sv-SE', {
+			year: 'numeric',
+			month: '2-digit',
+			day: '2-digit',
+			hour: '2-digit',
+			minute: '2-digit'
+		});
+	}
+
 	onMount(async () => {
 		if (booking.isPersonalBooking && get(users).length === 0) {
 			await fetchUsers();
@@ -42,6 +59,7 @@
 	});
 
 	function handleEdit() {
+		if (isCancelled) return;
 		editedBooking = {
 			id: booking.booking.id,
 			clientId: booking.client?.id ?? null,
@@ -120,61 +138,96 @@
 	<div class="flex w-[600px] flex-col gap-4 bg-white">
 		<div class="mt-4 flex items-center justify-between">
 			<h2 class="text-xl font-semibold">Bokningsdetaljer</h2>
-			<div class="flex gap-4">
-				<Button iconLeft="Edit" text="Redigera" variant="primary" small on:click={handleEdit} />
-				<button
-					use:cancelConfirm={{ onConfirm: handleCancel }}
-					class="flex items-center gap-2 rounded-md border border-gray bg-white px-3 py-1 text-sm text-error hover:bg-error/10 hover:text-error-hover"
-				>
-					<Icon icon="Trash" size="16px" color="error" />
-					Ta bort
-				</button>
+
+			<div class="flex gap-3">
+				{#if !isCancelled}
+					<Button iconLeft="Edit" text="Redigera" variant="primary" small on:click={handleEdit} />
+					<button
+						use:cancelConfirm={{ onConfirm: handleCancel, startTimeISO: booking.booking.startTime }}
+						class="flex items-center gap-2 rounded-md border border-gray bg-white px-3 py-1 text-sm text-error hover:bg-error/10 hover:text-error-hover"
+					>
+						<Icon icon="Trash" size="16px" color="error" />
+						Ta bort
+					</button>
+				{:else}
+					<!-- Optional: just a close button when canceled -->
+					<Button text="Stäng" variant="secondary" small on:click={onClose} />
+				{/if}
 			</div>
 		</div>
 
-		{#if booking.isPersonalBooking}
-			<p class="text-gray-600">
-				<strong>Namn:</strong>
-				{booking.personalBooking.name}
-			</p>
-			{#if booking.personalBooking.text}
-				<p class="text-gray-600">
-					<strong>Beskrivning:</strong>
-					{booking.personalBooking.text}
+		<!-- Canceled banner -->
+		{#if isCancelled}
+			<div class="mx-1 rounded-md border border-rose-300 bg-rose-100 p-3 text-rose-900">
+				<div class="flex items-center gap-2">
+					<Icon icon="CircleAlert" size="18px" color="error" />
+					<span class="font-semibold">Avbokad</span>
+				</div>
+
+				{#if booking.booking.cancelReason}
+					<p class="mt-1 text-sm"><strong>Orsak:</strong> {booking.booking.cancelReason}</p>
+				{/if}
+
+				<div class="mt-1 space-y-1 text-xs">
+					{#if booking.booking.actualCancelTime}
+						<p>
+							<strong>Kundens avbokningstid:</strong>
+							{fmtDateTime(booking.booking.actualCancelTime)}
+						</p>
+					{/if}
+					{#if booking.booking.cancelTime}
+						<p>
+							<strong>Registrerad i systemet:</strong>
+							{fmtDateTime(booking.booking.cancelTime)}
+						</p>
+					{/if}
+				</div>
+			</div>
+		{/if}
+
+		<div class={isCancelled ? 'pointer-events-none select-none opacity-60' : ''}>
+			{#if booking.isPersonalBooking}
+				<p class="text-gray-700">
+					<strong>Namn:</strong>
+					{booking.personalBooking.name}
+				</p>
+				{#if booking.personalBooking.text}
+					<p class="text-gray-700">
+						<strong>Beskrivning:</strong>
+						{booking.personalBooking.text}
+					</p>
+				{/if}
+				<p class="text-gray-700"><strong>Deltagare:</strong></p>
+				<ul class="ml-4 list-disc text-sm text-gray-700">
+					{#each participantNames as name}
+						<li>{name}</li>
+					{/each}
+				</ul>
+			{:else}
+				<p class="text-gray-700">
+					<strong>Kund:</strong>
+					{booking.client?.firstname}
+					{booking.client?.lastname}
+				</p>
+				<p class="text-gray-700">
+					<strong>Tränare:</strong>
+					{booking.trainer?.firstname}
+					{booking.trainer?.lastname}
+				</p>
+				<p class="text-gray-700">
+					<strong>Plats:</strong>
+					{booking.location?.name ?? 'Saknas'}
 				</p>
 			{/if}
-			<p class="text-gray-600">
-				<strong>Deltagare:</strong>
-			</p>
-			<ul class="ml-4 list-disc text-sm text-gray-700">
-				{#each participantNames as name}
-					<li>{name}</li>
-				{/each}
-			</ul>
-		{:else}
-			<p class="text-gray-600">
-				<strong>Kund:</strong>
-				{booking.client?.firstname}
-				{booking.client?.lastname}
-			</p>
-			<p class="text-gray-600">
-				<strong>Tränare:</strong>
-				{booking.trainer?.firstname}
-				{booking.trainer?.lastname}
-			</p>
-			<p class="text-gray-600">
-				<strong>Plats:</strong>
-				{booking.location?.name ?? 'Saknas'}
-			</p>
-		{/if}
 
-		<p class="text-gray-600">
-			<strong>Tid:</strong>
-			{formatTime(startTime.toISOString())} – {formatTime(endTime.toISOString())}
-		</p>
+			<p class={`text-gray-700 ${isCancelled ? 'line-through' : ''}`}>
+				<strong>Tid:</strong>
+				{formatTime(startTime.toISOString())} – {formatTime(endTime.toISOString())}
+			</p>
 
-		{#if booking.booking.tryOut}
-			<p class="font-semibold text-orange-600">Prova-på-bokning</p>
-		{/if}
+			{#if booking.booking.tryOut}
+				<p class="font-semibold text-orange-600">Prova-på-bokning</p>
+			{/if}
+		</div>
 	</div>
 {/if}
