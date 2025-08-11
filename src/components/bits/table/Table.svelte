@@ -8,6 +8,8 @@
 
 	const dispatch = createEventDispatcher();
 
+	export let sideScrollable = false;
+
 	// Props for headers and table data
 	export let headers: {
 		label: string;
@@ -58,7 +60,9 @@
 
 <!-- Desktop Table -->
 <div class="overflow-x-auto border-gray sm:rounded-md lg:border lg:shadow-md">
-	<table class="hidden w-full table-fixed lg:table">
+	<table
+		class={`hidden w-full lg:table ${sideScrollable ? 'min-w-max table-auto' : 'table-fixed'}`}
+	>
 		<thead class="rounded-t-lg bg-gray text-left text-white">
 			<tr>
 				{#if !noSelect}
@@ -69,7 +73,7 @@
 
 				{#each headers as header}
 					<th
-						class="{header.sort ? 'cursor-pointer' : ''} items-center gap-2 p-2 py-4"
+						class="{header.sort ? 'cursor-pointer' : ''} items-center gap-2 text-nowrap p-2 py-4"
 						on:click={() => header.sort && sortTable(header.key)}
 						style={header.width ? `width: ${header.width}` : ''}
 					>

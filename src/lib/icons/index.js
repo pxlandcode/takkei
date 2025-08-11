@@ -59,6 +59,8 @@ import IconCircleAlert from './IconCircleAlert.svelte';
 import IconTrophy from './IconTrophy.svelte';
 import IconCalendarCheck from './IconCalendarCheck.svelte';
 import IconCalendarSun from './IconCalendarSun.svelte';
+import IconRefresh from './IconRefresh.svelte';
+import IconDownload from './IconDownload.svelte';
 
 export {
 	IconClose,
@@ -121,5 +123,7 @@ export {
 	IconCircleAlert,
 	IconTrophy,
 	IconCalendarCheck,
-	IconCalendarSun
+	IconCalendarSun,
+	IconRefresh,
+	IconDownload
 };
