@@ -106,6 +106,7 @@ function transformBooking(raw: any): FullBooking {
 			createdAt: raw.created_at,
 			updatedAt: raw.updated_at,
 			cancelTime: raw.cancel_time ?? null,
+			actualCancelTime: raw.actual_cancel_time ?? null,
 			repeatIndex: raw.repeat_index ?? null,
 			tryOut: raw.try_out,
 			refundComment: raw.refund_comment ?? null,

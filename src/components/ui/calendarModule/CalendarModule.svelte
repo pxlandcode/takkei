@@ -39,6 +39,13 @@
 			(d) => d.toDateString() === selectedDateFromStore.toDateString()
 		);
 		selectedWeekRowIndex = selectedIndex !== -1 ? Math.floor(selectedIndex / 7) : null;
+
+		if (
+			selectedDateFromStore.getMonth() !== $currentDate.getMonth() ||
+			selectedDateFromStore.getFullYear() !== $currentDate.getFullYear()
+		) {
+			currentDate.set(new Date(selectedDateFromStore));
+		}
 	}
 
 	// Get the first and last day of the month
@@ -131,7 +138,7 @@
 	}
 
 	function openMyCalender() {
-		calendarStore.setNewFilters({ trainerIds: [currentUser.id] }, fetch);
+		calendarStore.updateFilters({ trainerIds: [currentUser.id] }, fetch);
 		goto(`/calendar?trainerId=${currentUser.id}`);
 	}
 

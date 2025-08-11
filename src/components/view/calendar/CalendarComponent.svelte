@@ -12,8 +12,8 @@
 	import { tooltip } from '$lib/actions/tooltip';
 
 	// Props
-	export let startHour = 5;
-	export let totalHours = 18;
+	export let startHour = 4;
+	export let totalHours = 19;
 	export let singleDayView = false; // ✅ Determines single-day or week mode
 
 	let timePillRef: HTMLDivElement | null = null;
@@ -81,7 +81,7 @@
 		}
 	}
 
-	const hourHeight = 80;
+	const hourHeight = 50;
 	let calendarContainer: HTMLDivElement | null = null;
 
 	// 📍 Get booking start time
@@ -336,7 +336,7 @@
 
 		<!-- DAYS & BOOKINGS -->
 		{#each weekDays as { day, date }, dayIndex}
-			<div class="border-gray-dark relative flex flex-col gap-1 border-l">
+			<div class="relative flex flex-col gap-1 border-l border-gray-bright">
 				{#each getUnavailableBlocks(dayIndex) as block}
 					<div
 						class="unavailable-striped absolute left-0 right-0"
@@ -363,9 +363,9 @@
 						{i}
 						columnIndex={layoutItem.columnIndex}
 						columnCount={layoutItem.columnCount}
-						toolTipText={layoutItem.booking.client?.firstname +
-							' ' +
-							layoutItem.booking.client?.lastname || ''}
+						toolTipText={layoutItem.booking.booking.startTime
+							? `${new Date(layoutItem.booking.booking.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} ${layoutItem.booking.booking.endTime ? ` - ${new Date(layoutItem.booking.booking.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''}`
+							: ''}
 						on:onClick={(e) => onOpenBooking(e.detail.booking)}
 					/>
 				{/each}

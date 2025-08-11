@@ -14,6 +14,10 @@
 	import { browser } from '$app/environment';
 	import { goto } from '$app/navigation';
 	import Button from '../components/bits/button/Button.svelte';
+	import PopupWrapper from '../components/ui/popupWrapper/PopupWrapper.svelte';
+
+	import { popupStore } from '$lib/stores/popupStore';
+	import MailComponent from '../components/ui/mailComponent/MailComponent.svelte';
 
 	export let data;
 	$user = data.user;
@@ -51,7 +55,7 @@
 		<main class="relative flex h-dvh w-full flex-row overflow-hidden bg-background-gradient">
 			<!-- ✅ DESKTOP -->
 			<div class="hidden w-full gap-4 md:flex">
-				<aside class="w-80 p-4">
+				<aside class="w-80 pl-4">
 					<Dashboard />
 				</aside>
 				<section class="flex flex-1 flex-col overflow-hidden p-4">
@@ -63,7 +67,7 @@
 
 			<!-- ✅ MOBILE -->
 			<div class="relative flex w-full items-start justify-center md:hidden">
-				<div class="z-0 p-4">
+				<div class="z-0 h-full">
 					<Dashboard />
 				</div>
 				<!-- Sliding drawer for slot content -->
@@ -91,6 +95,17 @@
 		<ToastContainer />
 	{/if}
 </ParaglideJS>
+
+{#if $popupStore?.type === 'mail'}
+	<PopupWrapper
+		width="900px"
+		header={$popupStore?.header || 'Skicka E-post'}
+		icon="Mail"
+		on:close={() => popupStore.set(null)}
+	>
+		<MailComponent {...$popupStore.data} />
+	</PopupWrapper>
+{/if}
 
 <style>
 	@media (max-width: 768px) {

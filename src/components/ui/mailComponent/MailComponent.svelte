@@ -15,6 +15,7 @@
 	import OptionButton from '../../bits/optionButton/OptionButton.svelte';
 	import { addToast } from '$lib/stores/toastStore';
 	import { AppToastType } from '$lib/types/toastTypes';
+	import { popupStore } from '$lib/stores/popupStore';
 
 	export let autoFetchUsersAndClients: boolean = true;
 
@@ -122,6 +123,7 @@
 			...selectedUsers.map((u) => u.email),
 			...selectedClients.map((c) => c.email)
 		];
+
 		try {
 			await sendMail({
 				to: recipients,
@@ -155,6 +157,7 @@
 			});
 		} finally {
 			loadingStore.loading(false);
+			popupStore.set(null);
 		}
 	}
 </script>

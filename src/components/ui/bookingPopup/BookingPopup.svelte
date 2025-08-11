@@ -8,15 +8,16 @@
 	import Button from '../../bits/button/Button.svelte';
 	import BookingTraining from './bookingTraining/BookingTraining.svelte';
 	import BookingMeeting from './bookingMeeting/BookingMeeting.svelte';
-	import BookingPersonal from './bookingPersonal/BookingPersonal.svelte';
 	import OptionsSelect from '../../bits/options-select/OptionsSelect.svelte';
 	import { user } from '$lib/stores/userStore';
-	import { createBooking } from '$lib/services/api/bookingService';
-	import { sendMail } from '$lib/services/mail/mailClientService';
 	import { calendarStore } from '$lib/stores/calendarStore';
 	import { get } from 'svelte/store';
-	import { addToast } from '$lib/stores/toastStore';
-	import { AppToastType } from '$lib/types/toastTypes';
+	import {
+		handleMeetingOrPersonalBooking,
+		handleTrainingBooking
+	} from '$lib/helpers/bookingHelpers/bookingHelpers';
+	import { popupStore } from '$lib/stores/popupStore';
+	import { handleBookingEmail } from '$lib/helpers/bookingHelpers/bookingHelpers';
 
 	export let startTime: Date | null = null;
 	export let clientId: number | null = null;
@@ -43,6 +44,7 @@
 		trainerId: null,
 		clientId: null,
 		locationId: null,
+		currentUser: null,
 		name: '',
 		text: '',
 		date: startTime
@@ -58,7 +60,8 @@
 					hour12: false
 				})
 			: '13:30',
-		repeat: false
+		repeat: false,
+		emailBehavior: { label: 'Skicka inte', value: 'none' }
 	};
 
 	// Reactive booking type fallback
@@ -114,129 +117,64 @@
 
 	async function submitBooking() {
 		const type = selectedBookingComponent;
-		let bookedDates = [];
 		bookingObject.currentUser = currentUser;
 
-		if (repeatedBookings.length > 0) {
-			let successCount = 0;
+		if (!currentUser) return;
 
-			for (let i = 0; i < repeatedBookings.length; i++) {
-				const repeated = repeatedBookings[i];
-				const singleBooking = {
-					...bookingObject,
-					date: repeated.date,
-					time: repeated.selectedTime
-				};
+		let bookedDates: string[] = [];
+		let success = false;
 
-				const result = await createBooking(singleBooking, type);
+		if (type === 'training') {
+			const result = await handleTrainingBooking(
+				bookingObject,
+				currentUser,
+				repeatedBookings,
+				type
+			);
+			success = result.success;
+			bookedDates = result.bookedDates ?? [];
+		} else {
+			success = await handleMeetingOrPersonalBooking(bookingObject, currentUser, type);
+			bookedDates = [`${bookingObject.date} kl ${bookingObject.time}`];
+		}
 
-				if (result.success) {
-					successCount++;
-					bookedDates.push(`${repeated.date} kl ${repeated.selectedTime}`);
-				} else {
-					addToast({
-						type: AppToastType.CANCEL,
-						message: `Fel vid bokning ${i + 1}`,
-						description: `Misslyckades: ${singleBooking.date} kl ${singleBooking.time}.`
-					});
-				}
-			}
+		if (success && bookingObject.clientId) {
+			const clientEmail = getClientEmails(bookingObject.clientId);
 
-			if (successCount === repeatedBookings.length) {
-				addToast({
-					type: AppToastType.SUCCESS,
-					message: 'Alla bokningar klara!',
-					description: `${successCount} av ${repeatedBookings.length} lyckades.`
+			if (clientEmail) {
+				const emailResult = await handleBookingEmail({
+					emailBehavior: bookingObject.emailBehavior.value,
+					clientEmail,
+					fromUser: currentUser,
+					bookedDates
 				});
 
-				if (type === 'training' && bookingObject.clientId) {
-					const clientEmail = getClientEmails(bookingObject.clientId);
-					if (clientEmail) {
-						const result = await sendMail({
-							to: clientEmail,
+				if (emailResult === 'edit') {
+					popupStore.set({
+						type: 'mail',
+						header: `Maila bokningsbekräftelse till ${clientEmail}`,
+						data: {
+							prefilledRecipients: clientEmail,
 							subject: 'Bokningsbekräftelse',
 							header: 'Bekräftelse på dina bokningar',
 							subheader: 'Tack för din bokning!',
-							body: `
-								Hej! Här är dina bekräftade bokningar:<br><br>
-								${bookedDates.map((d) => `• ${d}`).join('<br>')}<br><br>
-								Vänligen kontakta oss om något behöver ändras.
-							`,
-							from: {
-								name: currentUser.firstname + ' ' + currentUser.lastname,
-								email: currentUser.email
-							}
-						});
-
-						if (result.ok) {
-							addToast({
-								type: AppToastType.SUCCESS,
-								message: 'Bekräftelsemail skickat',
-								description: `Ett bekräftelsemail skickades till ${clientEmail}.`
-							});
-						} else {
-							addToast({
-								type: AppToastType.CANCEL,
-								message: 'Fel vid utskick',
-								description: `Kunde inte skicka bekräftelsemail till ${clientEmail}.`
-							});
+							body: bookedDates.map((d) => `• ${d}`).join('<br>'),
+							lockedFields: ['recipients'],
+							autoFetchUsersAndClients: false
 						}
-					}
+					});
 				}
-
-				onClose();
 			}
-		} else {
-			const result = await createBooking(bookingObject, type);
+		}
 
-			if (result.success) {
-				addToast({
-					type: AppToastType.SUCCESS,
-					message: 'Bokning genomförd',
-					description: `Bokningen skapades klockan ${bookingObject.time} den ${bookingObject.date}.`
-				});
-
-				if (type === 'training' && bookingObject.clientId) {
-					const clientEmail = getClientEmails(bookingObject.clientId);
-					if (clientEmail) {
-						await sendMail({
-							to: clientEmail,
-							subject: 'Bokningsbekräftelse',
-							header: 'Bekräftelse på din bokning',
-							subheader: 'Tack för din bokning!',
-							body: `
-								Hej! Din bokning är bekräftad:<br><br>
-								${bookingObject.date} kl ${bookingObject.time}<br><br>
-								Vänligen kontakta oss om något behöver ändras.
-							`,
-							from: {
-								name: currentUser.firstname + ' ' + currentUser.lastname,
-								email: currentUser.email
-							}
-						});
-
-						addToast({
-							type: AppToastType.SUCCESS,
-							message: 'Bekräftelsemail skickat',
-							description: `Ett bekräftelsemail skickades till ${clientEmail}.`
-						});
-					}
-				}
-
-				onClose();
-			} else {
-				addToast({
-					type: AppToastType.CANCEL,
-					message: 'Något gick fel',
-					description: `Något gick fel, försök igen eller kontakta IT.`
-				});
-			}
+		if (success) {
+			onClose();
 		}
 	}
 </script>
 
 <!-- Booking Manager UI -->
-<div class="flex w-[600px] flex-col gap-4 bg-white">
+<div class="flex w-full max-w-[600px] flex-col gap-4 bg-white md:w-[600px]">
 	<!-- Booking Type Selector -->
 
 	<!-- Booking Type Selector -->
@@ -254,7 +192,6 @@
 		<BookingTraining
 			bind:bookingObject
 			bind:repeatedBookings
-			bind:selectedIsUnavailable
 			bookingContents={($bookingContents || []).map((content) => ({
 				value: content.id,
 				label: capitalizeFirstLetter(content.kind)

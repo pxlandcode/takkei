@@ -1,12 +1,15 @@
 <script lang="ts">
 	import { get } from 'svelte/store';
+	import { onMount } from 'svelte';
+
 	import Button from '../../../bits/button/Button.svelte';
 	import DropdownCheckbox from '../../../bits/dropdown-checkbox/DropdownCheckbox.svelte';
 	import Dropdown from '../../../bits/dropdown/Dropdown.svelte';
 	import Input from '../../../bits/Input/Input.svelte';
 	import TextArea from '../../../bits/textarea/TextArea.svelte';
 	import { user } from '$lib/stores/userStore';
-	import { onMount } from 'svelte';
+	import OptionButton from '../../../bits/optionButton/OptionButton.svelte';
+	import { capitalizeFirstLetter } from '$lib/helpers/generic/genericHelpers';
 
 	export let bookingObject: {
 		name?: string;
@@ -14,16 +17,22 @@
 		user_id?: number | null;
 		user_ids?: number[];
 		attendees?: number[];
-		locationId?: number | null;
 		date: string;
 		time: string;
 		endTime: string;
 		repeat: boolean;
+		repeatWeeks?: number;
+		emailBehavior?: { label: string; value: string };
 	};
 
 	export let users: { name: string; value: number }[] = [];
-	export let locations: { label: string; value: number }[] = [];
 	export let isMeeting: boolean = true;
+	export let repeatedBookings: any[] = [];
+	export let selectedIsUnavailable: boolean = false;
+
+	if (!bookingObject.repeatWeeks) {
+		bookingObject.repeatWeeks = 4;
+	}
 
 	onMount(() => {
 		if (!isMeeting) {
@@ -33,6 +42,13 @@
 			bookingObject.user_ids = [currentUser?.id];
 		}
 	});
+
+	function handleEmailBehaviorSelect(event: CustomEvent<string>) {
+		bookingObject.emailBehavior = {
+			value: event.detail,
+			label: capitalizeFirstLetter(event.detail)
+		};
+	}
 
 	function handleUserSelection(event) {
 		bookingObject.attendees = [...event.detail.selected];
@@ -51,6 +67,90 @@
 		bookingObject.attendees = [];
 		bookingObject.user_ids = [];
 		bookingObject.user_id = null;
+	}
+	async function checkRepeatAvailability() {
+		const res = await fetch('/api/bookings/check-repeat-meeting', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({
+				date: bookingObject.date,
+				time: bookingObject.time,
+				endTime: bookingObject.endTime, // ✅ ADD THIS
+				user_ids: bookingObject.user_ids,
+				repeatWeeks: bookingObject.repeatWeeks
+			})
+		});
+
+		const data = await res.json();
+
+		if (data.success && data.repeatedBookings) {
+			repeatedBookings = data.repeatedBookings.map((week) => ({
+				...week,
+				selectedTime:
+					week.conflict && week.suggestedTimes.length > 0 ? week.suggestedTimes[0] : week.time
+			}));
+		} else {
+			repeatedBookings = [];
+		}
+	}
+
+	function ignoreConflict(weekNumber: number) {
+		repeatedBookings = repeatedBookings.filter((w) => w.week !== weekNumber);
+	}
+
+	function resolveConflict(weekNumber: number) {
+		repeatedBookings = repeatedBookings.map((w) =>
+			w.week === weekNumber ? { ...w, conflict: false } : w
+		);
+	}
+
+	function ignoreUserConflict(weekNumber: number, userId: number) {
+		repeatedBookings = repeatedBookings.map((week) => {
+			if (week.week !== weekNumber) return week;
+
+			const ignoredSet = new Set(week.ignoredUserIds ?? []);
+			ignoredSet.add(userId);
+
+			const stillConflictsWith = week.conflictingUserIds.filter(
+				(id: number) => !ignoredSet.has(id)
+			);
+			const stillHasConflict = stillConflictsWith.length > 0;
+
+			return {
+				...week,
+				conflict: stillHasConflict,
+				conflictingUserIds: stillConflictsWith,
+				ignoredUserIds: Array.from(ignoredSet)
+			};
+		});
+	}
+
+	function getUserName(id: number): string {
+		return users.find((u) => u.value === id)?.name ?? `ID ${id}`;
+	}
+
+	function removeUserFromBooking(userId: number) {
+		bookingObject.attendees = bookingObject.attendees?.filter((id) => id !== userId);
+		bookingObject.user_ids = bookingObject.user_ids?.filter((id) => id !== userId);
+		if (bookingObject.user_id === userId) {
+			bookingObject.user_id = bookingObject.attendees?.[0] ?? null;
+		}
+	}
+
+	function removeUserFromWeekConflict(weekNumber: number, userId: number) {
+		removeUserFromBooking(userId);
+		repeatedBookings = repeatedBookings.map((w) => {
+			if (w.week !== weekNumber) return w;
+
+			const stillConflictsWith = w.conflictingUserIds.filter((id) => id !== userId);
+			const newConflict = stillConflictsWith.length > 0;
+
+			return {
+				...w,
+				conflict: newConflict,
+				conflictingUserIds: stillConflictsWith
+			};
+		});
 	}
 </script>
 
@@ -77,7 +177,6 @@
 
 	<!-- Attendees Selection -->
 	{#if isMeeting}
-		<!-- Attendees Selection -->
 		<div class="flex flex-row gap-2">
 			<DropdownCheckbox
 				label="Deltagare"
@@ -100,15 +199,6 @@
 				<Button icon="Trash" iconColor="red" variant="secondary" on:click={onDeSelectAllUsers} />
 			</div>
 		</div>
-
-		<!-- Location Selection -->
-		<Dropdown
-			label="Plats"
-			placeholder="Välj plats"
-			id="locations"
-			options={locations}
-			bind:selectedValue={bookingObject.locationId}
-		/>
 	{/if}
 
 	<!-- Date & Time -->
@@ -145,9 +235,138 @@
 		</div>
 	</div>
 
-	<!-- Repeat Meeting -->
-	<label class="flex items-center gap-2 text-sm font-medium text-gray">
-		<input type="checkbox" bind:checked={bookingObject.repeat} class="h-4 w-4" />
-		Upprepa detta möte
-	</label>
+	<!-- Repeat Meeting (only if meeting) -->
+	{#if isMeeting}
+		<div class="flex flex-col gap-2">
+			<label class="flex items-center gap-2 text-sm font-medium text-gray">
+				<input type="checkbox" bind:checked={bookingObject.repeat} class="h-4 w-4" />
+				Upprepa detta möte
+			</label>
+
+			{#if bookingObject.repeat}
+				<Input
+					label="Antal veckor framåt"
+					name="repeatWeeks"
+					type="number"
+					bind:value={bookingObject.repeatWeeks}
+					placeholder="Ex: 4"
+					min="1"
+					max="52"
+				/>
+
+				<Button
+					text="Kontrollera"
+					iconRight="MultiCheck"
+					iconRightSize="16"
+					variant="primary"
+					full
+					on:click={checkRepeatAvailability}
+					disabled={!bookingObject.repeatWeeks}
+				/>
+
+				{#if repeatedBookings.length > 0}
+					<div class="flex flex-col gap-2 rounded border border-gray-300 bg-gray-50 p-4">
+						{#if repeatedBookings.filter((b) => b.conflict).length > 0}
+							<h3 class="flex items-center justify-between text-lg font-semibold">
+								Konflikter
+								<span class="text-sm text-gray-600">
+									{repeatedBookings.filter((b) => b.conflict).length} konflikter /
+									{repeatedBookings.length} veckor
+								</span>
+							</h3>
+						{/if}
+
+						<!-- Conflicts -->
+						{#each repeatedBookings.filter((b) => b.conflict) as week}
+							<div class="mb-2 rounded border border-red bg-red/10 p-3">
+								<div class="flex flex-col gap-1">
+									<span class="font-semibold">
+										{week.date}, kl {week.selectedTime}
+									</span>
+
+									{#if week.conflictingUserIds?.length > 0}
+										<div class="mt-1 text-sm text-red-700">
+											Konflikt med:
+											<ul class="ml-4 list-disc">
+												{#each week.conflictingUserIds as userId}
+													<li class="flex items-center gap-2">
+														{getUserName(userId)}
+														<Button
+															icon="Check"
+															small
+															variant="secondary"
+															iconColor="success"
+															iconSize="16"
+															on:click={() => ignoreUserConflict(week.week, userId)}
+														/>
+														<Button
+															icon="Close"
+															small
+															variant="cancel"
+															iconColor="red"
+															iconSize="16"
+															on:click={() => removeUserFromWeekConflict(week.week, userId)}
+														/>
+													</li>
+												{/each}
+											</ul>
+										</div>
+									{/if}
+
+									{#if week.suggestedTimes?.length > 0}
+										<div class="mt-2">
+											<Dropdown
+												label="Välj alternativ tid"
+												placeholder="Tillgängliga tider"
+												id={`week-${week.week}-time`}
+												options={week.suggestedTimes.map((t) => ({ label: t, value: t }))}
+												bind:selectedValue={week.selectedTime}
+											/>
+										</div>
+									{/if}
+
+									<div class="mt-2 flex gap-2">
+										<Button
+											text="Lös"
+											variant="primary"
+											small
+											on:click={() => resolveConflict(week.week)}
+										/>
+										<Button
+											text="Ta bort vecka"
+											variant="secondary"
+											small
+											on:click={() => ignoreConflict(week.week)}
+										/>
+									</div>
+								</div>
+							</div>
+						{/each}
+
+						<!-- Ready bookings -->
+						<h3 class="text-lg font-semibold">Bokningar klara att bokas:</h3>
+						{#each repeatedBookings.filter((b) => !b.conflict) as week}
+							<div class="mb-1 rounded border border-green bg-green-bright/10 p-2">
+								{week.date}, kl {week.selectedTime}
+							</div>
+						{/each}
+					</div>
+				{/if}
+			{/if}
+		</div>
+
+		<OptionButton
+			label="Bekräftelsemail"
+			labelIcon="Mail"
+			options={[
+				{ value: 'none', label: 'Skicka inte' },
+				{ value: 'send', label: 'Skicka direkt' },
+				{ value: 'edit', label: 'Redigera innan' }
+			]}
+			bind:selectedOption={bookingObject.emailBehavior}
+			on:select={handleEmailBehaviorSelect}
+			size="small"
+			full
+		/>
+	{/if}
 </div>

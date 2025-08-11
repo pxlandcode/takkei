@@ -121,6 +121,13 @@ module.exports = {
 					'backdrop-filter': 'blur(9px)',
 					border: '1px solid rgba(255, 255, 250, 0.1)'
 				},
+				'.hide-scrollbar': {
+					'scrollbar-width': 'none',
+					'-ms-overflow-style': 'none'
+				},
+				'.hide-scrollbar::-webkit-scrollbar': {
+					display: 'none'
+				},
 				'.rounded-4xl': {
 					'border-radius': '1.8rem'
 				},

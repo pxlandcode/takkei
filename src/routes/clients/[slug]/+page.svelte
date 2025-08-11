@@ -45,7 +45,7 @@
 			label: 'Bokningar',
 			icon: 'Calendar',
 			component: ProfileBookingComponent,
-			props: () => (clientId ? { clientId } : {})
+			props: () => (clientId && client?.client ? { clientId, client: client.client } : {})
 		},
 		{
 			label: 'Anteckningar',

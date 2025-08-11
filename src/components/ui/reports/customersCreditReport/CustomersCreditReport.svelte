@@ -1,0 +1,309 @@
+<script lang="ts">
+	import { onMount } from 'svelte';
+
+	import { addToast } from '$lib/stores/toastStore';
+	import type { TableType } from '$lib/types/componentTypes';
+	import Table from '../../../bits/table/Table.svelte';
+	import Button from '../../../bits/button/Button.svelte';
+	import OptionButton from '../../../bits/optionButton/OptionButton.svelte';
+	import Icon from '../../../bits/icon-component/Icon.svelte';
+	import { add } from 'date-fns';
+
+	// ----- Filters -----
+	function firstOfMonth(d = new Date()) {
+		return new Date(d.getFullYear(), d.getMonth(), 1);
+	}
+	function toDateStr(d: Date) {
+		return d.toISOString().slice(0, 10);
+	}
+	function toMonthStr(d: Date) {
+		return d.toISOString().slice(0, 7); // YYYY-MM
+	}
+
+	let startMonth = toMonthStr(firstOfMonth()); // t.ex. "2025-08"
+	let endDate = toDateStr(new Date()); // t.ex. "2025-08-11"
+	let includeZeroBalances = { value: 'no', label: 'Dölj nollsaldo' };
+
+	// ----- Table -----
+	// Reaktiva rubriker så de uppdateras när filtren ändras
+	$: headers = [
+		{ label: 'Klient', key: 'client', sort: true, isSearchable: true },
+		{ label: 'PaketId', key: 'packageId', sort: true, isSearchable: true, width: '110px' },
+		{ label: 'Fakt.nr', key: 'invoiceNumbers', isSearchable: true },
+		{ label: 'Kund (kundnr)', key: 'customer', isSearchable: true },
+		{ label: 'Produkt', key: 'product', isSearchable: true },
+		{ label: 'Paketets pris', key: 'packagePrice', sort: true },
+		{ label: 'Antal pass', key: 'sessions', sort: true },
+		{ label: 'Pris per pass', key: 'pricePerSession', sort: true },
+		{ label: 'Antal fakturor', key: 'invoiceCount', sort: true },
+		{ label: `Antal fakt. t.o.m. ${endDate}`, key: 'invoicesUntilEnd', sort: true },
+		{ label: 'Fakturerade pass', key: 'paidSessions', sort: true },
+		{ label: 'Fakturerad summa', key: 'paidSum', sort: true },
+		{ label: 'Utnyttjade pass', key: 'usedSessions', sort: true },
+		{ label: `Utnyttjade pass ${startMonth}`, key: 'usedSessionsMonth', sort: true },
+		{ label: 'Återstående pass', key: 'remainingSessions', sort: true },
+		{ label: 'Utnyttjad summa', key: 'usedSum', sort: true },
+		{ label: `Utnyttjad summa ${startMonth}`, key: 'usedSumMonth', sort: true },
+		{ label: 'Skuld/fordran i kronor', key: 'balance', sort: true }
+	];
+
+	let data: TableType = [];
+	let filteredData: TableType = [];
+	let searchQuery = '';
+	let loading = false;
+	let totalBalance = 0;
+
+	const USE_MOCK = false;
+
+	type ApiRow = {
+		client: string;
+		packageId: number;
+		invoiceNumbers: string[];
+		customerName: string;
+		customerNo?: string | null;
+		product: string;
+		packagePrice: number;
+		sessions: number;
+		pricePerSession: number;
+		invoiceCount: number; // tot. delbetalningstillfällen (installments)
+		invoicesUntilEnd: number; // delbetalningar ≤ end_date
+		paidSessions: number; // paid_sum / price_per_session
+		paidSum: number; // summa betalt ≤ end_date
+		usedSessions: number; // utnyttjade pass ≤ end_date
+		usedSessionsMonth: number; // utnyttjade pass i [start_date, end_date]
+		remainingSessions: number; // sessions - usedSessions
+		usedSum: number; // usedSessions * pricePerSession
+		usedSumMonth: number; // usedSessionsMonth * pricePerSession
+		balance: number; // paidSum - usedSum
+	};
+
+	function mapToTableRow(r: ApiRow) {
+		return {
+			id: `${r.packageId}-${r.customerNo ?? ''}`,
+			client: r.client,
+			packageId: r.packageId,
+			invoiceNumbers: r.invoiceNumbers.join(', '),
+			customer: r.customerNo ? `${r.customerName} (${r.customerNo})` : r.customerName,
+			product: r.product,
+
+			// Behåll numeriska typer (Table kan formatera/sortera korrekt)
+			packagePrice: r.packagePrice,
+			sessions: r.sessions,
+			pricePerSession: r.pricePerSession,
+			invoiceCount: r.invoiceCount,
+			invoicesUntilEnd: r.invoicesUntilEnd,
+			paidSessions: r.paidSessions,
+			paidSum: r.paidSum,
+			usedSessions: r.usedSessions,
+			usedSessionsMonth: r.usedSessionsMonth,
+			remainingSessions: r.remainingSessions,
+			usedSum: r.usedSum,
+			usedSumMonth: r.usedSumMonth,
+			balance: r.balance
+		};
+	}
+
+	async function fetchReport() {
+		loading = true;
+		totalBalance = 0;
+		try {
+			let rows: ApiRow[] = [];
+
+			if (USE_MOCK) {
+				rows = [
+					{
+						client: 'Anna Andersson',
+						packageId: 101,
+						invoiceNumbers: ['INV-2001', 'INV-2002'],
+						customerName: 'Acme AB',
+						customerNo: 'C-001',
+						product: '10 pass',
+						packagePrice: 6500,
+						sessions: 10,
+						pricePerSession: 650,
+						invoiceCount: 2,
+						invoicesUntilEnd: 2,
+						paidSessions: 10,
+						paidSum: 6500,
+						usedSessions: 6,
+						usedSessionsMonth: 2,
+						remainingSessions: 4,
+						usedSum: 3900,
+						usedSumMonth: 1300,
+						balance: 2600
+					},
+					{
+						client: 'Björn Berg',
+						packageId: 102,
+						invoiceNumbers: ['INV-2101'],
+						customerName: 'Contoso Oy',
+						customerNo: 'C-014',
+						product: '5 pass',
+						packagePrice: 3000,
+						sessions: 5,
+						pricePerSession: 600,
+						invoiceCount: 1,
+						invoicesUntilEnd: 1,
+						paidSessions: 5,
+						paidSum: 3000,
+						usedSessions: 5,
+						usedSessionsMonth: 1,
+						remainingSessions: 0,
+						usedSum: 3000,
+						usedSumMonth: 600,
+						balance: 0
+					}
+				];
+			} else {
+				const params = new URLSearchParams({
+					start_date: `${startMonth}-01`,
+					end_date: endDate
+				});
+				const res = await fetch(`/api/reports/customer-credit-balance?${params.toString()}`);
+				if (!res.ok) throw new Error('Misslyckades att hämta rapport');
+				const json = await res.json();
+				rows = json?.rows ?? [];
+			}
+
+			if (includeZeroBalances.value === 'no') {
+				rows = rows.filter((r) => Math.abs(r.balance) > 0.0001);
+			}
+
+			data = rows.map(mapToTableRow);
+			filteredData = [...data];
+
+			totalBalance = rows.reduce((acc, r) => acc + (r.balance ?? 0), 0);
+		} catch (e) {
+			addToast({
+				type: 'error',
+				title: 'Kunde inte ladda rapporten',
+				message: (e as Error).message
+			});
+			data = [];
+			filteredData = [];
+			totalBalance = 0;
+		} finally {
+			loading = false;
+		}
+	}
+
+	// Enkel fritextsökning
+	$: if (data) {
+		const q = searchQuery.toLowerCase();
+		filteredData = !q
+			? [...data]
+			: data.filter((row) =>
+					headers.some((h) => {
+						if (!h.isSearchable) return false;
+						const v = row[h.key];
+						return typeof v === 'string' && v.toLowerCase().includes(q);
+					})
+				);
+	}
+
+	onMount(fetchReport);
+
+	function onRefresh() {
+		fetchReport();
+	}
+
+	async function exportExcel() {
+		try {
+			const params = new URLSearchParams({
+				start_date: `${startMonth}-01`,
+				end_date: endDate
+			});
+			const res = await fetch(`/api/reports/customer-credit-balance/export?${params.toString()}`);
+			if (!res.ok) throw new Error('Kunde inte skapa Excel');
+			const blob = await res.blob();
+			const url = URL.createObjectURL(blob);
+			const a = document.createElement('a');
+			a.href = url;
+			a.download = `kunders_tillgodohavande_${endDate}.xlsx`;
+			document.body.appendChild(a);
+			a.click();
+			a.remove();
+			URL.revokeObjectURL(url);
+		} catch (e) {
+			addToast({ type: 'error', title: 'Export misslyckades', message: (e as Error).message });
+		} finally {
+			addToast({
+				type: 'success',
+				title: 'Export slutförd',
+				message: 'Excel-filen har skapats.'
+			});
+		}
+	}
+</script>
+
+<div class="m-4 h-full overflow-x-auto custom-scrollbar">
+	<!-- Titel -->
+	<div class="mb-4 flex items-center gap-2">
+		<div class="flex h-7 w-7 items-center justify-center rounded-full bg-text text-white">
+			<Icon icon="Charts" size="14px" />
+		</div>
+		<h2 class="text-3xl font-semibold text-text">Kunders tillgodohavande</h2>
+	</div>
+
+	<!-- Filter -->
+	<div class="mb-4 grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+		<label class="flex flex-col gap-1">
+			<span class="text-sm text-text/70">Månad (för månadsrader)</span>
+			<input
+				class="rounded-lg border border-gray-300 p-2"
+				type="month"
+				bind:value={startMonth}
+				max={toMonthStr(new Date())}
+			/>
+		</label>
+
+		<label class="flex flex-col gap-1">
+			<span class="text-sm text-text/70">Per datum</span>
+			<input
+				class="rounded-lg border border-gray-300 p-2"
+				type="date"
+				bind:value={endDate}
+				max={toDateStr(new Date())}
+			/>
+		</label>
+
+		<div class="min-w-60">
+			<OptionButton
+				options={[
+					{ value: 'no', label: 'Dölj nollsaldo' },
+					{ value: 'yes', label: 'Visa nollsaldo' }
+				]}
+				bind:selectedOption={includeZeroBalances}
+				size="small"
+			/>
+		</div>
+
+		<div class="flex items-end gap-2">
+			<Button variant="secondary" iconSize="16" icon="Refresh" on:click={onRefresh} />
+			<Button text="Exportera" variant="primary" iconLeft="Download" on:click={exportExcel} />
+		</div>
+	</div>
+
+	<!-- Snabbsök -->
+	<div class="mb-3 max-w-md">
+		<input
+			type="text"
+			bind:value={searchQuery}
+			placeholder="Sök klient, kund, faktura, produkt…"
+			class="w-full rounded-lg border border-gray-300 p-2 focus:border-blue-500 focus:outline-none"
+		/>
+	</div>
+
+	<!-- Summering -->
+	<div class="mb-3 text-sm text-text/80">
+		<strong>Totalsumma (saldo):</strong>
+		{totalBalance.toFixed(2)} kr
+	</div>
+
+	<!-- Tabell -->
+	{#if loading}
+		<div class="py-10 text-text/60">Laddar rapport…</div>
+	{:else}
+		<Table {headers} data={filteredData} noSelect sideScrollable />
+	{/if}
+</div>

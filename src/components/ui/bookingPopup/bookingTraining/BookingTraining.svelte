@@ -89,7 +89,6 @@
 		};
 	}
 
-	// Reactive filtered clients list
 	$: {
 		let newFilteredClients = [];
 
@@ -120,13 +119,8 @@
 	// Auto-assign room if only one available
 	$: {
 		const selectedLocation = $locations.find((loc) => loc.id === bookingObject.locationId);
-		if (selectedLocation) {
-			availableRooms = selectedLocation.rooms ?? [];
-			bookingObject.roomId = availableRooms.length === 1 ? availableRooms[0].id : null;
-		} else {
-			availableRooms = [];
-			bookingObject.roomId = null;
-		}
+		availableRooms = selectedLocation?.rooms ?? [];
+		bookingObject.roomId = null;
 	}
 
 	// Booking type selection handler
@@ -148,6 +142,13 @@
 		clientScope =
 			clientScopeOptions.find((opt) => opt.value === selectedValue) ?? clientScopeOptions[0];
 		bookingObject.clientId = null;
+	}
+
+	function handleEmailBehaviorSelect(event: CustomEvent<string>) {
+		bookingObject.emailBehavior = {
+			value: event.detail,
+			label: capitalizeFirstLetter(event.detail)
+		};
 	}
 </script>
 
@@ -202,16 +203,6 @@
 				options={$locations.map((loc) => ({ label: loc.name, value: loc.id }))}
 				bind:selectedValue={bookingObject.locationId}
 			/>
-
-			{#if availableRooms.length > 1}
-				<Dropdown
-					label="Rum"
-					placeholder="Välj rum"
-					id="rooms"
-					options={availableRooms.map((room) => ({ label: room.name, value: room.id }))}
-					bind:selectedValue={bookingObject.roomId}
-				/>
-			{/if}
 		</div>
 	</div>
 
@@ -228,11 +219,11 @@
 		bind:selectedTime={bookingObject.time}
 		trainerId={bookingObject.trainerId}
 		locationId={bookingObject.locationId}
-		roomId={bookingObject.roomId}
 		on:unavailabilityChange={(e) => (selectedIsUnavailable = e.detail)}
 	/>
 
 	<!-- Repeat Booking Section -->
+
 	<div class="flex flex-col gap-2">
 		<Checkbox
 			id="repeat"
@@ -314,4 +305,18 @@
 			{/if}
 		{/if}
 	</div>
+
+	<OptionButton
+		label="Bekräftelsemail"
+		labelIcon="Mail"
+		options={[
+			{ value: 'none', label: 'Skicka inte' },
+			{ value: 'send', label: 'Skicka direkt' },
+			{ value: 'edit', label: 'Redigera innan' }
+		]}
+		bind:selectedOption={bookingObject.emailBehavior}
+		on:select={handleEmailBehaviorSelect}
+		size="small"
+		full
+	/>
 </div>

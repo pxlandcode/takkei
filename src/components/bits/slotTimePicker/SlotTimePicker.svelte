@@ -7,7 +7,6 @@
 	export let selectedTime: string = '';
 	export let trainerId: number;
 	export let locationId: number;
-	export let roomId: number;
 	export let label = 'Tid';
 	import { createEventDispatcher } from 'svelte';
 
@@ -28,7 +27,7 @@
 	// Fetch available slots
 	async function updateSlots() {
 		showWarning = false;
-		if (selectedDate && trainerId != null && locationId != null && roomId != null) {
+		if (selectedDate && trainerId != null && locationId != null) {
 			loading = true;
 			availableSlots = [];
 			outsideAvailabilitySlots = [];
@@ -38,8 +37,7 @@
 				const res = await fetchAvailableSlots({
 					date: selectedDate,
 					trainerId,
-					locationId,
-					roomId
+					locationId
 				});
 				availableSlots = res.availableSlots;
 				outsideAvailabilitySlots = res.outsideAvailabilitySlots;
@@ -64,14 +62,13 @@
 		}
 	}
 
-	$: selectedDate, trainerId, locationId, roomId, updateSlots();
+	$: selectedDate, trainerId, locationId, updateSlots();
 
 	function missingFields(): string[] {
 		const missing = [];
 		if (!selectedDate) missing.push('datum');
 		if (trainerId == null) missing.push('tränare');
 		if (locationId == null) missing.push('plats');
-		if (roomId == null) missing.push('rum');
 		return missing;
 	}
 </script>

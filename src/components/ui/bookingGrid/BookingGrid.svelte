@@ -106,8 +106,6 @@
 
 		countsPerDay = await res.json();
 
-		console.log('Counts per day:', countsPerDay);
-		console.log(from, to, firstValidDate, lastValidDate);
 		updateDays();
 	}
 
@@ -117,7 +115,6 @@
 			const key = day.date.toISOString().slice(0, 10);
 			return { ...day, count: countsPerDay[key] || 0 };
 		});
-		console.log('Updated days:', days);
 	}
 
 	onMount(async () => {

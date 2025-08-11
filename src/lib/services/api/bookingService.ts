@@ -115,12 +115,11 @@ export async function createBooking(
 		};
 	}
 }
-
-export async function fetchAvailableSlots({ date, trainerId, locationId, roomId }) {
+export async function fetchAvailableSlots({ date, trainerId, locationId }) {
 	const res = await fetch('/api/available-slots', {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({ date, trainerId, locationId, roomId })
+		body: JSON.stringify({ date, trainerId, locationId })
 	});
 
 	if (res.ok) {
@@ -136,7 +135,6 @@ export async function fetchAvailableSlots({ date, trainerId, locationId, roomId 
 		outsideAvailabilitySlots: []
 	};
 }
-
 export async function updateBooking(bookingObject: any) {
 	try {
 		const requestData = {

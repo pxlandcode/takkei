@@ -26,9 +26,11 @@
 
 	let bookingSlot: HTMLDivElement | null = null;
 	let trainerNameElement: HTMLSpanElement | null = null;
+	let clientNameElement: HTMLSpanElement | null = null;
 	let width = 200;
 	let useInitials = false;
 	let debounceTimer: NodeJS.Timeout;
+	let showIcon = true;
 
 	$: endTime =
 		booking.booking.endTime ??
@@ -58,6 +60,10 @@
 			: booking.isPersonalBooking
 				? 'P'
 				: 'T';
+	$: clientInitials =
+		booking.client?.firstname && booking.client?.lastname
+			? `${booking.client.firstname[0]}${booking.client.lastname[0]}`
+			: 'C';
 
 	$: colWidth = 100 / columnCount;
 	$: colLeft = columnIndex * colWidth;
@@ -67,23 +73,27 @@
 	async function measureFullNameWidth() {
 		await tick();
 		requestAnimationFrame(() => {
-			if (!trainerNameElement) return;
+			if (!trainerNameElement || !clientNameElement) return;
 			useInitials = false;
-			fullNameWidth = trainerNameElement.offsetWidth;
+			if (clientNameElement.offsetWidth > trainerNameElement.offsetWidth) {
+				fullNameWidth = clientNameElement.offsetWidth;
+			} else {
+				fullNameWidth = trainerNameElement.offsetWidth;
+			}
 
 			checkNameWidth();
 		});
 	}
-
 	function checkNameWidth() {
-		if (fullNameWidth === 0) return;
+		if (!bookingSlot) return;
 
-		const containerWidth = bookingSlot?.offsetWidth;
+		const containerWidth = bookingSlot.offsetWidth;
 
-		// Use initials if full name is too wide
-		useInitials = fullNameWidth > containerWidth - 8;
+		const namePadding = 44;
+		useInitials = fullNameWidth > containerWidth - namePadding;
+
+		showIcon = fullNameWidth < containerWidth;
 	}
-
 	onMount(async () => {
 		await tick(); // Ensure DOM elements are rendered
 
@@ -112,9 +122,9 @@
 <button
 	on:click={() => dispatch('onClick', { booking })}
 	bind:this={bookingSlot}
-	class="absolute z-20 flex flex-col gap-[2px] p-1 text-xs text-gray shadow-sm {useInitials
-		? 'items-center'
-		: 'items-start'}
+	class="absolute z-20 flex flex-col gap-[2px] p-1 text-xs text-gray shadow-sm {showIcon
+		? 'items-start'
+		: 'items-center'}
         {booking.trainer?.id === $user.id ? 'border-2' : ''}"
 	style="
 		top: {topOffset}px;
@@ -134,30 +144,25 @@
 				class="relative flex items-center justify-center gap-2 rounded-sm px-1"
 				style="color: {bookingColor}"
 			>
-				<svelte:component this={bookingIcon} size="20px" extraClasses="relative z-10" />
-
-				{#if width >= 120}
-					<div class="flex flex-col text-xs text-gray">
-						<p>{booking.additionalInfo.bookingContent.kind}</p>
-
-						{#if width >= 125}
-							<p class="text-xxs">
-								{formatTime(booking.booking.startTime)} - {formatTime(endTime)}
-							</p>
-						{/if}
-					</div>
+				{#if showIcon}
+					<svelte:component this={bookingIcon} size="20px" extraClasses="relative z-10" />
 				{/if}
+
+				<div class="flex flex-row text-xs">
+					<div class="flex flex-col gap-1 whitespace-nowrap text-left">
+						<p class="" bind:this={trainerNameElement}>
+							{useInitials
+								? trainerInitials
+								: `${booking.trainer.firstname} ${booking.trainer.lastname}`}
+						</p>
+						<p bind:this={clientNameElement}>
+							{useInitials
+								? clientInitials
+								: `${booking.client?.firstname} ${booking.client?.lastname}`}
+						</p>
+					</div>
+				</div>
 			</div>
-		</div>
-
-		<div class="flex flex-row items-center text-xs">
-			<p class="whitespace-nowrap" bind:this={trainerNameElement}>
-				{useInitials ? trainerInitials : `${booking.trainer.firstname} ${booking.trainer.lastname}`}
-			</p>
-		</div>
-
-		<div class="flex flex-row items-center text-xs">
-			<p>{booking.location.name ? getShortAddress(booking.location.name) : ''}</p>
 		</div>
 	{:else}
 		<div class="flex flex-row items-center text-xs">

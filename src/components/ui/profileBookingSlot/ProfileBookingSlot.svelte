@@ -12,6 +12,12 @@
 	export let booking: FullBooking;
 	export let isClient = false;
 
+	import Checkbox from '../../bits/checkbox/Checkbox.svelte';
+
+	export let selected: boolean = false;
+	export let onSelect: (checked: boolean, booking: FullBooking) => void = () => {};
+	export let showSelect: boolean = false;
+
 	const dispatch = createEventDispatcher();
 
 	$: bookingColor = booking.location?.color ? booking.location.color : '#4B5563';
@@ -54,18 +60,32 @@
 		dispatch('bookingClick', booking);
 	}}
 	class="relative flex w-full items-center justify-between rounded-lg border p-3 text-left text-sm transition-all
-		{booking.booking.status === 'Cancelled' || booking.booking.status === 'Late_cancelled'
-		? 'cancelled'
-		: ''}"
+	{booking.booking.status === 'Cancelled' ? 'cancelled' : ''}
+		{booking.booking.status === 'Late_cancelled' ? 'late-cancelled' : ''}"
 	style="background-color: {bookingColor}20; border-color: {bookingColor};"
 >
 	<!-- ✅ Diagonal Lines for Cancelled Bookings -->
-	{#if booking.booking.status === 'Cancelled' || booking.booking.status === 'Late_cancelled'}
+	{#if booking.booking.status === 'Cancelled'}
 		<div class="cancelled-overlay"></div>
 	{/if}
+	{#if booking.booking.status === 'Late_cancelled'}
+		<div class="late-cancelled-overlay"></div>
+	{/if}
 
-	<!-- ✅ Booking Icon & Details -->
 	<div class="flex items-center gap-2 text-gray-700">
+		<!-- ✅ Select Checkbox -->
+		{#if showSelect}
+			<div class="relative">
+				<Checkbox
+					id={`select-${booking.booking.id}`}
+					name={`select-${booking.booking.id}`}
+					checked={selected}
+					on:change={(e) => onSelect(e.detail.checked, booking)}
+					label=""
+				/>
+			</div>
+		{/if}
+
 		<span style="color: {bookingColor}">
 			<svelte:component this={bookingIcon} size="20px" />
 		</span>
@@ -74,9 +94,11 @@
 			<div class="flex flex-row">
 				<p class="font-base">
 					<strong>
-						{booking.booking.status === 'Cancelled' || booking.booking.status === 'Late_cancelled'
+						{booking.booking.status === 'Cancelled'
 							? 'Avbokad'
-							: booking.additionalInfo.bookingContent.kind}
+							: booking.booking.status === 'Late_cancelled'
+								? 'Sen avbokning'
+								: booking.additionalInfo.bookingContent.kind}
 					</strong>
 				</p>
 			</div>
@@ -116,18 +138,17 @@
 		box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 	}
 
-	/* ✅ Cancelled Booking Styling */
+	/* ✅ Cancelled Booking Styling (unchanged) */
 	.cancelled {
 		opacity: 0.5;
 		position: relative;
 		transition: opacity 0.2s ease-in-out;
 	}
-
 	.cancelled:hover {
 		opacity: 1;
 	}
 
-	/* ✅ Diagonal Stripes Overlay */
+	/* ✅ Diagonal Stripes Overlay (unchanged) */
 	.cancelled-overlay {
 		position: absolute;
 		top: 0;
@@ -141,7 +162,34 @@
 			transparent 5px,
 			transparent 10px
 		);
-		pointer-events: none; /* ✅ Prevent interaction */
+		pointer-events: none;
+		border-radius: 8px;
+	}
+
+	/* ✅ Late-cancelled: same structure, different angle/color */
+	.late-cancelled {
+		opacity: 0.7;
+		position: relative;
+		transition: opacity 0.2s ease-in-out;
+	}
+	.late-cancelled:hover {
+		opacity: 1;
+	}
+
+	.late-cancelled-overlay {
+		position: absolute;
+		top: 0;
+		left: 0;
+		width: 100%;
+		height: 100%;
+		background-image: repeating-linear-gradient(
+			45deg,
+			rgba(232, 121, 121, 0.18) 0px,
+			/* soft red band */ rgba(232, 121, 121, 0.18) 5px,
+			transparent 5px,
+			transparent 10px
+		);
+		pointer-events: none;
 		border-radius: 8px;
 	}
 </style>
