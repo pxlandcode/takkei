@@ -124,12 +124,6 @@
 			...selectedClients.map((c) => c.email)
 		];
 
-		console.log('Sending mail to:', recipients);
-		console.log('From:', selectedFromOption);
-		console.log('Subject:', subject);
-		console.log('Header:', header);
-		console.log('Subheader:', subheader);
-		console.log('Body:', body);
 		try {
 			await sendMail({
 				to: recipients,

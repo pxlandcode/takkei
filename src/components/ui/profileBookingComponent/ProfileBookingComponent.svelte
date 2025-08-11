@@ -30,8 +30,6 @@
 	const oneMonthBack = new Date(today);
 	oneMonthBack.setMonth(today.getMonth() - 1);
 
-	$: bookings && console.log('Bookings updated:', $bookings);
-
 	let selectedDate = writable(
 		clientId ? oneMonthBack.toISOString().split('T')[0] : today.toISOString().split('T')[0]
 	); // Default to today
@@ -93,7 +91,6 @@
 
 	function sendBookingConfirmations() {
 		const bookingsToSend = get(selectedBookings);
-		console.log('Selected bookings to send:', bookingsToSend);
 
 		if (bookingsToSend.length === 0) return;
 

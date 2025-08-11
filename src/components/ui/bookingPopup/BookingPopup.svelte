@@ -140,7 +140,6 @@
 
 		if (success && bookingObject.clientId) {
 			const clientEmail = getClientEmails(bookingObject.clientId);
-			console.log('Client email:', clientEmail);
 
 			if (clientEmail) {
 				const emailResult = await handleBookingEmail({

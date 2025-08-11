@@ -46,7 +46,6 @@
 				repeatWeeks: bookingObject.repeatWeeks
 			})
 		});
-		console.log('checkRepeatAvailability response:', res);
 
 		const data = await res.json();
 
