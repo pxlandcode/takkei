@@ -7,6 +7,7 @@
 	import Button from '../../../bits/button/Button.svelte';
 	import OptionButton from '../../../bits/optionButton/OptionButton.svelte';
 	import Icon from '../../../bits/icon-component/Icon.svelte';
+	import { add } from 'date-fns';
 
 	// ----- Filters -----
 	function firstOfMonth(d = new Date()) {
@@ -207,11 +208,31 @@
 	}
 
 	async function exportExcel() {
-		addToast({
-			type: 'info',
-			title: 'Export kommer snart',
-			message: 'Excel-export kopplas in i nästa steg.'
-		});
+		try {
+			const params = new URLSearchParams({
+				start_date: `${startMonth}-01`,
+				end_date: endDate
+			});
+			const res = await fetch(`/api/reports/customer-credit-balance/export?${params.toString()}`);
+			if (!res.ok) throw new Error('Kunde inte skapa Excel');
+			const blob = await res.blob();
+			const url = URL.createObjectURL(blob);
+			const a = document.createElement('a');
+			a.href = url;
+			a.download = `kunders_tillgodohavande_${endDate}.xlsx`;
+			document.body.appendChild(a);
+			a.click();
+			a.remove();
+			URL.revokeObjectURL(url);
+		} catch (e) {
+			addToast({ type: 'error', title: 'Export misslyckades', message: (e as Error).message });
+		} finally {
+			addToast({
+				type: 'success',
+				title: 'Export slutförd',
+				message: 'Excel-filen har skapats.'
+			});
+		}
 	}
 </script>
 
