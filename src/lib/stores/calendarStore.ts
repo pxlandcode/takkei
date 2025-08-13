@@ -146,6 +146,57 @@ const createCalendarStore = () => {
 			fetchFn
 		);
 	}
+
+	function goToNextMonth(fetchFn: typeof fetch) {
+		const currentFilters = getCurrentFilters();
+		const baseDate = currentFilters.date ? new Date(currentFilters.date) : new Date();
+
+		// Move forward one month
+		baseDate.setMonth(baseDate.getMonth() + 1);
+
+		// Keep day in range for shorter months (e.g., Jan 31 → Feb 28)
+		if (baseDate.getDate() !== parseInt(currentFilters.date?.split('-')[2] ?? '1')) {
+			baseDate.setDate(1);
+		}
+
+		const { weekStart, weekEnd } = getWeekStartAndEnd(baseDate);
+
+		updateFilters(
+			{
+				...currentFilters,
+				from: weekStart,
+				to: weekEnd,
+				date: baseDate.toISOString().slice(0, 10)
+			},
+			fetchFn
+		);
+	}
+
+	function goToPreviousMonth(fetchFn: typeof fetch) {
+		const currentFilters = getCurrentFilters();
+		const baseDate = currentFilters.date ? new Date(currentFilters.date) : new Date();
+
+		// Move back one month
+		baseDate.setMonth(baseDate.getMonth() - 1);
+
+		// Keep day in range for shorter months
+		if (baseDate.getDate() !== parseInt(currentFilters.date?.split('-')[2] ?? '1')) {
+			baseDate.setDate(1);
+		}
+
+		const { weekStart, weekEnd } = getWeekStartAndEnd(baseDate);
+
+		updateFilters(
+			{
+				...currentFilters,
+				from: weekStart,
+				to: weekEnd,
+				date: baseDate.toISOString().slice(0, 10)
+			},
+			fetchFn
+		);
+	}
+
 	function goToNextWeek(fetchFn: typeof fetch) {
 		const currentFilters = getCurrentFilters();
 		const currentDate = currentFilters.from ? new Date(currentFilters.from) : new Date();
@@ -259,7 +310,9 @@ const createCalendarStore = () => {
 		goToPreviousDay,
 		goToDate,
 		updateFilters,
-		setNewFilters
+		setNewFilters,
+		goToNextMonth,
+		goToPreviousMonth
 	};
 };
 
