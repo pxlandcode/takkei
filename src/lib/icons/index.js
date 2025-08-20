@@ -61,6 +61,7 @@ import IconCalendarCheck from './IconCalendarCheck.svelte';
 import IconCalendarSun from './IconCalendarSun.svelte';
 import IconRefresh from './IconRefresh.svelte';
 import IconDownload from './IconDownload.svelte';
+import IconUncheck from './IconUncheck.svelte';
 
 export {
 	IconClose,
@@ -125,5 +126,6 @@ export {
 	IconCalendarCheck,
 	IconCalendarSun,
 	IconRefresh,
-	IconDownload
+	IconDownload,
+	IconUncheck
 };

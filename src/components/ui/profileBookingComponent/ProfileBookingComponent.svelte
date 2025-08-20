@@ -11,6 +11,7 @@
 	import { popupStore } from '$lib/stores/popupStore';
 	import { user } from '$lib/stores/userStore';
 	import { debounce } from '$lib/utils/debounce';
+	import Checkbox from '../../bits/checkbox/Checkbox.svelte';
 
 	export let trainerId: number | null = null;
 	export let clientId: number | null = null;
@@ -20,6 +21,7 @@
 	let page = writable(0);
 	let isLoading = writable(false);
 	let hasMore = writable(true);
+	let selectAllChecked = false;
 
 	let selectedBooking = null;
 	let showBookingDetailsPopup = false;
@@ -47,6 +49,42 @@
 
 	const LIMIT = 20;
 
+	function allLoadedSelected() {
+		const all = get(bookings);
+		const selIds = new Set(get(selectedBookings).map((b) => b.booking.id));
+		return all.length > 0 && all.every((b) => selIds.has(b.booking.id));
+	}
+
+	function clearAllSelected() {
+		selectedBookings.set([]);
+	}
+
+	function toggleSelectAllLoaded(checked: boolean) {
+		const loaded = get(bookings);
+		if (loaded.length === 0) return;
+
+		if (checked) {
+			// add all loaded (dedupe by id)
+			const current = get(selectedBookings);
+			const byId = new Map(current.map((b) => [b.booking.id, b]));
+			for (const item of loaded) byId.set(item.booking.id, item);
+			selectedBookings.set(Array.from(byId.values()));
+		} else {
+			// remove only loaded ones
+			const loadedIds = new Set(loaded.map((b) => b.booking.id));
+			selectedBookings.update((cur) => cur.filter((b) => !loadedIds.has(b.booking.id)));
+		}
+	}
+
+	// Reactive tri-state flags for the select-all checkbox
+
+	$: {
+		const all = $bookings;
+		const selIds = new Set($selectedBookings.map((b) => b.booking.id));
+
+		// checked when ALL loaded are selected (and there are some loaded)
+		selectAllChecked = all.length > 0 && all.every((b) => selIds.has(b.booking.id));
+	}
 	// ✅ Fetch initial bookings when mounted
 	onMount(() => {
 		loadMoreBookings(true);
@@ -64,7 +102,7 @@
 		}
 
 		const from = raw;
-		d;
+
 		const to = null;
 
 		const filters: any = {
@@ -230,24 +268,45 @@
 	</div>
 
 	{#if clientId}
-		<div class="mt-4 flex items-center justify-between rounded-lg bg-orange/10 px-4 py-3 shadow-sm">
-			<p class="text-sm text-gray-700">
-				{$selectedBookings.length > 0
-					? `${$selectedBookings.length} bokningar valda`
-					: 'Inga bokningar valda'}
-			</p>
+		<div
+			class="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg bg-orange/10 px-4 py-3 shadow-sm"
+		>
+			<div class="flex items-center gap-3">
+				<!-- ✅ Select-all (loaded) using your Checkbox component -->
+				<Checkbox
+					id="select-all-loaded"
+					name="select-all-loaded"
+					label="Välj alla visade"
+					checked={selectAllChecked}
+					on:change={(e) => toggleSelectAllLoaded(e.detail.checked)}
+				/>
 
-			<Button
-				disabled={$selectedBookings.length === 0}
-				text="Skicka bekräftelse"
-				iconLeft="Mail"
-				variant="primary"
-				small
-				class="!bg-orange text-white disabled:cursor-not-allowed disabled:opacity-50"
-				on:click={() => {
-					sendBookingConfirmations();
-				}}
-			/>
+				<span class="text-sm text-gray-700">
+					{$selectedBookings.length > 0
+						? `${$selectedBookings.length} bokningar valda`
+						: 'Inga bokningar valda'}
+				</span>
+			</div>
+
+			<div class="flex items-center gap-2">
+				<Button
+					variant="secondary"
+					icon="Uncheck"
+					small
+					on:click={clearAllSelected}
+					disabled={$selectedBookings.length === 0}
+				/>
+
+				<Button
+					disabled={$selectedBookings.length === 0}
+					text="Skicka bekräftelse"
+					iconLeft="Mail"
+					variant="primary"
+					small
+					class="!bg-orange text-white disabled:cursor-not-allowed disabled:opacity-50"
+					on:click={sendBookingConfirmations}
+				/>
+			</div>
 		</div>
 	{/if}
 
