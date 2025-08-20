@@ -115,13 +115,22 @@
 		}
 	});
 
+	function getLocationLabelFromId(id: number | null | undefined) {
+		const list = $locations || [];
+		const loc = id ? list.find((l) => l.id === id) : null;
+		// Prefer street address (e.g., "Garvargatan 7"), then name, else fallback.
+		return (loc?.address && loc.address.trim()) || loc?.name || 'Okänd plats';
+	}
+
 	async function submitBooking() {
 		const type = selectedBookingComponent;
 		bookingObject.currentUser = currentUser;
-
 		if (!currentUser) return;
 
-		let bookedDates: string[] = [];
+		const locationName = getLocationLabelFromId(bookingObject.locationId);
+
+		// We'll use the richer shape: { date, time, locationName }
+		let bookedDates: { date: string; time: string; locationName?: string }[] = [];
 		let success = false;
 
 		if (type === 'training') {
@@ -132,10 +141,26 @@
 				type
 			);
 			success = result.success;
-			bookedDates = result.bookedDates ?? [];
+
+			if (success) {
+				if (repeatedBookings.length > 0) {
+					bookedDates = repeatedBookings.map((r) => ({
+						date: r.date,
+						time: r.selectedTime,
+						locationName
+					}));
+				} else {
+					bookedDates = [{ date: bookingObject.date, time: bookingObject.time, locationName }];
+				}
+			}
 		} else {
-			success = await handleMeetingOrPersonalBooking(bookingObject, currentUser, type);
-			bookedDates = [`${bookingObject.date} kl ${bookingObject.time}`];
+			// meeting | personal
+			const res = await handleMeetingOrPersonalBooking(bookingObject, currentUser, type);
+			success = res.success;
+
+			if (success) {
+				bookedDates = [{ date: bookingObject.date, time: bookingObject.time }];
+			}
 		}
 
 		if (success && bookingObject.clientId) {
@@ -158,7 +183,15 @@
 							subject: 'Bokningsbekräftelse',
 							header: 'Bekräftelse på dina bokningar',
 							subheader: 'Tack för din bokning!',
-							body: bookedDates.map((d) => `• ${d}`).join('<br>'),
+							body: `
+							Hej!<br><br>
+							Jag har bokat in dig följande tider:<br>
+							${bookedDates.map((b) => `${b.date} kl. ${b.time} på ${b.locationName}`).join('<br>')}<br><br>
+							Du kan boka av eller om din träningstid senast klockan 12.00 dagen innan träning genom att kontakta någon i ditt tränarteam via sms, e‑post eller telefon.<br><br>
+							Hälsningar,<br>
+							${currentUser.firstname}<br>
+							Takkei Trainingsystems
+						`,
 							lockedFields: ['recipients'],
 							autoFetchUsersAndClients: false
 						}

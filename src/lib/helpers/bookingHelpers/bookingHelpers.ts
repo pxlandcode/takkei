@@ -68,10 +68,10 @@ export async function handleTrainingBooking(
 }
 
 export async function handleMeetingOrPersonalBooking(
-	bookingObject,
-	currentUser,
+	bookingObject: any,
+	currentUser: any,
 	type: 'meeting' | 'personal'
-): Promise<{ success: boolean; bookedDates?: string[] }> {
+): Promise<{ success: boolean; bookedDates?: BookedDateLine[] }> {
 	const result = await createBooking(bookingObject, type);
 
 	if (result.success) {
@@ -81,13 +81,14 @@ export async function handleMeetingOrPersonalBooking(
 			description: `Bokningen skapades klockan ${bookingObject.time} den ${bookingObject.date}.`
 		});
 
-		const bookedDates = [`${bookingObject.date} kl ${bookingObject.time}`];
+		// No location for meeting/personal
+		const bookedDates: BookedDateLine[] = [{ date: bookingObject.date, time: bookingObject.time }];
 		return { success: true, bookedDates };
 	} else {
 		addToast({
 			type: AppToastType.CANCEL,
 			message: 'Något gick fel',
-			description: `Något gick fel, försök igen eller kontakta IT.`
+			description: 'Något gick fel, försök igen eller kontakta IT.'
 		});
 		return { success: false };
 	}
@@ -102,17 +103,31 @@ export async function handleBookingEmail({
 	emailBehavior: 'send' | 'edit' | 'none';
 	clientEmail: string;
 	fromUser: { firstname: string; lastname: string; email: string };
-	bookedDates: string[];
+	bookedDates: BookedDateLine[];
 }): Promise<'sent' | 'edit' | 'skipped'> {
 	if (!clientEmail || emailBehavior === 'none') return 'skipped';
 
 	if (emailBehavior === 'send') {
+		const lines = bookedDates
+			.map((b) =>
+				b.locationName ? `${b.date} kl. ${b.time} på ${b.locationName}` : `${b.date} kl. ${b.time}`
+			)
+			.join('<br>');
+
 		const result = await sendMail({
 			to: clientEmail,
 			subject: 'Bokningsbekräftelse',
 			header: 'Bekräftelse på dina bokningar',
 			subheader: 'Tack för din bokning!',
-			body: bookedDates.map((d) => `• ${d}`).join('<br>'),
+			body: `
+        Hej!<br><br>
+        Jag har bokat in dig följande tider:<br>
+        ${lines}<br><br>
+        Du kan boka av eller om din träningstid senast klockan 12.00 dagen innan träning genom att kontakta någon i ditt tränarteam via sms, e‑post eller telefon.<br><br>
+        Hälsningar,<br>
+        ${fromUser.firstname}<br>
+        Takkei Trainingsystems
+      `,
 			from: {
 				name: `${fromUser.firstname} ${fromUser.lastname}`,
 				email: fromUser.email
@@ -136,9 +151,6 @@ export async function handleBookingEmail({
 		}
 	}
 
-	if (emailBehavior === 'edit') {
-		return 'edit';
-	}
-
+	if (emailBehavior === 'edit') return 'edit';
 	return 'skipped';
 }

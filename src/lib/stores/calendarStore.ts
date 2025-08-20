@@ -15,6 +15,14 @@ export type CalendarFilters = {
 	personalBookings?: boolean;
 };
 
+function computePersonalBookingsFlag(f: CalendarFilters): boolean {
+	const oneTrainer = Array.isArray(f?.trainerIds) && f.trainerIds.length === 1;
+	const noClients = !Array.isArray(f?.clientIds) || f.clientIds.length === 0;
+	const noLocations = !Array.isArray(f?.locationIds) || f.locationIds.length === 0;
+	const noRoom = f?.roomId == null;
+	return oneTrainer && noClients && noLocations && noRoom;
+}
+
 /**
  * Calendar Store - Manages filters & bookings
  */
@@ -43,30 +51,25 @@ const createCalendarStore = () => {
 	 */
 
 	async function refresh(fetchFn: typeof fetch, overrideFilters?: CalendarFilters) {
-		const filtersToUse = overrideFilters ?? getCurrentFilters();
+		const base = { ...(overrideFilters ?? getCurrentFilters()) };
 
-		if (!filtersToUse.from && !filtersToUse.to) {
+		if (!base.from && !base.to) {
 			const { weekStart, weekEnd } = getWeekStartAndEnd(new Date());
-			filtersToUse.from = weekStart;
-			filtersToUse.to = weekEnd;
+			base.from = weekStart;
+			base.to = weekEnd;
 		}
 
-		if (filtersToUse.personalBookings === undefined) {
-			filtersToUse.personalBookings = filtersToUse.trainerIds?.length === 1;
+		if (base.personalBookings === undefined) {
+			base.personalBookings = computePersonalBookingsFlag(base);
 		}
 
-		const newBookings = await fetchBookings(filtersToUse, fetchFn);
+		const newBookings = await fetchBookings(base, fetchFn);
 
 		let newAvailability = {};
-		if (filtersToUse.trainerIds?.length === 1 && filtersToUse.from && filtersToUse.to) {
-			const userId = filtersToUse.trainerIds[0];
+		if (base.trainerIds?.length === 1 && base.from && base.to) {
+			const userId = base.trainerIds[0];
 			try {
-				const res = await fetchUserAvailability(
-					userId,
-					filtersToUse.from,
-					filtersToUse.to,
-					fetchFn
-				);
+				const res = await fetchUserAvailability(userId, base.from, base.to, fetchFn);
 				newAvailability = res.availability ?? {};
 			} catch (err) {
 				console.error('❌ Failed to fetch availability:', err);
@@ -87,18 +90,14 @@ const createCalendarStore = () => {
 	}
 
 	function updateFilters(newFilters: Partial<CalendarFilters>, fetchFn: typeof fetch) {
-		const updatedFilters = {
-			...getCurrentFilters(),
-			...newFilters,
-			personalBookings: newFilters.personalBookings ?? newFilters.trainerIds?.length === 1
-		};
+		const merged = { ...getCurrentFilters(), ...newFilters };
 
-		update((store) => ({
-			...store,
-			filters: updatedFilters
-		}));
+		if (newFilters.personalBookings === undefined) {
+			merged.personalBookings = computePersonalBookingsFlag(merged);
+		}
 
-		refresh(fetchFn, updatedFilters); // ← pass directly
+		update((store) => ({ ...store, filters: merged }));
+		refresh(fetchFn, merged);
 	}
 
 	function setNewFilters(newFilters: Partial<CalendarFilters>, fetchFn: typeof fetch) {
@@ -110,19 +109,15 @@ const createCalendarStore = () => {
 			locationIds: [],
 			trainerIds: null,
 			clientIds: null,
-			personalBookings: newFilters.trainerIds?.length === 1 ?? false
+			personalBookings: undefined
 		};
 
-		const filters = {
-			...baseDefaults,
-			...newFilters
-		};
+		const filters = { ...baseDefaults, ...newFilters };
+		if (filters.personalBookings === undefined) {
+			filters.personalBookings = computePersonalBookingsFlag(filters);
+		}
 
-		update((store) => ({
-			...store,
-			filters
-		}));
-
+		update((store) => ({ ...store, filters }));
 		refresh(fetchFn, filters);
 	}
 	/**
