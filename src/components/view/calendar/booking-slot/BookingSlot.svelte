@@ -125,16 +125,21 @@
 	class="absolute z-20 flex flex-col gap-[2px] p-1 text-xs text-gray shadow-sm {showIcon
 		? 'items-start'
 		: 'items-center'}
+          {booking.isPersonalBooking
+		? `  ${booking.additionalInfo?.bookingContent.kind === 'Private' ? ' bg-gray-400/20' : ' bg-gray-600/20'}`
+		: ''}
         {booking.trainer?.id === $user.id ? 'border-2' : ''}"
 	style="
 		top: {topOffset}px;
 		height: {meetingHeight - 4}px;
-		left: calc({colLeft}% + 2px);
+		left: calc({colLeft}% + 2px); 
 		width: calc({colWidth}% - 4px);
-	
-        background-color: {bookingColor}20;
-        border-color: {bookingColor};
-  
+	{!booking.isPersonalBooking
+		? `
+        background-color: ${bookingColor}20;
+        border-color: ${bookingColor};
+	`
+		: ''}
 	"
 	use:tooltip={{ content: toolTipText }}
 >
