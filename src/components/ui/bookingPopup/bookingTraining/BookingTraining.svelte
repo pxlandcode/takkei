@@ -4,7 +4,7 @@
 	import Dropdown from '../../../bits/dropdown/Dropdown.svelte';
 	import { user } from '$lib/stores/userStore';
 	import { locations, fetchLocations } from '$lib/stores/locationsStore';
-	import { clients, fetchClients } from '$lib/stores/clientsStore';
+	import { clients, fetchClients, fetchTrialEligibleClients } from '$lib/stores/clientsStore';
 	import { users, fetchUsers } from '$lib/stores/usersStore';
 	import { onMount } from 'svelte';
 	import { get } from 'svelte/store';
@@ -17,8 +17,10 @@
 	export let bookingContents: { value: string; label: string }[] = [];
 	export let repeatedBookings: any;
 	export let selectedIsUnavailable: boolean = false;
+	export let isTrial: boolean = false;
 
 	let availableRooms = [];
+	let eligibleTrialClients = [];
 
 	// Client scope toggle
 	let clientScope = { value: 'trainer', label: 'Tränarens klienter' };
@@ -26,6 +28,28 @@
 		{ value: 'trainer', label: 'Tränarens klienter' },
 		{ value: 'all', label: 'Alla klienter' }
 	];
+
+	$: if (isTrial) {
+		bookingObject.repeat = false;
+		bookingObject.isTrial = true;
+		repeatedBookings = [];
+	} else {
+		bookingObject.isTrial = false;
+	}
+
+	$: if (isTrial) {
+		const tid = bookingObject.trainerId || undefined;
+		fetchTrialEligibleClients({ trainerId: tid, lookbackDays: 365, short: true })
+			.then((list) => {
+				eligibleTrialClients = list;
+			})
+			.catch((e) => {
+				console.error('Trial clients fetch failed', e);
+				eligibleTrialClients = [];
+			});
+	} else {
+		eligibleTrialClients = [];
+	}
 
 	let filteredClients = [];
 
@@ -72,7 +96,7 @@
 
 	onMount(async () => {
 		if (get(locations).length === 0) await fetchLocations();
-		if (get(clients).length === 0) await fetchClients();
+		if (get(clients).length === 0 && !isTrial) await fetchClients();
 		if (get(users).length === 0) await fetchUsers();
 
 		if (!bookingObject.bookingType && bookingContents.length > 0) {
@@ -90,30 +114,32 @@
 	}
 
 	$: {
-		let newFilteredClients = [];
+		let base = isTrial ? eligibleTrialClients : $clients;
+		let newFiltered = [];
 
 		if (clientScope?.value === 'all') {
-			newFilteredClients = $clients.map(formatClient);
+			newFiltered = base.map(formatClient);
 		} else if (clientScope?.value === 'trainer' && bookingObject.trainerId) {
-			newFilteredClients = $clients
+			newFiltered = base
 				.filter(
 					(c) =>
-						c.primary_trainer_id === bookingObject.trainerId ||
-						c.trainer?.id === bookingObject.trainerId
+						c.trainer?.id === bookingObject.trainerId ||
+						c.primary_trainer_id === bookingObject.trainerId
 				)
 				.map(formatClient);
 		}
 
-		// If passed-in clientId isn't in the filtered list, switch to "all"
 		if (
 			bookingObject.clientId !== null &&
-			!newFilteredClients.some((c) => c.value === bookingObject.clientId)
+			!newFiltered.some((c) => c.value === bookingObject.clientId)
 		) {
 			clientScope = clientScopeOptions.find((opt) => opt.value === 'all')!;
-			newFilteredClients = $clients.map(formatClient); // recalculate as "all"
+			newFiltered = base.map(formatClient);
 		}
 
-		filteredClients = newFilteredClients;
+		filteredClients = newFiltered;
+
+		console.log(filteredClients);
 	}
 
 	// Auto-assign room if only one available
@@ -223,89 +249,89 @@
 	/>
 
 	<!-- Repeat Booking Section -->
-
-	<div class="flex flex-col gap-2">
-		<Checkbox
-			id="repeat"
-			name="repeat"
-			bind:checked={bookingObject.repeat}
-			label="Upprepa denna bokning"
-		/>
-
-		{#if bookingObject.repeat}
-			<Input
-				label="Antal veckor framåt"
-				name="repeatWeeks"
-				type="number"
-				bind:value={bookingObject.repeatWeeks}
-				placeholder="Ex: 4"
-				min="1"
-				max="52"
+	{#if !isTrial}
+		<div class="flex flex-col gap-2">
+			<Checkbox
+				id="repeat"
+				name="repeat"
+				bind:checked={bookingObject.repeat}
+				label="Upprepa denna bokning"
 			/>
 
-			<Button
-				text="Kontrollera"
-				iconRight="MultiCheck"
-				iconRightSize="16"
-				variant="primary"
-				full
-				on:click={checkRepeatAvailability}
-				disabled={!bookingObject.repeatWeeks}
-			/>
+			{#if bookingObject.repeat}
+				<Input
+					label="Antal veckor framåt"
+					name="repeatWeeks"
+					type="number"
+					bind:value={bookingObject.repeatWeeks}
+					placeholder="Ex: 4"
+					min="1"
+					max="52"
+				/>
 
-			{#if repeatedBookings.length > 0}
-				<div class="flex flex-col gap-2 rounded border border-gray-300 bg-gray-50 p-4">
-					{#if repeatedBookings.filter((b) => b.conflict).length > 0}
-						<h3 class="flex items-center justify-between text-lg font-semibold">
-							Konflikter
-							<span class="text-sm text-gray-600">
-								{repeatedBookings.filter((b) => b.conflict).length} konflikter /
-								{repeatedBookings.length} veckor
-							</span>
-						</h3>
-					{/if}
+				<Button
+					text="Kontrollera"
+					iconRight="MultiCheck"
+					iconRightSize="16"
+					variant="primary"
+					full
+					on:click={checkRepeatAvailability}
+					disabled={!bookingObject.repeatWeeks}
+				/>
 
-					<!-- Show conflicts first -->
-					{#each repeatedBookings.filter((b) => b.conflict) as week}
-						<div class="mb-2 rounded border border-red bg-red/10 p-3">
-							{week.date}, kl {week.selectedTime}
-							<div class="mt-2">
-								<Dropdown
-									label="Välj alternativ tid"
-									placeholder="Tillgängliga tider"
-									id={`week-${week.week}-time`}
-									options={week.suggestedTimes.map((t) => ({ label: t, value: t }))}
-									bind:selectedValue={week.selectedTime}
-								/>
-								<div class="mt-2 flex gap-2">
-									<Button
-										text="Lös"
-										variant="primary"
-										small
-										on:click={() => resolveConflict(week.week)}
+				{#if repeatedBookings.length > 0}
+					<div class="flex flex-col gap-2 rounded border border-gray-300 bg-gray-50 p-4">
+						{#if repeatedBookings.filter((b) => b.conflict).length > 0}
+							<h3 class="flex items-center justify-between text-lg font-semibold">
+								Konflikter
+								<span class="text-sm text-gray-600">
+									{repeatedBookings.filter((b) => b.conflict).length} konflikter /
+									{repeatedBookings.length} veckor
+								</span>
+							</h3>
+						{/if}
+
+						<!-- Show conflicts first -->
+						{#each repeatedBookings.filter((b) => b.conflict) as week}
+							<div class="mb-2 rounded border border-red bg-red/10 p-3">
+								{week.date}, kl {week.selectedTime}
+								<div class="mt-2">
+									<Dropdown
+										label="Välj alternativ tid"
+										placeholder="Tillgängliga tider"
+										id={`week-${week.week}-time`}
+										options={week.suggestedTimes.map((t) => ({ label: t, value: t }))}
+										bind:selectedValue={week.selectedTime}
 									/>
-									<Button
-										text="Ignorera"
-										variant="secondary"
-										small
-										on:click={() => ignoreConflict(week.week)}
-									/>
+									<div class="mt-2 flex gap-2">
+										<Button
+											text="Lös"
+											variant="primary"
+											small
+											on:click={() => resolveConflict(week.week)}
+										/>
+										<Button
+											text="Ignorera"
+											variant="secondary"
+											small
+											on:click={() => ignoreConflict(week.week)}
+										/>
+									</div>
 								</div>
 							</div>
-						</div>
-					{/each}
+						{/each}
 
-					<h3 class="text-lg font-semibold">Bokningar klara att bokas:</h3>
-					{#each repeatedBookings.filter((b) => !b.conflict) as week}
-						<div class="mb-1 rounded border border-green bg-green-bright/10 p-2">
-							{week.date}, kl {week.selectedTime}
-						</div>
-					{/each}
-				</div>
+						<h3 class="text-lg font-semibold">Bokningar klara att bokas:</h3>
+						{#each repeatedBookings.filter((b) => !b.conflict) as week}
+							<div class="mb-1 rounded border border-green bg-green-bright/10 p-2">
+								{week.date}, kl {week.selectedTime}
+							</div>
+						{/each}
+					</div>
+				{/if}
 			{/if}
-		{/if}
-	</div>
-
+		</div>
+	{/if}
 	<OptionButton
 		label="Bekräftelsemail"
 		labelIcon="Mail"

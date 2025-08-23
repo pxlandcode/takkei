@@ -14,6 +14,11 @@ export async function GET({ url }) {
 	const offset = parseInt(url.searchParams.get('offset') || '0', 10);
 	const trainerId = url.searchParams.get('trainerId');
 	const active = url.searchParams.get('active'); // 'true' | 'false' | undefined
+	const trialEligible = url.searchParams.get('trialEligible'); // 'true' | 'false' | undefined
+	const trialLookbackDays = parseInt(url.searchParams.get('trialLookbackDays') || '365', 10);
+	const trialSinceIso = new Date(
+		Date.now() - trialLookbackDays * 24 * 60 * 60 * 1000
+	).toISOString();
 
 	const params: any[] = [];
 	let paramIndex = 1;
@@ -43,6 +48,36 @@ export async function GET({ url }) {
 
 	// --- 2. FILTERS ---
 	const whereClauses: string[] = [];
+
+	if (trialEligible === 'true') {
+		whereClauses.push(`
+    NOT EXISTS (
+      SELECT 1
+      FROM bookings b
+      WHERE b.client_id = clients.id
+        AND COALESCE(b.try_out, false) = false
+        AND b.status NOT IN ('Cancelled','CancelledLate') -- adjust if needed
+        AND b.start_time >= $${paramIndex}::timestamptz
+
+    )
+  `);
+		params.push(trialSinceIso);
+		paramIndex++;
+	} else if (trialEligible === 'false') {
+		whereClauses.push(`
+    EXISTS (
+      SELECT 1
+      FROM bookings b
+      WHERE b.client_id = clients.id
+        AND COALESCE(b.try_out, false) = false
+        AND b.status NOT IN ('Cancelled','CancelledLate')
+        AND b.start_time >= $${paramIndex}::timestamptz
+
+    )
+  `);
+		params.push(trialSinceIso);
+		paramIndex++;
+	}
 
 	// Available clients not linked to any customer
 	if (available) {

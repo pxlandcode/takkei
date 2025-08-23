@@ -43,6 +43,7 @@ export async function createBooking(
 				location_id: bookingObject.locationId ?? null,
 				booking_content_id: capitalizeFirstLetter(bookingObject.bookingType?.value ?? 'Corporate'),
 				status: 'New',
+				try_out: !!bookingObject.isTrial,
 				created_by_id: bookingObject.booked_by_id,
 				repeat_index: bookingObject.repeat ? 1 : null
 			};

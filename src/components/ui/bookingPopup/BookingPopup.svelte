@@ -30,7 +30,7 @@
 		dispatch('close');
 	}
 
-	let selectedBookingComponent: 'training' | 'meeting' | 'personal' = 'training';
+	let selectedBookingComponent: 'training' | 'meeting' | 'personal' | 'trial' = 'training';
 	let repeatedBookings = [];
 	let selectedIsUnavailable = false;
 	let currentUser = get(user);
@@ -40,11 +40,12 @@
 		booked_by_id: null,
 		user_ids: [],
 		attendees: [],
-		bookingType: null, // used for training: { label, value }, meeting/personal: { label, value } like 'Private'
+		bookingType: null,
 		trainerId: null,
 		clientId: null,
 		locationId: null,
 		currentUser: null,
+		isTrial: false,
 		name: '',
 		text: '',
 		date: startTime
@@ -68,10 +69,16 @@
 	$: {
 		if (selectedBookingComponent === 'personal') {
 			bookingObject.bookingType = { label: 'Privat', value: 'Private' };
+			bookingObject.isTrial = false;
 		} else if (selectedBookingComponent === 'meeting') {
 			bookingObject.bookingType = { label: 'Möte', value: 'Meeting' };
+			bookingObject.isTrial = false;
+		} else if (selectedBookingComponent === 'trial') {
+			bookingObject.bookingType = null;
+			bookingObject.isTrial = true;
 		} else if (selectedBookingComponent === 'training') {
 			bookingObject.bookingType = null;
+			bookingObject.isTrial = false;
 		}
 	}
 
@@ -129,16 +136,15 @@
 
 		const locationName = getLocationLabelFromId(bookingObject.locationId);
 
-		// We'll use the richer shape: { date, time, locationName }
 		let bookedDates: { date: string; time: string; locationName?: string }[] = [];
 		let success = false;
 
-		if (type === 'training') {
+		if (type === 'training' || type === 'trial') {
 			const result = await handleTrainingBooking(
 				bookingObject,
 				currentUser,
 				repeatedBookings,
-				type
+				'training'
 			);
 			success = result.success;
 
@@ -215,13 +221,13 @@
 		bind:selectedValue={selectedBookingComponent}
 		options={[
 			{ label: 'Träning', icon: 'Training', value: 'training' },
+			{ label: 'Provträning', icon: 'ShiningStar', value: 'trial' },
 			{ label: 'Möte', icon: 'Meeting', value: 'meeting' },
 			{ label: 'Personlig', icon: 'Person', value: 'personal' }
 		]}
 	/>
-
 	<!-- Dynamic Booking Component -->
-	{#if selectedBookingComponent === 'training'}
+	{#if selectedBookingComponent === 'training' || selectedBookingComponent === 'trial'}
 		<BookingTraining
 			bind:bookingObject
 			bind:repeatedBookings
@@ -229,6 +235,7 @@
 				value: content.id,
 				label: capitalizeFirstLetter(content.kind)
 			}))}
+			isTrial={bookingObject.isTrial}
 		/>
 	{:else if selectedBookingComponent === 'meeting'}
 		<BookingMeeting

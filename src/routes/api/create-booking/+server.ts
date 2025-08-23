@@ -89,7 +89,7 @@ export const POST: RequestHandler = async ({ request }) => {
 				internal,
 				user_id,
 				added_to_package_by,
-				!room_id, // mark `booking_without_room = true` if auto-selected
+				!room_id,
 				location_name,
 				actual_cancel_time,
 				internal_education
