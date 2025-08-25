@@ -1,14 +1,18 @@
+<!-- src/lib/components/bits/slotTimePicker/SlotTimePicker.svelte -->
 <script lang="ts">
 	import Dropdown from '../dropdown/Dropdown.svelte';
 	import { fetchAvailableSlots } from '$lib/services/api/bookingService';
 	import Input from '../Input/Input.svelte';
+	import { createEventDispatcher } from 'svelte';
 
-	export let selectedDate: string = new Date().toISOString().slice(0, 10); // yyyy-mm-dd
+	export let selectedDate: string = new Date().toISOString().slice(0, 10);
 	export let selectedTime: string = '';
 	export let trainerId: number;
 	export let locationId: number;
 	export let label = 'Tid';
-	import { createEventDispatcher } from 'svelte';
+
+	export let checkUsersBusy: boolean = false;
+	export let traineeUserId: number | null = null;
 
 	const dispatch = createEventDispatcher();
 
@@ -24,7 +28,6 @@
 		return h * 60 + m;
 	}
 
-	// Fetch available slots
 	async function updateSlots() {
 		showWarning = false;
 		if (selectedDate && trainerId != null && locationId != null) {
@@ -32,13 +35,15 @@
 			availableSlots = [];
 			outsideAvailabilitySlots = [];
 			sortedOptions = [];
-
 			try {
 				const res = await fetchAvailableSlots({
 					date: selectedDate,
 					trainerId,
-					locationId
+					locationId,
+					checkUsersBusy,
+					userId: traineeUserId ?? undefined
 				});
+
 				availableSlots = res.availableSlots;
 				outsideAvailabilitySlots = res.outsideAvailabilitySlots;
 
@@ -62,10 +67,10 @@
 		}
 	}
 
-	$: selectedDate, trainerId, locationId, updateSlots();
+	$: selectedDate, trainerId, locationId, checkUsersBusy, traineeUserId, updateSlots();
 
 	function missingFields(): string[] {
-		const missing = [];
+		const missing: string[] = [];
 		if (!selectedDate) missing.push('datum');
 		if (trainerId == null) missing.push('tränare');
 		if (locationId == null) missing.push('plats');

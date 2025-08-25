@@ -18,6 +18,7 @@
 	export let repeatedBookings: any;
 	export let selectedIsUnavailable: boolean = false;
 	export let isTrial: boolean = false;
+	export let isFlight: boolean = false;
 
 	let availableRooms = [];
 	let eligibleTrialClients = [];
@@ -32,9 +33,19 @@
 	$: if (isTrial) {
 		bookingObject.repeat = false;
 		bookingObject.isTrial = true;
+		bookingObject.internal = false;
 		repeatedBookings = [];
 	} else {
 		bookingObject.isTrial = false;
+	}
+
+	$: if (isFlight) {
+		bookingObject.repeat = false;
+		bookingObject.isTrial = false;
+		bookingObject.internal = true;
+		repeatedBookings = [];
+	} else {
+		bookingObject.internal = bookingObject.internal ?? false;
 	}
 
 	$: if (isTrial) {
@@ -249,7 +260,7 @@
 	/>
 
 	<!-- Repeat Booking Section -->
-	{#if !isTrial}
+	{#if !isTrial && !isFlight}
 		<div class="flex flex-col gap-2">
 			<Checkbox
 				id="repeat"

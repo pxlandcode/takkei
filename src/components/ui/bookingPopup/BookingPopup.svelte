@@ -7,6 +7,7 @@
 	import { capitalizeFirstLetter } from '$lib/helpers/generic/genericHelpers';
 	import Button from '../../bits/button/Button.svelte';
 	import BookingTraining from './bookingTraining/BookingTraining.svelte';
+	import BookingPractice from './bookingPractice/BookingPractice.svelte';
 	import BookingMeeting from './bookingMeeting/BookingMeeting.svelte';
 	import OptionsSelect from '../../bits/options-select/OptionsSelect.svelte';
 	import { user } from '$lib/stores/userStore';
@@ -30,7 +31,9 @@
 		dispatch('close');
 	}
 
-	let selectedBookingComponent: 'training' | 'meeting' | 'personal' | 'trial' = 'training';
+	let selectedBookingComponent: 'training' | 'meeting' | 'personal' | 'trial' | 'practice' =
+		'training';
+
 	let repeatedBookings = [];
 	let selectedIsUnavailable = false;
 	let currentUser = get(user);
@@ -46,6 +49,7 @@
 		locationId: null,
 		currentUser: null,
 		isTrial: false,
+		internalEducation: false,
 		name: '',
 		text: '',
 		date: startTime
@@ -70,15 +74,40 @@
 		if (selectedBookingComponent === 'personal') {
 			bookingObject.bookingType = { label: 'Privat', value: 'Private' };
 			bookingObject.isTrial = false;
+			bookingObject.internalEducation = false;
+			bookingObject.user_id = null;
+			bookingObject.clientId = null;
+			bookingObject.internal = false;
 		} else if (selectedBookingComponent === 'meeting') {
 			bookingObject.bookingType = { label: 'Möte', value: 'Meeting' };
 			bookingObject.isTrial = false;
+			bookingObject.internalEducation = false;
+			bookingObject.user_id = null;
+			bookingObject.clientId = null;
+			bookingObject.internal = false;
 		} else if (selectedBookingComponent === 'trial') {
 			bookingObject.bookingType = null;
 			bookingObject.isTrial = true;
-		} else if (selectedBookingComponent === 'training') {
+			bookingObject.internalEducation = false;
+			bookingObject.user_id = null;
+			bookingObject.internal = false;
+		} else if (selectedBookingComponent === 'practice') {
+			bookingObject.bookingType = { label: 'Praktiktimme', value: 'Practice' };
+			bookingObject.isTrial = false;
+			bookingObject.internalEducation = true;
+			bookingObject.clientId = null;
+			bookingObject.internal = false;
+		} else if (selectedBookingComponent === 'flight') {
 			bookingObject.bookingType = null;
 			bookingObject.isTrial = false;
+			bookingObject.internal = true;
+			bookingObject.repeat = false;
+		} else {
+			bookingObject.bookingType = null;
+			bookingObject.isTrial = false;
+			bookingObject.internalEducation = false;
+			bookingObject.user_id = null;
+			bookingObject.internal = false;
 		}
 	}
 
@@ -139,7 +168,7 @@
 		let bookedDates: { date: string; time: string; locationName?: string }[] = [];
 		let success = false;
 
-		if (type === 'training' || type === 'trial') {
+		if (type === 'training' || type === 'trial' || type === 'practice' || type === 'flight') {
 			const result = await handleTrainingBooking(
 				bookingObject,
 				currentUser,
@@ -222,12 +251,14 @@
 		options={[
 			{ label: 'Träning', icon: 'Training', value: 'training' },
 			{ label: 'Provträning', icon: 'ShiningStar', value: 'trial' },
+			{ label: 'Praktiktimme', icon: 'GraduationCap', value: 'practice' },
+			{ label: 'Flygtimme', icon: 'Plane', value: 'flight' },
 			{ label: 'Möte', icon: 'Meeting', value: 'meeting' },
 			{ label: 'Personlig', icon: 'Person', value: 'personal' }
 		]}
 	/>
 	<!-- Dynamic Booking Component -->
-	{#if selectedBookingComponent === 'training' || selectedBookingComponent === 'trial'}
+	{#if selectedBookingComponent === 'training' || selectedBookingComponent === 'trial' || selectedBookingComponent === 'flight'}
 		<BookingTraining
 			bind:bookingObject
 			bind:repeatedBookings
@@ -236,6 +267,13 @@
 				label: capitalizeFirstLetter(content.kind)
 			}))}
 			isTrial={bookingObject.isTrial}
+			isFlight={bookingObject.internal}
+		/>
+	{:else if selectedBookingComponent === 'practice'}
+		<BookingPractice
+			bind:bookingObject
+			users={($users || []).map((u) => ({ label: `${u.firstname} ${u.lastname}`, value: u.id }))}
+			locations={($locations || []).map((l) => ({ label: l.name, value: l.id }))}
 		/>
 	{:else if selectedBookingComponent === 'meeting'}
 		<BookingMeeting
