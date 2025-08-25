@@ -4,18 +4,25 @@ import type { RequestHandler } from '@sveltejs/kit';
 function extractTimeInMinutesFromDate(dateObj: Date): number {
 	return dateObj.getHours() * 60 + dateObj.getMinutes();
 }
-
 function extractTimeInMinutes(timeStr: string): number {
 	const [h, m] = timeStr.split(':').map(Number);
 	return h * 60 + m;
 }
-
 function overlaps(startA: number, endA: number, startB: number, endB: number): boolean {
 	return startA < endB && startB < endA;
 }
 
 export const POST: RequestHandler = async ({ request }) => {
-	const { date, trainerId, locationId, time, repeatWeeks } = await request.json();
+	const body = await request.json();
+	const {
+		date,
+		trainerId,
+		locationId,
+		time,
+		repeatWeeks,
+		checkUsersBusy = false,
+		userId = null
+	} = body;
 
 	if (!date || !trainerId || !locationId || !time || !repeatWeeks) {
 		return new Response(JSON.stringify({ error: 'Missing parameters' }), { status: 400 });
@@ -27,12 +34,11 @@ export const POST: RequestHandler = async ({ request }) => {
 
 	const repeatedBookings = [];
 
-	// Fetch all active room IDs at location
+	// rooms at location
 	const roomResult = await query(`SELECT id FROM rooms WHERE location_id = $1 AND active = true`, [
 		locationId
 	]);
-	const roomIds: number[] = roomResult.map((r) => r.id);
-
+	const roomIds: number[] = roomResult.map((r: any) => r.id);
 	if (roomIds.length === 0) {
 		return new Response(JSON.stringify({ error: 'No rooms at this location' }), { status: 400 });
 	}
@@ -44,50 +50,112 @@ export const POST: RequestHandler = async ({ request }) => {
 		const dayStart = `${dateString} 00:00:00`;
 		const dayEnd = `${dateString} 23:59:59`;
 
+		// room bookings
 		const bookings = await query(
 			`
-			SELECT room_id, start_time FROM bookings
-			WHERE start_time BETWEEN $1 AND $2
-				AND status != 'Cancelled'
-				AND room_id = ANY($3::int[])
-			`,
+        SELECT room_id, start_time
+        FROM bookings
+        WHERE start_time BETWEEN $1 AND $2
+          AND status != 'Cancelled'
+          AND room_id = ANY($3::int[])
+      `,
 			[dayStart, dayEnd, roomIds]
 		);
 
+		// trainer personal bookings
 		const personalBookings = await query(
 			`
-			SELECT start_time, end_time FROM personal_bookings
-			WHERE start_time BETWEEN $1 AND $2
-				AND (user_id = $3 OR $3 = ANY(user_ids))
-			`,
+        SELECT start_time, end_time
+        FROM personal_bookings
+        WHERE start_time BETWEEN $1 AND $2
+          AND (user_id = $3 OR $3 = ANY(user_ids))
+      `,
 			[dayStart, dayEnd, trainerId]
 		);
-
-		const personalIntervals = personalBookings.map((b) => ({
+		const trainerPersonalIntervals = personalBookings.map((b: any) => ({
 			start: extractTimeInMinutesFromDate(new Date(b.start_time)),
 			end: extractTimeInMinutesFromDate(new Date(b.end_time))
 		}));
 
-		// Count how many rooms are taken at this slot
+		// NEW: check trainer & trainee "user-busy" windows (only if asked)
+		let trainerBookingIntervals: { start: number; end: number }[] = [];
+		let traineePersonalIntervals: { start: number; end: number }[] = [];
+		let traineeBookingIntervals: { start: number; end: number }[] = [];
+
+		if (checkUsersBusy) {
+			// Trainer's existing client/practice bookings
+			const tBookings = await query(
+				`
+          SELECT start_time
+          FROM bookings
+          WHERE start_time BETWEEN $1 AND $2
+            AND status != 'Cancelled'
+            AND trainer_id = $3
+        `,
+				[dayStart, dayEnd, trainerId]
+			);
+			trainerBookingIntervals = tBookings.map((b: any) => {
+				const s = extractTimeInMinutesFromDate(new Date(b.start_time));
+				return { start: s, end: s + 60 };
+			});
+
+			if (userId) {
+				// Trainee personal bookings
+				const traineePersonal = await query(
+					`
+            SELECT start_time, end_time
+            FROM personal_bookings
+            WHERE start_time BETWEEN $1 AND $2
+              AND (user_id = $3 OR $3 = ANY(user_ids))
+          `,
+					[dayStart, dayEnd, userId]
+				);
+				traineePersonalIntervals = traineePersonal.map((b: any) => ({
+					start: extractTimeInMinutesFromDate(new Date(b.start_time)),
+					end: extractTimeInMinutesFromDate(new Date(b.end_time))
+				}));
+
+				// Trainee practice bookings (bookings.user_id = trainee)
+				const traineeBookings = await query(
+					`
+            SELECT start_time
+            FROM bookings
+            WHERE start_time BETWEEN $1 AND $2
+              AND status != 'Cancelled'
+              AND user_id = $3
+          `,
+					[dayStart, dayEnd, userId]
+				);
+				traineeBookingIntervals = traineeBookings.map((b: any) => {
+					const s = extractTimeInMinutesFromDate(new Date(b.start_time));
+					return { start: s, end: s + 60 };
+				});
+			}
+		}
+
+		// room conflicts
 		const roomConflicts = new Set(
 			bookings
-				.filter((b) => {
-					const bookingStart = extractTimeInMinutesFromDate(new Date(b.start_time));
-					const bookingEnd = bookingStart + 60;
-					return overlaps(slotStart, slotEnd, bookingStart, bookingEnd);
+				.filter((b: any) => {
+					const s = extractTimeInMinutesFromDate(new Date(b.start_time));
+					const e = s + 60;
+					return overlaps(slotStart, slotEnd, s, e);
 				})
-				.map((b) => b.room_id)
+				.map((b: any) => b.room_id)
 		);
-
 		const allRoomsTaken = roomConflicts.size >= roomIds.length;
-		const trainerConflict = personalIntervals.some((b) =>
-			overlaps(slotStart, slotEnd, b.start, b.end)
-		);
 
-		const hasConflict = allRoomsTaken || trainerConflict;
+		// user conflicts
+		const trainerBusy = [...trainerPersonalIntervals, ...trainerBookingIntervals];
+		const traineeBusy = [...traineePersonalIntervals, ...traineeBookingIntervals];
 
+		const trainerConflict = trainerBusy.some((b) => overlaps(slotStart, slotEnd, b.start, b.end));
+		const traineeConflict = traineeBusy.some((b) => overlaps(slotStart, slotEnd, b.start, b.end));
+
+		const hasConflict = allRoomsTaken || trainerConflict || traineeConflict;
+
+		// Suggestions
 		let suggestedTimes: string[] = [];
-
 		if (hasConflict) {
 			for (let h = 5; h <= 21; h++) {
 				for (let m of [0, 30]) {
@@ -96,19 +164,17 @@ export const POST: RequestHandler = async ({ request }) => {
 
 					const altRoomConflicts = new Set(
 						bookings
-							.filter((b) => {
-								const bookingStart = extractTimeInMinutesFromDate(new Date(b.start_time));
-								const bookingEnd = bookingStart + 60;
-								return overlaps(altStart, altEnd, bookingStart, bookingEnd);
+							.filter((b: any) => {
+								const s = extractTimeInMinutesFromDate(new Date(b.start_time));
+								const e = s + 60;
+								return overlaps(altStart, altEnd, s, e);
 							})
-							.map((b) => b.room_id)
+							.map((b: any) => b.room_id)
 					);
+					const altTrainer = trainerBusy.some((b) => overlaps(altStart, altEnd, b.start, b.end));
+					const altTrainee = traineeBusy.some((b) => overlaps(altStart, altEnd, b.start, b.end));
 
-					const altTrainerConflict = personalIntervals.some((b) =>
-						overlaps(altStart, altEnd, b.start, b.end)
-					);
-
-					if (altRoomConflicts.size < roomIds.length && !altTrainerConflict) {
+					if (altRoomConflicts.size < roomIds.length && !altTrainer && !altTrainee) {
 						suggestedTimes.push(`${h.toString().padStart(2, '0')}:${m === 0 ? '00' : '30'}`);
 					}
 				}

@@ -58,6 +58,7 @@ export interface PersonalBookingInfo {
 	text?: string;
 	bookedById?: number | null;
 	userIds: number[];
+	kind: string;
 }
 
 export interface FullBooking {

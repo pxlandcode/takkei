@@ -7,6 +7,7 @@
 	import { capitalizeFirstLetter } from '$lib/helpers/generic/genericHelpers';
 	import Button from '../../bits/button/Button.svelte';
 	import BookingTraining from './bookingTraining/BookingTraining.svelte';
+	import BookingPractice from './bookingPractice/BookingPractice.svelte';
 	import BookingMeeting from './bookingMeeting/BookingMeeting.svelte';
 	import OptionsSelect from '../../bits/options-select/OptionsSelect.svelte';
 	import { user } from '$lib/stores/userStore';
@@ -30,7 +31,9 @@
 		dispatch('close');
 	}
 
-	let selectedBookingComponent: 'training' | 'meeting' | 'personal' = 'training';
+	let selectedBookingComponent: 'training' | 'meeting' | 'personal' | 'trial' | 'practice' =
+		'training';
+
 	let repeatedBookings = [];
 	let selectedIsUnavailable = false;
 	let currentUser = get(user);
@@ -40,11 +43,13 @@
 		booked_by_id: null,
 		user_ids: [],
 		attendees: [],
-		bookingType: null, // used for training: { label, value }, meeting/personal: { label, value } like 'Private'
+		bookingType: null,
 		trainerId: null,
 		clientId: null,
 		locationId: null,
 		currentUser: null,
+		isTrial: false,
+		internalEducation: false,
 		name: '',
 		text: '',
 		date: startTime
@@ -68,10 +73,41 @@
 	$: {
 		if (selectedBookingComponent === 'personal') {
 			bookingObject.bookingType = { label: 'Privat', value: 'Private' };
+			bookingObject.isTrial = false;
+			bookingObject.internalEducation = false;
+			bookingObject.user_id = null;
+			bookingObject.clientId = null;
+			bookingObject.internal = false;
 		} else if (selectedBookingComponent === 'meeting') {
 			bookingObject.bookingType = { label: 'Möte', value: 'Meeting' };
-		} else if (selectedBookingComponent === 'training') {
+			bookingObject.isTrial = false;
+			bookingObject.internalEducation = false;
+			bookingObject.user_id = null;
+			bookingObject.clientId = null;
+			bookingObject.internal = false;
+		} else if (selectedBookingComponent === 'trial') {
 			bookingObject.bookingType = null;
+			bookingObject.isTrial = true;
+			bookingObject.internalEducation = false;
+			bookingObject.user_id = null;
+			bookingObject.internal = false;
+		} else if (selectedBookingComponent === 'practice') {
+			bookingObject.bookingType = { label: 'Praktiktimme', value: 'Practice' };
+			bookingObject.isTrial = false;
+			bookingObject.internalEducation = true;
+			bookingObject.clientId = null;
+			bookingObject.internal = false;
+		} else if (selectedBookingComponent === 'flight') {
+			bookingObject.bookingType = null;
+			bookingObject.isTrial = false;
+			bookingObject.internal = true;
+			bookingObject.repeat = false;
+		} else {
+			bookingObject.bookingType = null;
+			bookingObject.isTrial = false;
+			bookingObject.internalEducation = false;
+			bookingObject.user_id = null;
+			bookingObject.internal = false;
 		}
 	}
 
@@ -115,27 +151,51 @@
 		}
 	});
 
+	function getLocationLabelFromId(id: number | null | undefined) {
+		const list = $locations || [];
+		const loc = id ? list.find((l) => l.id === id) : null;
+		// Prefer street address (e.g., "Garvargatan 7"), then name, else fallback.
+		return (loc?.address && loc.address.trim()) || loc?.name || 'Okänd plats';
+	}
+
 	async function submitBooking() {
 		const type = selectedBookingComponent;
 		bookingObject.currentUser = currentUser;
-
 		if (!currentUser) return;
 
-		let bookedDates: string[] = [];
+		const locationName = getLocationLabelFromId(bookingObject.locationId);
+
+		let bookedDates: { date: string; time: string; locationName?: string }[] = [];
 		let success = false;
 
-		if (type === 'training') {
+		if (type === 'training' || type === 'trial' || type === 'practice' || type === 'flight') {
 			const result = await handleTrainingBooking(
 				bookingObject,
 				currentUser,
 				repeatedBookings,
-				type
+				'training'
 			);
 			success = result.success;
-			bookedDates = result.bookedDates ?? [];
+
+			if (success) {
+				if (repeatedBookings.length > 0) {
+					bookedDates = repeatedBookings.map((r) => ({
+						date: r.date,
+						time: r.selectedTime,
+						locationName
+					}));
+				} else {
+					bookedDates = [{ date: bookingObject.date, time: bookingObject.time, locationName }];
+				}
+			}
 		} else {
-			success = await handleMeetingOrPersonalBooking(bookingObject, currentUser, type);
-			bookedDates = [`${bookingObject.date} kl ${bookingObject.time}`];
+			// meeting | personal
+			const res = await handleMeetingOrPersonalBooking(bookingObject, currentUser, type);
+			success = res.success;
+
+			if (success) {
+				bookedDates = [{ date: bookingObject.date, time: bookingObject.time }];
+			}
 		}
 
 		if (success && bookingObject.clientId) {
@@ -158,7 +218,15 @@
 							subject: 'Bokningsbekräftelse',
 							header: 'Bekräftelse på dina bokningar',
 							subheader: 'Tack för din bokning!',
-							body: bookedDates.map((d) => `• ${d}`).join('<br>'),
+							body: `
+							Hej!<br><br>
+							Jag har bokat in dig följande tider:<br>
+							${bookedDates.map((b) => `${b.date} kl. ${b.time} på ${b.locationName}`).join('<br>')}<br><br>
+							Du kan boka av eller om din träningstid senast klockan 12.00 dagen innan träning genom att kontakta någon i ditt tränarteam via sms, e‑post eller telefon.<br><br>
+							Hälsningar,<br>
+							${currentUser.firstname}<br>
+							Takkei Trainingsystems
+						`,
 							lockedFields: ['recipients'],
 							autoFetchUsersAndClients: false
 						}
@@ -182,13 +250,15 @@
 		bind:selectedValue={selectedBookingComponent}
 		options={[
 			{ label: 'Träning', icon: 'Training', value: 'training' },
+			{ label: 'Provträning', icon: 'ShiningStar', value: 'trial' },
+			{ label: 'Praktiktimme', icon: 'GraduationCap', value: 'practice' },
+			{ label: 'Flygtimme', icon: 'Plane', value: 'flight' },
 			{ label: 'Möte', icon: 'Meeting', value: 'meeting' },
 			{ label: 'Personlig', icon: 'Person', value: 'personal' }
 		]}
 	/>
-
 	<!-- Dynamic Booking Component -->
-	{#if selectedBookingComponent === 'training'}
+	{#if selectedBookingComponent === 'training' || selectedBookingComponent === 'trial' || selectedBookingComponent === 'flight'}
 		<BookingTraining
 			bind:bookingObject
 			bind:repeatedBookings
@@ -196,6 +266,14 @@
 				value: content.id,
 				label: capitalizeFirstLetter(content.kind)
 			}))}
+			isTrial={bookingObject.isTrial}
+			isFlight={bookingObject.internal}
+		/>
+	{:else if selectedBookingComponent === 'practice'}
+		<BookingPractice
+			bind:bookingObject
+			users={($users || []).map((u) => ({ label: `${u.firstname} ${u.lastname}`, value: u.id }))}
+			locations={($locations || []).map((l) => ({ label: l.name, value: l.id }))}
 		/>
 	{:else if selectedBookingComponent === 'meeting'}
 		<BookingMeeting

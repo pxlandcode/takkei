@@ -11,44 +11,53 @@
 	export let selectedDate: Date = new Date();
 
 	const dispatch = createEventDispatcher();
+	const currentUser = get(user);
 
-	// Reactive store for the current month
-	const currentDate = writable(new Date());
+	// Helpers
+	function startOfMonth(d: Date) {
+		return new Date(d.getFullYear(), d.getMonth(), 1, 12, 0, 0, 0);
+	}
+	function parseLocalDate(isoDate: string) {
+		const [y, m, d] = isoDate.split('-').map(Number);
+		return new Date(y, m - 1, d, 12, 0, 0, 0);
+	}
+	function sameMonthYear(a: Date, b: Date) {
+		return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth();
+	}
 
 	// Days of the week (Swedish: Monday start)
 	const daysOfWeek = ['M', 'T', 'O', 'T', 'F', 'L', 'S'];
 
-	// Reference for today's highlight circle
+	// Calendar state
+	const currentDate = writable(startOfMonth(new Date()));
 	let todayRef: HTMLDivElement | null = null;
+	const todayRowIndex = writable<number | null>(null);
 
-	// Store to track the top position of today's row
-	const todayRowIndex = writable(null);
-	const currentUser = get(user);
+	// Force recompute via primitive key (belt and suspenders)
+	$: currentKey = $currentDate.getTime();
+	$: monthDays = getMonthDays(new Date(currentKey));
 
-	// Compute the month days reactively
-	$: monthDays = getMonthDays($currentDate);
+	let selectedWeekRowIndex: number | null = null;
 
-	let selectedWeekRowIndex = null;
+	// ---- Store → calendar sync (only when store date string changes) ----
+	$: storeDateStr = $calendarStore.filters.date ?? null;
+	$: if (storeDateStr) {
+		const parsed = parseLocalDate(storeDateStr);
+		// Show that month, but don't touch store date
+		currentDate.set(startOfMonth(parsed));
+	}
 
-	$: selectedDateFromStore = $calendarStore.filters.date
-		? new Date($calendarStore.filters.date)
-		: null;
-
-	$: if (selectedDateFromStore) {
-		const selectedIndex = monthDays.findIndex(
-			(d) => d.toDateString() === selectedDateFromStore.toDateString()
-		);
-		selectedWeekRowIndex = selectedIndex !== -1 ? Math.floor(selectedIndex / 7) : null;
-
-		if (
-			selectedDateFromStore.getMonth() !== $currentDate.getMonth() ||
-			selectedDateFromStore.getFullYear() !== $currentDate.getFullYear()
-		) {
-			currentDate.set(new Date(selectedDateFromStore));
+	// Compute selected band row if selected date is inside current grid
+	$: {
+		const selected = storeDateStr ? parseLocalDate(storeDateStr) : null;
+		if (selected) {
+			const idx = monthDays.findIndex((d) => d.toDateString() === selected.toDateString());
+			selectedWeekRowIndex = idx !== -1 ? Math.floor(idx / 7) : null;
+		} else {
+			selectedWeekRowIndex = null;
 		}
 	}
 
-	// Get the first and last day of the month
 	function getMonthDays(date: Date) {
 		const year = date.getFullYear();
 		const month = date.getMonth();
@@ -56,41 +65,51 @@
 		const lastDayOfMonth = new Date(year, month + 1, 0);
 		const daysInMonth: Date[] = [];
 
-		// Days from the previous month
-		let prevMonthLastDate = new Date(year, month, 0).getDate();
-		let firstDayIndex = (firstDayOfMonth.getDay() + 6) % 7; // Adjust for Monday start
-
+		// Leading days (previous month)
+		const prevMonthLastDate = new Date(year, month, 0).getDate();
+		const firstDayIndex = (firstDayOfMonth.getDay() + 6) % 7; // Monday start
 		for (let i = firstDayIndex; i > 0; i--) {
 			daysInMonth.push(new Date(year, month - 1, prevMonthLastDate - i + 1));
 		}
 
-		// Current month days
+		// Current month
 		for (let i = 1; i <= lastDayOfMonth.getDate(); i++) {
 			daysInMonth.push(new Date(year, month, i));
 		}
 
-		// Days from the next month to complete the last week
-		let nextMonthDays = 7 - (daysInMonth.length % 7);
-		if (nextMonthDays < 7) {
-			for (let i = 1; i <= nextMonthDays; i++) {
+		// Trailing days
+		const remainder = daysInMonth.length % 7;
+		if (remainder !== 0) {
+			for (let i = 1; i <= 7 - remainder; i++) {
 				daysInMonth.push(new Date(year, month + 1, i));
 			}
 		}
-
 		return daysInMonth;
 	}
 
-	// Go to the previous month
+	// ------- NAV BUTTONS: page the calendar only (do NOT update store) -------
 	function prevMonth() {
-		currentDate.update((date) => new Date(date.getFullYear(), date.getMonth() - 1, 1));
+		const cur = get(currentDate);
+		currentDate.set(startOfMonth(new Date(cur.getFullYear(), cur.getMonth() - 1, 1)));
+		// keep band off until a date in this month is selected
+		selectedWeekRowIndex = null;
 	}
 
-	// Go to the next month
 	function nextMonth() {
-		currentDate.update((date) => new Date(date.getFullYear(), date.getMonth() + 1, 1));
+		const cur = get(currentDate);
+		currentDate.set(startOfMonth(new Date(cur.getFullYear(), cur.getMonth() + 1, 1)));
+		selectedWeekRowIndex = null;
 	}
 
-	// Check if a date is today
+	// ------- DAY CLICK: now we update the store via parent -------
+	function selectDate(date: Date) {
+		if (!sameMonthYear(date, $currentDate)) {
+			currentDate.set(startOfMonth(date));
+		}
+		dispatch('dateSelect', date);
+	}
+
+	// Today helpers
 	function isToday(date: Date): boolean {
 		const today = new Date();
 		return (
@@ -99,8 +118,6 @@
 			date.getFullYear() === today.getFullYear()
 		);
 	}
-
-	// Check if the current selected month is the actual month
 	function isCurrentMonth(): boolean {
 		const today = new Date();
 		const selected = $currentDate;
@@ -109,54 +126,37 @@
 		);
 	}
 
-	// Handle date click
-	function selectDate(date: Date) {
-		if (date.getMonth() !== $currentDate.getMonth()) {
-			if (date.getMonth() > $currentDate.getMonth()) {
-				nextMonth();
-			} else {
-				prevMonth();
-			}
-			return;
-		}
-		dispatch('dateSelect', date);
-	}
-
-	// Find which row today is in
+	// Optional "today" row tracking
 	async function updateTodayRow() {
-		await tick(); // Ensures DOM is updated before checking position
-
+		await tick();
 		if (todayRef && isCurrentMonth()) {
 			const todayIndex = monthDays.findIndex((d) => isToday(d));
-			if (todayIndex !== -1) {
-				const rowIndex = Math.floor(todayIndex / 7);
-				todayRowIndex.set(rowIndex);
-			}
+			todayRowIndex.set(todayIndex !== -1 ? Math.floor(todayIndex / 7) : null);
 		} else {
 			todayRowIndex.set(null);
 		}
 	}
 
 	function openMyCalender() {
-		calendarStore.updateFilters({ trainerIds: [currentUser.id] }, fetch);
+		calendarStore.setNewFilters({ trainerIds: [currentUser.id] }, fetch);
 		goto(`/calendar?trainerId=${currentUser.id}`);
 	}
 
-	// Run update when component is mounted
 	onMount(updateTodayRow);
+	$: $currentDate, monthDays, updateTodayRow();
 </script>
 
 <div class="relative h-auto w-[320px] rounded-lg p-4 text-sm font-light glass">
 	<!-- Header -->
 	<div class="mb-4 flex items-center justify-between">
 		<div class="flex w-36 flex-row items-center justify-between text-white">
-			<button on:click={prevMonth}>
+			<button on:click={prevMonth} aria-label="Föregående månad">
 				<Icon icon="ChevronLeft" size="16px" />
 			</button>
 			<h2 class="text-sm">
 				{$currentDate.toLocaleString('sv-SE', { month: 'long', year: 'numeric' })}
 			</h2>
-			<button on:click={nextMonth}>
+			<button on:click={nextMonth} aria-label="Nästa månad">
 				<Icon icon="ChevronRight" size="16px" />
 			</button>
 		</div>
@@ -178,34 +178,28 @@
 		</div>
 
 		<div class="relative w-full">
-			<!-- Current Week Background Band (Only if Current Month is Selected) -->
 			{#if selectedWeekRowIndex !== null}
 				<div
 					class="weekband absolute h-8 rounded-full bg-black opacity-50 transition-all duration-300 ease-in-out"
-					style="top: {selectedWeekRowIndex !== null
-						? `calc(${selectedWeekRowIndex} * 32px)`
-						: '-100px'};"
+					style="top: {`calc(${selectedWeekRowIndex} * 32px)`};"
 				></div>
 			{/if}
-			<!-- Days Grid -->
+
 			<div class="relative z-10 grid grid-cols-7 gap-x-2">
-				{#each monthDays as day, index}
+				{#each monthDays as day}
 					<button
 						class="relative flex h-8 w-8 items-center justify-center rounded-full
 						{day.getMonth() !== $currentDate.getMonth() ? 'text-gray-medium' : 'text-white'}
 						transition hover:bg-black/50"
 						on:click={() => selectDate(day)}
 					>
-						<!-- Today Highlight (Orange Circle) -->
 						{#if isToday(day)}
 							<div
 								bind:this={todayRef}
 								class="absolute z-0 h-8 w-8 rounded-full bg-orange hover:bg-primary-hover"
 							></div>
 						{/if}
-						<p class="pointer-events-none z-10">
-							{day.getDate()}
-						</p>
+						<p class="pointer-events-none z-10">{day.getDate()}</p>
 					</button>
 				{/each}
 			</div>

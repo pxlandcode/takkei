@@ -20,6 +20,26 @@
 
 	const dispatch = createEventDispatcher();
 
+	function parseLocalDateStr(s?: string | null) {
+		if (!s) return new Date();
+		const [y, m, d] = s.split('-').map(Number);
+		return new Date(y, m - 1, d, 12, 0, 0, 0); // noon avoids DST edges
+	}
+	function isSameLocalDay(a: Date, b: Date) {
+		return (
+			a.getFullYear() === b.getFullYear() &&
+			a.getMonth() === b.getMonth() &&
+			a.getDate() === b.getDate()
+		);
+	}
+
+	function ymdLocal(d: Date) {
+		const y = d.getFullYear();
+		const m = String(d.getMonth() + 1).padStart(2, '0');
+		const day = String(d.getDate()).padStart(2, '0');
+		return `${y}-${m}-${day}`;
+	}
+
 	// Subscribe to calendar store
 	let bookings: FullBooking[] = [];
 	let filters;
@@ -43,39 +63,37 @@
 
 	// 🔥 Ensure week starts on Monday
 	function getMondayOfWeek(date: Date): Date {
-		const day = date.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
-		const diff = day === 0 ? -6 : 1 - day; // If Sunday, go back 6 days. Otherwise, adjust to Monday.
+		const day = date.getDay(); // 0 Sun, 1 Mon, ...
+		const diff = day === 0 ? -6 : 1 - day;
 		const monday = new Date(date);
 		monday.setDate(monday.getDate() + diff);
 		return monday;
 	}
-
 	// ✅ Compute displayed days dynamically
-	let weekDays: { day: string; date: string }[] = [];
+	let weekDays: { dayLabel: string; dateLabel: string; fullDate: Date }[] = [];
 
 	$: {
 		if (singleDayView) {
-			// If `singleDayView` is enabled, show only the selected date
-			const selectedDate = new Date(filters.date);
-
+			const selected = parseLocalDateStr(filters?.date);
 			weekDays = [
 				{
-					day: selectedDate.toLocaleDateString('sv-SE', { weekday: 'long' }),
-					date: selectedDate.getDate().toString()
+					dayLabel: selected.toLocaleDateString('sv-SE', { weekday: 'long' }),
+					dateLabel: selected.getDate().toString(),
+					fullDate: selected
 				}
 			];
 		} else {
-			// Otherwise, show a full week (Monday → Sunday)
-			const startOfWeek = filters.from
-				? getMondayOfWeek(new Date(filters.from))
+			const startOfWeek = filters?.from
+				? getMondayOfWeek(parseLocalDateStr(filters.from))
 				: getMondayOfWeek(new Date());
 
 			weekDays = Array.from({ length: 7 }, (_, i) => {
-				const date = new Date(startOfWeek);
-				date.setDate(date.getDate() + i);
+				const d = new Date(startOfWeek);
+				d.setDate(d.getDate() + i);
 				return {
-					day: date.toLocaleDateString('sv-SE', { weekday: 'long' }),
-					date: date.getDate().toString()
+					dayLabel: d.toLocaleDateString('sv-SE', { weekday: 'long' }),
+					dateLabel: d.getDate().toString(),
+					fullDate: d
 				};
 			});
 		}
@@ -173,12 +191,13 @@
 				? bookingDate.toDateString() === dayDate.toDateString()
 				: shiftUTCIndex(bookingDate) === dayIndex;
 		});
-		const dateStr = dayDate.toISOString().split('T')[0];
-		const onlyOneTrainer = filters?.trainerIds && filters.trainerIds.length === 1;
-		const dayAvailability = onlyOneTrainer ? availability?.[dateStr] : null;
+
+		const dateStr = ymdLocal(dayDate);
+		const onlyOneTrainer = !!(filters?.trainerIds && filters.trainerIds.length === 1);
+		const dayAvailability = onlyOneTrainer ? availability?.[dateStr] : undefined;
 
 		for (let i = 0; i < totalHours * 2 - 1; i++) {
-			if (i % 2 === 0) continue; // Only allow blocks starting at half past
+			if (i % 2 === 0) continue; // half-hour starts only
 
 			const hour = startHour + Math.floor(i / 2);
 			const minute = 30;
@@ -191,12 +210,16 @@
 
 			const isOccupied = isTimeSlotOccupied(slotStart, slotEnd, dayBookings);
 
-			// ✅ Check availability if only one trainer
 			let isAvailable = true;
 			if (onlyOneTrainer) {
-				if (!dayAvailability || dayAvailability === null || dayAvailability.length === 0) {
+				if (dayAvailability == null) {
+					// ✅ no weekly row / no override => FULLY AVAILABLE
+					isAvailable = true;
+				} else if (Array.isArray(dayAvailability) && dayAvailability.length === 0) {
+					// ✅ explicit full-day UNAVAILABLE
 					isAvailable = false;
 				} else {
+					// within any available window?
 					isAvailable = dayAvailability.some((slot) => {
 						const [fromHour, fromMin] = slot.from.split(':').map(Number);
 						const [toHour, toMin] = slot.to.split(':').map(Number);
@@ -212,10 +235,7 @@
 			}
 
 			if (!isOccupied && isAvailable) {
-				results.push({
-					top: i * (hourHeight / 2),
-					start: slotStart
-				});
+				results.push({ top: i * (hourHeight / 2), start: slotStart });
 			}
 		}
 
@@ -228,43 +248,54 @@
 		const startOfWeek = filters.from
 			? getMondayOfWeek(new Date(filters.from))
 			: getMondayOfWeek(new Date());
-
 		const date = new Date(startOfWeek);
 		date.setDate(date.getDate() + dayIndex);
-		const dateStr = date.toISOString().split('T')[0];
+		const dateStr = ymdLocal(date);
 
 		const blocks: { top: number; height: number }[] = [];
+		const dayAvail = availability?.[dateStr];
 
-		if (!(dateStr in availability) || availability[dateStr] === null) {
-			blocks.push({
-				top: 0,
-				height: totalHours * hourHeight
-			});
+		// ✅ Missing/null => FULLY AVAILABLE (no stripes)
+		if (dayAvail == null) return blocks;
+
+		// ✅ Empty array => FULL-DAY UNAVAILABLE (full stripes)
+		if (Array.isArray(dayAvail) && dayAvail.length === 0) {
+			blocks.push({ top: 0, height: totalHours * hourHeight });
 			return blocks;
 		}
 
-		const available = availability[dateStr];
-		if (!available || available.length === 0) return [];
+		// Compute "gaps" outside available windows as stripes
+		const available = [...dayAvail].sort((a, b) =>
+			a.from < b.from ? -1 : a.from > b.from ? 1 : 0
+		);
 
-		let lastEnd = startHour;
+		// Work in minutes for precision
+		const dayStartMin = startHour * 60;
+		const dayEndMin = (startHour + totalHours) * 60;
+
+		let cursor = dayStartMin;
+
 		for (const slot of available) {
-			const [fromHour, fromMin] = slot.from.split(':').map(Number);
-			const [toHour, toMin] = slot.to.split(':').map(Number);
+			const [fh, fm] = slot.from.split(':').map(Number);
+			const [th, tm] = slot.to.split(':').map(Number);
+			const slotStartMin = fh * 60 + fm;
+			const slotEndMin = th * 60 + tm;
 
-			const start = fromHour + fromMin / 60;
-			if (start > lastEnd) {
+			// anything before this available slot is UNAVAILABLE
+			if (slotStartMin > cursor) {
 				blocks.push({
-					top: (lastEnd - startHour) * hourHeight,
-					height: (start - lastEnd) * hourHeight
+					top: ((cursor - dayStartMin) / 60) * hourHeight,
+					height: ((slotStartMin - cursor) / 60) * hourHeight
 				});
 			}
-			lastEnd = toHour + toMin / 60;
+			cursor = Math.max(cursor, slotEndMin);
 		}
 
-		if (lastEnd < startHour + totalHours) {
+		// tail after last available slot
+		if (cursor < dayEndMin) {
 			blocks.push({
-				top: (lastEnd - startHour) * hourHeight,
-				height: (startHour + totalHours - lastEnd) * hourHeight
+				top: ((cursor - dayStartMin) / 60) * hourHeight,
+				height: ((dayEndMin - cursor) / 60) * hourHeight
 			});
 		}
 
@@ -308,13 +339,13 @@
 		<div class="relative flex h-full flex-col items-center justify-center text-gray">
 			<ClockIcon size="30px" />
 		</div>
-		{#each weekDays as { day, date }}
+		{#each weekDays as { dayLabel, dateLabel, fullDate }}
 			<div
-				class="mx-1 flex flex-col items-center rounded-lg bg-gray py-2 text-white {date ===
-					new Date().getDate().toString() && 'bg-orange'}"
+				class="mx-1 flex flex-col items-center rounded-lg bg-gray py-2
+		       text-white {isSameLocalDay(fullDate, new Date()) ? 'bg-orange' : ''}"
 			>
-				<p class="text-lg">{day}</p>
-				<p class="text-4xl">{date}</p>
+				<p class="text-lg">{dayLabel}</p>
+				<p class="text-4xl">{dateLabel}</p>
 			</div>
 		{/each}
 	</div>

@@ -34,15 +34,21 @@ export async function createBooking(
 				booked_by_id: bookingObject.booked_by_id
 			};
 		} else {
+			const userIdForTraining =
+				bookingObject.user_id ??
+				(bookingObject.attendees?.length > 0 ? `{${bookingObject.attendees.join(',')}}` : null);
+
 			requestData = {
 				client_id: bookingObject.clientId ?? null,
 				trainer_id: bookingObject.trainerId ?? null,
-				user_id:
-					bookingObject.attendees.length > 0 ? `{${bookingObject.attendees.join(',')}}` : null,
+				user_id: userIdForTraining,
 				start_time: `${bookingObject.date}T${bookingObject.time}:00`,
 				location_id: bookingObject.locationId ?? null,
 				booking_content_id: capitalizeFirstLetter(bookingObject.bookingType?.value ?? 'Corporate'),
 				status: 'New',
+				try_out: !!bookingObject.isTrial,
+				internal_education: !!bookingObject.internalEducation,
+				internal: !!bookingObject.internal, //flygtimme
 				created_by_id: bookingObject.booked_by_id,
 				repeat_index: bookingObject.repeat ? 1 : null
 			};
@@ -115,13 +121,29 @@ export async function createBooking(
 		};
 	}
 }
-export async function fetchAvailableSlots({ date, trainerId, locationId }) {
+export async function fetchAvailableSlots({
+	date,
+	trainerId,
+	locationId,
+	checkUsersBusy,
+	userId
+}: {
+	date: string;
+	trainerId: number;
+	locationId: number;
+	checkUsersBusy?: boolean;
+	userId?: number | null;
+}) {
+	const body: any = { date, trainerId, locationId };
+	if (checkUsersBusy) {
+		body.checkUsersBusy = true;
+		body.userId = userId ?? null;
+	}
 	const res = await fetch('/api/available-slots', {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({ date, trainerId, locationId })
+		body: JSON.stringify(body)
 	});
-
 	if (res.ok) {
 		const data = await res.json();
 		return {
@@ -129,12 +151,9 @@ export async function fetchAvailableSlots({ date, trainerId, locationId }) {
 			outsideAvailabilitySlots: data.outsideAvailabilitySlots
 		};
 	}
-
-	return {
-		availableSlots: [],
-		outsideAvailabilitySlots: []
-	};
+	return { availableSlots: [], outsideAvailabilitySlots: [] };
 }
+
 export async function updateBooking(bookingObject: any) {
 	try {
 		const requestData = {

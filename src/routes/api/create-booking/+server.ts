@@ -32,6 +32,16 @@ export const POST: RequestHandler = async ({ request }) => {
 			internal_education = false
 		} = data;
 
+		if (internal_education) {
+			if (!user_id) {
+				return new Response(JSON.stringify({ error: 'user_id is required for Praktiktimme' }), {
+					status: 422
+				});
+			}
+			client_id = null;
+			try_out = false;
+		}
+
 		// 🔍 Auto-select room if not provided
 		let selectedRoomId = room_id;
 
@@ -89,7 +99,7 @@ export const POST: RequestHandler = async ({ request }) => {
 				internal,
 				user_id,
 				added_to_package_by,
-				!room_id, // mark `booking_without_room = true` if auto-selected
+				!selectedRoomId,
 				location_name,
 				actual_cancel_time,
 				internal_education

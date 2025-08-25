@@ -61,6 +61,10 @@ import IconCalendarCheck from './IconCalendarCheck.svelte';
 import IconCalendarSun from './IconCalendarSun.svelte';
 import IconRefresh from './IconRefresh.svelte';
 import IconDownload from './IconDownload.svelte';
+import IconUncheck from './IconUncheck.svelte';
+import IconShiningStar from './IconShiningStar.svelte';
+import IconGraduationCap from './IconGraduationCap.svelte';
+import IconPlane from './IconPlane.svelte';
 
 export {
 	IconClose,
@@ -125,5 +129,9 @@ export {
 	IconCalendarCheck,
 	IconCalendarSun,
 	IconRefresh,
-	IconDownload
+	IconDownload,
+	IconUncheck,
+	IconShiningStar,
+	IconGraduationCap,
+	IconPlane
 };

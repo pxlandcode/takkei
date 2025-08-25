@@ -124,18 +124,19 @@
 	bind:this={bookingSlot}
 	class="absolute z-20 flex flex-col gap-[2px] p-1 text-xs text-gray shadow-sm {showIcon
 		? 'items-start'
-		: 'items-center'}
-        {booking.trainer?.id === $user.id ? 'border-2' : ''}"
-	style="
-		top: {topOffset}px;
-		height: {meetingHeight - 4}px;
-		left: calc({colLeft}% + 2px);
-		width: calc({colWidth}% - 4px);
-	
-        background-color: {bookingColor}20;
-        border-color: {bookingColor};
-  
-	"
+		: 'items-center'} {booking.trainer?.id === $user.id
+		? 'border-2'
+		: ''} {booking.isPersonalBooking
+		? booking.additionalInfo?.bookingContent.kind === 'Private'
+			? 'bg-gray-400/20'
+			: 'bg-gray-600/20'
+		: ''}"
+	style:top={`${topOffset}px`}
+	style:height={`${meetingHeight - 4}px`}
+	style:left={`calc(${colLeft}% + 2px)`}
+	style:width={`calc(${colWidth}% - 4px)`}
+	style:background-color={!booking.isPersonalBooking ? `${bookingColor}20` : null}
+	style:border-color={!booking.isPersonalBooking ? bookingColor : null}
 	use:tooltip={{ content: toolTipText }}
 >
 	{#if !booking.isPersonalBooking}

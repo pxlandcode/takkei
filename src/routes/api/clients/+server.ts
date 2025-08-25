@@ -1,3 +1,4 @@
+// src/routes/api/clients/+server.ts
 import { query } from '$lib/db';
 
 export async function GET({ url }) {
@@ -7,49 +8,84 @@ export async function GET({ url }) {
 
 	// New filtering/sorting/pagination options
 	const search = url.searchParams.get('search')?.trim() || '';
-	const sortBy = url.searchParams.get('sortBy') || 'firstname';
+	const sortBy = url.searchParams.get('sortBy') || 'name'; // name | email | trainer
 	const sortOrder = url.searchParams.get('sortOrder')?.toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
-	const limit = parseInt(url.searchParams.get('limit') || '0');
-	const offset = parseInt(url.searchParams.get('offset') || '0');
+	const limit = parseInt(url.searchParams.get('limit') || '50', 10); // default 50
+	const offset = parseInt(url.searchParams.get('offset') || '0', 10);
 	const trainerId = url.searchParams.get('trainerId');
-	const active = url.searchParams.get('active');
+	const active = url.searchParams.get('active'); // 'true' | 'false' | undefined
+	const trialEligible = url.searchParams.get('trialEligible'); // 'true' | 'false' | undefined
+	const trialLookbackDays = parseInt(url.searchParams.get('trialLookbackDays') || '365', 10);
+	const trialSinceIso = new Date(
+		Date.now() - trialLookbackDays * 24 * 60 * 60 * 1000
+	).toISOString();
 
 	const params: any[] = [];
 	let paramIndex = 1;
 
 	// --- 1. SELECT ---
 	let sql = `
-		SELECT clients.id, clients.firstname, clients.lastname
-	`;
+    SELECT clients.id, clients.firstname, clients.lastname
+  `;
 
 	if (!short) {
 		sql += `,
-			clients.email,
-			clients.phone,
-			clients.active,
-			clients.membership_status,
-			clients.primary_trainer_id,
-			users.id AS trainer_id,
-			users.firstname AS trainer_firstname,
-			users.lastname AS trainer_lastname
-		`;
+      clients.email,
+      clients.phone,
+      clients.active,
+      clients.membership_status,
+      clients.primary_trainer_id,
+      users.id AS trainer_id,
+      users.firstname AS trainer_firstname,
+      users.lastname AS trainer_lastname
+    `;
 	}
 
 	sql += `
-		FROM clients
-		LEFT JOIN users ON clients.primary_trainer_id = users.id
-	`;
+    FROM clients
+    LEFT JOIN users ON clients.primary_trainer_id = users.id
+  `;
 
 	// --- 2. FILTERS ---
 	const whereClauses: string[] = [];
 
+	if (trialEligible === 'true') {
+		whereClauses.push(`
+    NOT EXISTS (
+      SELECT 1
+      FROM bookings b
+      WHERE b.client_id = clients.id
+        AND COALESCE(b.try_out, false) = false
+        AND b.status NOT IN ('Cancelled','CancelledLate') -- adjust if needed
+        AND b.start_time >= $${paramIndex}::timestamptz
+
+    )
+  `);
+		params.push(trialSinceIso);
+		paramIndex++;
+	} else if (trialEligible === 'false') {
+		whereClauses.push(`
+    EXISTS (
+      SELECT 1
+      FROM bookings b
+      WHERE b.client_id = clients.id
+        AND COALESCE(b.try_out, false) = false
+        AND b.status NOT IN ('Cancelled','CancelledLate')
+        AND b.start_time >= $${paramIndex}::timestamptz
+
+    )
+  `);
+		params.push(trialSinceIso);
+		paramIndex++;
+	}
+
 	// Available clients not linked to any customer
 	if (available) {
 		whereClauses.push(`
-			clients.id NOT IN (
-				SELECT client_id FROM client_customer_relationships
-			)
-		`);
+      clients.id NOT IN (
+        SELECT client_id FROM client_customer_relationships
+      )
+    `);
 	} else if (customerId) {
 		sql += ` INNER JOIN client_customer_relationships rel ON rel.client_id = clients.id `;
 		whereClauses.push(`rel.customer_id = $${paramIndex++}`);
@@ -66,47 +102,50 @@ export async function GET({ url }) {
 	// Trainer ID filter
 	if (trainerId) {
 		whereClauses.push(`clients.primary_trainer_id = $${paramIndex++}`);
-		params.push(parseInt(trainerId));
+		params.push(parseInt(trainerId, 10));
 	}
 
 	// Search filter
 	if (search) {
 		whereClauses.push(`
-			(
-				clients.firstname ILIKE $${paramIndex} OR
-				clients.lastname ILIKE $${paramIndex + 1} OR
-				clients.email ILIKE $${paramIndex + 2} OR
-				clients.phone ILIKE $${paramIndex + 3}
-			)
-		`);
+      (
+        clients.firstname ILIKE $${paramIndex} OR
+        clients.lastname ILIKE $${paramIndex + 1} OR
+        clients.email ILIKE $${paramIndex + 2} OR
+        clients.phone ILIKE $${paramIndex + 3}
+      )
+    `);
 		params.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`);
 		paramIndex += 4;
 	}
 
 	// Remove clients with empty names
 	whereClauses.push(`
-		(TRIM(COALESCE(clients.firstname, '')) <> '' OR TRIM(COALESCE(clients.lastname, '')) <> '')
-	`);
+    (TRIM(COALESCE(clients.firstname, '')) <> '' OR TRIM(COALESCE(clients.lastname, '')) <> '')
+  `);
 
-	// Apply WHERE clause
 	if (whereClauses.length > 0) {
 		sql += ` WHERE ${whereClauses.join(' AND ')}`;
 	}
 
 	// --- 3. ORDER + PAGINATION ---
-	const validSortFields = ['firstname', 'lastname', 'email']; // Whitelist
-	const safeSortBy = validSortFields.includes(sortBy) ? sortBy : 'firstname';
 
-	sql += ` ORDER BY clients.${safeSortBy} ${sortOrder}`;
+	let orderClause = `clients.lastname ${sortOrder}, clients.firstname ${sortOrder}`;
+	if (sortBy === 'email') {
+		orderClause = `clients.email ${sortOrder}`;
+	} else if (sortBy === 'trainer') {
+		orderClause = `users.lastname ${sortOrder}, users.firstname ${sortOrder}, clients.lastname ${sortOrder}, clients.firstname ${sortOrder}`;
+	}
+
+	sql += ` ORDER BY ${orderClause}`;
+
 	if (limit > 0) {
-		sql += ` LIMIT $${paramIndex}`;
+		sql += ` LIMIT $${paramIndex++}`;
 		params.push(limit);
-		paramIndex++;
 
 		if (offset > 0) {
-			sql += ` OFFSET $${paramIndex}`;
+			sql += ` OFFSET $${paramIndex++}`;
 			params.push(offset);
-			paramIndex++;
 		}
 	}
 

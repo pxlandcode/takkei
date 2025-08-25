@@ -189,6 +189,7 @@
 			{#if booking.isPersonalBooking}
 				<p class="text-gray-700">
 					<strong>Namn:</strong>
+
 					{booking.personalBooking.name}
 				</p>
 				{#if booking.personalBooking.text}
@@ -206,13 +207,17 @@
 			{:else}
 				<p class="text-gray-700">
 					<strong>Kund:</strong>
-					{booking.client?.firstname}
-					{booking.client?.lastname}
+					<a class="text-orange hover:underline" href={`/clients/${booking.client?.id}`}>
+						{booking.client?.firstname}
+						{booking.client?.lastname}
+					</a>
 				</p>
 				<p class="text-gray-700">
 					<strong>Tränare:</strong>
-					{booking.trainer?.firstname}
-					{booking.trainer?.lastname}
+					<a class="text-orange hover:underline" href={`/users/${booking.trainer?.id}`}>
+						{booking.trainer?.firstname}
+						{booking.trainer?.lastname}
+					</a>
 				</p>
 				<p class="text-gray-700">
 					<strong>Plats:</strong>
