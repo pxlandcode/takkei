@@ -33,6 +33,13 @@
 		);
 	}
 
+	function ymdLocal(d: Date) {
+		const y = d.getFullYear();
+		const m = String(d.getMonth() + 1).padStart(2, '0');
+		const day = String(d.getDate()).padStart(2, '0');
+		return `${y}-${m}-${day}`;
+	}
+
 	// Subscribe to calendar store
 	let bookings: FullBooking[] = [];
 	let filters;
@@ -184,12 +191,13 @@
 				? bookingDate.toDateString() === dayDate.toDateString()
 				: shiftUTCIndex(bookingDate) === dayIndex;
 		});
-		const dateStr = dayDate.toISOString().split('T')[0];
-		const onlyOneTrainer = filters?.trainerIds && filters.trainerIds.length === 1;
-		const dayAvailability = onlyOneTrainer ? availability?.[dateStr] : null;
+
+		const dateStr = ymdLocal(dayDate);
+		const onlyOneTrainer = !!(filters?.trainerIds && filters.trainerIds.length === 1);
+		const dayAvailability = onlyOneTrainer ? availability?.[dateStr] : undefined;
 
 		for (let i = 0; i < totalHours * 2 - 1; i++) {
-			if (i % 2 === 0) continue; // Only allow blocks starting at half past
+			if (i % 2 === 0) continue; // half-hour starts only
 
 			const hour = startHour + Math.floor(i / 2);
 			const minute = 30;
@@ -202,12 +210,16 @@
 
 			const isOccupied = isTimeSlotOccupied(slotStart, slotEnd, dayBookings);
 
-			// ✅ Check availability if only one trainer
 			let isAvailable = true;
 			if (onlyOneTrainer) {
-				if (!dayAvailability || dayAvailability === null || dayAvailability.length === 0) {
+				if (dayAvailability == null) {
+					// ✅ no weekly row / no override => FULLY AVAILABLE
+					isAvailable = true;
+				} else if (Array.isArray(dayAvailability) && dayAvailability.length === 0) {
+					// ✅ explicit full-day UNAVAILABLE
 					isAvailable = false;
 				} else {
+					// within any available window?
 					isAvailable = dayAvailability.some((slot) => {
 						const [fromHour, fromMin] = slot.from.split(':').map(Number);
 						const [toHour, toMin] = slot.to.split(':').map(Number);
@@ -223,10 +235,7 @@
 			}
 
 			if (!isOccupied && isAvailable) {
-				results.push({
-					top: i * (hourHeight / 2),
-					start: slotStart
-				});
+				results.push({ top: i * (hourHeight / 2), start: slotStart });
 			}
 		}
 
@@ -239,43 +248,54 @@
 		const startOfWeek = filters.from
 			? getMondayOfWeek(new Date(filters.from))
 			: getMondayOfWeek(new Date());
-
 		const date = new Date(startOfWeek);
 		date.setDate(date.getDate() + dayIndex);
-		const dateStr = date.toISOString().split('T')[0];
+		const dateStr = ymdLocal(date);
 
 		const blocks: { top: number; height: number }[] = [];
+		const dayAvail = availability?.[dateStr];
 
-		if (!(dateStr in availability) || availability[dateStr] === null) {
-			blocks.push({
-				top: 0,
-				height: totalHours * hourHeight
-			});
+		// ✅ Missing/null => FULLY AVAILABLE (no stripes)
+		if (dayAvail == null) return blocks;
+
+		// ✅ Empty array => FULL-DAY UNAVAILABLE (full stripes)
+		if (Array.isArray(dayAvail) && dayAvail.length === 0) {
+			blocks.push({ top: 0, height: totalHours * hourHeight });
 			return blocks;
 		}
 
-		const available = availability[dateStr];
-		if (!available || available.length === 0) return [];
+		// Compute "gaps" outside available windows as stripes
+		const available = [...dayAvail].sort((a, b) =>
+			a.from < b.from ? -1 : a.from > b.from ? 1 : 0
+		);
 
-		let lastEnd = startHour;
+		// Work in minutes for precision
+		const dayStartMin = startHour * 60;
+		const dayEndMin = (startHour + totalHours) * 60;
+
+		let cursor = dayStartMin;
+
 		for (const slot of available) {
-			const [fromHour, fromMin] = slot.from.split(':').map(Number);
-			const [toHour, toMin] = slot.to.split(':').map(Number);
+			const [fh, fm] = slot.from.split(':').map(Number);
+			const [th, tm] = slot.to.split(':').map(Number);
+			const slotStartMin = fh * 60 + fm;
+			const slotEndMin = th * 60 + tm;
 
-			const start = fromHour + fromMin / 60;
-			if (start > lastEnd) {
+			// anything before this available slot is UNAVAILABLE
+			if (slotStartMin > cursor) {
 				blocks.push({
-					top: (lastEnd - startHour) * hourHeight,
-					height: (start - lastEnd) * hourHeight
+					top: ((cursor - dayStartMin) / 60) * hourHeight,
+					height: ((slotStartMin - cursor) / 60) * hourHeight
 				});
 			}
-			lastEnd = toHour + toMin / 60;
+			cursor = Math.max(cursor, slotEndMin);
 		}
 
-		if (lastEnd < startHour + totalHours) {
+		// tail after last available slot
+		if (cursor < dayEndMin) {
 			blocks.push({
-				top: (lastEnd - startHour) * hourHeight,
-				height: (startHour + totalHours - lastEnd) * hourHeight
+				top: ((cursor - dayStartMin) / 60) * hourHeight,
+				height: ((dayEndMin - cursor) / 60) * hourHeight
 			});
 		}
 

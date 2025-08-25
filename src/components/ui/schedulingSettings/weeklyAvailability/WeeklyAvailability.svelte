@@ -1,8 +1,8 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
 	import { createEventDispatcher } from 'svelte';
 	import Button from '../../../bits/button/Button.svelte';
 	import Icon from '../../../bits/icon-component/Icon.svelte';
+	import { confirm } from '$lib/actions/confirm';
 
 	export let weeklyAvailability = [];
 	export let canEdit: () => boolean;
@@ -15,16 +15,32 @@
 
 	let fullWeekAvailability = [];
 
+	// Build local model from incoming rows
 	$: fullWeekAvailability = Array.from({ length: 7 }, (_, i) => {
-		const weekday = i === 6 ? 0 : i + 1;
+		const weekday = i === 6 ? 0 : i + 1; // DB: 1..6,0 (Sun=0)
 		const match = weeklyAvailability.find((d) => d.weekday === weekday);
 		return {
+			id: match?.id ?? null,
 			userId,
 			weekday,
 			start_time: match?.start_time || match?.from || '',
 			end_time: match?.end_time || match?.to || ''
 		};
 	});
+
+	function weekdayLabel(weekday: number) {
+		return weekdays[weekday === 0 ? 6 : weekday - 1];
+	}
+
+	function checkAvailableWholeDayByIndex(i: number) {
+		fullWeekAvailability[i] = {
+			...fullWeekAvailability[i],
+			start_time: '',
+			end_time: ''
+		};
+
+		fullWeekAvailability = [...fullWeekAvailability];
+	}
 </script>
 
 <div class="rounded-lg border border-gray-200 bg-white p-4 shadow-md">
@@ -54,19 +70,38 @@
 	</div>
 
 	<!-- Hour Labels -->
-	<div class="ml-[306px] hidden justify-between text-xs text-gray-500 lg:flex">
+	<div class="ml-[343px] hidden justify-between text-xs text-gray-500 lg:flex">
 		{#each [5, 8, 11, 14, 17, 20] as h}
 			<span>{h}</span>
 		{/each}
 	</div>
 
 	<!-- Schedule Grid -->
-	<div class="grid gap-x-4 gap-y-4" style="grid-template-columns: 60px 90px 1px 90px 1fr;">
-		{#each fullWeekAvailability as day}
+	<div
+		class="grid gap-x-4 gap-y-4"
+		style="grid-template-columns: 1px 1px 45px 1px  90px 1px 90px 1fr;"
+	>
+		{#each fullWeekAvailability as day, i}
+			{#if editing}
+				<button
+					use:confirm={{
+						title: 'Tillgänglig hela dagen',
+						description: `Vill du markera ${weekdayLabel(day.weekday)}ar som tillgänglig hela dagen?`,
+						action: () => checkAvailableWholeDayByIndex(i)
+					}}
+					class="cursor-pointer text-success transition hover:scale-110"
+					aria-label="Tillgänglig hela dagen"
+				>
+					<Icon icon="CalendarCheck" size="18" />
+				</button>
+			{:else}
+				<span></span>
+			{/if}
+			<span></span>
 			<div class="flex items-center text-sm font-medium text-gray-700">
 				{weekdays[day.weekday === 0 ? 6 : day.weekday - 1]}
 			</div>
-
+			<span></span>
 			{#if canEdit()}
 				<input
 					type="time"
@@ -101,6 +136,8 @@
 							) * 100}%;
                     "
 						/>
+					{:else}
+						<div class="absolute bottom-0 top-0 w-full bg-green" />
 					{/if}
 				</div>
 			</div>

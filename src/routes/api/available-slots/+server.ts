@@ -76,6 +76,10 @@ export const POST: RequestHandler = async ({ request }) => {
 			from: extractTime(a.start_time),
 			to: extractTime(a.end_time)
 		}));
+
+		if (availability.length === 0) {
+			availability = [{ from: 0, to: 24 * 60 }];
+		}
 	}
 
 	// 4. Active rooms (same)
