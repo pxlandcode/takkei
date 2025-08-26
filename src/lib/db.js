@@ -32,6 +32,10 @@ const pool = new Pool({
 	ssl: isProduction || useProdDb ? { rejectUnauthorized: false } : false
 });
 
+pool.on('connect', (client) => {
+	client.query("SET TIME ZONE 'Europe/Stockholm'");
+});
+
 export const query = async (text, params) => {
 	const client = await pool.connect();
 	try {
