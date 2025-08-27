@@ -10,7 +10,7 @@ export async function GET({ url }) {
 	const search = url.searchParams.get('search')?.trim() || '';
 	const sortBy = url.searchParams.get('sortBy') || 'name'; // name | email | trainer
 	const sortOrder = url.searchParams.get('sortOrder')?.toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
-	const limit = parseInt(url.searchParams.get('limit') || '50', 10); // default 50
+	const limit = parseInt(url.searchParams.get('limit') || '5000', 10);
 	const offset = parseInt(url.searchParams.get('offset') || '0', 10);
 	const trainerId = url.searchParams.get('trainerId');
 	const active = url.searchParams.get('active'); // 'true' | 'false' | undefined
