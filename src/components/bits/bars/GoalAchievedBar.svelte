@@ -17,16 +17,16 @@
 
 	<div class="relative h-2 w-full overflow-hidden rounded-full bg-gray-200">
 		<!-- Goal bar -->
-		<div class="absolute left-0 top-0 h-full bg-blue-300" style={`width:${goalPct}%`} />
+		<div class="absolute left-0 top-0 h-full bg-blue" style={`width:${goalPct}%`} />
 		<!-- Achieved overlay -->
-		<div class="absolute left-0 top-0 h-full bg-green-500" style={`width:${achievedPct}%`} />
+		<div class="absolute left-0 top-0 h-full bg-orange" style={`width:${achievedPct}%`} />
 	</div>
 
 	<div class="text-right text-sm tabular-nums">
 		<span class="text-green-700">{achieved}</span>
 		<span class="mx-1 text-gray-400">/</span>
 		<span class="text-blue-700">{goal}</span>
-		<span class={achieved - goal >= 0 ? 'ml-2 text-green-600' : 'ml-2 text-red-600'}>
+		<span class={achieved - goal >= 0 ? 'ml-2 text-success' : 'ml-2 text-error'}>
 			({achieved - goal >= 0 ? '+' : ''}{achieved - goal})
 		</span>
 	</div>
