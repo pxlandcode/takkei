@@ -38,8 +38,15 @@ export const POST: RequestHandler = async ({ request }) => {
 					status: 422
 				});
 			}
-			client_id = null;
-			try_out = false;
+			data.client_id = null;
+			data.try_out = false;
+		}
+
+		if (data.education) {
+			// Utbildningstimme:
+			data.client_id = null;
+			data.try_out = false;
+			data.internal = false;
 		}
 
 		// 🔍 Auto-select room if not provided
