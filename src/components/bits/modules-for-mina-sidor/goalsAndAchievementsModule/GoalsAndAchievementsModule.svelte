@@ -2,25 +2,36 @@
 	import { onMount } from 'svelte';
 	import { user } from '$lib/stores/userStore';
 
-	// Stores
-	import { targetStore, updateTargets } from '$lib/stores/targetsStore';
+	// NEW: import locationTargetMeta + updater
+	import {
+		targetMeta,
+		updateTargets,
+		locationTargetMeta,
+		updateLocationTargets
+	} from '$lib/stores/targetsStore';
 	import { achievementStore, updateAchievements } from '$lib/stores/achievementsStore';
 
-	// Components
 	import Icon from '../../icon-component/Icon.svelte';
-	import Button from '../../button/Button.svelte';
 	import ProgressBar from '../../progress-bar/ProgressBar.svelte';
-	import { goto } from '$app/navigation';
 	import { tooltip } from '$lib/actions/tooltip';
+	import { svMonth } from '$lib/helpers/generic/genericHelpers';
 
 	let selectedDate = new Date();
 
-	// Load data on mount
 	onMount(() => {
 		if ($user?.id) {
 			const formattedDate = selectedDate.toISOString().slice(0, 10);
-			updateTargets($user.id, formattedDate);
+
+			// Trainer targets
+			updateTargets('trainer', $user.id, formattedDate);
+
+			// Achievements
 			updateAchievements($user.id, formattedDate);
+			// Location targets (only if user has a default location)
+			const defaultLocationId = Number($user?.default_location_id ?? 0);
+			if (defaultLocationId > 0) {
+				updateLocationTargets(defaultLocationId, formattedDate);
+			}
 		}
 	});
 
@@ -38,20 +49,89 @@
 		</div>
 	</div>
 
-	<!-- Goals Section -->
-	<div class="mb-4 flex flex-col gap-4">
-		{#each $targetStore as target}
+	<!-- Trainer Goals -->
+	{#if $targetMeta}
+		<div class="mb-4 flex flex-col gap-4">
+			<!-- Årsmål (Tränare) -->
 			<div class="flex flex-col gap-1">
-				<p class="text-sm font-medium text-gray-700">{target.title}</p>
-				<ProgressBar iconColor="text" icon="Running" value={target.achieved} max={target.target} />
+				<div class="flex items-baseline justify-between">
+					<p class="text-sm font-medium text-gray-700">
+						Mål {$targetMeta.year}
+					</p>
+				</div>
+				<ProgressBar
+					iconColor={$targetMeta.achievedYear >= $targetMeta.yearGoal ? 'success' : 'target'}
+					textColor="text"
+					icon="Running"
+					value={$targetMeta.achievedYear ?? 0}
+					max={$targetMeta.yearGoal ?? 0}
+				/>
 			</div>
-		{/each}
-		{#if $targetStore.length === 0}
-			<p class="text-sm italic text-gray-500">Inga mål just nu.</p>
-		{/if}
-	</div>
 
-	<!-- Achievements Section -->
+			<!-- Månadsmål (Tränare) -->
+			<div class="flex flex-col gap-1">
+				<div class="flex items-baseline justify-between">
+					<p class="text-sm font-medium text-gray-700">
+						Mål {svMonth($targetMeta.month)}
+					</p>
+				</div>
+				<ProgressBar
+					iconColor={$targetMeta.achievedMonth >= $targetMeta.monthGoal ? 'success' : 'target'}
+					textColor="text"
+					icon="Running"
+					value={$targetMeta.achievedMonth ?? 0}
+					max={$targetMeta.monthGoal ?? 0}
+				/>
+			</div>
+		</div>
+	{:else}
+		<p class="mb-4 text-sm italic text-gray-500">Hämtar mål …</p>
+	{/if}
+
+	<!-- Location Goals (only if location actually has targets) -->
+	{#if $locationTargetMeta && ($locationTargetMeta.yearGoal !== null || $locationTargetMeta.monthGoal !== null)}
+		<div class="mb-4 mt-2 flex flex-col gap-4">
+			<div class="text-sm font-semibold text-gray-800">{$locationTargetMeta.locationName}</div>
+
+			<!-- Årsmål (Plats) -->
+			<div class="flex flex-col gap-1">
+				<div class="flex items-baseline justify-between">
+					<p class="text-sm font-medium text-gray-700">
+						Mål {$locationTargetMeta.year}
+					</p>
+				</div>
+				<ProgressBar
+					iconColor={$locationTargetMeta.achievedYear >= $locationTargetMeta.yearGoal
+						? 'success'
+						: 'target'}
+					textColor="text"
+					icon="Running"
+					value={$locationTargetMeta.achievedYear ?? 0}
+					max={$locationTargetMeta.yearGoal ?? 0}
+				/>
+			</div>
+
+			<!-- Månadsmål (Plats) -->
+			<div class="flex flex-col gap-1">
+				<div class="flex items-baseline justify-between">
+					<p class="text-sm font-medium text-gray-700">
+						Mål {svMonth($locationTargetMeta.month)}
+					</p>
+				</div>
+				<ProgressBar
+					iconColor={$locationTargetMeta.achievedMonth >= $locationTargetMeta.monthGoal
+						? 'success'
+						: 'target'}
+					textColor="text"
+					icon="Running"
+					value={$locationTargetMeta.achievedMonth ?? 0}
+					max={$locationTargetMeta.monthGoal ?? 0}
+				/>
+			</div>
+		</div>
+	{/if}
+
+	<!-- Achievements (unchanged) -->
 	{#if $achievementStore.length > 0}
 		<div class="grid grid-cols-4 gap-4 text-center">
 			{#each $achievementStore as achievement}

@@ -237,3 +237,78 @@ ALTER TABLE targets ALTER COLUMN id SET DEFAULT nextval('targets_id_seq');
 
 -- Set the sequence to continue from the highest used id
 SELECT setval('targets_id_seq', (SELECT MAX(id) FROM targets));
+
+
+
+---
+Logic for targets updated 28 aug 2025
+
+
+
+
+-- =========================================
+-- Simple anchors-only schema (no allocations in DB)
+-- Year, Month, Week goals. Frontend does the math.
+-- =========================================
+
+-- YEAR goals
+CREATE TABLE IF NOT EXISTS target_goals_year (
+  id                bigserial PRIMARY KEY,
+  target_owner_type text NOT NULL CHECK (target_owner_type IN ('trainer','location')),
+  target_owner_id   int  NOT NULL,
+  year              int  NOT NULL,
+  target_kind_id    int  NOT NULL,            -- 1=Booking Count, 2=Location Bookings, ...
+  goal_value        numeric(12,4) NOT NULL,   -- the goal you set for the year
+  title             text NULL,
+  description       text NULL,
+  created_at        timestamptz NOT NULL DEFAULT now(),
+  updated_at        timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (target_owner_type, target_owner_id, year, target_kind_id)
+);
+
+-- helpful lookup
+CREATE INDEX IF NOT EXISTS idx_tgy_scope
+  ON target_goals_year (target_owner_type, target_owner_id, year, target_kind_id);
+
+
+-- MONTH goals (only create rows for months you explicitly set)
+CREATE TABLE IF NOT EXISTS target_goals_month (
+  id                bigserial PRIMARY KEY,
+  target_owner_type text NOT NULL CHECK (target_owner_type IN ('trainer','location')),
+  target_owner_id   int  NOT NULL,
+  year              int  NOT NULL,
+  month             int  NOT NULL CHECK (month BETWEEN 1 AND 12),
+  target_kind_id    int  NOT NULL,
+  goal_value        numeric(12,4) NOT NULL,   -- the goal you set for this month
+  title             text NULL,
+  description       text NULL,
+  created_at        timestamptz NOT NULL DEFAULT now(),
+  updated_at        timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (target_owner_type, target_owner_id, year, month, target_kind_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_tgm_scope
+  ON target_goals_month (target_owner_type, target_owner_id, year, month, target_kind_id);
+
+
+-- WEEK goals (only create rows for weeks you explicitly set)
+-- Use ISO-week windows clipped to your calendar Mon–Sun (or choose your convention).
+CREATE TABLE IF NOT EXISTS target_goals_week (
+  id                bigserial PRIMARY KEY,
+  target_owner_type text NOT NULL CHECK (target_owner_type IN ('trainer','location')),
+  target_owner_id   int  NOT NULL,
+  week_start        date NOT NULL,
+  week_end          date NOT NULL,
+  year              int  NOT NULL,
+  month             int  NOT NULL CHECK (month BETWEEN 1 AND 12), -- month this week contributes to
+  target_kind_id    int  NOT NULL,
+  goal_value        numeric(12,4) NOT NULL,   -- the goal you set for this week window
+  title             text NULL,
+  description       text NULL,
+  created_at        timestamptz NOT NULL DEFAULT now(),
+  updated_at        timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (target_owner_type, target_owner_id, week_start, target_kind_id, month)
+);
+
+CREATE INDEX IF NOT EXISTS idx_tgw_scope
+  ON target_goals_week (target_owner_type, target_owner_id, year, month, target_kind_id, week_start);

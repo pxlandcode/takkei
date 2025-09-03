@@ -102,6 +102,14 @@
 			bookingObject.isTrial = false;
 			bookingObject.internal = true;
 			bookingObject.repeat = false;
+		} else if (selectedBookingComponent === 'education') {
+			bookingObject.bookingType = { label: 'Utbildningstimme', value: 'Education' };
+			bookingObject.isTrial = false;
+			bookingObject.internalEducation = false;
+			bookingObject.education = true;
+			bookingObject.clientId = null;
+			bookingObject.user_id = null;
+			bookingObject.internal = false;
 		} else {
 			bookingObject.bookingType = null;
 			bookingObject.isTrial = false;
@@ -252,6 +260,7 @@
 			{ label: 'Träning', icon: 'Training', value: 'training' },
 			{ label: 'Provträning', icon: 'ShiningStar', value: 'trial' },
 			{ label: 'Praktiktimme', icon: 'GraduationCap', value: 'practice' },
+			{ label: 'Utbildning', icon: 'GraduationCap', value: 'education' },
 			{ label: 'Flygtimme', icon: 'Plane', value: 'flight' },
 			{ label: 'Möte', icon: 'Meeting', value: 'meeting' },
 			{ label: 'Personlig', icon: 'Person', value: 'personal' }
@@ -269,11 +278,22 @@
 			isTrial={bookingObject.isTrial}
 			isFlight={bookingObject.internal}
 		/>
+		<!-- render -->
 	{:else if selectedBookingComponent === 'practice'}
 		<BookingPractice
 			bind:bookingObject
 			users={($users || []).map((u) => ({ label: `${u.firstname} ${u.lastname}`, value: u.id }))}
 			locations={($locations || []).map((l) => ({ label: l.name, value: l.id }))}
+			kind="practice"
+			bind:repeatedBookings
+		/>
+	{:else if selectedBookingComponent === 'education'}
+		<BookingPractice
+			bind:bookingObject
+			users={($users || []).map((u) => ({ label: `${u.firstname} ${u.lastname}`, value: u.id }))}
+			locations={($locations || []).map((l) => ({ label: l.name, value: l.id }))}
+			kind="education"
+			bind:repeatedBookings
 		/>
 	{:else if selectedBookingComponent === 'meeting'}
 		<BookingMeeting

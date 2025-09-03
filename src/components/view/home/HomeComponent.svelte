@@ -42,8 +42,9 @@
 	<!-- Bento Grid -->
 	<div class="flex flex-col gap-4 xl:grid xl:grid-cols-2">
 		<NotificationsModule />
-		<TodaysBookingsModule />
 		<NoBookingsClientModule />
+		<TodaysBookingsModule />
+
 		<GoalsAndAchievementsModule />
 
 		<div class="w-full md:col-span-2">

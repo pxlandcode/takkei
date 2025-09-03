@@ -8,51 +8,61 @@
 	import { user } from '$lib/stores/userStore';
 	import { get } from 'svelte/store';
 
+	export let kind: 'practice' | 'education' = 'practice'; // NEW
 	export let bookingObject: any;
 	export let users: { label: string; value: number }[] = [];
 	export let locations: { label: string; value: number }[] = [];
-	export let selectedIsUnavailable: boolean = false;
+	export let selectedIsUnavailable = false;
 	export let repeatedBookings: any[] = [];
 
-	// defaults/flags
+	// Common defaults
 	$: if (!bookingObject.trainerId) bookingObject.trainerId = get(user)?.id ?? null;
-	$: bookingObject.clientId = null; // no client for Praktiktimme
-	$: bookingObject.isTrial = false; // cannot be trial
-	$: bookingObject.internalEducation = true; // Praktiktimme flag
+	$: bookingObject.clientId = null;
+	$: bookingObject.isTrial = false;
 	$: bookingObject.repeatWeeks ??= 4;
 
+	// Flags per kind
+	$: if (kind === 'practice') {
+		bookingObject.internalEducation = true;
+		bookingObject.education = false;
+	} else {
+		bookingObject.internalEducation = false;
+		bookingObject.education = true;
+	}
+
 	async function checkRepeatAvailability() {
+		const payload: any = {
+			date: bookingObject.date,
+			trainerId: bookingObject.trainerId,
+			locationId: bookingObject.locationId,
+			time: bookingObject.time,
+			repeatWeeks: bookingObject.repeatWeeks
+		};
+
+		// Only block on trainee conflicts if we actually have one selected
+		if (bookingObject.user_id) {
+			payload.checkUsersBusy = true;
+			payload.userId = bookingObject.user_id;
+		}
+
 		const res = await fetch('/api/bookings/check-repeat', {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({
-				date: bookingObject.date,
-				trainerId: bookingObject.trainerId,
-				locationId: bookingObject.locationId,
-				time: bookingObject.time,
-				repeatWeeks: bookingObject.repeatWeeks,
-				// 🔑 extra bits only for Praktiktimme
-				checkUsersBusy: true,
-				userId: bookingObject.user_id
-			})
+			body: JSON.stringify(payload)
 		});
 
 		const data = await res.json();
-		if (data.success && data.repeatedBookings) {
-			repeatedBookings = data.repeatedBookings.map((week) => ({
-				...week,
-				selectedTime:
-					week.conflict && week.suggestedTimes.length > 0 ? week.suggestedTimes[0] : week.time
-			}));
-		} else {
-			repeatedBookings = [];
-		}
+		repeatedBookings = data.success
+			? data.repeatedBookings.map((w: any) => ({
+					...w,
+					selectedTime: w.conflict && w.suggestedTimes.length > 0 ? w.suggestedTimes[0] : w.time
+				}))
+			: [];
 	}
 
 	function ignoreConflict(weekNumber: number) {
 		repeatedBookings = repeatedBookings.filter((w) => w.week !== weekNumber);
 	}
-
 	function resolveConflict(weekNumber: number) {
 		repeatedBookings = repeatedBookings.map((w) =>
 			w.week === weekNumber ? { ...w, conflict: false } : w
@@ -74,9 +84,9 @@
 	/>
 
 	<Dropdown
-		label="Trainee (användare)"
+		label={kind === 'practice' ? 'Trainee (användare)' : 'Deltagare (valfri)'}
 		labelIcon="Person"
-		placeholder="Välj trainee"
+		placeholder="Välj användare"
 		id="trainee"
 		options={users}
 		bind:selectedValue={bookingObject.user_id}
@@ -97,12 +107,11 @@
 		bind:selectedTime={bookingObject.time}
 		trainerId={bookingObject.trainerId}
 		locationId={bookingObject.locationId}
-		checkUsersBusy={true}
+		checkUsersBusy={!!bookingObject.user_id}
 		traineeUserId={bookingObject.user_id}
 		on:unavailabilityChange={(e) => (selectedIsUnavailable = e.detail)}
 	/>
 
-	<!-- Repeat Booking Section (same UX as training) -->
 	<div class="flex flex-col gap-2">
 		<Checkbox
 			id="repeat"
@@ -117,7 +126,6 @@
 				name="repeatWeeks"
 				type="number"
 				bind:value={bookingObject.repeatWeeks}
-				placeholder="Ex: 4"
 				min="1"
 				max="52"
 			/>
@@ -130,9 +138,9 @@
 				full
 				on:click={checkRepeatAvailability}
 				disabled={!bookingObject.repeatWeeks ||
-					!bookingObject.user_id ||
 					!bookingObject.trainerId ||
-					!bookingObject.locationId}
+					!bookingObject.locationId ||
+					(kind === 'practice' && !bookingObject.user_id)}
 			/>
 
 			{#if repeatedBookings.length > 0}

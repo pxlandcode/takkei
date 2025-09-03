@@ -47,7 +47,8 @@ export async function createBooking(
 				booking_content_id: capitalizeFirstLetter(bookingObject.bookingType?.value ?? 'Corporate'),
 				status: 'New',
 				try_out: !!bookingObject.isTrial,
-				internal_education: !!bookingObject.internalEducation,
+				internal_education: !!bookingObject.internalEducation, //praktiktimme
+				education: !!bookingObject.education, //utbildningstimme
 				internal: !!bookingObject.internal, //flygtimme
 				created_by_id: bookingObject.booked_by_id,
 				repeat_index: bookingObject.repeat ? 1 : null
