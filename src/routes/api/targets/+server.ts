@@ -14,10 +14,7 @@ export const GET: RequestHandler = async ({ url }) => {
 	}
 
 	try {
-		const targets =
-			ownerType === 'location'
-				? await getLocationTargets(ownerId, date)
-				: await getUserTargets(ownerId, date);
+		const targets = await getUserTargets(ownerId, date);
 
 		return new Response(JSON.stringify(targets), { status: 200 });
 	} catch (error) {
