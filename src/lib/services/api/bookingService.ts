@@ -140,7 +140,6 @@ export async function fetchAvailableSlots({
 		body.checkUsersBusy = true;
 		body.userId = userId ?? null;
 	}
-	console.log(body);
 	const res = await fetch('/api/available-slots', {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
