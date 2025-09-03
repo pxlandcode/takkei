@@ -2,16 +2,18 @@
 	import { onMount } from 'svelte';
 	import { user } from '$lib/stores/userStore';
 
-	// Stores (new targets use `targetMeta`)
-	import { targetMeta, updateTargets } from '$lib/stores/targetsStore';
+	// NEW: import locationTargetMeta + updater
+	import {
+		targetMeta,
+		updateTargets,
+		locationTargetMeta,
+		updateLocationTargets
+	} from '$lib/stores/targetsStore';
 	import { achievementStore, updateAchievements } from '$lib/stores/achievementsStore';
 
-	// Components
 	import Icon from '../../icon-component/Icon.svelte';
 	import ProgressBar from '../../progress-bar/ProgressBar.svelte';
 	import { tooltip } from '$lib/actions/tooltip';
-
-	// Month label helper (your unified version that handles 0/1-based and "09")
 	import { svMonth } from '$lib/helpers/generic/genericHelpers';
 
 	let selectedDate = new Date();
@@ -19,9 +21,17 @@
 	onMount(() => {
 		if ($user?.id) {
 			const formattedDate = selectedDate.toISOString().slice(0, 10);
-			// NEW: pass ownerType explicitly
+
+			// Trainer targets
 			updateTargets('trainer', $user.id, formattedDate);
+
+			// Achievements
 			updateAchievements($user.id, formattedDate);
+			// Location targets (only if user has a default location)
+			const defaultLocationId = Number($user?.default_location_id ?? 0);
+			if (defaultLocationId > 0) {
+				updateLocationTargets(defaultLocationId, formattedDate);
+			}
 		}
 	});
 
@@ -39,18 +49,18 @@
 		</div>
 	</div>
 
-	<!-- Goals (from targetMeta: year/month goals + achieved) -->
+	<!-- Trainer Goals -->
 	{#if $targetMeta}
 		<div class="mb-4 flex flex-col gap-4">
-			<!-- Årsmål -->
+			<!-- Årsmål (Tränare) -->
 			<div class="flex flex-col gap-1">
 				<div class="flex items-baseline justify-between">
 					<p class="text-sm font-medium text-gray-700">
-						Mål {$targetMeta.year ?? selectedDate.getFullYear()}
+						Mål {$targetMeta.year}
 					</p>
 				</div>
 				<ProgressBar
-					iconColor="text"
+					iconColor={$targetMeta.achievedYear >= $targetMeta.yearGoal ? 'success' : 'target'}
 					textColor="text"
 					icon="Running"
 					value={$targetMeta.achievedYear ?? 0}
@@ -58,15 +68,15 @@
 				/>
 			</div>
 
-			<!-- Månadsmål -->
+			<!-- Månadsmål (Tränare) -->
 			<div class="flex flex-col gap-1">
 				<div class="flex items-baseline justify-between">
 					<p class="text-sm font-medium text-gray-700">
-						Mål {svMonth($targetMeta.month ?? selectedDate.getMonth())}
+						Mål {svMonth($targetMeta.month)}
 					</p>
 				</div>
 				<ProgressBar
-					iconColor="text"
+					iconColor={$targetMeta.achievedMonth >= $targetMeta.monthGoal ? 'success' : 'target'}
 					textColor="text"
 					icon="Running"
 					value={$targetMeta.achievedMonth ?? 0}
@@ -75,8 +85,50 @@
 			</div>
 		</div>
 	{:else}
-		<!-- Fallback if meta hasn’t loaded -->
 		<p class="mb-4 text-sm italic text-gray-500">Hämtar mål …</p>
+	{/if}
+
+	<!-- Location Goals (only if location actually has targets) -->
+	{#if $locationTargetMeta && ($locationTargetMeta.yearGoal !== null || $locationTargetMeta.monthGoal !== null)}
+		<div class="mb-4 mt-2 flex flex-col gap-4">
+			<div class="text-sm font-semibold text-gray-800">{$locationTargetMeta.locationName}</div>
+
+			<!-- Årsmål (Plats) -->
+			<div class="flex flex-col gap-1">
+				<div class="flex items-baseline justify-between">
+					<p class="text-sm font-medium text-gray-700">
+						Mål {$locationTargetMeta.year}
+					</p>
+				</div>
+				<ProgressBar
+					iconColor={$locationTargetMeta.achievedYear >= $locationTargetMeta.yearGoal
+						? 'success'
+						: 'target'}
+					textColor="text"
+					icon="Running"
+					value={$locationTargetMeta.achievedYear ?? 0}
+					max={$locationTargetMeta.yearGoal ?? 0}
+				/>
+			</div>
+
+			<!-- Månadsmål (Plats) -->
+			<div class="flex flex-col gap-1">
+				<div class="flex items-baseline justify-between">
+					<p class="text-sm font-medium text-gray-700">
+						Mål {svMonth($locationTargetMeta.month)}
+					</p>
+				</div>
+				<ProgressBar
+					iconColor={$locationTargetMeta.achievedMonth >= $locationTargetMeta.monthGoal
+						? 'success'
+						: 'target'}
+					textColor="text"
+					icon="Running"
+					value={$locationTargetMeta.achievedMonth ?? 0}
+					max={$locationTargetMeta.monthGoal ?? 0}
+				/>
+			</div>
+		</div>
 	{/if}
 
 	<!-- Achievements (unchanged) -->

@@ -14,41 +14,31 @@ export const targetStore = writable<TargetRow[]>([]);
 export const targetStoreLoading = writable<boolean>(false);
 export const targetStoreError = writable<string | null>(null);
 
-export const targetMeta = writable<{
+export type TargetMeta = {
+	year: number; // e.g., 2025
+	month: number; // 1..12
 	yearGoal: number | null;
 	monthGoal: number | null;
 	achievedYear: number;
 	achievedMonth: number;
-	year: number;
-	month: number;
-} | null>(null);
+	locationName?: string | null;
+};
+
+export const targetMeta = writable<TargetMeta | null>(null);
+
+export const locationTargetMeta = writable<TargetMeta | null>(null);
 
 export async function updateTargets(ownerType: OwnerType, ownerId: number, dateISO: string) {
 	targetStoreLoading.set(true);
 	targetStoreError.set(null);
 
-	console.log('fetching targets for', { ownerType, ownerId, dateISO });
 	try {
-		// Keep loading the list (you’ll use it differently later)
-		// const targets = await fetchTargets(ownerType, ownerId, dateISO);
-		// console.log('targets fetched', targets);
-		// const normalized: TargetRow[] = (targets ?? []).map((t: any) => ({
-		// 	...t,
-		// 	target: Math.trunc(Number(t.target ?? 0)),
-		// 	achieved: Math.trunc(Number(t.achieved ?? 0))
-		// }));
-		// targetStore.set(normalized);
-
-		console.debug('[updateTargets] args =>', { ownerType, ownerId, dateISO });
-		// Pull both goals + achieved from summary
 		const summary = await fetchTargetsSummary({
 			ownerType,
 			ownerId,
 			date: dateISO,
 			includeGoals: true
 		});
-
-		console.log('targets summary fetched', summary);
 
 		targetMeta.set({
 			year: summary.year ?? null,
@@ -65,5 +55,38 @@ export async function updateTargets(ownerType: OwnerType, ownerId: number, dateI
 		targetMeta.set(null);
 	} finally {
 		targetStoreLoading.set(false);
+	}
+}
+
+export async function updateLocationTargets(locationId: number, dateISO: string) {
+	try {
+		const summary = await fetchTargetsSummary({
+			ownerType: 'location',
+			ownerId: locationId,
+			date: dateISO,
+			targetKindId: 2,
+			includeGoals: true
+		});
+
+		let year = summary.year;
+		let month = summary.month;
+		if (typeof year !== 'number' || typeof month !== 'number') {
+			const [yy, mm] = dateISO.split('-').map(Number);
+			year = year ?? yy;
+			month = month ?? mm;
+		}
+
+		locationTargetMeta.set({
+			year,
+			month,
+			yearGoal: summary.yearGoal ?? null,
+			monthGoal: summary.monthGoal ?? null,
+			achievedYear: summary.achievedYear ?? 0,
+			achievedMonth: summary.achievedMonth ?? 0,
+			locationName: summary.locationName ?? null
+		});
+	} catch (err) {
+		console.error('[updateLocationTargets] failed:', err);
+		locationTargetMeta.set(null);
 	}
 }

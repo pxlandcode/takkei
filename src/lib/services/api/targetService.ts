@@ -1,7 +1,6 @@
 export type OwnerType = 'trainer' | 'location';
 
 export function toTargetKindId(ownerType: OwnerType): 1 | 2 {
-	// 1 = Booking Count (trainer), 2 = Location Bookings (location)
 	return ownerType === 'trainer' ? 1 : 2;
 }
 
@@ -182,40 +181,26 @@ export type TargetsSummary = {
 export async function fetchTargetsSummary(params: {
 	ownerType: OwnerType;
 	ownerId: number;
-	date: string; // "YYYY-MM-DD"
-	targetKindId?: number; // default 1
-	includeGoals?: boolean; // default true
-}): Promise<TargetsSummary> {
-	assertRequestParams(params.ownerType, params.ownerId, params.date);
+	date: string;
+	targetKindId?: number;
+	includeGoals?: boolean;
+}) {
+	// ⬇️ use the ownerType-aware default (not 1)
+	const targetKindId = params.targetKindId ?? toTargetKindId(params.ownerType);
+	const includeGoals = params.includeGoals ?? true;
 
-	const { yearFromDate, monthFromDate } = parseIsoDateParts(params.date);
-	const targetKindIdentifier = params.targetKindId ?? 1;
-	const includeGoalsFlag = params.includeGoals ?? true;
-
-	const queryParams = new URLSearchParams({
+	const qs = new URLSearchParams({
 		ownerType: params.ownerType,
 		ownerId: String(params.ownerId),
 		date: params.date,
-		targetKindId: String(targetKindIdentifier)
+		targetKindId: String(targetKindId)
 	});
-	if (includeGoalsFlag) queryParams.set('includeGoals', 'true');
+	if (includeGoals) qs.set('includeGoals', 'true');
 
-	const response = await fetch(`/api/targets/summary?${queryParams.toString()}`);
-	if (!response.ok) throw new Error('Failed to fetch targets summary');
+	const res = await fetch(`/api/targets/summary?${qs.toString()}`);
+	if (!res.ok) throw new Error('Failed to fetch targets summary');
+	const body = await res.json();
 
-	const serverBody = (await response.json()) as {
-		achievedYear: number;
-		achievedMonth: number;
-		yearGoal?: number | null;
-		monthGoal?: number | null;
-		monthStart?: string;
-		days?: Array<{ day: string; cnt: number }>;
-	};
-
-	// Add explicit year/month derived from the input date
-	return {
-		year: yearFromDate,
-		month: monthFromDate,
-		...serverBody
-	};
+	const [year, month] = params.date.split('-').map(Number);
+	return { year, month, ...body };
 }

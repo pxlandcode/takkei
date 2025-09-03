@@ -5,36 +5,59 @@ export async function GET({ url }) {
 	const ownerType = url.searchParams.get('ownerType') as 'trainer' | 'location';
 	const ownerId = Number(url.searchParams.get('ownerId'));
 	const year = Number(url.searchParams.get('year'));
-	const month = Number(url.searchParams.get('month')); // 1..12
-	const kind = Number(url.searchParams.get('targetKindId') || 1);
+	const monthRaw = url.searchParams.get('month'); // optional
+	const month = monthRaw != null ? Number(monthRaw) : null;
+	const targetKindId = Number(url.searchParams.get('targetKindId') || 1);
 
-	if (!ownerType || !ownerId || !year || !month) {
-		return json({ error: 'Missing required params' }, { status: 400 });
+	if (!ownerType || !ownerId || !year) {
+		return json({ error: 'Missing required params: ownerType, ownerId, year' }, { status: 400 });
+	}
+	if (month != null && (month < 1 || month > 12)) {
+		return json({ error: 'Invalid month (1..12)' }, { status: 400 });
 	}
 
-	// Year goal
+	// Fetch the YEAR goal once (useful in both modes)
 	const yearRows = await query(
 		`SELECT goal_value
        FROM target_goals_year
-       WHERE target_owner_type=$1 AND target_owner_id=$2 AND year=$3 AND target_kind_id=$4`,
-		[ownerType, ownerId, year, kind]
+      WHERE target_owner_type=$1 AND target_owner_id=$2 AND year=$3 AND target_kind_id=$4`,
+		[ownerType, ownerId, year, targetKindId]
 	);
-	const yearRaw = yearRows[0]?.goal_value;
-	const yearGoal =
-		yearRaw == null || Number.isNaN(Number(yearRaw)) ? null : Math.trunc(Number(yearRaw));
+	const yg = yearRows[0]?.goal_value;
+	const yearGoal = yg == null || Number.isNaN(Number(yg)) ? null : Math.trunc(Number(yg));
 
-	// Month goal (optional row)
-	const monthRows = await query(
-		`SELECT goal_value
+	// --- SINGLE MODE: month provided -> return that month + yearGoal
+	if (month != null) {
+		const mRows = await query(
+			`SELECT goal_value
+         FROM target_goals_month
+        WHERE target_owner_type=$1 AND target_owner_id=$2 AND year=$3 AND month=$4 AND target_kind_id=$5`,
+			[ownerType, ownerId, year, month, targetKindId]
+		);
+		const mg = mRows[0]?.goal_value;
+		const monthGoal = mg == null || Number.isNaN(Number(mg)) ? null : Math.trunc(Number(mg));
+
+		return json({ yearGoal, monthGoal });
+	}
+
+	// --- LIST MODE: no month -> return all months + yearGoal
+	const rows = await query(
+		`SELECT month, goal_value
        FROM target_goals_month
-       WHERE target_owner_type=$1 AND target_owner_id=$2 AND year=$3 AND month=$4 AND target_kind_id=$5`,
-		[ownerType, ownerId, year, month, kind]
+      WHERE target_owner_type=$1 AND target_owner_id=$2 AND year=$3 AND target_kind_id=$4
+      ORDER BY month`,
+		[ownerType, ownerId, year, targetKindId]
 	);
-	const monthRaw = monthRows[0]?.goal_value;
-	const monthGoal =
-		monthRaw == null || Number.isNaN(Number(monthRaw)) ? null : Math.trunc(Number(monthRaw));
 
-	return json({ yearGoal, monthGoal });
+	const months = rows.map((r: any) => ({
+		month: Number(r.month),
+		goal_value:
+			r.goal_value == null || Number.isNaN(Number(r.goal_value))
+				? null
+				: Math.trunc(Number(r.goal_value))
+	}));
+
+	return json({ yearGoal, months });
 }
 
 export async function POST({ request }) {
@@ -49,21 +72,20 @@ export async function POST({ request }) {
 		description = ''
 	} = await request.json();
 
-	if (!ownerType || !ownerId || !year || !month || !targetKindId) {
-		return json({ error: 'Missing required fields' }, { status: 400 });
+	if (!ownerType || !ownerId || !year || !month) {
+		return json({ error: 'Missing required body fields' }, { status: 400 });
 	}
 
 	await query(
-		`INSERT INTO target_goals_month
-           (target_owner_type, target_owner_id, year, month, target_kind_id, goal_value, title, description)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
-         ON CONFLICT (target_owner_type, target_owner_id, year, month, target_kind_id)
-         DO UPDATE SET goal_value=EXCLUDED.goal_value,
-                       title=EXCLUDED.title,
-                       description=EXCLUDED.description,
-                       updated_at=now()`,
+		`INSERT INTO target_goals_month (target_owner_type, target_owner_id, year, month, target_kind_id, goal_value, title, description)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+     ON CONFLICT (target_owner_type, target_owner_id, year, month, target_kind_id)
+     DO UPDATE
+        SET goal_value=EXCLUDED.goal_value,
+            title=EXCLUDED.title,
+            description=EXCLUDED.description,
+            updated_at=now()`,
 		[ownerType, ownerId, year, month, targetKindId, goalValue, title, description]
 	);
-
 	return json({ ok: true });
 }

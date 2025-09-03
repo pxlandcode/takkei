@@ -33,6 +33,7 @@
 
 	let isEditing = false;
 
+	// target kind matches new targets (1=trainer bookings, 2=location bookings)
 	$: targetKindId = ownerType === 'trainer' ? 1 : 2;
 
 	// Active owner context
@@ -56,21 +57,27 @@
 	let showWeeksForMonth: number | null = null;
 	let weeksView: { week_start: string; week_end: string; value: number; isAnchor: boolean }[] = [];
 
-	const svMonth = (m: number) =>
-		new Date(year, m - 1, 1).toLocaleDateString('sv-SE', { month: 'long' });
+	// Safe Swedish month name helper that accepts 1..12
+	function svMonthName(monthOneBased: number): string {
+		if (!Number.isFinite(monthOneBased)) return '';
+		return new Date(2000, monthOneBased - 1, 1).toLocaleDateString('sv-SE', { month: 'long' });
+	}
 
 	onMount(async () => {
 		await Promise.all([fetchUsers(), fetchLocations()]);
 
 		if (ownerType === 'trainer') {
-			selectedUserId = $user?.id ?? null;
+			selectedUserId = Number($user?.id ?? null) || null;
 			setActiveOwnerFromSelections();
 			await loadAnchors();
 		}
 	});
 
 	function setActiveOwnerFromSelections() {
-		activeOwnerId = ownerType === 'trainer' ? selectedUserId : selectedLocationId;
+		// Coerce dropdown values (which might be strings) to numbers
+		const userIdNum = selectedUserId != null ? Number(selectedUserId) : null;
+		const locationIdNum = selectedLocationId != null ? Number(selectedLocationId) : null;
+		activeOwnerId = ownerType === 'trainer' ? userIdNum : locationIdNum;
 	}
 
 	function resetOwnerAndDraft() {
@@ -86,7 +93,7 @@
 
 		// If trainer mode, pick current user by default
 		if (ownerType === 'trainer') {
-			selectedUserId = $user?.id ?? null;
+			selectedUserId = Number($user?.id ?? null) || null;
 			setActiveOwnerFromSelections();
 			await loadAnchors();
 		}
@@ -99,23 +106,30 @@
 			return;
 		}
 
-		const yg = await getYearGoal(ownerType, activeOwnerId, year, targetKindId);
-		persistedYearGoal = yg?.value ?? null;
-		yearDraft = persistedYearGoal == null ? '' : Math.trunc(Number(persistedYearGoal));
+		try {
+			const yearGoalResp = await getYearGoal(ownerType, Number(activeOwnerId), year, targetKindId);
+			persistedYearGoal =
+				yearGoalResp?.value == null ? null : Math.trunc(Number(yearGoalResp.value));
+			yearDraft = persistedYearGoal == null ? '' : persistedYearGoal;
 
-		const mg = await getMonthGoals(ownerType, activeOwnerId, year, targetKindId);
-		persistedMonthAnchors = (mg || []).map((r: any) => ({
-			month: Number(r.month),
-			value: Number(r.goal_value)
-		}));
+			const monthGoals = await getMonthGoals(ownerType, Number(activeOwnerId), year, targetKindId);
+			persistedMonthAnchors = (monthGoals || []).map((r: any) => ({
+				month: Number(r.month),
+				value: Math.trunc(Number(r.goal_value))
+			}));
 
-		// start draft as a COPY of persisted
-		monthDraftAnchors = persistedMonthAnchors.map((a) => ({ ...a }));
-		editedMonths.clear();
+			// start draft as a COPY of persisted
+			monthDraftAnchors = persistedMonthAnchors.map((a) => ({ ...a }));
+			editedMonths.clear();
 
-		recomputeFromDraft(); // also fills monthInputs
-		weeksView = [];
-		showWeeksForMonth = null;
+			recomputeFromDraft(); // also fills monthInputs
+			weeksView = [];
+			showWeeksForMonth = null;
+		} catch (err) {
+			addToast({ type: AppToastType.ERROR, message: 'Kunde inte hämta mål' });
+			resetLocal();
+			console.error(err);
+		}
 	}
 
 	function resetLocal() {
@@ -133,22 +147,32 @@
 
 	// ------------- RECOMPUTE (purely local, reactive) ------------------------
 	function recomputeFromDraft() {
-		const y = yearDraft === '' ? NaN : Number(yearDraft);
-		const yearGoalValue = Number.isFinite(y) ? y : null;
+		const numericYearDraft = yearDraft === '' ? NaN : Number(yearDraft);
+		const yearGoalValue = Number.isFinite(numericYearDraft) ? numericYearDraft : null;
 
-		const res = splitYearToMonths({
+		const result = splitYearToMonths({
 			year,
-			yearGoal: yearGoalValue,
-			monthAnchors: monthDraftAnchors
+			yearGoal: yearGoalValue, // can be null: then anchors define the distribution
+			monthAnchors: monthDraftAnchors // [{month:1..12,value:number}]
 		});
 
-		monthsView = res.months;
-		yearTotal = res.yearTotal;
+		monthsView = result.months;
+
+		// If service returns no months (yearGoal missing and no anchors), show 12 zero-rows so UI stays usable.
+		if (!monthsView?.length) {
+			monthsView = Array.from({ length: 12 }, (_, i) => ({
+				month: i + 1,
+				value: 0,
+				isAnchor: false
+			}));
+		}
+
+		yearTotal = result.yearTotal ?? monthsView.reduce((s, m) => s + (m.value || 0), 0);
 
 		// Sync inputs: anchors show anchor value, autos show computed
 		for (const m of monthsView) {
-			const a = monthDraftAnchors.find((x) => x.month === m.month);
-			monthInputs[m.month] = String(a ? a.value : m.value);
+			const anchor = monthDraftAnchors.find((x) => x.month === m.month);
+			monthInputs[m.month] = String(anchor ? anchor.value : m.value);
 		}
 		monthInputs = monthInputs.slice(); // notify Svelte
 	}
@@ -234,35 +258,42 @@
 			addToast({ type: AppToastType.CANCEL, message: 'Välj mottagare' });
 			return;
 		}
-		// Year
-		const yearVal = yearDraft === '' ? 0 : Number(yearDraft);
-		await setYearGoal({
-			ownerType,
-			ownerId: activeOwnerId,
-			year,
-			targetKindId,
-			goalValue: yearVal,
-			title: `Årsmål ${year}`,
-			description: ''
-		});
-
-		// Months (only anchors)
-		for (const a of monthDraftAnchors) {
-			await setMonthGoal({
+		try {
+			// 1) Save year goal
+			const yearValueToSave = yearDraft === '' ? 0 : Math.max(0, Math.trunc(Number(yearDraft)));
+			await setYearGoal({
 				ownerType,
-				ownerId: activeOwnerId,
+				ownerId: Number(activeOwnerId),
 				year,
-				month: a.month,
 				targetKindId,
-				goalValue: a.value,
-				title: `Månadsmål ${year}-${String(a.month).padStart(2, '0')}`,
+				goalValue: yearValueToSave,
+				title: `Årsmål ${year}`,
 				description: ''
 			});
-		}
 
-		await loadAnchors();
-		isEditing = false;
-		addToast({ type: AppToastType.SUCCESS, message: 'Mål sparade' });
+			// 2) Save *every* month (persist what is currently shown in the UI)
+			//    `monthsView` already contains the final values (anchors + auto).
+			const monthPayloads = monthsView.map(({ month, value }) => ({
+				ownerType,
+				ownerId: Number(activeOwnerId),
+				year,
+				month, // 1..12
+				targetKindId,
+				goalValue: Math.max(0, Math.trunc(Number(value))),
+				title: `Månadsmål ${year}-${String(month).padStart(2, '0')}`,
+				description: ''
+			}));
+
+			// Save in parallel to speed things up
+			await Promise.all(monthPayloads.map((p) => setMonthGoal(p)));
+
+			await loadAnchors(); // reload from DB (will now reflect all 12 months)
+			isEditing = false;
+			addToast({ type: AppToastType.SUCCESS, message: 'Mål sparade' });
+		} catch (err) {
+			addToast({ type: AppToastType.ERROR, message: 'Kunde inte spara mål' });
+			console.error(err);
+		}
 	}
 
 	function commitYear() {
@@ -280,8 +311,8 @@
 			.filter((m) => m.month !== monthNo && m.isAnchor)
 			.reduce((s, m) => s + m.value, 0);
 
-		const yNum = yearDraft === '' ? NaN : Number(yearDraft);
-		const yearTarget = Number.isFinite(yNum) ? yNum : yearTotal;
+		const numericYearDraft = yearDraft === '' ? NaN : Number(yearDraft);
+		const yearTarget = Number.isFinite(numericYearDraft) ? numericYearDraft : yearTotal;
 
 		// This month can take everything not already reserved by other anchors.
 		const theoreticalMax = Math.max(0, Math.floor(yearTarget - sumAnchOther));
@@ -289,7 +320,7 @@
 	}
 
 	// Shared visual scale across rows — use the current max value only
-	$: scaleMaxDisplay = Math.max(1, ...monthsView.map((m) => m.value));
+	$: scaleMaxDisplay = Math.max(1, ...monthsView.map((m) => m.value || 0));
 
 	function anchorMonthLocally(month: number, newVal: number) {
 		const i = monthDraftAnchors.findIndex((a) => a.month === month);
@@ -303,6 +334,7 @@
 
 	// fired on every keystroke (already clamped to cap)
 	function onMonthTyped(month: number, v: number) {
+		editedMonths.add(month);
 		anchorMonthLocally(month, v);
 		recomputeFromDraft(); // redistribute other unlocked months by days
 	}
@@ -368,6 +400,7 @@
 					infiniteScroll
 					bind:selectedValue={selectedUserId}
 					on:change={async () => {
+						selectedUserId = selectedUserId != null ? Number(selectedUserId) : null;
 						setActiveOwnerFromSelections();
 						await loadAnchors();
 					}}
@@ -382,6 +415,7 @@
 					infiniteScroll
 					bind:selectedValue={selectedLocationId}
 					on:change={async () => {
+						selectedLocationId = selectedLocationId != null ? Number(selectedLocationId) : null;
 						setActiveOwnerFromSelections();
 						await loadAnchors();
 					}}
@@ -434,7 +468,6 @@
 				/>
 			</div>
 
-			<!-- Option A: keep your number input -->
 			<div class="flex flex-wrap items-end gap-3">
 				<input
 					type="number"
@@ -465,7 +498,7 @@
 				<div class="space-y-3">
 					{#each monthsView as m}
 						<MonthBarInput
-							name={svMonth(m.month)}
+							name={svMonthName(m.month)}
 							month={m.month}
 							value={m.value}
 							cap={monthMaxCap(m.month)}
