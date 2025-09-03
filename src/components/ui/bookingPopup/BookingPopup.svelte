@@ -260,7 +260,7 @@
 			{ label: 'Träning', icon: 'Training', value: 'training' },
 			{ label: 'Provträning', icon: 'ShiningStar', value: 'trial' },
 			{ label: 'Praktiktimme', icon: 'GraduationCap', value: 'practice' },
-			{ label: 'Utbildningstimme', icon: 'GraduationCap', value: 'education' },
+			{ label: 'Utbildning', icon: 'GraduationCap', value: 'education' },
 			{ label: 'Flygtimme', icon: 'Plane', value: 'flight' },
 			{ label: 'Möte', icon: 'Meeting', value: 'meeting' },
 			{ label: 'Personlig', icon: 'Person', value: 'personal' }
