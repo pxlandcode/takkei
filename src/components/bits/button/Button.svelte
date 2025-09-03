@@ -47,12 +47,19 @@
         ${!icon && text ? (small ? 'text-sm' : 'h-[45px]') : 'text-base'}
         ${full ? 'w-full' : ''}
 		focus:outline-none active:translate-y-1 active:scale-95 active:shadow-sm
+        disabled:opacity-60 disabled:cursor-not-allowed disabled:pointer-events-none
 	`;
 </script>
 
 <div class="relative inline-block">
 	{#if confirmOptions}
-		<button {disabled} use:confirm={confirmOptions} {type} class={buttonClasses}>
+		<button
+			aria-disabled={disabled}
+			{disabled}
+			use:confirm={confirmOptions}
+			{type}
+			class={buttonClasses}
+		>
 			{#if icon && !text}
 				<Icon {icon} size={iconSize} color={iconColor} />
 			{:else}
@@ -66,7 +73,7 @@
 			{/if}
 		</button>
 	{:else}
-		<button {disabled} {type} class={buttonClasses} on:click={handleClick}>
+		<button aria-disabled={disabled} {disabled} {type} class={buttonClasses} on:click={handleClick}>
 			{#if icon && !text}
 				<Icon {icon} size={iconSize} color={iconColor} />
 			{:else}

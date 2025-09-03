@@ -5,12 +5,13 @@
 	export let max: number = 100;
 	export let icon: string = '';
 	export let iconColor: string = 'white';
+	export let textColor: string = 'white';
 
 	$: progress = max > 0 ? Math.min(100, (value / max) * 100) : 0;
 	$: exceedMax = value > max;
 </script>
 
-<div class="relative flex w-full items-center text-sm text-white">
+<div class="relative flex w-full items-center text-sm text-{textColor}">
 	<p>{value}</p>
 
 	<div class="relative mx-2 h-[3px] flex-1 bg-black/50">

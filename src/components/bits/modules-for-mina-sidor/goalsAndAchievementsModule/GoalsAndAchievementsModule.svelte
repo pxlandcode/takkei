@@ -2,24 +2,25 @@
 	import { onMount } from 'svelte';
 	import { user } from '$lib/stores/userStore';
 
-	// Stores
-	import { targetStore, updateTargets } from '$lib/stores/targetsStore';
+	// Stores (new targets use `targetMeta`)
+	import { targetMeta, updateTargets } from '$lib/stores/targetsStore';
 	import { achievementStore, updateAchievements } from '$lib/stores/achievementsStore';
 
 	// Components
 	import Icon from '../../icon-component/Icon.svelte';
-	import Button from '../../button/Button.svelte';
 	import ProgressBar from '../../progress-bar/ProgressBar.svelte';
-	import { goto } from '$app/navigation';
 	import { tooltip } from '$lib/actions/tooltip';
+
+	// Month label helper (your unified version that handles 0/1-based and "09")
+	import { svMonth } from '$lib/helpers/generic/genericHelpers';
 
 	let selectedDate = new Date();
 
-	// Load data on mount
 	onMount(() => {
 		if ($user?.id) {
 			const formattedDate = selectedDate.toISOString().slice(0, 10);
-			updateTargets($user.id, formattedDate);
+			// NEW: pass ownerType explicitly
+			updateTargets('trainer', $user.id, formattedDate);
 			updateAchievements($user.id, formattedDate);
 		}
 	});
@@ -38,20 +39,47 @@
 		</div>
 	</div>
 
-	<!-- Goals Section -->
-	<div class="mb-4 flex flex-col gap-4">
-		{#each $targetStore as target}
+	<!-- Goals (from targetMeta: year/month goals + achieved) -->
+	{#if $targetMeta}
+		<div class="mb-4 flex flex-col gap-4">
+			<!-- Årsmål -->
 			<div class="flex flex-col gap-1">
-				<p class="text-sm font-medium text-gray-700">{target.title}</p>
-				<ProgressBar iconColor="text" icon="Running" value={target.achieved} max={target.target} />
+				<div class="flex items-baseline justify-between">
+					<p class="text-sm font-medium text-gray-700">
+						Mål {$targetMeta.year ?? selectedDate.getFullYear()}
+					</p>
+				</div>
+				<ProgressBar
+					iconColor="text"
+					textColor="text"
+					icon="Running"
+					value={$targetMeta.achievedYear ?? 0}
+					max={$targetMeta.yearGoal ?? 0}
+				/>
 			</div>
-		{/each}
-		{#if $targetStore.length === 0}
-			<p class="text-sm italic text-gray-500">Inga mål just nu.</p>
-		{/if}
-	</div>
 
-	<!-- Achievements Section -->
+			<!-- Månadsmål -->
+			<div class="flex flex-col gap-1">
+				<div class="flex items-baseline justify-between">
+					<p class="text-sm font-medium text-gray-700">
+						Mål {svMonth($targetMeta.month ?? selectedDate.getMonth())}
+					</p>
+				</div>
+				<ProgressBar
+					iconColor="text"
+					textColor="text"
+					icon="Running"
+					value={$targetMeta.achievedMonth ?? 0}
+					max={$targetMeta.monthGoal ?? 0}
+				/>
+			</div>
+		</div>
+	{:else}
+		<!-- Fallback if meta hasn’t loaded -->
+		<p class="mb-4 text-sm italic text-gray-500">Hämtar mål …</p>
+	{/if}
+
+	<!-- Achievements (unchanged) -->
 	{#if $achievementStore.length > 0}
 		<div class="grid grid-cols-4 gap-4 text-center">
 			{#each $achievementStore as achievement}
