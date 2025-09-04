@@ -9,7 +9,7 @@
 	let userId = 19; // trainer id
 	let selectedDate = new Date();
 	let year = selectedDate.getFullYear();
-	let month = capitalizeFirstLetter(svMonth(selectedDate.getMonth()));
+	let month = capitalizeFirstLetter(svMonth(selectedDate.getMonth() + 1));
 
 	onMount(() => {
 		const formattedDate = selectedDate.toISOString().slice(0, 10);
