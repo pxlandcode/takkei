@@ -24,7 +24,7 @@
 </script>
 
 <div class="flex h-[75px] w-full items-center justify-between rounded-lg px-4 glass">
-	<div class="text-2xl text-white">
+	<div class="text-xl font-light text-white">
 		{greeting.message}
 		{greeting.icon ? greeting.icon : ''}
 	</div>

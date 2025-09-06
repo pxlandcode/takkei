@@ -60,8 +60,7 @@
 					</p>
 				</div>
 				<ProgressBar
-					iconColor={$targetMeta.achievedYear >= $targetMeta.yearGoal ? 'success' : 'target'}
-					textColor="text"
+					iconColor={$targetMeta.achievedYear >= $targetMeta.yearGoal ? 'success' : 'text'}
 					icon="Running"
 					value={$targetMeta.achievedYear ?? 0}
 					max={$targetMeta.yearGoal ?? 0}
@@ -76,8 +75,7 @@
 					</p>
 				</div>
 				<ProgressBar
-					iconColor={$targetMeta.achievedMonth >= $targetMeta.monthGoal ? 'success' : 'target'}
-					textColor="text"
+					iconColor={$targetMeta.achievedMonth >= $targetMeta.monthGoal ? 'success' : 'text'}
 					icon="Running"
 					value={$targetMeta.achievedMonth ?? 0}
 					max={$targetMeta.monthGoal ?? 0}
@@ -103,8 +101,7 @@
 				<ProgressBar
 					iconColor={$locationTargetMeta.achievedYear >= $locationTargetMeta.yearGoal
 						? 'success'
-						: 'target'}
-					textColor="text"
+						: 'text'}
 					icon="Running"
 					value={$locationTargetMeta.achievedYear ?? 0}
 					max={$locationTargetMeta.yearGoal ?? 0}
@@ -121,8 +118,7 @@
 				<ProgressBar
 					iconColor={$locationTargetMeta.achievedMonth >= $locationTargetMeta.monthGoal
 						? 'success'
-						: 'target'}
-					textColor="text"
+						: 'text'}
 					icon="Running"
 					value={$locationTargetMeta.achievedMonth ?? 0}
 					max={$locationTargetMeta.monthGoal ?? 0}

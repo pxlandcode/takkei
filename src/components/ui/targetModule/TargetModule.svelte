@@ -40,6 +40,7 @@
 				</div>
 				<ProgressBar
 					icon="Running"
+					textColor="white"
 					value={$targetMeta.achievedYear ?? 0}
 					max={$targetMeta.yearGoal ?? 0}
 				/>
@@ -52,6 +53,7 @@
 				</div>
 				<ProgressBar
 					icon="Running"
+					textColor="white"
 					value={$targetMeta.achievedMonth ?? 0}
 					max={$targetMeta.monthGoal ?? 0}
 				/>
