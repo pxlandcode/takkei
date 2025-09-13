@@ -34,8 +34,6 @@ const pool = new Pool({
 
 const APP_TZ = 'Europe/Stockholm';
 
-// Minimal, dependency-free converters
-
 // Detects strings like 'YYYY-MM-DD HH:mm' or 'YYYY-MM-DD HH:mm:ss' or 'YYYY-MM-DD'
 const DATE_LIKE_RE = /^\d{4}-\d{2}-\d{2}(?:[ T]\d{2}:\d{2}(?::\d{2})?)?$/;
 

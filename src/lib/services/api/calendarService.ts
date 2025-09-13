@@ -4,9 +4,9 @@ import type { BookingFilters } from './types';
 export async function fetchBookings(
 	filters: BookingFilters,
 	fetchFn: typeof fetch,
-	limit?: number, // ✅ Now optional (unlimited if not set)
-	offset: number = 0, // ✅ Default offset is 0
-	fetchAllStatuses: boolean = false // ✅ Allows fetching cancelled bookings
+	limit?: number,
+	offset: number = 0,
+	fetchAllStatuses: boolean = false
 ): Promise<FullBooking[]> {
 	const params = new URLSearchParams();
 

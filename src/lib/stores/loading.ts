@@ -22,6 +22,7 @@ function createLoadingStore() {
 				isSlowlyLoading: false,
 				loadingText: loadingText
 			});
+			console.log('Loading started:', loadingText);
 
 			clearTimeout(timeout);
 
