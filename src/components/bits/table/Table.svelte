@@ -22,7 +22,7 @@
 
 	export let data: TableType = [];
 
-	export let noSelect = false;
+	export let noSelect = true;
 
 	let sortedColumn: string | null = null;
 	let sortOrder: 'asc' | 'desc' = 'asc';

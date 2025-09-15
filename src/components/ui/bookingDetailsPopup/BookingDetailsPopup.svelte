@@ -9,7 +9,6 @@
 	import { addToast } from '$lib/stores/toastStore';
 	import { cancelBooking } from '$lib/services/api/bookingService';
 	import { AppToastType } from '$lib/types/toastTypes';
-	import { cancelConfirm } from '$lib/actions/cancelConfirm.ts';
 	import Icon from '../../bits/icon-component/Icon.svelte';
 	import { sendMail } from '$lib/services/mail/mailClientService';
 	import { getClientEmails } from '$lib/stores/clientsStore';
@@ -142,13 +141,14 @@
 			<div class="flex gap-3">
 				{#if !isCancelled}
 					<Button iconLeft="Edit" text="Redigera" variant="primary" small on:click={handleEdit} />
-					<button
-						use:cancelConfirm={{ onConfirm: handleCancel, startTimeISO: booking.booking.startTime }}
-						class="flex items-center gap-2 rounded-md border border-gray bg-white px-3 py-1 text-sm text-error hover:bg-error/10 hover:text-error-hover"
-					>
-						<Icon icon="Trash" size="16px" color="error" />
-						Ta bort
-					</button>
+					<Button
+						iconLeft="Trash"
+						iconColor="error"
+						text="Ta bort"
+						variant="danger-outline"
+						small
+						cancelConfirmOptions={{ onConfirm: handleCancel, startTimeISO: booking.booking.startTime }}
+					/>
 				{:else}
 					<!-- Optional: just a close button when canceled -->
 					<Button text="Stäng" variant="secondary" small on:click={onClose} />

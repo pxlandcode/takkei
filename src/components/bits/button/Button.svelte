@@ -2,6 +2,7 @@
 	import { createEventDispatcher } from 'svelte';
 	import Icon from '../icon-component/Icon.svelte';
 	import { confirm } from '$lib/actions/confirm';
+	import { cancelConfirm } from '$lib/actions/cancelConfirm';
 
 	// Props
 	export let type: 'button' | 'submit' | 'reset' = 'button';
@@ -9,7 +10,7 @@
 	export let icon: string | null = null;
 	export let iconLeft: string | null = null;
 	export let iconRight: string | null = null;
-	export let variant: 'primary' | 'secondary' | 'cancel' = 'primary';
+	export let variant: 'primary' | 'secondary' | 'cancel' | 'danger-outline' = 'primary';
 	export let transparent: boolean = false;
 	export let small: boolean = false;
 	export let iconRightSize: string = '20px';
@@ -25,6 +26,12 @@
 		action?: () => void;
 		actionLabel?: string;
 	} | null = null;
+	export let cancelConfirmOptions:
+		| {
+				onConfirm: (reason: string, time: string) => void;
+				startTimeISO: string;
+		  }
+		| null = null;
 
 	const dispatch = createEventDispatcher();
 
@@ -33,14 +40,13 @@
 		dispatch('click');
 	}
 
-	let directives = {};
-	$: directives = confirmOptions ? { use: [[confirm, confirmOptions]] } : {};
 	// Dynamic class setup
 	$: buttonClasses = `
 		flex items-center justify-center gap-2 rounded-md shadow-sm transition-all duration-200 
 		${variant === 'primary' ? 'bg-primary text-white hover:bg-primary-hover' : ''}
 		${variant === 'secondary' ? 'bg-white text-gray border border-gray hover:bg-white/80' : ''}
 		${variant === 'cancel' ? 'bg-error text-white hover:bg-error-hover' : ''}
+		${variant === 'danger-outline' ? 'bg-white text-error border border-gray hover:bg-error/10 hover:text-error-hover' : ''}
 		${transparent ? 'bg-transparent text-gray shadow-none hover:bg-gray hover:text-white' : ''}
 		${transparent && variant === 'cancel' ? 'hover:text-red' : ''}
 		${icon && !text ? (small ? 'h-8 w-8' : 'h-[45px] w-[45px]') : 'p-2'}
@@ -57,6 +63,26 @@
 			aria-disabled={disabled}
 			{disabled}
 			use:confirm={confirmOptions}
+			{type}
+			class={buttonClasses}
+		>
+			{#if icon && !text}
+				<Icon {icon} size={iconSize} color={iconColor} />
+			{:else}
+				{#if iconLeft}
+					<Icon icon={iconLeft} size={small ? '15px' : iconLeftSize} color={iconColor} />
+				{/if}
+				{text}
+				{#if iconRight}
+					<Icon icon={iconRight} size={small ? '15px' : iconRightSize} color={iconColor} />
+				{/if}
+			{/if}
+		</button>
+	{:else if cancelConfirmOptions}
+		<button
+			aria-disabled={disabled}
+			{disabled}
+			use:cancelConfirm={cancelConfirmOptions}
 			{type}
 			class={buttonClasses}
 		>

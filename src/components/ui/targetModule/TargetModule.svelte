@@ -9,7 +9,7 @@
 	let userId = 19; // trainer id
 	let selectedDate = new Date();
 	let year = selectedDate.getFullYear();
-	let month = capitalizeFirstLetter(svMonth(selectedDate.getMonth()));
+	let month = capitalizeFirstLetter(svMonth(selectedDate.getMonth() + 1));
 
 	onMount(() => {
 		const formattedDate = selectedDate.toISOString().slice(0, 10);
@@ -40,6 +40,7 @@
 				</div>
 				<ProgressBar
 					icon="Running"
+					textColor="white"
 					value={$targetMeta.achievedYear ?? 0}
 					max={$targetMeta.yearGoal ?? 0}
 				/>
@@ -52,6 +53,7 @@
 				</div>
 				<ProgressBar
 					icon="Running"
+					textColor="white"
 					value={$targetMeta.achievedMonth ?? 0}
 					max={$targetMeta.monthGoal ?? 0}
 				/>

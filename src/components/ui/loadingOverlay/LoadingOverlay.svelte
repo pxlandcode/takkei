@@ -7,7 +7,7 @@
 	let unsubscribe: (() => void) | null = null;
 
 	function startTimer() {
-		stopTimer(); // clear any existing timer
+		stopTimer();
 		timer = setTimeout(() => {
 			if ($loadingStore.isSlowlyLoading) {
 				loadingText = 'Tack för ditt tålamod...';

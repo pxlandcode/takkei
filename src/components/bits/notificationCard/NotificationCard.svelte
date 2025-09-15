@@ -115,7 +115,6 @@
 						{:else}
 							{message}
 						{/if}
-						{message}
 					</p>
 					{#if !expanded && (message.length > 120 || message.includes('\n'))}
 						<div

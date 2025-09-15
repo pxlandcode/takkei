@@ -3,16 +3,15 @@ import { clickOutside } from '$lib/actions/clickOutside';
 
 interface CancelParams {
 	onConfirm: (reason: string, time: string) => void;
-	// NEW: start time of the booking (ISO string)
 	startTimeISO: string;
 }
 
 export function cancelConfirm(node: HTMLElement, { onConfirm, startTimeISO }: CancelParams) {
-	let box: HTMLDivElement | null = null;
+	let popover: HTMLDivElement | null = null;
 	let visible = false;
+	let cleanupOutside: (() => void) | null = null;
 	const time = new Date().toISOString().slice(0, 16);
 
-	// --- late-cancel helpers (local time, matches your UI input) ---
 	function sameYMD(a: Date, b: Date) {
 		return (
 			a.getFullYear() === b.getFullYear() &&
@@ -21,11 +20,9 @@ export function cancelConfirm(node: HTMLElement, { onConfirm, startTimeISO }: Ca
 		);
 	}
 	function withinCancellationWindow(start: Date, cancelAt: Date) {
-		// 1) start midnight > cancelAt + 24h
 		const startMidnight = new Date(start.getFullYear(), start.getMonth(), start.getDate());
 		const cancelPlus24 = new Date(cancelAt.getTime() + 24 * 60 * 60 * 1000);
 
-		// 2) cancelling before 12:00 the day before the session
 		const dayAfterCancel = new Date(
 			cancelAt.getFullYear(),
 			cancelAt.getMonth(),
@@ -36,24 +33,28 @@ export function cancelConfirm(node: HTMLElement, { onConfirm, startTimeISO }: Ca
 		return startMidnight > cancelPlus24 || okTomorrowBeforeNoon;
 	}
 	function isLate(startISO: string, cancelLocalValue: string) {
-		// start is a full ISO (UTC); convert to Date -> local comparison is fine for rule thresholds
 		const start = new Date(startISO);
-		// cancel is from <input type="datetime-local">, interpreted in local time
 		const cancel = new Date(cancelLocalValue.replace(' ', 'T'));
 		return !withinCancellationWindow(start, cancel);
 	}
 
-	function show() {
-		if (box) return;
+	function onClick(event: MouseEvent) {
+		event.preventDefault();
+		event.stopPropagation();
+		if (!visible) show();
+	}
 
-		box = document.createElement('div');
-		box.className =
-			'fixed z-50 max-w-xs rounded-md border border-gray-bright bg-white p-4 shadow-xl';
-		box.innerHTML = `
+	function show() {
+		if (popover) return;
+
+		popover = document.createElement('div');
+		popover.className =
+			'cancel-popover absolute z-[2147483647] max-w-xs rounded-md border border-gray-bright bg-white p-4 shadow-xl';
+
+		popover.innerHTML = `
       <p class="mb-2 font-semibold text-gray">Avbryt bokning</p>
       <input data-reason type="text" placeholder="Orsak krävs" class="w-full border px-2 py-1 mb-2 text-sm" />
       <input data-time type="datetime-local" class="w-full border px-2 py-1 text-sm" value="${time}" />
-      <!-- late note (hidden by default; we’ll toggle it) -->
       <p data-late-note class="mt-2 text-xs text-error hidden">Sen avbokning – debiteringsregler kan gälla.</p>
       <div class="mt-3 flex justify-end gap-4">
         <button data-cancel class="text-base text-error hover:text-error-hover hover:underline">Avbryt</button>
@@ -61,19 +62,35 @@ export function cancelConfirm(node: HTMLElement, { onConfirm, startTimeISO }: Ca
       </div>
     `;
 
-		document.body.appendChild(box);
+		const closestDialog = node.closest('dialog') as HTMLElement | null;
+		const openDialogs = Array.from(document.querySelectorAll('dialog[open]')) as HTMLElement[];
+		const host = closestDialog ?? openDialogs[openDialogs.length - 1] ?? document.body;
+		console.log('[cancelConfirm] attaching popover', {
+			node,
+			closestDialog,
+			openDialogs,
+			chosenHost: host,
+			rootNode: node.getRootNode()
+		});
+		if (getComputedStyle(host).position === 'static') {
+			host.style.position = 'relative';
+		}
+		host.appendChild(popover);
 
 		tick().then(() => {
 			positionBox();
-			clickOutside(box!, hide);
 
-			const reasonInput = box!.querySelector<HTMLInputElement>('[data-reason]')!;
-			const timeInput = box!.querySelector<HTMLInputElement>('[data-time]')!;
-			const confirmBtn = box!.querySelector<HTMLButtonElement>('[data-confirm]')!;
-			const lateNote = box!.querySelector<HTMLParagraphElement>('[data-late-note]')!;
+			cleanupOutside = clickOutside(popover!, hide).destroy;
 
-			// initial late state
-			toggleLateNote();
+			const reasonInput = popover!.querySelector<HTMLInputElement>('[data-reason]')!;
+			const timeInput = popover!.querySelector<HTMLInputElement>('[data-time]')!;
+			const confirmBtn = popover!.querySelector<HTMLButtonElement>('[data-confirm]')!;
+			const lateNote = popover!.querySelector<HTMLParagraphElement>('[data-late-note]')!;
+
+			const toggleLateNote = () => {
+				const late = isLate(startTimeISO, timeInput.value);
+				lateNote.classList.toggle('hidden', !late);
+			};
 
 			reasonInput.addEventListener('input', () => {
 				const val = reasonInput.value.trim();
@@ -84,34 +101,40 @@ export function cancelConfirm(node: HTMLElement, { onConfirm, startTimeISO }: Ca
 			});
 
 			timeInput.addEventListener('input', toggleLateNote);
+			toggleLateNote();
 
-			function toggleLateNote() {
-				const late = isLate(startTimeISO, timeInput.value);
-				lateNote.classList.toggle('hidden', !late);
-			}
-		});
-
-		box.querySelector('[data-cancel]')?.addEventListener('click', hide);
-		box.querySelector('[data-confirm]')?.addEventListener('click', () => {
-			const reasonInput = box!.querySelector<HTMLInputElement>('[data-reason]')!;
-			const timeInput = box!.querySelector<HTMLInputElement>('[data-time]')!;
-			onConfirm(reasonInput.value, timeInput.value);
-			hide();
+			popover
+				?.querySelector('[data-cancel]')
+				?.addEventListener('click', hide);
+			popover
+				?.querySelector('[data-confirm]')
+				?.addEventListener('click', () => {
+					const reasonVal = reasonInput.value;
+					const timeVal = timeInput.value;
+					onConfirm(reasonVal, timeVal);
+					hide();
+				});
 		});
 
 		visible = true;
 	}
 
 	function hide() {
-		box?.remove();
-		box = null;
+		if (!popover) return;
+
+		cleanupOutside?.();
+		cleanupOutside = null;
+
+		popover.remove();
+		popover = null;
 		visible = false;
 	}
 
 	function positionBox() {
-		if (!box) return;
+		if (!popover) return;
 		const trigger = node.getBoundingClientRect();
-		const boxRect = box.getBoundingClientRect();
+		const boxRect = popover.getBoundingClientRect();
+		const hostRect = ((node.closest('dialog') as HTMLElement) ?? document.body).getBoundingClientRect();
 		const spacing = 8;
 
 		let top = trigger.bottom + spacing;
@@ -122,15 +145,8 @@ export function cancelConfirm(node: HTMLElement, { onConfirm, startTimeISO }: Ca
 		top = Math.max(top, spacing);
 		left = Math.max(left, spacing);
 
-		box.style.top = `${top}px`;
-		box.style.left = `${left}px`;
-		box.style.position = 'absolute';
-	}
-
-	function onClick(e: MouseEvent) {
-		e.preventDefault();
-		e.stopPropagation();
-		if (!visible) show();
+		popover.style.top = `${top - hostRect.top}px`;
+		popover.style.left = `${left - hostRect.left}px`;
 	}
 
 	node.addEventListener('click', onClick);

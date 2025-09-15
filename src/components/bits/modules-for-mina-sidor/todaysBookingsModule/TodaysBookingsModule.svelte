@@ -8,14 +8,39 @@
 
 	let bookings: any[] = [];
 	let isLoading = true;
-
-	let selectedDate = new Date(); // ⏱ controlled date
+	let selectedDate = new Date();
 
 	$: $user;
 	$: if ($user && selectedDate) loadBookings();
 
+	/* NEW: keep everything in Stockholm and use the "noon" trick */
+	const TZ = 'Europe/Stockholm';
+
+	function ymdStockholm(d: Date): string {
+		const parts = new Intl.DateTimeFormat('sv-SE', {
+			timeZone: TZ,
+			year: 'numeric',
+			month: '2-digit',
+			day: '2-digit'
+		})
+			.formatToParts(d)
+			.reduce((a, p) => ((a[p.type] = p.value), a), {} as Record<string, string>);
+		return `${parts.year}-${parts.month}-${parts.day}`; // YYYY-MM-DD (Stockholm)
+	}
+	function dayParam(d: Date) {
+		// <-- send this to the API
+		return `${ymdStockholm(d)} 12:00:00`; // noon in Stockholm avoids UTC day flip
+	}
+	function addDays(d: Date, n: number) {
+		const x = new Date(d);
+		x.setDate(x.getDate() + n);
+		return x;
+	}
+
 	function formatDateLabel(date: Date): string {
+		// CHANGED: make the label explicitly Stockholm
 		return date.toLocaleDateString('sv-SE', {
+			timeZone: TZ,
 			weekday: 'long',
 			day: 'numeric',
 			month: 'long'
@@ -27,12 +52,13 @@
 
 		isLoading = true;
 		try {
-			const dateStr = selectedDate.toISOString().split('T')[0];
-			const todayStr = new Date(selectedDate);
-			todayStr.setDate(todayStr.getDate() + 1);
+			// CHANGED: build params using noon-in-Stockholm
+			const from = dayParam(selectedDate);
+			const to = dayParam(addDays(selectedDate, 1));
+
 			const filters = {
-				from: dateStr,
-				to: todayStr.toISOString().split('T')[0],
+				from,
+				to,
 				trainerIds: [$user.id],
 				sortAsc: true
 			};
@@ -45,17 +71,13 @@
 		}
 	}
 
-	// Navigation handlers
+	// Navigation
 	function onPrevious() {
-		selectedDate = new Date(selectedDate);
-		selectedDate.setDate(selectedDate.getDate() - 1);
+		selectedDate = addDays(selectedDate, -1);
 	}
-
 	function onNext() {
-		selectedDate = new Date(selectedDate);
-		selectedDate.setDate(selectedDate.getDate() + 1);
+		selectedDate = addDays(selectedDate, 1);
 	}
-
 	function onToday() {
 		selectedDate = new Date();
 	}

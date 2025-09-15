@@ -37,14 +37,27 @@
 
 	const isClient = clientId !== null;
 
+	function ymdNoon(d: Date): string {
+		const x = new Date(d);
+		x.setHours(12, 0, 0, 0); // local noon avoids UTC day flip
+		return x.toISOString().slice(0, 10);
+	}
+	function addDays(d: Date, n: number) {
+		const x = new Date(d);
+		x.setDate(x.getDate() + n);
+		return x;
+	}
+	function dayParam(ymd: string) {
+		return `${ymd} 12:00:00`;
+	}
+	const TZ = 'Europe/Stockholm';
+
 	// ✅ Filters
 	const today = new Date();
 	const oneMonthBack = new Date(today);
 	oneMonthBack.setMonth(today.getMonth() - 1);
 
-	let selectedDate = writable(
-		clientId ? oneMonthBack.toISOString().split('T')[0] : today.toISOString().split('T')[0]
-	); // Default to today
+	let selectedDate = writable(clientId ? ymdNoon(oneMonthBack) : ymdNoon(today));
 	let selectedCancelledOption = writable({ value: false, label: 'Visa inte avbokade' });
 
 	const LIMIT = 20;
@@ -101,8 +114,7 @@
 			return;
 		}
 
-		const from = raw;
-
+		const from = dayParam(raw);
 		const to = null;
 
 		const filters: any = {

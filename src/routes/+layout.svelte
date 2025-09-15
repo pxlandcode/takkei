@@ -3,9 +3,9 @@
 	import { ParaglideJS } from '@inlang/paraglide-sveltekit';
 	import { user } from '$lib/stores/userStore';
 	import { page } from '$app/stores';
+	import { navigating } from '$app/state';
 	import '../app.css';
 
-	import HeaderComponent from '../components/view/header/HeaderComponent.svelte';
 	import LoadingOverlay from '../components/ui/loadingOverlay/LoadingOverlay.svelte';
 	import Dashboard from '../components/view/dashboard/Dashboard.svelte';
 	import ToastContainer from '../components/ui/toast-container/ToastContainer.svelte';
@@ -18,6 +18,7 @@
 
 	import { popupStore } from '$lib/stores/popupStore';
 	import MailComponent from '../components/ui/mailComponent/MailComponent.svelte';
+	import { loadingStore } from '$lib/stores/loading';
 
 	export let data;
 	$user = data.user;
@@ -25,8 +26,9 @@
 	let isMobile = false;
 	let showDrawer = false;
 
-	// Reactive route tracking
 	$: currentRoute = $page.url.pathname;
+
+	$: navigating.to && loadingStore.loading(!!navigating.to);
 
 	// Detect mobile and route changes
 	onMount(() => {
@@ -54,6 +56,7 @@
 	{:else}
 		<main class="relative flex h-dvh w-full flex-row overflow-hidden bg-background-gradient">
 			<!-- ✅ DESKTOP -->
+
 			<div class="hidden w-full gap-4 md:flex">
 				<aside class="w-80 pl-4">
 					<Dashboard />
