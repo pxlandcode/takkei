@@ -9,6 +9,7 @@
 	import CustomerForm from '../../ui/customerForm/CustomerForm.svelte';
 	import { debounce } from '$lib/utils/debounce';
 	import { loadingStore } from '$lib/stores/loading';
+	import MailComponent from '../mailComponent/MailComponent.svelte';
 
 	let showCustomerModal = false;
 
@@ -32,14 +33,23 @@
 	let sortBy = 'name';
 	let sortOrder = 'asc';
 
+	let selectedCustomerEmail: string | null = null;
+	let showMailPopup = false;
+
 	const headers = [
 		{ label: 'Kund', key: 'name', icon: 'Person', sort: true, isSearchable: true },
-		{ label: 'Kontakt', key: 'contact', isSearchable: true },
-		{ label: 'Actions', key: 'actions', isSearchable: false, width: '100px' }
+		{ label: 'E-post', key: 'email', isSearchable: true },
+		{ label: 'Telefon', key: 'phone', isSearchable: true }
 	];
 
 	function onGoToCustomer(id: number) {
 		goto(`/settings/customers/${id}`);
+	}
+
+	function onSendCustomerEmail(email: string) {
+		if (!email) return;
+		selectedCustomerEmail = email;
+		showMailPopup = true;
 	}
 
 	async function handleSortChange(event) {
@@ -69,24 +79,13 @@
 
 			const fetched = await res.json();
 
-			const newData = fetched.map((cust) => ({
-				id: cust.id,
-				name: cust.name,
-				contact: [
-					{ type: 'email', content: cust.email },
-					{ type: 'phone', content: cust.phone }
-				],
-				isActive: cust.active,
-				actions: [
-					{
-						type: 'button',
-						label: '',
-						icon: 'Person',
-						variant: 'secondary',
-						action: () => onGoToCustomer(cust.id)
-					}
-				]
-			}));
+				const newData = fetched.map((cust) => ({
+					id: cust.id,
+					name: [{ type: 'link', label: cust.name, action: () => onGoToCustomer(cust.id) }],
+					email: [{ type: 'link', label: cust.email, action: () => onSendCustomerEmail(cust.email) }],
+					phone: cust.phone || '',
+					isActive: cust.active
+				}));
 
 			data = [...data, ...newData];
 
@@ -118,7 +117,10 @@
 					return value.toLowerCase().includes(query);
 				}
 				if (Array.isArray(value)) {
-					return value.some((item) => item.content?.toLowerCase().includes(query));
+					return value.some((item) => {
+						const text = item.content ?? item.label;
+						return text ? text.toLowerCase().includes(query) : false;
+					});
 				}
 				return false;
 			});
@@ -183,6 +185,21 @@
 				closeCustomerForm();
 				fetchPaginatedCustomers(true);
 			}}
+		/>
+	</PopupWrapper>
+{/if}
+
+{#if showMailPopup && selectedCustomerEmail}
+	<PopupWrapper
+		width="900px"
+		header="Maila {selectedCustomerEmail}"
+		icon="Mail"
+		on:close={() => ((showMailPopup = false), (selectedCustomerEmail = null))}
+	>
+		<MailComponent
+			prefilledRecipients={[selectedCustomerEmail]}
+			lockedFields={['recipients']}
+			autoFetchUsersAndClients={false}
 		/>
 	</PopupWrapper>
 {/if}

@@ -8,29 +8,7 @@
 
 	export let customer;
 	let isEditing = false;
-
-	// 📦 Transform packages into TableType format
-	const packageTable = customer.packages?.map((pkg) => ({
-		id: pkg.id,
-		type: [
-			{
-				type: 'link',
-				label: pkg.article?.name || 'Okänd typ',
-				action: () => goto(`/settings/packages/${pkg.id}`)
-			}
-		],
-		client: [
-			{
-				type: 'link',
-				label: `${pkg.client?.firstname} ${pkg.client?.lastname}`,
-				action: () => goto(`/clients/${pkg.client?.id}`)
-			}
-		],
-		frozen: pkg.frozen_from_date ? 'Ja' : 'Nej',
-		autogiro: pkg.autogiro ? 'Ja' : 'Nej',
-		invoice_no: pkg.invoice_no || '-',
-		balance: pkg.balance ?? '-' // optional field you might calculate server-side
-	}));
+	let showAddPackageModal = false;
 
 	const packageHeaders = [
 		{ label: 'Typ', key: 'type' },
@@ -38,15 +16,42 @@
 		{ label: 'Fryst', key: 'frozen' },
 		{ label: 'Autogiro', key: 'autogiro' },
 		{ label: 'Fakturanummer', key: 'invoice_no' },
-		{ label: 'Saldo', key: 'balance' }
+		{ label: 'Saldo', key: 'saldo' } // remaining sessions
 	];
 
-	let showAddPackageModal = false;
+	const packageTable = customer.packages?.map((pkg) => ({
+		id: pkg.id,
+		type: [
+			{
+				type: 'link',
+				label: pkg.article?.name || 'Okänd typ',
+				// preloads detail on hover for snappy UX:
+				attrs: { 'data-sveltekit-preload-data': 'hover' },
+				action: () => goto(`/settings/packages/${pkg.id}`)
+			}
+		],
+		client: [
+			pkg.client
+				? {
+						type: 'link',
+						label: `${pkg.client.firstname} ${pkg.client.lastname}`,
+						attrs: { 'data-sveltekit-preload-data': 'hover' },
+						action: () => goto(`/clients/${pkg.client.id}`)
+					}
+				: { type: 'text', label: '—' }
+		],
+		frozen: pkg.frozen_from_date ? 'Ja' : 'Nej',
+		autogiro: pkg.autogiro ? 'Ja' : 'Nej',
+		invoice_no:
+			Array.isArray(pkg.invoice_numbers) && pkg.invoice_numbers.length
+				? String(pkg.invoice_numbers[0])
+				: '—',
+		saldo: String(pkg.remaining_sessions ?? '—')
+	}));
 
-	function handleCreatePackage(pkgData) {
-		showAddPackageModal = false;
+	function handleCreatePackage() {
+		showAddPackageModal = false; /* refresh */
 	}
-
 	function closePackagePopup() {
 		showAddPackageModal = false;
 	}
@@ -83,7 +88,6 @@
 		{/if}
 	</div>
 
-	<!-- 📦 Package Table -->
 	<div class="rounded-lg bg-white p-6 shadow-md">
 		<div class="mb-4 flex items-center justify-between">
 			<h4 class="text-xl font-semibold">Paket</h4>
