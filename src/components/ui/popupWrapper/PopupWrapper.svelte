@@ -47,7 +47,7 @@
 
 	// Size classes for container
 	function containerClass() {
-		const base = 'bg-white shadow-lg overflow-visible max-h-[80dvh] md:rounded-2xl w-full';
+		const base = 'bg-white shadow-lg flex flex-col overflow-hidden max-h-[80dvh] md:rounded-2xl w-full';
 		const modalSize = `md:w-[min(66vw,900px)]`;
 		const drawerBase = 'min-h-screen md:min-h-[unset]';
 		const byVar: Record<typeof variant, string> = {
@@ -118,6 +118,8 @@
 				<div class="popup-scroll p-6">
 					<slot />
 				</div>
+
+				<div class="popup-footer" aria-hidden="true"></div>
 			</div>
 		{/if}
 	</dialog>
@@ -150,7 +152,8 @@
 
 	/* Scrollbar styling */
 	.popup-scroll {
-		max-height: calc(80dvh - 2rem);
+		flex: 1;
+		min-height: 0;
 		overflow: auto;
 	}
 	.popup-scroll {
@@ -170,5 +173,11 @@
 	}
 	.popup-scroll::-webkit-scrollbar-thumb:hover {
 		background-color: #a9a9a9;
+	}
+
+	.popup-footer {
+		padding: 1rem 1.5rem;
+		border-top: 1px solid rgba(0, 0, 0, 0.1);
+		background: #ffffff;
 	}
 </style>

@@ -1,5 +1,4 @@
 import { tick } from 'svelte';
-import { clickOutside } from '$lib/actions/clickOutside';
 
 export interface ConfirmParams {
 	title?: string;
@@ -9,13 +8,27 @@ export interface ConfirmParams {
 }
 
 export function confirm(node: HTMLElement, params: ConfirmParams) {
-	let confirmBox: HTMLDivElement | null = null;
+	let dialogEl: HTMLDialogElement | null = null;
+	let containerEl: HTMLDivElement | null = null;
 	let visible = false;
+
+	function ensureStyles() {
+		if (typeof document === 'undefined') return;
+		const id = 'confirm-dialog-inline-style';
+		if (document.getElementById(id)) return;
+		const style = document.createElement('style');
+		style.id = id;
+		style.textContent = 'dialog.confirm-dialog::backdrop { background: transparent; }';
+		document.head.appendChild(style);
+	}
 
 	const title = params.title ?? 'Är du säker?';
 	const description = params.description ?? 'Den här åtgärden kan inte ångras.';
 	const action = params.action;
 	const actionLabel = params.actionLabel ?? 'Ja';
+
+	let onDialogCancel: ((event: Event) => void) | null = null;
+	let onDialogClick: ((event: MouseEvent) => void) | null = null;
 
 	function onClick(e: MouseEvent) {
 		e.preventDefault();
@@ -26,13 +39,25 @@ export function confirm(node: HTMLElement, params: ConfirmParams) {
 		}
 	}
 
-	function show() {
-		if (confirmBox) return;
+	async function show() {
+		if (dialogEl) return;
+		ensureStyles();
 
-		confirmBox = document.createElement('div');
-		confirmBox.className =
-			'fixed z-50 max-w-xs rounded-md border border-gray-bright bg-white p-4 shadow-xl';
-		confirmBox.innerHTML = `
+		dialogEl = document.createElement('dialog');
+		dialogEl.className = 'confirm-dialog';
+		dialogEl.style.padding = '0';
+		dialogEl.style.border = 'none';
+		dialogEl.style.background = 'transparent';
+		dialogEl.style.position = 'fixed';
+		dialogEl.style.margin = '0';
+		dialogEl.style.inset = 'auto';
+		dialogEl.style.overflow = 'visible';
+		dialogEl.style.zIndex = '10000';
+
+		containerEl = document.createElement('div');
+		containerEl.className =
+			'max-w-xs rounded-md border border-gray-bright bg-white p-4 shadow-xl';
+		containerEl.innerHTML = `
 			<p class="mb-1 font-semibold text-gray">${title}</p>
 			<p class="mb-3 text-sm text-gray">${description}</p>
 			<div class="flex justify-end gap-6">
@@ -41,36 +66,65 @@ export function confirm(node: HTMLElement, params: ConfirmParams) {
 			</div>
 		`;
 
-		document.body.appendChild(confirmBox);
+		dialogEl.appendChild(containerEl);
+		document.body.appendChild(dialogEl);
 
-		tick().then(() => {
-			positionBox();
+	onDialogCancel = () => hide();
+	onDialogClick = (event: MouseEvent) => {
+		if (!containerEl) return;
+		const target = event.target as Node;
+		if (target && !containerEl.contains(target)) hide();
+	};
 
-			// Use your custom action for clickOutside detection
-			clickOutside(confirmBox!, () => hide());
-		});
+		dialogEl.addEventListener('cancel', onDialogCancel);
+		dialogEl.addEventListener('click', onDialogClick);
 
-		// Action buttons
-		confirmBox.querySelector('[data-cancel]')?.addEventListener('click', hide);
-		confirmBox.querySelector('[data-confirm]')?.addEventListener('click', () => {
-			action ? action() : node.click(); // fallback to default click
-			hide();
-		});
+		await tick();
+
+		dialogEl.showModal();
+		positionBox();
+
+		containerEl
+			?.querySelector('[data-cancel]')
+			?.addEventListener('click', hide);
+		containerEl
+			?.querySelector('[data-confirm]')
+			?.addEventListener('click', () => {
+				action ? action() : node.click();
+				hide();
+			});
 
 		visible = true;
 	}
 
 	function hide() {
-		confirmBox?.remove();
-		confirmBox = null;
+		if (!dialogEl) return;
+
+		const currentDialog = dialogEl;
+		dialogEl = null;
 		visible = false;
+
+		if (onDialogCancel) currentDialog.removeEventListener('cancel', onDialogCancel);
+		if (onDialogClick) currentDialog.removeEventListener('click', onDialogClick);
+
+		onDialogCancel = null;
+		onDialogClick = null;
+
+		try {
+			currentDialog.close();
+		} catch {
+			// dialog might already be closed
+		}
+
+		currentDialog.remove();
+		containerEl = null;
 	}
 
 	function positionBox() {
-		if (!confirmBox) return;
+		if (!dialogEl || !containerEl) return;
 
 		const trigger = node.getBoundingClientRect();
-		const box = confirmBox.getBoundingClientRect();
+		const box = containerEl.getBoundingClientRect();
 
 		const spacing = 8;
 		let top: number;
@@ -82,36 +136,29 @@ export function confirm(node: HTMLElement, params: ConfirmParams) {
 		const hasSpaceLeft = trigger.left - spacing - box.width > 0;
 
 		if (hasSpaceBelow) {
-			// Place below
 			top = trigger.bottom + spacing;
 			left = trigger.left + trigger.width / 2 - box.width / 2;
 		} else if (hasSpaceAbove) {
-			// Place above
 			top = trigger.top - box.height - spacing;
 			left = trigger.left + trigger.width / 2 - box.width / 2;
 		} else if (hasSpaceRight) {
-			// Place to the right
 			top = trigger.top + trigger.height / 2 - box.height / 2;
 			left = trigger.right + spacing;
 		} else if (hasSpaceLeft) {
-			// Place to the left
 			top = trigger.top + trigger.height / 2 - box.height / 2;
 			left = trigger.left - box.width - spacing;
 		} else {
-			// Center in viewport as last resort
 			top = Math.max(spacing, window.innerHeight / 2 - box.height / 2);
 			left = Math.max(spacing, window.innerWidth / 2 - box.width / 2);
 		}
 
-		// Clamp to viewport edges
 		top = Math.min(top, window.innerHeight - box.height - spacing);
 		left = Math.min(left, window.innerWidth - box.width - spacing);
 		top = Math.max(top, spacing);
 		left = Math.max(left, spacing);
 
-		confirmBox.style.top = `${top}px`;
-		confirmBox.style.left = `${left}px`;
-		confirmBox.style.position = 'absolute';
+		dialogEl.style.top = `${top}px`;
+		dialogEl.style.left = `${left}px`;
 	}
 
 	node.addEventListener('click', onClick);

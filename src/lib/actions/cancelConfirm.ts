@@ -1,18 +1,29 @@
 import { tick } from 'svelte';
-import { clickOutside } from '$lib/actions/clickOutside';
 
 interface CancelParams {
 	onConfirm: (reason: string, time: string) => void;
-	// NEW: start time of the booking (ISO string)
 	startTimeISO: string;
 }
 
 export function cancelConfirm(node: HTMLElement, { onConfirm, startTimeISO }: CancelParams) {
-	let box: HTMLDivElement | null = null;
+	let dialogEl: HTMLDialogElement | null = null;
+	let containerEl: HTMLDivElement | null = null;
 	let visible = false;
 	const time = new Date().toISOString().slice(0, 16);
 
-	// --- late-cancel helpers (local time, matches your UI input) ---
+	function ensureStyles() {
+		if (typeof document === 'undefined') return;
+		const id = 'cancel-dialog-inline-style';
+		if (document.getElementById(id)) return;
+		const style = document.createElement('style');
+		style.id = id;
+		style.textContent = 'dialog.cancel-dialog::backdrop { background: transparent; }';
+		document.head.appendChild(style);
+	}
+
+	let onDialogCancel: ((event: Event) => void) | null = null;
+	let onDialogClick: ((event: MouseEvent) => void) | null = null;
+
 	function sameYMD(a: Date, b: Date) {
 		return (
 			a.getFullYear() === b.getFullYear() &&
@@ -21,11 +32,9 @@ export function cancelConfirm(node: HTMLElement, { onConfirm, startTimeISO }: Ca
 		);
 	}
 	function withinCancellationWindow(start: Date, cancelAt: Date) {
-		// 1) start midnight > cancelAt + 24h
 		const startMidnight = new Date(start.getFullYear(), start.getMonth(), start.getDate());
 		const cancelPlus24 = new Date(cancelAt.getTime() + 24 * 60 * 60 * 1000);
 
-		// 2) cancelling before 12:00 the day before the session
 		const dayAfterCancel = new Date(
 			cancelAt.getFullYear(),
 			cancelAt.getMonth(),
@@ -36,24 +45,39 @@ export function cancelConfirm(node: HTMLElement, { onConfirm, startTimeISO }: Ca
 		return startMidnight > cancelPlus24 || okTomorrowBeforeNoon;
 	}
 	function isLate(startISO: string, cancelLocalValue: string) {
-		// start is a full ISO (UTC); convert to Date -> local comparison is fine for rule thresholds
 		const start = new Date(startISO);
-		// cancel is from <input type="datetime-local">, interpreted in local time
 		const cancel = new Date(cancelLocalValue.replace(' ', 'T'));
 		return !withinCancellationWindow(start, cancel);
 	}
 
-	function show() {
-		if (box) return;
+	function onClick(e: MouseEvent) {
+		e.preventDefault();
+		e.stopPropagation();
+		if (!visible) show();
+	}
 
-		box = document.createElement('div');
-		box.className =
-			'fixed z-50 max-w-xs rounded-md border border-gray-bright bg-white p-4 shadow-xl';
-		box.innerHTML = `
+	async function show() {
+		if (dialogEl) return;
+		ensureStyles();
+
+		dialogEl = document.createElement('dialog');
+		dialogEl.className = 'cancel-dialog';
+		dialogEl.style.padding = '0';
+		dialogEl.style.border = 'none';
+		dialogEl.style.background = 'transparent';
+		dialogEl.style.position = 'fixed';
+		dialogEl.style.margin = '0';
+		dialogEl.style.inset = 'auto';
+		dialogEl.style.overflow = 'visible';
+		dialogEl.style.zIndex = '10000';
+
+		containerEl = document.createElement('div');
+		containerEl.className =
+			'max-w-xs rounded-md border border-gray-bright bg-white p-4 shadow-xl';
+		containerEl.innerHTML = `
       <p class="mb-2 font-semibold text-gray">Avbryt bokning</p>
       <input data-reason type="text" placeholder="Orsak krävs" class="w-full border px-2 py-1 mb-2 text-sm" />
       <input data-time type="datetime-local" class="w-full border px-2 py-1 text-sm" value="${time}" />
-      <!-- late note (hidden by default; we’ll toggle it) -->
       <p data-late-note class="mt-2 text-xs text-error hidden">Sen avbokning – debiteringsregler kan gälla.</p>
       <div class="mt-3 flex justify-end gap-4">
         <button data-cancel class="text-base text-error hover:text-error-hover hover:underline">Avbryt</button>
@@ -61,57 +85,85 @@ export function cancelConfirm(node: HTMLElement, { onConfirm, startTimeISO }: Ca
       </div>
     `;
 
-		document.body.appendChild(box);
+		dialogEl.appendChild(containerEl);
+		document.body.appendChild(dialogEl);
 
-		tick().then(() => {
-			positionBox();
-			clickOutside(box!, hide);
+	onDialogCancel = () => hide();
+	onDialogClick = (event: MouseEvent) => {
+		if (!containerEl) return;
+		const target = event.target as Node;
+		if (target && !containerEl.contains(target)) hide();
+	};
 
-			const reasonInput = box!.querySelector<HTMLInputElement>('[data-reason]')!;
-			const timeInput = box!.querySelector<HTMLInputElement>('[data-time]')!;
-			const confirmBtn = box!.querySelector<HTMLButtonElement>('[data-confirm]')!;
-			const lateNote = box!.querySelector<HTMLParagraphElement>('[data-late-note]')!;
+		dialogEl.addEventListener('cancel', onDialogCancel);
+		dialogEl.addEventListener('click', onDialogClick);
 
-			// initial late state
-			toggleLateNote();
+		await tick();
 
-			reasonInput.addEventListener('input', () => {
-				const val = reasonInput.value.trim();
-				confirmBtn.disabled = val === '';
-				confirmBtn.className = val
-					? 'rounded bg-success hover:bg-success-hover px-6 py-1 text-base text-white'
-					: 'rounded bg-gray px-6 py-1 text-base text-white cursor-not-allowed';
+		dialogEl.showModal();
+		positionBox();
+
+		const reasonInput = containerEl.querySelector<HTMLInputElement>('[data-reason]')!;
+		const timeInput = containerEl.querySelector<HTMLInputElement>('[data-time]')!;
+		const confirmBtn = containerEl.querySelector<HTMLButtonElement>('[data-confirm]')!;
+		const lateNote = containerEl.querySelector<HTMLParagraphElement>('[data-late-note]')!;
+
+		const toggleLateNote = () => {
+			const late = isLate(startTimeISO, timeInput.value);
+			lateNote.classList.toggle('hidden', !late);
+		};
+
+		reasonInput.addEventListener('input', () => {
+			const val = reasonInput.value.trim();
+			confirmBtn.disabled = val === '';
+			confirmBtn.className = val
+				? 'rounded bg-success hover:bg-success-hover px-6 py-1 text-base text-white'
+				: 'rounded bg-gray px-6 py-1 text-base text-white cursor-not-allowed';
+		});
+
+		timeInput.addEventListener('input', toggleLateNote);
+		toggleLateNote();
+
+		containerEl
+			?.querySelector('[data-cancel]')
+			?.addEventListener('click', hide);
+		containerEl
+			?.querySelector('[data-confirm]')
+			?.addEventListener('click', () => {
+				const reasonVal = reasonInput.value;
+				const timeVal = timeInput.value;
+				onConfirm(reasonVal, timeVal);
+				hide();
 			});
-
-			timeInput.addEventListener('input', toggleLateNote);
-
-			function toggleLateNote() {
-				const late = isLate(startTimeISO, timeInput.value);
-				lateNote.classList.toggle('hidden', !late);
-			}
-		});
-
-		box.querySelector('[data-cancel]')?.addEventListener('click', hide);
-		box.querySelector('[data-confirm]')?.addEventListener('click', () => {
-			const reasonInput = box!.querySelector<HTMLInputElement>('[data-reason]')!;
-			const timeInput = box!.querySelector<HTMLInputElement>('[data-time]')!;
-			onConfirm(reasonInput.value, timeInput.value);
-			hide();
-		});
 
 		visible = true;
 	}
 
 	function hide() {
-		box?.remove();
-		box = null;
+		if (!dialogEl) return;
+
+		const currentDialog = dialogEl;
+		dialogEl = null;
 		visible = false;
+
+		if (onDialogCancel) currentDialog.removeEventListener('cancel', onDialogCancel);
+		if (onDialogClick) currentDialog.removeEventListener('click', onDialogClick);
+
+		onDialogCancel = null;
+		onDialogClick = null;
+
+		try {
+			currentDialog.close();
+		} catch {}
+
+		currentDialog.remove();
+		containerEl = null;
 	}
 
 	function positionBox() {
-		if (!box) return;
+		if (!dialogEl || !containerEl) return;
 		const trigger = node.getBoundingClientRect();
-		const boxRect = box.getBoundingClientRect();
+		const boxRect = containerEl.getBoundingClientRect();
 		const spacing = 8;
 
 		let top = trigger.bottom + spacing;
@@ -122,15 +174,8 @@ export function cancelConfirm(node: HTMLElement, { onConfirm, startTimeISO }: Ca
 		top = Math.max(top, spacing);
 		left = Math.max(left, spacing);
 
-		box.style.top = `${top}px`;
-		box.style.left = `${left}px`;
-		box.style.position = 'absolute';
-	}
-
-	function onClick(e: MouseEvent) {
-		e.preventDefault();
-		e.stopPropagation();
-		if (!visible) show();
+		dialogEl.style.top = `${top}px`;
+		dialogEl.style.left = `${left}px`;
 	}
 
 	node.addEventListener('click', onClick);
