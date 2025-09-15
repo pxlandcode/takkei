@@ -1,4 +1,5 @@
 import { tick } from 'svelte';
+import { clickOutside } from '$lib/actions/clickOutside';
 
 export interface ConfirmParams {
 	title?: string;
@@ -8,56 +9,30 @@ export interface ConfirmParams {
 }
 
 export function confirm(node: HTMLElement, params: ConfirmParams) {
-	let dialogEl: HTMLDialogElement | null = null;
-	let containerEl: HTMLDivElement | null = null;
+	let popover: HTMLDivElement | null = null;
 	let visible = false;
-
-	function ensureStyles() {
-		if (typeof document === 'undefined') return;
-		const id = 'confirm-dialog-inline-style';
-		if (document.getElementById(id)) return;
-		const style = document.createElement('style');
-		style.id = id;
-		style.textContent = 'dialog.confirm-dialog::backdrop { background: transparent; }';
-		document.head.appendChild(style);
-	}
+	let cleanupOutside: (() => void) | null = null;
 
 	const title = params.title ?? 'Är du säker?';
 	const description = params.description ?? 'Den här åtgärden kan inte ångras.';
 	const action = params.action;
 	const actionLabel = params.actionLabel ?? 'Ja';
 
-	let onDialogCancel: ((event: Event) => void) | null = null;
-	let onDialogClick: ((event: MouseEvent) => void) | null = null;
+	function onClick(event: MouseEvent) {
+		event.preventDefault();
+		event.stopPropagation();
 
-	function onClick(e: MouseEvent) {
-		e.preventDefault();
-		e.stopPropagation();
-
-		if (!visible) {
-			show();
-		}
+		if (!visible) show();
 	}
 
-	async function show() {
-		if (dialogEl) return;
-		ensureStyles();
+	function show() {
+		if (popover) return;
 
-		dialogEl = document.createElement('dialog');
-		dialogEl.className = 'confirm-dialog';
-		dialogEl.style.padding = '0';
-		dialogEl.style.border = 'none';
-		dialogEl.style.background = 'transparent';
-		dialogEl.style.position = 'fixed';
-		dialogEl.style.margin = '0';
-		dialogEl.style.inset = 'auto';
-		dialogEl.style.overflow = 'visible';
-		dialogEl.style.zIndex = '10000';
+		popover = document.createElement('div');
+		popover.className =
+			'confirm-popover absolute z-[2147483647] max-w-xs rounded-md border border-gray-bright bg-white p-4 shadow-xl';
 
-		containerEl = document.createElement('div');
-		containerEl.className =
-			'max-w-xs rounded-md border border-gray-bright bg-white p-4 shadow-xl';
-		containerEl.innerHTML = `
+		popover.innerHTML = `
 			<p class="mb-1 font-semibold text-gray">${title}</p>
 			<p class="mb-3 text-sm text-gray">${description}</p>
 			<div class="flex justify-end gap-6">
@@ -66,67 +41,59 @@ export function confirm(node: HTMLElement, params: ConfirmParams) {
 			</div>
 		`;
 
-		dialogEl.appendChild(containerEl);
-		document.body.appendChild(dialogEl);
+		const closestDialog = node.closest('dialog') as HTMLElement | null;
+		const openDialogs = Array.from(document.querySelectorAll('dialog[open]')) as HTMLElement[];
+		const host = closestDialog ?? openDialogs[openDialogs.length - 1] ?? document.body;
+		console.log('[confirm] attaching popover', {
+			node,
+			closestDialog,
+			openDialogs,
+			chosenHost: host,
+			rootNode: node.getRootNode()
+		});
+		if (getComputedStyle(host).position === 'static') {
+			host.style.position = 'relative';
+		}
+		host.appendChild(popover);
 
-	onDialogCancel = () => hide();
-	onDialogClick = (event: MouseEvent) => {
-		if (!containerEl) return;
-		const target = event.target as Node;
-		if (target && !containerEl.contains(target)) hide();
-	};
+		tick().then(() => {
+			positionBox();
 
-		dialogEl.addEventListener('cancel', onDialogCancel);
-		dialogEl.addEventListener('click', onDialogClick);
+			cleanupOutside = clickOutside(popover!, hide).destroy;
 
-		await tick();
-
-		dialogEl.showModal();
-		positionBox();
-
-		containerEl
-			?.querySelector('[data-cancel]')
-			?.addEventListener('click', hide);
-		containerEl
-			?.querySelector('[data-confirm]')
-			?.addEventListener('click', () => {
-				action ? action() : node.click();
-				hide();
-			});
+			popover
+				?.querySelector('[data-cancel]')
+				?.addEventListener('click', hide);
+			popover
+				?.querySelector('[data-confirm]')
+				?.addEventListener('click', () => {
+					action ? action() : node.click();
+					hide();
+				});
+		});
 
 		visible = true;
 	}
 
 	function hide() {
-		if (!dialogEl) return;
+		if (!popover) return;
 
-		const currentDialog = dialogEl;
-		dialogEl = null;
+		cleanupOutside?.();
+		cleanupOutside = null;
+
+		popover.remove();
+		popover = null;
 		visible = false;
-
-		if (onDialogCancel) currentDialog.removeEventListener('cancel', onDialogCancel);
-		if (onDialogClick) currentDialog.removeEventListener('click', onDialogClick);
-
-		onDialogCancel = null;
-		onDialogClick = null;
-
-		try {
-			currentDialog.close();
-		} catch {
-			// dialog might already be closed
-		}
-
-		currentDialog.remove();
-		containerEl = null;
 	}
 
 	function positionBox() {
-		if (!dialogEl || !containerEl) return;
+		if (!popover) return;
 
 		const trigger = node.getBoundingClientRect();
-		const box = containerEl.getBoundingClientRect();
-
+		const box = popover.getBoundingClientRect();
+		const hostRect = ((node.closest('dialog') as HTMLElement) ?? document.body).getBoundingClientRect();
 		const spacing = 8;
+
 		let top: number;
 		let left: number;
 
@@ -157,8 +124,8 @@ export function confirm(node: HTMLElement, params: ConfirmParams) {
 		top = Math.max(top, spacing);
 		left = Math.max(left, spacing);
 
-		dialogEl.style.top = `${top}px`;
-		dialogEl.style.left = `${left}px`;
+		popover.style.top = `${top - hostRect.top}px`;
+		popover.style.left = `${left - hostRect.left}px`;
 	}
 
 	node.addEventListener('click', onClick);

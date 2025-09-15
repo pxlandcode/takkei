@@ -1,4 +1,5 @@
 import { tick } from 'svelte';
+import { clickOutside } from '$lib/actions/clickOutside';
 
 interface CancelParams {
 	onConfirm: (reason: string, time: string) => void;
@@ -6,23 +7,10 @@ interface CancelParams {
 }
 
 export function cancelConfirm(node: HTMLElement, { onConfirm, startTimeISO }: CancelParams) {
-	let dialogEl: HTMLDialogElement | null = null;
-	let containerEl: HTMLDivElement | null = null;
+	let popover: HTMLDivElement | null = null;
 	let visible = false;
+	let cleanupOutside: (() => void) | null = null;
 	const time = new Date().toISOString().slice(0, 16);
-
-	function ensureStyles() {
-		if (typeof document === 'undefined') return;
-		const id = 'cancel-dialog-inline-style';
-		if (document.getElementById(id)) return;
-		const style = document.createElement('style');
-		style.id = id;
-		style.textContent = 'dialog.cancel-dialog::backdrop { background: transparent; }';
-		document.head.appendChild(style);
-	}
-
-	let onDialogCancel: ((event: Event) => void) | null = null;
-	let onDialogClick: ((event: MouseEvent) => void) | null = null;
 
 	function sameYMD(a: Date, b: Date) {
 		return (
@@ -50,31 +38,20 @@ export function cancelConfirm(node: HTMLElement, { onConfirm, startTimeISO }: Ca
 		return !withinCancellationWindow(start, cancel);
 	}
 
-	function onClick(e: MouseEvent) {
-		e.preventDefault();
-		e.stopPropagation();
+	function onClick(event: MouseEvent) {
+		event.preventDefault();
+		event.stopPropagation();
 		if (!visible) show();
 	}
 
-	async function show() {
-		if (dialogEl) return;
-		ensureStyles();
+	function show() {
+		if (popover) return;
 
-		dialogEl = document.createElement('dialog');
-		dialogEl.className = 'cancel-dialog';
-		dialogEl.style.padding = '0';
-		dialogEl.style.border = 'none';
-		dialogEl.style.background = 'transparent';
-		dialogEl.style.position = 'fixed';
-		dialogEl.style.margin = '0';
-		dialogEl.style.inset = 'auto';
-		dialogEl.style.overflow = 'visible';
-		dialogEl.style.zIndex = '10000';
+		popover = document.createElement('div');
+		popover.className =
+			'cancel-popover absolute z-[2147483647] max-w-xs rounded-md border border-gray-bright bg-white p-4 shadow-xl';
 
-		containerEl = document.createElement('div');
-		containerEl.className =
-			'max-w-xs rounded-md border border-gray-bright bg-white p-4 shadow-xl';
-		containerEl.innerHTML = `
+		popover.innerHTML = `
       <p class="mb-2 font-semibold text-gray">Avbryt bokning</p>
       <input data-reason type="text" placeholder="Orsak krävs" class="w-full border px-2 py-1 mb-2 text-sm" />
       <input data-time type="datetime-local" class="w-full border px-2 py-1 text-sm" value="${time}" />
@@ -85,85 +62,79 @@ export function cancelConfirm(node: HTMLElement, { onConfirm, startTimeISO }: Ca
       </div>
     `;
 
-		dialogEl.appendChild(containerEl);
-		document.body.appendChild(dialogEl);
-
-	onDialogCancel = () => hide();
-	onDialogClick = (event: MouseEvent) => {
-		if (!containerEl) return;
-		const target = event.target as Node;
-		if (target && !containerEl.contains(target)) hide();
-	};
-
-		dialogEl.addEventListener('cancel', onDialogCancel);
-		dialogEl.addEventListener('click', onDialogClick);
-
-		await tick();
-
-		dialogEl.showModal();
-		positionBox();
-
-		const reasonInput = containerEl.querySelector<HTMLInputElement>('[data-reason]')!;
-		const timeInput = containerEl.querySelector<HTMLInputElement>('[data-time]')!;
-		const confirmBtn = containerEl.querySelector<HTMLButtonElement>('[data-confirm]')!;
-		const lateNote = containerEl.querySelector<HTMLParagraphElement>('[data-late-note]')!;
-
-		const toggleLateNote = () => {
-			const late = isLate(startTimeISO, timeInput.value);
-			lateNote.classList.toggle('hidden', !late);
-		};
-
-		reasonInput.addEventListener('input', () => {
-			const val = reasonInput.value.trim();
-			confirmBtn.disabled = val === '';
-			confirmBtn.className = val
-				? 'rounded bg-success hover:bg-success-hover px-6 py-1 text-base text-white'
-				: 'rounded bg-gray px-6 py-1 text-base text-white cursor-not-allowed';
+		const closestDialog = node.closest('dialog') as HTMLElement | null;
+		const openDialogs = Array.from(document.querySelectorAll('dialog[open]')) as HTMLElement[];
+		const host = closestDialog ?? openDialogs[openDialogs.length - 1] ?? document.body;
+		console.log('[cancelConfirm] attaching popover', {
+			node,
+			closestDialog,
+			openDialogs,
+			chosenHost: host,
+			rootNode: node.getRootNode()
 		});
+		if (getComputedStyle(host).position === 'static') {
+			host.style.position = 'relative';
+		}
+		host.appendChild(popover);
 
-		timeInput.addEventListener('input', toggleLateNote);
-		toggleLateNote();
+		tick().then(() => {
+			positionBox();
 
-		containerEl
-			?.querySelector('[data-cancel]')
-			?.addEventListener('click', hide);
-		containerEl
-			?.querySelector('[data-confirm]')
-			?.addEventListener('click', () => {
-				const reasonVal = reasonInput.value;
-				const timeVal = timeInput.value;
-				onConfirm(reasonVal, timeVal);
-				hide();
+			cleanupOutside = clickOutside(popover!, hide).destroy;
+
+			const reasonInput = popover!.querySelector<HTMLInputElement>('[data-reason]')!;
+			const timeInput = popover!.querySelector<HTMLInputElement>('[data-time]')!;
+			const confirmBtn = popover!.querySelector<HTMLButtonElement>('[data-confirm]')!;
+			const lateNote = popover!.querySelector<HTMLParagraphElement>('[data-late-note]')!;
+
+			const toggleLateNote = () => {
+				const late = isLate(startTimeISO, timeInput.value);
+				lateNote.classList.toggle('hidden', !late);
+			};
+
+			reasonInput.addEventListener('input', () => {
+				const val = reasonInput.value.trim();
+				confirmBtn.disabled = val === '';
+				confirmBtn.className = val
+					? 'rounded bg-success hover:bg-success-hover px-6 py-1 text-base text-white'
+					: 'rounded bg-gray px-6 py-1 text-base text-white cursor-not-allowed';
 			});
+
+			timeInput.addEventListener('input', toggleLateNote);
+			toggleLateNote();
+
+			popover
+				?.querySelector('[data-cancel]')
+				?.addEventListener('click', hide);
+			popover
+				?.querySelector('[data-confirm]')
+				?.addEventListener('click', () => {
+					const reasonVal = reasonInput.value;
+					const timeVal = timeInput.value;
+					onConfirm(reasonVal, timeVal);
+					hide();
+				});
+		});
 
 		visible = true;
 	}
 
 	function hide() {
-		if (!dialogEl) return;
+		if (!popover) return;
 
-		const currentDialog = dialogEl;
-		dialogEl = null;
+		cleanupOutside?.();
+		cleanupOutside = null;
+
+		popover.remove();
+		popover = null;
 		visible = false;
-
-		if (onDialogCancel) currentDialog.removeEventListener('cancel', onDialogCancel);
-		if (onDialogClick) currentDialog.removeEventListener('click', onDialogClick);
-
-		onDialogCancel = null;
-		onDialogClick = null;
-
-		try {
-			currentDialog.close();
-		} catch {}
-
-		currentDialog.remove();
-		containerEl = null;
 	}
 
 	function positionBox() {
-		if (!dialogEl || !containerEl) return;
+		if (!popover) return;
 		const trigger = node.getBoundingClientRect();
-		const boxRect = containerEl.getBoundingClientRect();
+		const boxRect = popover.getBoundingClientRect();
+		const hostRect = ((node.closest('dialog') as HTMLElement) ?? document.body).getBoundingClientRect();
 		const spacing = 8;
 
 		let top = trigger.bottom + spacing;
@@ -174,8 +145,8 @@ export function cancelConfirm(node: HTMLElement, { onConfirm, startTimeISO }: Ca
 		top = Math.max(top, spacing);
 		left = Math.max(left, spacing);
 
-		dialogEl.style.top = `${top}px`;
-		dialogEl.style.left = `${left}px`;
+		popover.style.top = `${top - hostRect.top}px`;
+		popover.style.left = `${left - hostRect.left}px`;
 	}
 
 	node.addEventListener('click', onClick);
