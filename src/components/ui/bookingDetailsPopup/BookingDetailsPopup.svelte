@@ -14,125 +14,157 @@
 	import { getClientEmails } from '$lib/stores/clientsStore';
 	import { get } from 'svelte/store';
 	import { user } from '$lib/stores/userStore';
-	import { users, fetchUsers } from '$lib/stores/usersStore';
+import { users, fetchUsers } from '$lib/stores/usersStore';
 
-	export let booking: FullBooking;
+declare function structuredClone<T>(value: T): T;
 
-	const dispatch = createEventDispatcher();
-	const startTime = new Date(booking.booking.startTime);
-	const endTime = new Date(booking.booking.endTime ?? startTime.getTime() + 60 * 60 * 1000);
+export let booking: FullBooking;
 
-	let showEditor = false;
-	let editedBooking = null;
-	let participantNames: string[] = [];
+let currentBooking: FullBooking = booking;
+let lastPropBooking: FullBooking = booking;
+let startTime: Date;
+let endTime: Date;
 
-	const isCancelled =
-		(booking.booking.status && booking.booking.status.toLowerCase() === 'cancelled') ||
-		!!booking.booking.cancelTime;
+const dispatch = createEventDispatcher();
 
-	function fmtDateTime(d?: string | Date | null) {
-		if (!d) return '';
-		const date = typeof d === 'string' ? new Date(d) : d;
-		// Swedish date + time, short
-		return date.toLocaleString('sv-SE', {
-			year: 'numeric',
-			month: '2-digit',
-			day: '2-digit',
-			hour: '2-digit',
-			minute: '2-digit'
+$: if (booking !== lastPropBooking && booking) {
+	lastPropBooking = booking;
+	currentBooking = booking;
+}
+
+$: {
+	const start = new Date(currentBooking.booking.startTime);
+	startTime = start;
+	endTime = currentBooking.booking.endTime
+		? new Date(currentBooking.booking.endTime)
+		: new Date(start.getTime() + 60 * 60 * 1000);
+}
+
+let showEditor = false;
+let editedBooking: FullBooking | null = null;
+let participantNames: string[] = [];
+let isCancelled = false;
+
+$:
+	isCancelled =
+		(currentBooking.booking.status &&
+			currentBooking.booking.status.toLowerCase() === 'cancelled') ||
+		!!currentBooking.booking.cancelTime;
+
+function fmtDateTime(d?: string | Date | null) {
+	if (!d) return '';
+	const date = typeof d === 'string' ? new Date(d) : d;
+	// Swedish date + time, short
+	return date.toLocaleString('sv-SE', {
+		year: 'numeric',
+		month: '2-digit',
+		day: '2-digit',
+		hour: '2-digit',
+		minute: '2-digit'
+	});
+}
+
+function cloneBookingData(source: FullBooking): FullBooking {
+	return typeof structuredClone === 'function'
+		? structuredClone(source)
+		: JSON.parse(JSON.stringify(source));
+}
+
+onMount(async () => {
+	if (currentBooking.isPersonalBooking && get(users).length === 0) {
+		await fetchUsers();
+	}
+
+	if (currentBooking.isPersonalBooking && currentBooking.personalBooking?.userIds?.length) {
+		const loadedUsers = get(users);
+		const idSet = new Set(currentBooking.personalBooking.userIds);
+		participantNames = loadedUsers
+			.filter((u) => idSet.has(u.id))
+			.map((u) => `${u.firstname} ${u.lastname}`);
+	}
+});
+
+$: if (currentBooking.isPersonalBooking) {
+	const userList = $users;
+	if (userList.length && currentBooking.personalBooking?.userIds?.length) {
+		const idSet = new Set(currentBooking.personalBooking.userIds);
+		participantNames = userList
+			.filter((u) => idSet.has(u.id))
+			.map((u) => `${u.firstname} ${u.lastname}`);
+	} else {
+		participantNames = [];
+	}
+}
+
+function handleEdit() {
+	if (isCancelled) return;
+	editedBooking = cloneBookingData(currentBooking);
+	showEditor = true;
+}
+
+async function handleCancel(reason: string, time: string) {
+	const res = await cancelBooking(currentBooking.booking.id, reason, time);
+
+	if (res.success) {
+		const clientEmail = getClientEmails(currentBooking.client?.id);
+		const currentUser = get(user);
+
+		if (clientEmail) {
+			await sendMail({
+				to: clientEmail,
+				subject: 'Avbokningsbekräftelse',
+				header: 'Din bokning har avbokats',
+				subheader: 'Vi har noterat din avbokning',
+				body: `
+				Hej! Din bokning den ${startTime.toLocaleDateString('sv-SE')} har avbokats.<br><br>
+				Tveka inte att kontakta oss om du har några frågor.
+			`,
+				from: {
+					name: `${currentUser.firstname} ${currentUser.lastname}`,
+					email: currentUser.email
+				}
+			});
+		}
+
+		addToast({
+			type: AppToastType.SUCCESS,
+			message: 'Bokning avbruten',
+			description: 'Bokningen har avbrutits och e-post har skickats.'
+		});
+
+		calendarStore.refresh(fetch);
+		onClose();
+	} else {
+		addToast({
+			type: AppToastType.CANCEL,
+			message: 'Fel vid avbokning',
+			description: res.message ?? 'Något gick fel.'
 		});
 	}
+}
 
-	onMount(async () => {
-		if (booking.isPersonalBooking && get(users).length === 0) {
-			await fetchUsers();
-		}
+function onClose() {
+	dispatch('close');
+}
 
-		if (booking.isPersonalBooking && booking.personalBooking?.userIds?.length) {
-			const loadedUsers = get(users);
-			const idSet = new Set(booking.personalBooking.userIds);
-			participantNames = loadedUsers
-				.filter((u) => idSet.has(u.id))
-				.map((u) => `${u.firstname} ${u.lastname}`);
-		}
-	});
-
-	function handleEdit() {
-		if (isCancelled) return;
-		editedBooking = {
-			id: booking.booking.id,
-			clientId: booking.client?.id ?? null,
-			trainerId: booking.trainer?.id ?? null,
-			roomId: booking.room?.id ?? null,
-			locationId: booking.location?.id ?? null,
-			bookingType: {
-				value: booking.additionalInfo.bookingContent?.id ?? '',
-				label: booking.additionalInfo.bookingContent?.kind ?? 'Okänd'
-			},
-			date: startTime.toISOString().slice(0, 10),
-			time: startTime.toISOString().slice(11, 16),
-			status: booking.booking.status
-		};
-		showEditor = true;
+function handleCloseEditor(event: CustomEvent<{ booking?: FullBooking }>) {
+	const updated = event?.detail?.booking;
+	if (updated) {
+		currentBooking = updated;
 	}
-
-	async function handleCancel(reason: string, time: string) {
-		const res = await cancelBooking(booking.booking.id, reason, time);
-
-		if (res.success) {
-			const clientEmail = getClientEmails(booking.client?.id);
-			const currentUser = get(user);
-
-			if (clientEmail) {
-				await sendMail({
-					to: clientEmail,
-					subject: 'Avbokningsbekräftelse',
-					header: 'Din bokning har avbokats',
-					subheader: 'Vi har noterat din avbokning',
-					body: `
-					Hej! Din bokning den ${startTime.toLocaleDateString('sv-SE')} har avbokats.<br><br>
-					Tveka inte att kontakta oss om du har några frågor.
-				`,
-					from: {
-						name: `${currentUser.firstname} ${currentUser.lastname}`,
-						email: currentUser.email
-					}
-				});
-			}
-
-			addToast({
-				type: AppToastType.SUCCESS,
-				message: 'Bokning avbruten',
-				description: 'Bokningen har avbrutits och e-post har skickats.'
-			});
-
-			calendarStore.refresh(fetch);
-			onClose();
-		} else {
-			addToast({
-				type: AppToastType.CANCEL,
-				message: 'Fel vid avbokning',
-				description: res.message ?? 'Något gick fel.'
-			});
-		}
-	}
-
-	function onClose() {
-		dispatch('close');
-	}
-
-	function handleCloseEditor() {
-		showEditor = false;
-		dispatch('updated');
-	}
+	showEditor = false;
+	dispatch('updated', { booking: currentBooking });
+}
 </script>
 
-{#if showEditor}
+{#if showEditor && editedBooking}
 	<BookingEditor
-		bookingObject={editedBooking}
-		bookingContents={$bookingContents.map((b) => ({ value: b.id, label: b.kind }))}
+		booking={editedBooking}
+		bookingContentOptions={$bookingContents.map((b) => ({ value: b.id, label: b.kind }))}
 		on:close={handleCloseEditor}
 	/>
+{:else if showEditor}
+	<p class="p-4 text-sm text-gray">Laddar redigeringsformulär...</p>
 {:else}
 	<div class="flex w-[600px] flex-col gap-4 bg-white">
 		<div class="mt-4 flex items-center justify-between">
@@ -147,7 +179,7 @@
 						text="Ta bort"
 						variant="danger-outline"
 						small
-						cancelConfirmOptions={{ onConfirm: handleCancel, startTimeISO: booking.booking.startTime }}
+					cancelConfirmOptions={{ onConfirm: handleCancel, startTimeISO: currentBooking.booking.startTime }}
 					/>
 				{:else}
 					<!-- Optional: just a close button when canceled -->
@@ -164,21 +196,21 @@
 					<span class="font-semibold">Avbokad</span>
 				</div>
 
-				{#if booking.booking.cancelReason}
-					<p class="mt-1 text-sm"><strong>Orsak:</strong> {booking.booking.cancelReason}</p>
+				{#if currentBooking.booking.cancelReason}
+					<p class="mt-1 text-sm"><strong>Orsak:</strong> {currentBooking.booking.cancelReason}</p>
 				{/if}
 
 				<div class="mt-1 space-y-1 text-xs">
-					{#if booking.booking.actualCancelTime}
+					{#if currentBooking.booking.actualCancelTime}
 						<p>
 							<strong>Kundens avbokningstid:</strong>
-							{fmtDateTime(booking.booking.actualCancelTime)}
+							{fmtDateTime(currentBooking.booking.actualCancelTime)}
 						</p>
 					{/if}
-					{#if booking.booking.cancelTime}
+					{#if currentBooking.booking.cancelTime}
 						<p>
 							<strong>Registrerad i systemet:</strong>
-							{fmtDateTime(booking.booking.cancelTime)}
+							{fmtDateTime(currentBooking.booking.cancelTime)}
 						</p>
 					{/if}
 				</div>
@@ -186,16 +218,16 @@
 		{/if}
 
 		<div class={isCancelled ? 'pointer-events-none select-none opacity-60' : ''}>
-			{#if booking.isPersonalBooking}
+			{#if currentBooking.isPersonalBooking}
 				<p class="text-gray-700">
 					<strong>Namn:</strong>
 
-					{booking.personalBooking.name}
+					{currentBooking.personalBooking?.name}
 				</p>
-				{#if booking.personalBooking.text}
+				{#if currentBooking.personalBooking?.text}
 					<p class="text-gray-700">
 						<strong>Beskrivning:</strong>
-						{booking.personalBooking.text}
+						{currentBooking.personalBooking?.text}
 					</p>
 				{/if}
 				<p class="text-gray-700"><strong>Deltagare:</strong></p>
@@ -207,21 +239,21 @@
 			{:else}
 				<p class="text-gray-700">
 					<strong>Kund:</strong>
-					<a class="text-orange hover:underline" href={`/clients/${booking.client?.id}`}>
-						{booking.client?.firstname}
-						{booking.client?.lastname}
+					<a class="text-orange hover:underline" href={`/clients/${currentBooking.client?.id}`}>
+						{currentBooking.client?.firstname}
+						{currentBooking.client?.lastname}
 					</a>
 				</p>
 				<p class="text-gray-700">
 					<strong>Tränare:</strong>
-					<a class="text-orange hover:underline" href={`/users/${booking.trainer?.id}`}>
-						{booking.trainer?.firstname}
-						{booking.trainer?.lastname}
+					<a class="text-orange hover:underline" href={`/users/${currentBooking.trainer?.id}`}>
+						{currentBooking.trainer?.firstname}
+						{currentBooking.trainer?.lastname}
 					</a>
 				</p>
 				<p class="text-gray-700">
 					<strong>Plats:</strong>
-					{booking.location?.name ?? 'Saknas'}
+					{currentBooking.location?.name ?? 'Saknas'}
 				</p>
 			{/if}
 
@@ -230,7 +262,7 @@
 				{formatTime(startTime.toISOString())} – {formatTime(endTime.toISOString())}
 			</p>
 
-			{#if booking.booking.tryOut}
+			{#if currentBooking.booking.tryOut}
 				<p class="font-semibold text-orange-600">Prova-på-bokning</p>
 			{/if}
 		</div>

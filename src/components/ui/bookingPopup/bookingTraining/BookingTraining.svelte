@@ -19,6 +19,7 @@
 	export let selectedIsUnavailable: boolean = false;
 	export let isTrial: boolean = false;
 	export let isFlight: boolean = false;
+	export let isEditing: boolean = false;
 
 	let availableRooms = [];
 	let eligibleTrialClients = [];
@@ -153,11 +154,29 @@
 		console.log(filteredClients);
 	}
 
+	let previousLocationId: number | null = null;
+
 	// Auto-assign room if only one available
 	$: {
 		const selectedLocation = $locations.find((loc) => loc.id === bookingObject.locationId);
 		availableRooms = selectedLocation?.rooms ?? [];
-		bookingObject.roomId = null;
+
+		const locationChanged = bookingObject.locationId !== previousLocationId;
+
+		if (!isEditing || locationChanged) {
+			if (availableRooms.length === 1) {
+				bookingObject.roomId = availableRooms[0].id;
+			} else if (!isEditing) {
+				bookingObject.roomId = null;
+			}
+		} else if (
+			bookingObject.roomId &&
+			!availableRooms.some((room) => room.id === bookingObject.roomId)
+		) {
+			bookingObject.roomId = availableRooms.length === 1 ? availableRooms[0].id : null;
+		}
+
+		previousLocationId = bookingObject.locationId ?? null;
 	}
 
 	// Booking type selection handler

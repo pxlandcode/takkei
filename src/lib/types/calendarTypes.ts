@@ -13,6 +13,7 @@ export interface BookingDetails {
 	cancelReason?: string | null;
 	bookingWithoutRoom: boolean;
 	internalEducation: boolean;
+	userId?: number | string | null;
 }
 
 export interface Trainer {

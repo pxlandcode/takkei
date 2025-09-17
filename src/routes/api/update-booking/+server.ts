@@ -14,7 +14,11 @@ export async function POST({ request }) {
 			location_id,
 			booking_content_id,
 			status,
-			room_id
+			room_id,
+			try_out,
+			internal_education,
+			internal,
+			education
 		} = data;
 
 		if (!booking_id) {
@@ -31,6 +35,10 @@ export async function POST({ request }) {
 			booking_content_id ?? null,
 			status ?? 'New',
 			room_id ?? null,
+			try_out ?? false,
+			internal_education ?? false,
+			internal ?? false,
+			education ?? false,
 			booking_id
 		];
 
@@ -45,8 +53,12 @@ export async function POST({ request }) {
 				booking_content_id = $6,
 				status = $7,
 				room_id = $8,
+				try_out = $9,
+				internal_education = $10,
+				internal = $11,
+				education = $12,
 				updated_at = NOW()
-			WHERE id = $9
+			WHERE id = $13
 			RETURNING *
 			`,
 			queryParams
