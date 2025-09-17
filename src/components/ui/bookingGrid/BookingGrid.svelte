@@ -112,7 +112,7 @@
 	function updateDays() {
 		days = days.map((day) => {
 			if (day.count === null) return day;
-			const key = day.date.toISOString().slice(0, 10);
+			const key = formatLocalDate(day.date);
 			return { ...day, count: countsPerDay[key] || 0 };
 		});
 	}
