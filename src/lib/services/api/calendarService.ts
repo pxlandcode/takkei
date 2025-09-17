@@ -112,7 +112,8 @@ function transformBooking(raw: any): FullBooking {
 			refundComment: raw.refund_comment ?? null,
 			cancelReason: raw.cancel_reason ?? null,
 			bookingWithoutRoom: raw.booking_without_room,
-			internalEducation: raw.internal_education
+			internalEducation: raw.internal_education,
+			userId: raw.user_id ?? null
 		},
 		trainer: {
 			id: raw.trainer_id,
@@ -189,7 +190,8 @@ function transformPersonalBooking(raw: any): FullBooking {
 			name: raw.name,
 			text: raw.text ?? '',
 			bookedById: raw.booked_by_id ?? null,
-			userIds: raw.user_ids ? raw.user_ids : []
+			userIds: raw.user_ids ? raw.user_ids : [],
+			kind: raw.kind ?? 'Private'
 		}
 	};
 }

@@ -23,7 +23,7 @@
 	const endTime = new Date(booking.booking.endTime ?? startTime.getTime() + 60 * 60 * 1000);
 
 	let showEditor = false;
-	let editedBooking = null;
+	let editedBooking: FullBooking | null = null;
 	let participantNames: string[] = [];
 
 	const isCancelled =
@@ -59,20 +59,7 @@
 
 	function handleEdit() {
 		if (isCancelled) return;
-		editedBooking = {
-			id: booking.booking.id,
-			clientId: booking.client?.id ?? null,
-			trainerId: booking.trainer?.id ?? null,
-			roomId: booking.room?.id ?? null,
-			locationId: booking.location?.id ?? null,
-			bookingType: {
-				value: booking.additionalInfo.bookingContent?.id ?? '',
-				label: booking.additionalInfo.bookingContent?.kind ?? 'Okänd'
-			},
-			date: startTime.toISOString().slice(0, 10),
-			time: startTime.toISOString().slice(11, 16),
-			status: booking.booking.status
-		};
+		editedBooking = JSON.parse(JSON.stringify(booking));
 		showEditor = true;
 	}
 
@@ -129,8 +116,8 @@
 
 {#if showEditor}
 	<BookingEditor
-		bookingObject={editedBooking}
-		bookingContents={$bookingContents.map((b) => ({ value: b.id, label: b.kind }))}
+		booking={editedBooking}
+		bookingContentOptions={$bookingContents.map((b) => ({ value: b.id, label: b.kind }))}
 		on:close={handleCloseEditor}
 	/>
 {:else}

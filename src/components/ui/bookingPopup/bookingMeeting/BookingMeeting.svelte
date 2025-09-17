@@ -29,17 +29,35 @@
 	export let isMeeting: boolean = true;
 	export let repeatedBookings: any[] = [];
 	export let selectedIsUnavailable: boolean = false;
+	export let isEditing: boolean = false;
 
 	if (!bookingObject.repeatWeeks) {
 		bookingObject.repeatWeeks = 4;
 	}
 
 	onMount(() => {
+		const currentUser = get(user);
+		bookingObject.attendees = bookingObject.attendees ?? [];
+		bookingObject.user_ids = bookingObject.user_ids ?? [...bookingObject.attendees];
+
 		if (!isMeeting) {
-			const currentUser = get(user);
-			bookingObject.user_id = currentUser?.id ?? null;
-			bookingObject.attendees = [currentUser?.id];
-			bookingObject.user_ids = [currentUser?.id];
+			if (!isEditing) {
+				if (currentUser?.id) {
+					bookingObject.user_id = currentUser.id;
+					bookingObject.attendees = [currentUser.id];
+					bookingObject.user_ids = [currentUser.id];
+				}
+			} else {
+				if ((!bookingObject.user_id || bookingObject.user_id === null) && currentUser?.id) {
+					bookingObject.user_id = currentUser.id;
+				}
+				if (bookingObject.attendees.length === 0 && currentUser?.id) {
+					bookingObject.attendees = [currentUser.id];
+				}
+				if (bookingObject.user_ids.length === 0 && currentUser?.id) {
+					bookingObject.user_ids = [currentUser.id];
+				}
+			}
 		}
 	});
 

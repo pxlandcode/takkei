@@ -155,19 +155,29 @@ export async function fetchAvailableSlots({
 	return { availableSlots: [], outsideAvailabilitySlots: [] };
 }
 
-export async function updateBooking(bookingObject: any) {
+export async function updateStandardBooking(bookingObject: any) {
 	try {
+		const endTimeString = bookingObject.endTime
+			? `${bookingObject.date}T${bookingObject.endTime}:00`
+			: null;
+
+		const userIdValue = bookingObject.user_id ?? null;
+
 		const requestData = {
 			booking_id: bookingObject.id,
 			client_id: bookingObject.clientId ?? null,
 			trainer_id: bookingObject.trainerId ?? null,
-			user_id:
-				bookingObject.attendees?.length > 0 ? `{${bookingObject.attendees.join(',')}}` : null,
+			user_id: userIdValue,
 			start_time: `${bookingObject.date}T${bookingObject.time}:00`,
+			end_time: endTimeString,
 			location_id: bookingObject.locationId ?? null,
 			booking_content_id: bookingObject.bookingType?.value ?? null,
 			status: bookingObject.status ?? 'New',
-			room_id: bookingObject.roomId ?? null
+			room_id: bookingObject.roomId ?? null,
+			try_out: !!bookingObject.isTrial,
+			internal_education: !!bookingObject.internalEducation,
+			internal: !!bookingObject.internal,
+			education: !!bookingObject.education
 		};
 
 		const response = await fetch('/api/update-booking', {
@@ -189,6 +199,45 @@ export async function updateBooking(bookingObject: any) {
 		return {
 			success: false,
 			message: 'Error updating booking',
+			error: error.message
+		};
+	}
+}
+
+export async function updatePersonalBooking(bookingObject: any, kind: string) {
+	try {
+		const userIds = bookingObject.user_ids ?? bookingObject.attendees ?? [];
+
+		const requestData = {
+			booking_id: bookingObject.id,
+			name: bookingObject.name ?? null,
+			text: bookingObject.text ?? null,
+			user_id: bookingObject.user_id ?? null,
+			user_ids: userIds.length ? userIds : null,
+			start_time: `${bookingObject.date}T${bookingObject.time}:00`,
+			end_time: bookingObject.endTime ? `${bookingObject.date}T${bookingObject.endTime}:00` : null,
+			kind: kind
+		};
+
+		const response = await fetch('/api/update-personal-booking', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify(requestData)
+		});
+
+		const responseData = await response.json();
+		if (!response.ok) throw new Error(responseData.error || 'Update failed');
+
+		return {
+			success: true,
+			message: 'Booking updated successfully',
+			booking: responseData.booking
+		};
+	} catch (error) {
+		console.error('Error Updating Personal Booking:', error);
+		return {
+			success: false,
+			message: 'Error updating personal booking',
 			error: error.message
 		};
 	}

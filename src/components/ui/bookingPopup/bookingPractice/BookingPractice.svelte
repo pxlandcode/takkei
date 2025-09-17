@@ -14,6 +14,7 @@
 	export let locations: { label: string; value: number }[] = [];
 	export let selectedIsUnavailable = false;
 	export let repeatedBookings: any[] = [];
+	export let isEditing: boolean = false;
 
 	// Common defaults
 	$: if (!bookingObject.trainerId) bookingObject.trainerId = get(user)?.id ?? null;
