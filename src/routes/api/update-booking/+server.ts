@@ -11,7 +11,6 @@ export async function POST({ request }) {
 			trainer_id,
 			user_id,
 			start_time,
-			end_time,
 			location_id,
 			booking_content_id,
 			status,
@@ -32,7 +31,6 @@ export async function POST({ request }) {
 			trainer_id ?? null,
 			user_id ?? null,
 			start_time ?? null,
-			end_time ?? null,
 			location_id ?? null,
 			booking_content_id ?? null,
 			status ?? 'New',
@@ -51,17 +49,16 @@ export async function POST({ request }) {
 				trainer_id = $2,
 				user_id = $3,
 				start_time = $4,
-				end_time = $5,
-				location_id = $6,
-				booking_content_id = $7,
-				status = $8,
-				room_id = $9,
-				try_out = $10,
-				internal_education = $11,
-				internal = $12,
-				education = $13,
+				location_id = $5,
+				booking_content_id = $6,
+				status = $7,
+				room_id = $8,
+				try_out = $9,
+				internal_education = $10,
+				internal = $11,
+				education = $12,
 				updated_at = NOW()
-			WHERE id = $14
+			WHERE id = $13
 			RETURNING *
 			`,
 			queryParams

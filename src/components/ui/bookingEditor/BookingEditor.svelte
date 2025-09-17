@@ -10,7 +10,7 @@
 	import type { FullBooking } from '$lib/types/calendarTypes';
 	import { locations, fetchLocations } from '$lib/stores/locationsStore';
 	import { users, fetchUsers } from '$lib/stores/usersStore';
-import { fetchClients, getClientEmails } from '$lib/stores/clientsStore';
+import { clients, fetchClients, getClientEmails } from '$lib/stores/clientsStore';
 	import {
 		bookingContents as bookingContentsStore,
 		fetchBookingContents
@@ -25,10 +25,12 @@ import { fetchClients, getClientEmails } from '$lib/stores/clientsStore';
 		updateMeetingOrPersonalBooking
 	} from '$lib/helpers/bookingHelpers/bookingHelpers';
 	import { capitalizeFirstLetter } from '$lib/helpers/generic/genericHelpers';
-	import { addToast } from '$lib/stores/toastStore';
-	import { AppToastType } from '$lib/types/toastTypes';
+import { addToast } from '$lib/stores/toastStore';
+import { AppToastType } from '$lib/types/toastTypes';
 
-	type BookingComponentType =
+declare function structuredClone<T>(value: T): T;
+
+type BookingComponentType =
 		| 'training'
 		| 'trial'
 		| 'practice'
@@ -147,17 +149,120 @@ $: currentUser = $user;
 		return `${hours}:${minutes}`;
 	}
 
-	function deriveEndTime(start: Date, endTimeString?: string | null): string {
-		if (endTimeString) {
-			const parsed = new Date(endTimeString);
-			if (!Number.isNaN(parsed.getTime())) {
-				return toTimeInputValue(parsed);
-			}
+function deriveEndTime(start: Date, endTimeString?: string | null): string {
+	if (endTimeString) {
+		const parsed = new Date(endTimeString);
+		if (!Number.isNaN(parsed.getTime())) {
+			return toTimeInputValue(parsed);
+		}
+	}
+
+	const fallback = new Date(start.getTime() + 60 * 60 * 1000);
+	return toTimeInputValue(fallback);
+}
+
+function cloneFullBooking(source: FullBooking): FullBooking {
+	return typeof structuredClone === 'function'
+		? structuredClone(source)
+		: JSON.parse(JSON.stringify(source));
+}
+
+function buildUpdatedFullBooking(
+	payload: any,
+	type: BookingComponentType,
+	apiRecord?: any
+): FullBooking {
+	const cloned = cloneFullBooking(booking);
+
+	const startISO = apiRecord?.start_time ?? `${payload.date}T${payload.time}:00`;
+	const startDate = new Date(startISO);
+	cloned.booking.startTime = startDate.toISOString();
+	cloned.booking.updatedAt = apiRecord?.updated_at
+		? new Date(apiRecord.updated_at).toISOString()
+		: new Date().toISOString();
+
+	const endISO = apiRecord?.end_time ?? (payload.endTime ? `${payload.date}T${payload.endTime}:00` : null);
+	cloned.booking.endTime = endISO ? new Date(endISO).toISOString() : null;
+	cloned.booking.status = payload.status ?? cloned.booking.status;
+	cloned.booking.userId = payload.user_id ?? cloned.booking.userId ?? null;
+
+	if (standardTypes.has(type)) {
+		cloned.booking.tryOut = !!payload.isTrial;
+		cloned.booking.internalEducation = !!payload.internalEducation;
+		if (!cloned.additionalInfo) {
+			cloned.additionalInfo = {
+				packageId: null,
+				education: false,
+				internal: false,
+				bookingContent: { id: null, kind: '' },
+				addedToPackageBy: null,
+				addedToPackageDate: null,
+				actualCancelTime: null
+			};
+		}
+		cloned.additionalInfo.education = !!payload.education;
+		cloned.additionalInfo.internal = !!payload.internal;
+		if (!cloned.additionalInfo.bookingContent) {
+			cloned.additionalInfo.bookingContent = { id: null, kind: '' };
+		}
+		if (payload.bookingType) {
+			cloned.additionalInfo.bookingContent.id = payload.bookingType.value ?? null;
+			const matchedOption = typeOptions.find((opt) => opt.value === payload.bookingType.value);
+			cloned.additionalInfo.bookingContent.kind =
+				matchedOption?.label ?? payload.bookingType.label ?? cloned.additionalInfo.bookingContent.kind;
 		}
 
-		const fallback = new Date(start.getTime() + 60 * 60 * 1000);
-		return toTimeInputValue(fallback);
+		const allUsers = get(users) ?? [];
+		const trainer = allUsers.find((u) => u.id === payload.trainerId);
+		cloned.trainer = trainer
+			? { id: trainer.id, firstname: trainer.firstname, lastname: trainer.lastname }
+			: null;
+
+		const clientList = get(clients) ?? [];
+		const client = clientList.find((c) => c.id === payload.clientId);
+		cloned.client = client
+			? { id: client.id ?? null, firstname: client.firstname, lastname: client.lastname }
+			: null;
+
+		const locationList = get(locations) ?? [];
+		const loc = locationList.find((l) => l.id === payload.locationId);
+		cloned.location = loc
+			? { id: loc.id, name: loc.name, color: loc.color }
+			: null;
+
+		const room = loc?.rooms?.find((r) => r.id === payload.roomId);
+		cloned.room = room ? { id: room.id, name: room.name } : null;
+	} else {
+		const attendeeIds = payload.user_ids ?? payload.attendees ?? [];
+		if (!cloned.personalBooking) {
+			const original = booking.personalBooking;
+			cloned.personalBooking = {
+				name: original?.name ?? '',
+				text: original?.text ?? '',
+				bookedById: original?.bookedById ?? null,
+				userIds: [],
+				kind: original?.kind ?? (type === 'personal' ? 'Private' : 'Corporate')
+			};
+		}
+		cloned.personalBooking.name = payload.name ?? cloned.personalBooking.name ?? '';
+		cloned.personalBooking.text = payload.text ?? cloned.personalBooking.text ?? '';
+		cloned.personalBooking.userIds = attendeeIds;
+		cloned.personalBooking.kind = payload.kind ?? cloned.personalBooking.kind ?? 'Corporate';
+		cloned.booking.userId = payload.user_id ?? (attendeeIds.length ? attendeeIds[0] : null);
+
+		const locationList = get(locations) ?? [];
+		const loc = locationList.find((l) => l.id === payload.locationId);
+		cloned.location = loc
+			? { id: loc.id, name: loc.name, color: loc.color }
+			: null;
+
+		cloned.trainer = null;
+		cloned.client = null;
+		cloned.room = null;
 	}
+
+	return cloned;
+}
 
 	function buildEditableBooking(full: FullBooking, type: BookingComponentType) {
 	const start = new Date(full.booking.startTime);
@@ -396,24 +501,31 @@ $: currentUser = $user;
 
 		loadingStore.loading(true, LOADING_MESSAGE);
 		let success = false;
+		let updatedFullBooking: FullBooking | null = null;
 
 		try {
 			if (standardTypes.has(selectedBookingComponent)) {
-				success = (await updateTrainingBooking(payload)).success;
+				const result = await updateTrainingBooking(payload);
+				success = result.success;
+				if (success) {
+					updatedFullBooking = buildUpdatedFullBooking(payload, selectedBookingComponent, result.booking);
+				}
 			} else {
-				success = (
-					await updateMeetingOrPersonalBooking(
-						payload,
-						selectedBookingComponent,
-						payload.kind
-					)
-				).success;
+				const result = await updateMeetingOrPersonalBooking(
+					payload,
+					selectedBookingComponent,
+					payload.kind
+				);
+				success = result.success;
+				if (success) {
+					updatedFullBooking = buildUpdatedFullBooking(payload, selectedBookingComponent, result.booking);
+				}
 			}
 
-			if (success) {
+			if (success && updatedFullBooking) {
 				await maybeSendEmail(selectedBookingComponent, payload);
 				calendarStore.refresh(fetch);
-				dispatch('close');
+				dispatch('close', { booking: updatedFullBooking });
 			}
 		} finally {
 			loadingStore.loading(false);

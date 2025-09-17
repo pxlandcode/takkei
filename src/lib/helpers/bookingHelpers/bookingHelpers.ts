@@ -100,7 +100,7 @@ export async function handleMeetingOrPersonalBooking(
 
 export async function updateTrainingBooking(
 	bookingObject: any
-): Promise<{ success: boolean }> {
+): Promise<{ success: boolean; booking?: any; message?: string }> {
 	const result = await updateStandardBooking(bookingObject);
 
 	if (result.success) {
@@ -109,7 +109,7 @@ export async function updateTrainingBooking(
 			message: 'Bokning uppdaterad',
 			description: `Bokningen uppdaterades till ${bookingObject.date} kl ${bookingObject.time}.`
 		});
-		return { success: true };
+		return { success: true, booking: result.booking };
 	}
 
 	addToast({
@@ -117,14 +117,14 @@ export async function updateTrainingBooking(
 		message: 'Uppdatering misslyckades',
 		description: result.message ?? 'Bokningen kunde inte uppdateras. Försök igen.'
 	});
-	return { success: false };
+	return { success: false, message: result.message };
 }
 
 export async function updateMeetingOrPersonalBooking(
 	bookingObject: any,
 	type: 'meeting' | 'personal',
 	kind: string
-): Promise<{ success: boolean }> {
+): Promise<{ success: boolean; booking?: any; message?: string }> {
 	const response = await updatePersonalBooking(bookingObject, kind);
 
 	if (response.success) {
@@ -133,7 +133,7 @@ export async function updateMeetingOrPersonalBooking(
 			message: 'Bokning uppdaterad',
 			description: `Bokningen uppdaterades till ${bookingObject.date} kl ${bookingObject.time}.`
 		});
-		return { success: true };
+		return { success: true, booking: response.booking };
 	}
 
 	addToast({
@@ -141,7 +141,7 @@ export async function updateMeetingOrPersonalBooking(
 		message: 'Uppdatering misslyckades',
 		description: response.message ?? 'Bokningen kunde inte uppdateras. Försök igen.'
 	});
-	return { success: false };
+	return { success: false, message: response.message };
 }
 
 export async function handleBookingEmail({

@@ -157,10 +157,6 @@ export async function fetchAvailableSlots({
 
 export async function updateStandardBooking(bookingObject: any) {
 	try {
-		const endTimeString = bookingObject.endTime
-			? `${bookingObject.date}T${bookingObject.endTime}:00`
-			: null;
-
 		const userIdValue = bookingObject.user_id ?? null;
 
 		const requestData = {
@@ -169,7 +165,6 @@ export async function updateStandardBooking(bookingObject: any) {
 			trainer_id: bookingObject.trainerId ?? null,
 			user_id: userIdValue,
 			start_time: `${bookingObject.date}T${bookingObject.time}:00`,
-			end_time: endTimeString,
 			location_id: bookingObject.locationId ?? null,
 			booking_content_id: bookingObject.bookingType?.value ?? null,
 			status: bookingObject.status ?? 'New',
