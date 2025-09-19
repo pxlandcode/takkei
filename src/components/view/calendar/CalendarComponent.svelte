@@ -1,7 +1,7 @@
 <script lang="ts">
-	import { onMount, onDestroy, tick } from 'svelte';
-	import { getCurrentTimeOffset, shiftUTCIndex } from '$lib/helpers/calendarHelpers/calendar-utils';
+	import { onMount, onDestroy } from 'svelte';
 	import type { FullBooking } from '$lib/types/calendarTypes';
+	import type { CalendarFilters } from '$lib/stores/calendarStore';
 	import HourSlot from './hour-slot/HourSlot.svelte';
 	import CurrentTimePill from './current-time-pill/CurrentTimePill.svelte';
 	import BookingSlot from './booking-slot/BookingSlot.svelte';
@@ -11,20 +11,39 @@
 	import { createEventDispatcher } from 'svelte';
 	import { tooltip } from '$lib/actions/tooltip';
 
-	// Props
 	export let startHour = 4;
 	export let totalHours = 19;
-	export let singleDayView = false; // ✅ Determines single-day or week mode
-
-	let timePillRef: HTMLDivElement | null = null;
+	export let singleDayView = false;
 
 	const dispatch = createEventDispatcher();
+
+	type AvailabilityMap = Record<string, { from: string; to: string }[] | null>;
+	type LayoutInfo = {
+		booking: FullBooking;
+		columnIndex: number;
+		columnCount: number;
+	};
+
+	let calendarContainer: HTMLDivElement | null = null;
+
+	let bookings: FullBooking[] = [];
+	let filters: CalendarFilters | undefined;
+	let availability: AvailabilityMap = {};
+	let calendarIsLoading = false;
+
+	const unsubscribe = calendarStore.subscribe((store) => {
+		bookings = store.bookings;
+		filters = store.filters;
+		availability = store.availability;
+		calendarIsLoading = store.isLoading;
+	});
 
 	function parseLocalDateStr(s?: string | null) {
 		if (!s) return new Date();
 		const [y, m, d] = s.split('-').map(Number);
-		return new Date(y, m - 1, d, 12, 0, 0, 0); // noon avoids DST edges
+		return new Date(y, m - 1, d, 12, 0, 0, 0);
 	}
+
 	function isSameLocalDay(a: Date, b: Date) {
 		return (
 			a.getFullYear() === b.getFullYear() &&
@@ -40,15 +59,73 @@
 		return `${y}-${m}-${day}`;
 	}
 
-	// Subscribe to calendar store
-	let bookings: FullBooking[] = [];
-	let filters;
-	let availability;
-	const unsubscribe = calendarStore.subscribe((store) => {
-		bookings = store.bookings;
-		filters = store.filters;
-		availability = store.availability;
-	});
+	function getMondayOfWeek(date: Date): Date {
+		const day = date.getDay();
+		const diff = day === 0 ? -6 : 1 - day;
+		const monday = new Date(date);
+		monday.setDate(monday.getDate() + diff);
+		return monday;
+	}
+
+	let weekDays: { dayLabel: string; dateLabel: string; fullDate: Date }[] = [];
+
+	// Compute displayed days dynamically
+	$:
+		{
+			if (singleDayView) {
+				const selected = parseLocalDateStr(filters?.date);
+				weekDays = [
+					{
+						dayLabel: selected.toLocaleDateString('sv-SE', { weekday: 'long' }),
+						dateLabel: selected.getDate().toString(),
+						fullDate: selected
+					}
+				];
+			} else {
+				const startOfWeek = filters?.from
+					? getMondayOfWeek(parseLocalDateStr(filters.from))
+					: getMondayOfWeek(new Date());
+
+				weekDays = Array.from({ length: 7 }, (_, i) => {
+					const d = new Date(startOfWeek);
+					d.setDate(d.getDate() + i);
+					return {
+						dayLabel: d.toLocaleDateString('sv-SE', { weekday: 'long' }),
+						dateLabel: d.getDate().toString(),
+						fullDate: d
+					};
+				});
+			}
+		}
+
+	const hourHeight = 50;
+
+	let dayDateStrings: string[] = [];
+	let bookingsByDay: FullBooking[][] = [];
+	let layoutByDay: LayoutInfo[][] = [];
+	let emptySlotBlocksByDay: { top: number; start: Date }[][] = [];
+	let unavailableBlocksByDay: { top: number; height: number }[][] = [];
+
+	$: dayDateStrings = weekDays.map(({ fullDate }) => ymdLocal(fullDate));
+	$: bookingsByDay = partitionBookingsByDay(bookings, dayDateStrings, filters, singleDayView);
+	$: layoutByDay = bookingsByDay.map((dayBookings) => layoutDayBookings(dayBookings));
+	$: emptySlotBlocksByDay = weekDays.map(({ fullDate }, idx) =>
+		computeEmptySlotBlocks(fullDate, bookingsByDay[idx] ?? [], filters, availability)
+	);
+	$: unavailableBlocksByDay = weekDays.map(({ fullDate }) =>
+		computeUnavailableBlocks(fullDate, filters, availability)
+	);
+
+	function getStart(booking: FullBooking): number {
+		return new Date(booking.booking.startTime).getTime();
+	}
+
+	function getEnd(booking: FullBooking): number {
+		if (booking.booking.endTime) {
+			return new Date(booking.booking.endTime).getTime();
+		}
+		return getStart(booking) + 60 * 60 * 1000;
+	}
 
 	function isTimeSlotOccupied(start: Date, end: Date, bookingsForDay: FullBooking[]): boolean {
 		const startMs = start.getTime();
@@ -57,73 +134,12 @@
 		return bookingsForDay.some((b) => {
 			const bStart = getStart(b);
 			const bEnd = getEnd(b);
-			return !(bEnd <= startMs || bStart >= endMs); // overlaps
+			return !(bEnd <= startMs || bStart >= endMs);
 		});
 	}
 
-	// 🔥 Ensure week starts on Monday
-	function getMondayOfWeek(date: Date): Date {
-		const day = date.getDay(); // 0 Sun, 1 Mon, ...
-		const diff = day === 0 ? -6 : 1 - day;
-		const monday = new Date(date);
-		monday.setDate(monday.getDate() + diff);
-		return monday;
-	}
-	// ✅ Compute displayed days dynamically
-	let weekDays: { dayLabel: string; dateLabel: string; fullDate: Date }[] = [];
-
-	$: {
-		if (singleDayView) {
-			const selected = parseLocalDateStr(filters?.date);
-			weekDays = [
-				{
-					dayLabel: selected.toLocaleDateString('sv-SE', { weekday: 'long' }),
-					dateLabel: selected.getDate().toString(),
-					fullDate: selected
-				}
-			];
-		} else {
-			const startOfWeek = filters?.from
-				? getMondayOfWeek(parseLocalDateStr(filters.from))
-				: getMondayOfWeek(new Date());
-
-			weekDays = Array.from({ length: 7 }, (_, i) => {
-				const d = new Date(startOfWeek);
-				d.setDate(d.getDate() + i);
-				return {
-					dayLabel: d.toLocaleDateString('sv-SE', { weekday: 'long' }),
-					dateLabel: d.getDate().toString(),
-					fullDate: d
-				};
-			});
-		}
-	}
-
-	const hourHeight = 50;
-	let calendarContainer: HTMLDivElement | null = null;
-
-	// 📍 Get booking start time
-	function getStart(booking: FullBooking): number {
-		return new Date(booking.booking.startTime).getTime();
-	}
-
-	// 📍 Get booking end time (or default to 1 hour)
-	function getEnd(booking: FullBooking): number {
-		if (booking.booking.endTime) {
-			return new Date(booking.booking.endTime).getTime();
-		}
-		return getStart(booking) + 60 * 60 * 1000;
-	}
-
-	// Layout bookings within a day for proper display
-	function layoutDayBookings(bookingsForDay: FullBooking[], selectedDate?: Date) {
-		bookingsForDay.sort((a, b) => getStart(a) - getStart(b));
-
-		type LayoutInfo = {
-			booking: FullBooking;
-			columnIndex: number;
-			columnCount: number;
-		};
+	function layoutDayBookings(bookingsForDay: FullBooking[]): LayoutInfo[] {
+		const sortedBookings = [...bookingsForDay].sort((a, b) => getStart(a) - getStart(b));
 
 		const results: LayoutInfo[] = [];
 		let active: { booking: FullBooking; endTime: number; columnIndex: number }[] = [];
@@ -135,23 +151,10 @@
 			return index;
 		}
 
-		// Ensure bookings are correctly placed in the selected date column
-		for (const booking of bookingsForDay) {
+		for (const booking of sortedBookings) {
 			const start = getStart(booking);
 			const end = getEnd(booking);
-			const bookingStartDate = new Date(start);
 
-			// ✅ If single-day view, filter out bookings that are NOT for the selected date
-			if (selectedDate) {
-				const isSameDay =
-					bookingStartDate.getFullYear() === selectedDate.getFullYear() &&
-					bookingStartDate.getMonth() === selectedDate.getMonth() &&
-					bookingStartDate.getDate() === selectedDate.getDate();
-
-				if (!isSameDay) continue; // Skip bookings that are NOT for the selected day
-			}
-
-			// Remove finished bookings
 			active = active.filter((a) => a.endTime > start);
 
 			const concurrency = active.length + 1;
@@ -176,34 +179,65 @@
 		return results;
 	}
 
-	function getEmptySlotBlocks(dayIndex: number): { top: number; start: Date }[] {
+	function partitionBookingsByDay(
+		allBookings: FullBooking[],
+		dayKeys: string[],
+		currentFilters: CalendarFilters | undefined,
+		isSingleDayView: boolean
+	): FullBooking[][] {
+		const buckets = Array.from({ length: dayKeys.length }, () => [] as FullBooking[]);
+
+		if (!allBookings.length || !dayKeys.length) {
+			return buckets;
+		}
+
+		if (isSingleDayView) {
+			const targetKey = currentFilters?.date ?? dayKeys[0];
+			if (!targetKey || !buckets.length) {
+				return buckets;
+			}
+			for (const booking of allBookings) {
+				const bookingKey = ymdLocal(new Date(booking.booking.startTime));
+				if (bookingKey === targetKey) {
+					buckets[0].push(booking);
+				}
+			}
+			return buckets;
+		}
+
+		const indexByDate = new Map(dayKeys.map((key, index) => [key, index]));
+
+		for (const booking of allBookings) {
+			const bookingKey = ymdLocal(new Date(booking.booking.startTime));
+			const index = indexByDate.get(bookingKey);
+			if (index !== undefined) {
+				buckets[index].push(booking);
+			}
+		}
+
+		return buckets;
+	}
+
+	function computeEmptySlotBlocks(
+		dayDateInput: Date,
+		dayBookings: FullBooking[],
+		currentFilters: CalendarFilters | undefined,
+		availabilityMap: AvailabilityMap
+	): { top: number; start: Date }[] {
+		if (!dayDateInput) return [];
 		const results: { top: number; start: Date }[] = [];
 
-		const dayDate = singleDayView
-			? new Date(filters.date)
-			: getMondayOfWeek(filters.from ? new Date(filters.from) : new Date());
+		const dayDate = new Date(dayDateInput);
+		dayDate.setHours(0, 0, 0, 0);
 
-		dayDate.setDate(dayDate.getDate() + dayIndex);
-
-		const dayBookings = bookings.filter((b) => {
-			const bookingDate = new Date(b.booking.startTime);
-			return singleDayView
-				? bookingDate.toDateString() === dayDate.toDateString()
-				: shiftUTCIndex(bookingDate) === dayIndex;
-		});
-
+		const onlyOneTrainer =
+			Array.isArray(currentFilters?.trainerIds) && currentFilters.trainerIds.length === 1;
 		const dateStr = ymdLocal(dayDate);
-		const onlyOneTrainer = !!(filters?.trainerIds && filters.trainerIds.length === 1);
-		const dayAvailability = onlyOneTrainer ? availability?.[dateStr] : undefined;
+		const dayAvailability = onlyOneTrainer ? availabilityMap?.[dateStr] : undefined;
 
-		for (let i = 0; i < totalHours * 2 - 1; i++) {
-			if (i % 2 === 0) continue; // half-hour starts only
-
-			const hour = startHour + Math.floor(i / 2);
-			const minute = 30;
-
+		for (let i = 1; i < totalHours * 2 - 1; i += 2) {
 			const slotStart = new Date(dayDate);
-			slotStart.setHours(hour, minute, 0, 0);
+			slotStart.setHours(startHour + Math.floor(i / 2), 30, 0, 0);
 
 			const slotEnd = new Date(slotStart);
 			slotEnd.setMinutes(slotEnd.getMinutes() + 60);
@@ -213,13 +247,10 @@
 			let isAvailable = true;
 			if (onlyOneTrainer) {
 				if (dayAvailability == null) {
-					// ✅ no weekly row / no override => FULLY AVAILABLE
 					isAvailable = true;
 				} else if (Array.isArray(dayAvailability) && dayAvailability.length === 0) {
-					// ✅ explicit full-day UNAVAILABLE
 					isAvailable = false;
-				} else {
-					// within any available window?
+				} else if (Array.isArray(dayAvailability)) {
 					isAvailable = dayAvailability.some((slot) => {
 						const [fromHour, fromMin] = slot.from.split(':').map(Number);
 						const [toHour, toMin] = slot.to.split(':').map(Number);
@@ -242,34 +273,37 @@
 		return results;
 	}
 
-	function getUnavailableBlocks(dayIndex: number): { top: number; height: number }[] {
-		if (!filters?.trainerIds || filters.trainerIds.length !== 1) return [];
+	function computeUnavailableBlocks(
+		dayDateInput: Date,
+		currentFilters: CalendarFilters | undefined,
+		availabilityMap: AvailabilityMap
+	): { top: number; height: number }[] {
+		if (!currentFilters?.trainerIds || currentFilters.trainerIds.length !== 1) {
+			return [];
+		}
 
-		const startOfWeek = filters.from
-			? getMondayOfWeek(new Date(filters.from))
-			: getMondayOfWeek(new Date());
-		const date = new Date(startOfWeek);
-		date.setDate(date.getDate() + dayIndex);
+		const date = new Date(dayDateInput);
+		date.setHours(0, 0, 0, 0);
 		const dateStr = ymdLocal(date);
 
+		const dayAvail = availabilityMap?.[dateStr];
 		const blocks: { top: number; height: number }[] = [];
-		const dayAvail = availability?.[dateStr];
 
-		// ✅ Missing/null => FULLY AVAILABLE (no stripes)
-		if (dayAvail == null) return blocks;
+		if (dayAvail == null) {
+			return blocks;
+		}
 
-		// ✅ Empty array => FULL-DAY UNAVAILABLE (full stripes)
 		if (Array.isArray(dayAvail) && dayAvail.length === 0) {
 			blocks.push({ top: 0, height: totalHours * hourHeight });
 			return blocks;
 		}
 
-		// Compute "gaps" outside available windows as stripes
-		const available = [...dayAvail].sort((a, b) =>
-			a.from < b.from ? -1 : a.from > b.from ? 1 : 0
-		);
+		if (!Array.isArray(dayAvail)) {
+			return blocks;
+		}
 
-		// Work in minutes for precision
+		const available = [...dayAvail].sort((a, b) => (a.from < b.from ? -1 : a.from > b.from ? 1 : 0));
+
 		const dayStartMin = startHour * 60;
 		const dayEndMin = (startHour + totalHours) * 60;
 
@@ -281,7 +315,6 @@
 			const slotStartMin = fh * 60 + fm;
 			const slotEndMin = th * 60 + tm;
 
-			// anything before this available slot is UNAVAILABLE
 			if (slotStartMin > cursor) {
 				blocks.push({
 					top: ((cursor - dayStartMin) / 60) * hourHeight,
@@ -291,7 +324,6 @@
 			cursor = Math.max(cursor, slotEndMin);
 		}
 
-		// tail after last available slot
 		if (cursor < dayEndMin) {
 			blocks.push({
 				top: ((cursor - dayStartMin) / 60) * hourHeight,
@@ -306,7 +338,6 @@
 		dispatch('onTimeSlotClick', { startTime });
 	}
 
-	// 📌 Scroll to current time on mount
 	onMount(() => {
 		const now = new Date();
 		const currentHour = now.getHours();
@@ -324,7 +355,6 @@
 		dispatch('onBookingClick', { booking });
 	}
 
-	// Cleanup store subscription
 	onDestroy(() => {
 		unsubscribe();
 	});
@@ -339,6 +369,18 @@
 		<div class="relative flex h-full flex-col items-center justify-center text-gray">
 			<ClockIcon size="30px" />
 		</div>
+		{#if calendarIsLoading}
+			<div
+				class="pointer-events-none absolute right-4 top-3 z-10 flex items-center gap-2 rounded-full bg-white/80 px-3 py-1 text-xs font-medium text-gray-dark shadow-sm"
+				aria-live="polite"
+			>
+				<svg class="h-4 w-4 animate-spin text-orange" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+					<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+					<path class="opacity-75" d="M4 12a8 8 0 018-8" stroke="currentColor" stroke-width="4" stroke-linecap="round" />
+				</svg>
+				<span>Laddar kalender...</span>
+			</div>
+		{/if}
 		{#each weekDays as { dayLabel, dateLabel, fullDate }}
 			<div
 				class="mx-1 flex flex-col items-center rounded-lg bg-gray py-2
@@ -366,16 +408,16 @@
 		</div>
 
 		<!-- DAYS & BOOKINGS -->
-		{#each weekDays as { day, date }, dayIndex}
+		{#each weekDays as _, dayIndex}
 			<div class="relative flex flex-col gap-1 border-l border-gray-bright">
-				{#each getUnavailableBlocks(dayIndex) as block}
+				{#each (unavailableBlocksByDay[dayIndex] ?? []) as block}
 					<div
 						class="unavailable-striped absolute left-0 right-0"
 						style="top: {block.top}px; height: {block.height}px; z-index: 0;"
 					/>
 				{/each}
 
-				{#each getEmptySlotBlocks(dayIndex) as slot}
+				{#each (emptySlotBlocksByDay[dayIndex] ?? []) as slot}
 					<button
 						class="absolute left-0 right-0 cursor-pointer hover:bg-orange/20"
 						style="top: {slot.top}px; height: {hourHeight}px; z-index: 0;"
@@ -386,7 +428,7 @@
 					>
 					</button>
 				{/each}
-				{#each layoutDayBookings( bookings.filter( (b) => (singleDayView ? new Date(b.booking.startTime).toDateString() === new Date(filters.date).toDateString() : shiftUTCIndex(new Date(b.booking.startTime)) === dayIndex) ), singleDayView ? new Date(filters.date) : undefined ) as layoutItem, i}
+				{#each (layoutByDay[dayIndex] ?? []) as layoutItem, i}
 					<BookingSlot
 						booking={layoutItem.booking}
 						{startHour}
