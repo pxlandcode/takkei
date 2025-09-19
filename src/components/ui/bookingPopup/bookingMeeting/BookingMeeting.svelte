@@ -30,6 +30,7 @@
 	export let repeatedBookings: any[] = [];
 	export let selectedIsUnavailable: boolean = false;
 	export let isEditing: boolean = false;
+	export let errors: Record<string, string> = {};
 
 	if (!bookingObject.repeatWeeks) {
 		bookingObject.repeatWeeks = 4;
@@ -183,6 +184,7 @@
 		type="text"
 		placeholder="Ange namn på bokningen"
 		bind:value={bookingObject.name}
+		{errors}
 	/>
 
 	<!-- Description Text Area -->
@@ -206,6 +208,8 @@
 				search
 				bind:selectedValues={bookingObject.attendees}
 				on:change={handleUserSelection}
+				error={!!errors.attendees}
+				errorMessage={errors.attendees}
 			/>
 			<div class="mt-6 flex flex-row gap-2">
 				<Button
@@ -227,8 +231,11 @@
 				type="date"
 				id="date"
 				bind:value={bookingObject.date}
-				class="w-full rounded-lg border p-2 text-gray"
+				class={`w-full rounded-lg border p-2 text-gray ${errors.date ? 'border-red-500' : ''}`}
 			/>
+			{#if errors.date}
+				<p class="mt-1 text-sm text-red-500">{errors.date}</p>
+			{/if}
 		</div>
 	</div>
 
@@ -239,8 +246,11 @@
 				type="time"
 				id="time"
 				bind:value={bookingObject.time}
-				class="w-full rounded-lg border p-2 text-gray"
+				class={`w-full rounded-lg border p-2 text-gray ${errors.time ? 'border-red-500' : ''}`}
 			/>
+			{#if errors.time}
+				<p class="mt-1 text-sm text-red-500">{errors.time}</p>
+			{/if}
 		</div>
 		<div>
 			<label for="endTime" class="text-sm font-medium text-gray">Sluttid</label>
@@ -248,8 +258,11 @@
 				type="time"
 				id="endTime"
 				bind:value={bookingObject.endTime}
-				class="w-full rounded-lg border p-2 text-gray"
+				class={`w-full rounded-lg border p-2 text-gray ${errors.endTime ? 'border-red-500' : ''}`}
 			/>
+			{#if errors.endTime}
+				<p class="mt-1 text-sm text-red-500">{errors.endTime}</p>
+			{/if}
 		</div>
 	</div>
 
@@ -270,6 +283,7 @@
 					placeholder="Ex: 4"
 					min="1"
 					max="52"
+					{errors}
 				/>
 
 				<Button

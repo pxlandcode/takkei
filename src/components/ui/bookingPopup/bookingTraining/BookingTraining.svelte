@@ -20,6 +20,7 @@
 	export let isTrial: boolean = false;
 	export let isFlight: boolean = false;
 	export let isEditing: boolean = false;
+	export let errors: Record<string, string> = {};
 
 	let availableRooms = [];
 	let eligibleTrialClients = [];
@@ -222,6 +223,7 @@
 		maxNumberOfSuggestions={15}
 		infiniteScroll
 		bind:selectedValue={bookingObject.trainerId}
+		{errors}
 	/>
 
 	<!-- Filters -->
@@ -246,6 +248,7 @@
 				maxNumberOfSuggestions={10}
 				infiniteScroll
 				bind:selectedValue={bookingObject.clientId}
+				{errors}
 			/>
 		</div>
 
@@ -258,6 +261,7 @@
 				id="locations"
 				options={$locations.map((loc) => ({ label: loc.name, value: loc.id }))}
 				bind:selectedValue={bookingObject.locationId}
+				{errors}
 			/>
 		</div>
 	</div>
@@ -268,6 +272,9 @@
 		size="small"
 		on:select={handleBookingTypeSelection}
 		full
+		id="bookingType"
+		errorKey="bookingType"
+		{errors}
 	/>
 	<!-- Date & Time -->
 	<SlotTimePicker
@@ -276,6 +283,9 @@
 		trainerId={bookingObject.trainerId}
 		locationId={bookingObject.locationId}
 		on:unavailabilityChange={(e) => (selectedIsUnavailable = e.detail)}
+		{errors}
+		dateField="date"
+		timeField="time"
 	/>
 
 	<!-- Repeat Booking Section -->
