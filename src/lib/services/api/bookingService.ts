@@ -109,7 +109,7 @@ export async function createBooking(
 		}
 		return {
 			success: true,
-			message: 'Booking created successfully',
+			message: 'Bokningen har skapats',
 			bookingId: responseData.bookingId
 		};
 	} catch (error) {
@@ -186,7 +186,7 @@ export async function updateStandardBooking(bookingObject: any) {
 
 		return {
 			success: true,
-			message: 'Booking updated successfully',
+			message: 'Bokningen har uppdaterats',
 			booking: responseData.booking
 		};
 	} catch (error) {
@@ -225,7 +225,7 @@ export async function updatePersonalBooking(bookingObject: any, kind: string) {
 
 		return {
 			success: true,
-			message: 'Booking updated successfully',
+			message: 'Bokningen har uppdaterats',
 			booking: responseData.booking
 		};
 	} catch (error) {
@@ -238,7 +238,11 @@ export async function updatePersonalBooking(bookingObject: any, kind: string) {
 	}
 }
 
-export async function cancelBooking(bookingId: number, reason: string, actualCancelTime: string) {
+export async function cancelBooking(
+	bookingId: number,
+	reason: string,
+	actualCancelTime: string | undefined
+) {
 	try {
 		const res = await fetch('/api/cancel-booking', {
 			method: 'POST',
@@ -246,7 +250,7 @@ export async function cancelBooking(bookingId: number, reason: string, actualCan
 			body: JSON.stringify({
 				booking_id: bookingId,
 				reason,
-				actual_cancel_time: actualCancelTime
+				actual_cancel_time: actualCancelTime ?? null
 			})
 		});
 
@@ -256,7 +260,7 @@ export async function cancelBooking(bookingId: number, reason: string, actualCan
 
 		return {
 			success: true,
-			message: 'Booking cancelled successfully',
+			message: 'Bokningen har avbokats',
 			data: data.cancelled
 		};
 	} catch (err) {
@@ -264,6 +268,48 @@ export async function cancelBooking(bookingId: number, reason: string, actualCan
 		return {
 			success: false,
 			message: err.message ?? 'Unknown cancellation error'
+		};
+	}
+}
+
+export async function deletePersonalBooking(bookingId: number) {
+	try {
+		const res = await fetch(`/api/personal-bookings/${bookingId}`, {
+			method: 'DELETE'
+		});
+		const data = await res.json();
+		if (!res.ok) throw new Error(data.error || 'Kunde inte ta bort personlig bokning');
+		return {
+			success: true,
+			message: 'Bokningen har tagits bort',
+			data
+		};
+	} catch (error: any) {
+		console.error('Error deleting personal booking:', error);
+		return {
+			success: false,
+			message: error?.message ?? 'Unknown deletion error'
+		};
+	}
+}
+
+export async function deleteMeetingBooking(bookingId: number) {
+	try {
+		const res = await fetch(`/api/bookings/${bookingId}`, {
+			method: 'DELETE'
+		});
+		const data = await res.json();
+		if (!res.ok) throw new Error(data.error || 'Kunde inte ta bort mötet');
+		return {
+			success: true,
+			message: 'Bokningen har tagits bort',
+			data
+		};
+	} catch (error: any) {
+		console.error('Error deleting meeting booking:', error);
+		return {
+			success: false,
+			message: error?.message ?? 'Unknown deletion error'
 		};
 	}
 }

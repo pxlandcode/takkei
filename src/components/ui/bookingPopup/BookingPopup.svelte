@@ -31,12 +31,20 @@
 		dispatch('close');
 	}
 
-	let selectedBookingComponent: 'training' | 'meeting' | 'personal' | 'trial' | 'practice' =
-		'training';
+	let selectedBookingComponent:
+		| 'training'
+		| 'meeting'
+		| 'personal'
+		| 'trial'
+		| 'practice'
+		| 'flight'
+		| 'education' = 'training';
 
 	let repeatedBookings = [];
 	let selectedIsUnavailable = false;
 	let currentUser = get(user);
+	let formErrors: Record<string, string> = {};
+	let previousComponent: typeof selectedBookingComponent | null = null;
 
 	let bookingObject = {
 		user_id: null,
@@ -68,6 +76,74 @@
 		repeat: false,
 		emailBehavior: { label: 'Skicka inte', value: 'none' }
 	};
+
+	function removeError(field: string) {
+		if (formErrors[field]) {
+			const { [field]: _removed, ...rest } = formErrors;
+			formErrors = rest;
+		}
+	}
+
+	function maybeClearError(field: string, condition: boolean) {
+		if (condition && formErrors[field]) {
+			removeError(field);
+		}
+	}
+
+	function isValidEndTime(): boolean {
+		if (!bookingObject.endTime || !bookingObject.time) return !!bookingObject.endTime;
+		return bookingObject.endTime > bookingObject.time;
+	}
+
+	function validateBooking(
+		type: 'training' | 'meeting' | 'personal' | 'trial' | 'practice' | 'flight' | 'education'
+	): Record<string, string> {
+		const errors: Record<string, string> = {};
+
+		const hasDate = !!bookingObject.date;
+		const hasTime = !!bookingObject.time;
+
+		if (type === 'training' || type === 'trial' || type === 'flight') {
+			if (!bookingObject.trainerId) errors.users = 'Välj en tränare.';
+			if ((type === 'training' || type === 'trial') && !bookingObject.clientId)
+				errors.clients = 'Välj en klient.';
+			if (!bookingObject.locationId) errors.locations = 'Välj en plats.';
+			if (type !== 'flight' && !bookingObject.bookingType?.value)
+				errors.bookingType = 'Välj ett innehåll.';
+			if (!hasDate) errors.date = 'Välj ett datum.';
+			if (!hasTime) errors.time = 'Välj en tid.';
+		}
+
+		if (type === 'practice' || type === 'education') {
+			if (!bookingObject.trainerId) errors.trainer = 'Välj en tränare.';
+			if (type === 'practice' && !bookingObject.user_id)
+				errors.trainee = 'Välj en trainee.';
+			if (!bookingObject.locationId) errors.locations = 'Välj en plats.';
+			if (!hasDate) errors.date = 'Välj ett datum.';
+			if (!hasTime) errors.time = 'Välj en tid.';
+		}
+
+		if (type === 'meeting' || type === 'personal') {
+			if (type === 'meeting') {
+				if (!bookingObject.name?.trim()) errors.name = 'Ange ett namn för bokningen.';
+				if (!bookingObject.attendees || bookingObject.attendees.length === 0)
+					errors.attendees = 'Välj minst en deltagare.';
+			} else if (!bookingObject.user_id) {
+				errors.attendees = 'Ange vem bokningen gäller.';
+			}
+
+			if (!hasDate) errors.date = 'Välj ett datum.';
+			if (!hasTime) errors.time = 'Välj en starttid.';
+
+			if (!bookingObject.endTime) {
+				errors.endTime = 'Ange en sluttid.';
+			} else if (bookingObject.time && bookingObject.endTime <= bookingObject.time) {
+				errors.endTime = 'Sluttiden måste vara efter starttiden.';
+			}
+		}
+
+		return errors;
+	}
 
 	// Reactive booking type fallback
 	$: {
@@ -120,6 +196,22 @@
 	}
 
 	// Sync user_ids and user_id from attendees
+	$: if (selectedBookingComponent !== previousComponent) {
+		formErrors = {};
+		previousComponent = selectedBookingComponent;
+	}
+
+	$: maybeClearError('users', !!bookingObject.trainerId);
+	$: maybeClearError('trainer', !!bookingObject.trainerId);
+	$: maybeClearError('clients', !!bookingObject.clientId);
+	$: maybeClearError('locations', !!bookingObject.locationId);
+	$: maybeClearError('bookingType', !!bookingObject.bookingType?.value);
+	$: maybeClearError('date', !!bookingObject.date);
+	$: maybeClearError('time', !!bookingObject.time);
+	$: maybeClearError('trainee', !!bookingObject.user_id);
+	$: maybeClearError('attendees', !!bookingObject.attendees && bookingObject.attendees.length > 0);
+	$: maybeClearError('name', !!bookingObject.name?.trim());
+	$: maybeClearError('endTime', isValidEndTime());
 
 	// Load initial data
 	onMount(async () => {
@@ -170,6 +262,12 @@
 		const type = selectedBookingComponent;
 		bookingObject.currentUser = currentUser;
 		if (!currentUser) return;
+
+		const validationErrors = validateBooking(type);
+		formErrors = validationErrors;
+		if (Object.keys(validationErrors).length > 0) {
+			return;
+		}
 
 		const locationName = getLocationLabelFromId(bookingObject.locationId);
 
@@ -244,6 +342,7 @@
 		}
 
 		if (success) {
+			formErrors = {};
 			onClose();
 		}
 	}
@@ -277,6 +376,7 @@
 			}))}
 			isTrial={bookingObject.isTrial}
 			isFlight={bookingObject.internal}
+			errors={formErrors}
 		/>
 		<!-- render -->
 	{:else if selectedBookingComponent === 'practice'}
@@ -286,6 +386,7 @@
 			locations={($locations || []).map((l) => ({ label: l.name, value: l.id }))}
 			kind="practice"
 			bind:repeatedBookings
+			errors={formErrors}
 		/>
 	{:else if selectedBookingComponent === 'education'}
 		<BookingPractice
@@ -294,6 +395,7 @@
 			locations={($locations || []).map((l) => ({ label: l.name, value: l.id }))}
 			kind="education"
 			bind:repeatedBookings
+			errors={formErrors}
 		/>
 	{:else if selectedBookingComponent === 'meeting'}
 		<BookingMeeting
@@ -306,9 +408,10 @@
 				label: location.name,
 				value: location.id
 			}))}
+			errors={formErrors}
 		/>
 	{:else if selectedBookingComponent === 'personal'}
-		<BookingMeeting bind:bookingObject isMeeting={false} />
+		<BookingMeeting bind:bookingObject isMeeting={false} errors={formErrors} />
 	{/if}
 
 	<!-- Shared Booking Button -->

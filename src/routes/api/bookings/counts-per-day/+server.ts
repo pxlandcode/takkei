@@ -30,14 +30,14 @@ export const GET: RequestHandler = async ({ url }) => {
 
 	// Query booking counts grouped by date
 	const sql = `
-            SELECT
-                (DATE(start_time AT TIME ZONE 'UTC' AT TIME ZONE 'Europe/Stockholm')) AS date,
-                COUNT(*) AS count
-            FROM bookings
-            WHERE ${condition}
-            GROUP BY (DATE(start_time AT TIME ZONE 'UTC' AT TIME ZONE 'Europe/Stockholm'))
-            ORDER BY date
-        `;
+		SELECT
+			(start_time AT TIME ZONE 'Europe/Stockholm')::date AS date,
+			COUNT(*) AS count
+		FROM bookings
+		WHERE ${condition}
+		GROUP BY (start_time AT TIME ZONE 'Europe/Stockholm')::date
+		ORDER BY date
+	`;
 
 	const rows = await query(sql, params);
 
@@ -47,5 +47,9 @@ export const GET: RequestHandler = async ({ url }) => {
 		result[row.date.toISOString().slice(0, 10)] = parseInt(row.count);
 	}
 
-	return json(result);
+	return json(result, {
+		headers: {
+			'Cache-Control': 'public, max-age=120'
+		}
+	});
 };

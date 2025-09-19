@@ -11,6 +11,8 @@
 	export let labelIcon: string = '';
 	export let labelIconSize: string = '20px';
 	export let id: string | null = null;
+	export let errors: Record<string, string> = {};
+	export let errorKey: string | null = null;
 
 	let generatedId = `option-button-${Math.random().toString(36).slice(2, 9)}`;
 
@@ -18,6 +20,8 @@
 		id = generatedId;
 	}
 	const dispatch = createEventDispatcher();
+
+	$: resolvedErrorKey = errorKey ?? id ?? undefined;
 
 	function selectOption(option: { value: any; label: string }) {
 		selectedOption = option;
@@ -35,6 +39,7 @@
     w-full  rounded   bg-white p-[2px]
     ${variant === 'black' ? 'border-white border-2' : '  '}
     ${variant === 'gray' ? 'border-gray border' : ''}
+    ${errors[resolvedErrorKey] ? 'border-red-500' : ''}
     ${full ? '' : 'max-w-md'}`;
 
 	$: selectedClasses = `
@@ -72,4 +77,7 @@
 			{/each}
 		</div>
 	</div>
+	{#if resolvedErrorKey && errors[resolvedErrorKey]}
+		<p class="text-sm text-red-500">{errors[resolvedErrorKey]}</p>
+	{/if}
 </div>

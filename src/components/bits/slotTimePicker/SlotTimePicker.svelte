@@ -10,6 +10,9 @@
 	export let trainerId: number;
 	export let locationId: number;
 	export let label = 'Tid';
+	export let errors: Record<string, string> = {};
+	export let dateField: string = 'date';
+	export let timeField: string = 'time';
 
 	export let checkUsersBusy: boolean = false;
 	export let traineeUserId: number | null = null;
@@ -92,15 +95,16 @@
 	</div>
 {:else if !showWarning || availableSlots.length > 0 || outsideAvailabilitySlots.length > 0}
 	<div class="grid grid-cols-1 gap-2 xl:grid-cols-2">
-		<Input label="Datum" type="date" bind:value={selectedDate} />
+		<Input label="Datum" name={dateField} type="date" bind:value={selectedDate} {errors} />
 		<Dropdown
-			id="available-times"
+			id={timeField}
 			{label}
 			bind:selectedValue={selectedTime}
 			options={sortedOptions}
 			placeholder="Välj tid"
 			openPosition="up"
 			disabled={sortedOptions.length === 0}
+			{errors}
 			on:change={() => {
 				const selected = sortedOptions.find((opt) => opt.value === selectedTime);
 				dispatch('unavailabilityChange', selected?.unavailable ?? false);

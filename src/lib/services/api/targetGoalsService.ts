@@ -1,5 +1,41 @@
 import type { OwnerType } from './targetService';
 
+export type TargetGoalsResponse = {
+	yearGoal: number | null;
+	months: Array<{ month: number; goal_value: number | null }>;
+};
+
+function buildQuery(params: {
+	ownerType: OwnerType;
+	ownerId: number;
+	year: number;
+	targetKindId: number;
+}) {
+	const { ownerType, ownerId, year, targetKindId } = params;
+	return new URLSearchParams({
+		ownerType,
+		ownerId: String(ownerId),
+		year: String(year),
+		targetKindId: String(targetKindId)
+	});
+}
+
+export async function getTargetGoals(
+	ownerType: OwnerType,
+	ownerId: number,
+	year: number,
+	targetKindId: number
+): Promise<TargetGoalsResponse> {
+	const qs = buildQuery({ ownerType, ownerId, year, targetKindId });
+	const res = await fetch(`/api/targets/month?${qs.toString()}`);
+	if (!res.ok) throw new Error('Failed to fetch target goals');
+	const body = await res.json();
+	return {
+		yearGoal: body?.yearGoal ?? null,
+		months: (body?.months ?? []) as Array<{ month: number; goal_value: number | null }>
+	};
+}
+
 /**
  * List all month goals for a year (and we’ll also use its yearGoal for getYearGoal).
  * Returns an array of { month, goal_value }.
@@ -10,16 +46,8 @@ export async function getMonthGoals(
 	year: number,
 	targetKindId: number
 ): Promise<Array<{ month: number; goal_value: number | null }>> {
-	const qs = new URLSearchParams({
-		ownerType,
-		ownerId: String(ownerId),
-		year: String(year),
-		targetKindId: String(targetKindId)
-	});
-	const res = await fetch(`/api/targets/month?${qs.toString()}`);
-	if (!res.ok) throw new Error('Failed to fetch month goals');
-	const body = await res.json(); // { yearGoal, months: [...] }
-	return (body?.months ?? []) as Array<{ month: number; goal_value: number | null }>;
+	const data = await getTargetGoals(ownerType, ownerId, year, targetKindId);
+	return data.months;
 }
 
 /**
@@ -32,16 +60,8 @@ export async function getYearGoal(
 	year: number,
 	targetKindId: number
 ): Promise<{ value: number | null }> {
-	const qs = new URLSearchParams({
-		ownerType,
-		ownerId: String(ownerId),
-		year: String(year),
-		targetKindId: String(targetKindId)
-	});
-	const res = await fetch(`/api/targets/month?${qs.toString()}`);
-	if (!res.ok) throw new Error('Failed to fetch year goal');
-	const body = await res.json(); // { yearGoal, months }
-	return { value: body?.yearGoal ?? null };
+	const data = await getTargetGoals(ownerType, ownerId, year, targetKindId);
+	return { value: data.yearGoal ?? null };
 }
 
 /** Upsert a single month goal */

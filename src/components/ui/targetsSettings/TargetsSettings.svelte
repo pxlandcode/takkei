@@ -9,9 +9,8 @@
 	import { AppToastType } from '$lib/types/toastTypes';
 
 	import {
-		getYearGoal,
+		getTargetGoals,
 		setYearGoal,
-		getMonthGoals,
 		setMonthGoal,
 		getWeekGoals
 	} from '$lib/services/api/targetGoalsService';
@@ -107,13 +106,16 @@
 		}
 
 		try {
-			const yearGoalResp = await getYearGoal(ownerType, Number(activeOwnerId), year, targetKindId);
-			persistedYearGoal =
-				yearGoalResp?.value == null ? null : Math.trunc(Number(yearGoalResp.value));
+			const payload = await getTargetGoals(
+				ownerType,
+				Number(activeOwnerId),
+				year,
+				targetKindId
+			);
+			persistedYearGoal = payload?.yearGoal == null ? null : Math.trunc(Number(payload.yearGoal));
 			yearDraft = persistedYearGoal == null ? '' : persistedYearGoal;
 
-			const monthGoals = await getMonthGoals(ownerType, Number(activeOwnerId), year, targetKindId);
-			persistedMonthAnchors = (monthGoals || []).map((r: any) => ({
+			persistedMonthAnchors = (payload?.months || []).map((r: any) => ({
 				month: Number(r.month),
 				value: Math.trunc(Number(r.goal_value))
 			}));

@@ -15,6 +15,7 @@
 	export let selectedIsUnavailable = false;
 	export let repeatedBookings: any[] = [];
 	export let isEditing: boolean = false;
+	export let errors: Record<string, string> = {};
 
 	// Common defaults
 	$: if (!bookingObject.trainerId) bookingObject.trainerId = get(user)?.id ?? null;
@@ -82,6 +83,7 @@
 		options={users}
 		bind:selectedValue={bookingObject.trainerId}
 		search
+		{errors}
 	/>
 
 	<Dropdown
@@ -92,6 +94,7 @@
 		options={users}
 		bind:selectedValue={bookingObject.user_id}
 		search
+		{errors}
 	/>
 
 	<Dropdown
@@ -101,6 +104,7 @@
 		id="locations"
 		options={locations}
 		bind:selectedValue={bookingObject.locationId}
+		{errors}
 	/>
 
 	<SlotTimePicker
@@ -111,6 +115,9 @@
 		checkUsersBusy={!!bookingObject.user_id}
 		traineeUserId={bookingObject.user_id}
 		on:unavailabilityChange={(e) => (selectedIsUnavailable = e.detail)}
+		{errors}
+		dateField="date"
+		timeField="time"
 	/>
 
 	<div class="flex flex-col gap-2">
