@@ -5,8 +5,8 @@ export async function POST({ request }) {
 	try {
 		const { booking_id, reason, actual_cancel_time } = await request.json();
 
-		if (!booking_id || !reason) {
-			return json({ error: 'Missing booking_id or reason' }, { status: 400 });
+		if (!booking_id) {
+			return json({ error: 'Missing booking_id' }, { status: 400 });
 		}
 
 		const result = await query(
@@ -54,7 +54,7 @@ export async function POST({ request }) {
 			`,
 			[
 				booking_id,
-				reason,
+				reason ?? null,
 				actual_cancel_time ?? null // e.g. "2025-08-11T08:15"
 			]
 		);

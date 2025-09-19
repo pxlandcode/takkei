@@ -7,7 +7,11 @@
 	import { bookingContents } from '$lib/stores/bookingContentStore';
 	import { calendarStore } from '$lib/stores/calendarStore';
 	import { addToast } from '$lib/stores/toastStore';
-	import { cancelBooking } from '$lib/services/api/bookingService';
+	import {
+		cancelBooking,
+		deleteMeetingBooking,
+		deletePersonalBooking
+	} from '$lib/services/api/bookingService';
 	import { AppToastType } from '$lib/types/toastTypes';
 	import Icon from '../../bits/icon-component/Icon.svelte';
 	import { sendMail } from '$lib/services/mail/mailClientService';
@@ -44,6 +48,54 @@ let showEditor = false;
 let editedBooking: FullBooking | null = null;
 let participantNames: string[] = [];
 let isCancelled = false;
+let cancelOptions:
+	| {
+			onConfirm: (reason: string, time: string) => void;
+			startTimeISO: string;
+	  }
+	| null = null;
+let confirmDeleteOptions:
+	| {
+			title?: string;
+			description?: string;
+			action?: () => void;
+			actionLabel?: string;
+	  }
+	| null = null;
+
+function normalizeKind(kind?: string | null) {
+	if (!kind) return '';
+	return kind
+		.normalize('NFD')
+		.replace(/[\u0300-\u036f]/g, '')
+		.toLowerCase();
+}
+
+function isMeetingBooking(bookingItem: FullBooking) {
+	const personalKind = normalizeKind(bookingItem.personalBooking?.kind ?? null);
+	const contentKind = normalizeKind(bookingItem.additionalInfo?.bookingContent?.kind ?? null);
+	return personalKind.includes('meeting') || personalKind.includes('mote') || contentKind.includes('meeting') || contentKind.includes('mote');
+}
+
+$: requiresCancelReason = !currentBooking.isPersonalBooking && !isMeetingBooking(currentBooking);
+$: cancelOptions = requiresCancelReason
+	? {
+			onConfirm: (reason: string, time: string) => {
+				void performCancellation({ reason, time });
+			},
+			startTimeISO: currentBooking.booking.startTime
+	  }
+	: null;
+$: confirmDeleteOptions = requiresCancelReason
+	? null
+	: {
+			title: 'Ta bort bokning',
+			description: 'Är du säker på att du vill ta bort den här bokningen?',
+			actionLabel: 'Ta bort',
+			action: () => {
+				void performCancellation({});
+			}
+	  };
 
 $:
 	isCancelled =
@@ -102,11 +154,31 @@ function handleEdit() {
 	showEditor = true;
 }
 
-async function handleCancel(reason: string, time: string) {
-	const res = await cancelBooking(currentBooking.booking.id, reason, time);
+async function performCancellation({ reason, time }: { reason?: string; time?: string }) {
+	const personalBooking = currentBooking.isPersonalBooking;
+	const meetingBooking = isMeetingBooking(currentBooking);
+
+	let res: { success: boolean; message?: string };
+
+	if (personalBooking) {
+		res = await deletePersonalBooking(currentBooking.booking.id);
+	} else if (meetingBooking) {
+		res = await deleteMeetingBooking(currentBooking.booking.id);
+	} else {
+		if (!reason) {
+			addToast({
+				type: AppToastType.CANCEL,
+				message: 'Orsak saknas',
+				description: 'Vänligen välj en avbokningsorsak.'
+			});
+			return;
+		}
+		const fallbackTime = new Date().toISOString().slice(0, 16);
+		res = await cancelBooking(currentBooking.booking.id, reason, time ?? fallbackTime);
+	}
 
 	if (res.success) {
-		const clientEmail = getClientEmails(currentBooking.client?.id);
+		const clientEmail = !personalBooking ? getClientEmails(currentBooking.client?.id) : null;
 		const currentUser = get(user);
 
 		if (clientEmail) {
@@ -128,8 +200,8 @@ async function handleCancel(reason: string, time: string) {
 
 		addToast({
 			type: AppToastType.SUCCESS,
-			message: 'Bokning avbruten',
-			description: 'Bokningen har avbrutits och e-post har skickats.'
+			message: personalBooking || meetingBooking ? 'Bokning borttagen' : 'Bokning avbruten',
+			description: res.message ?? 'Bokningen har uppdaterats.'
 		});
 
 		calendarStore.refresh(fetch);
@@ -179,7 +251,8 @@ function handleCloseEditor(event: CustomEvent<{ booking?: FullBooking }>) {
 						text="Ta bort"
 						variant="danger-outline"
 						small
-					cancelConfirmOptions={{ onConfirm: handleCancel, startTimeISO: currentBooking.booking.startTime }}
+						cancelConfirmOptions={cancelOptions}
+						confirmOptions={confirmDeleteOptions}
 					/>
 				{:else}
 					<!-- Optional: just a close button when canceled -->
