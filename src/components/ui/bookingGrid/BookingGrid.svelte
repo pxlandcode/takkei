@@ -1,133 +1,184 @@
 <script lang="ts">
-	import { onMount, tick } from 'svelte';
-	import { tooltip } from '$lib/actions/tooltip';
+import { onDestroy, onMount, tick } from 'svelte';
+import { tooltip } from '$lib/actions/tooltip';
 
-	export let trainerId: number | null = null;
-	export let clientId: number | null = null;
-	export let border = false;
+export let trainerId: number | null = null;
+export let clientId: number | null = null;
+export let border = false;
 
-	const SQUARE_SIZE = 12;
-	const GAP = 2;
+const SQUARE_SIZE = 12;
+const GAP = 2;
+const dateFormatter = new Intl.DateTimeFormat('sv-SE', {
+	timeZone: 'Europe/Stockholm',
+	year: 'numeric',
+	month: '2-digit',
+	day: '2-digit'
+});
 
-	let gridContainer;
-	let gridWidth = 0;
-	let squareLimit = 53;
-	let daysToShow = 365;
+type DayCell = { date: Date; key: string; count: number | null };
+type MonthLabel = { name: string; index: number };
 
-	let countsPerDay: Record<string, number> = {};
-	let today = new Date();
-	let firstValidDate: Date;
-	let lastValidDate: Date;
+let gridContainer: HTMLDivElement | undefined;
+let gridWidth = 0;
+let squareLimit = 53;
+let daysToShow = 365;
 
-	let days = [];
-	let months = [];
-	const weekDays = ['Mån', 'Tis', 'Ons', 'Tors', 'Fre', 'Lör', 'Sön'];
+let countsPerDay: Record<string, number> = {};
+let today: Date;
+let firstValidDate: Date;
+let lastValidDate: Date;
 
-	$: if (gridContainer) {
-		gridWidth = gridContainer.offsetWidth;
-		const visibleBlocks = Math.floor(gridWidth / (SQUARE_SIZE + GAP));
+let days: DayCell[] = [];
+let months: MonthLabel[] = [];
+const weekDays = ['Mån', 'Tis', 'Ons', 'Tors', 'Fre', 'Lör', 'Sön'];
 
-		if (visibleBlocks !== squareLimit) {
-			squareLimit = visibleBlocks;
-			daysToShow = squareLimit * 7;
-			setupDates();
-			fetchCountsAndRender();
-		}
-	}
+let gridReady = false;
+let lastFilterKey = '';
+let resizeObserver: ResizeObserver | null = null;
+let currentFetchController: AbortController | null = null;
+const fetchCache = new Map<string, Record<string, number>>();
 
-	function formatLocalDate(date: Date) {
-		return date.toLocaleDateString('sv-SE', {
-			timeZone: 'Europe/Stockholm',
-			year: 'numeric',
-			month: '2-digit',
-			day: '2-digit'
-		});
-	}
+function formatLocalDate(date: Date) {
+	return dateFormatter.format(date);
+}
 
-	function setupDates() {
-		today.setHours(0, 0, 0, 0);
-		const halfRange = Math.floor(daysToShow / 2);
-		firstValidDate = new Date(today);
+function setupDates() {
+	today = new Date();
+	today.setHours(0, 0, 0, 0);
+	const halfRange = Math.floor(daysToShow / 2);
+	firstValidDate = new Date(today);
+	lastValidDate = new Date(today);
+
+	if (clientId) {
+		firstValidDate.setDate(today.getDate() - halfRange);
+		lastValidDate.setDate(today.getDate() + halfRange);
+	} else {
+		firstValidDate.setDate(today.getDate() - (daysToShow - 1));
 		lastValidDate = new Date(today);
-
-		if (clientId) {
-			firstValidDate.setDate(today.getDate() - halfRange);
-			lastValidDate.setDate(today.getDate() + halfRange);
-		} else {
-			firstValidDate.setDate(today.getDate() - (daysToShow - 1));
-			lastValidDate = new Date(today);
-		}
-
-		// Align to Monday
-		const dayOfWeek = firstValidDate.getDay();
-		const daysToSubtract = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-		const weekStart = new Date(firstValidDate);
-		weekStart.setDate(weekStart.getDate() - daysToSubtract);
-
-		// Fill days and months
-		days = [];
-		months = [];
-		let currentDate = new Date(weekStart);
-		let monthLoop = null;
-
-		while (currentDate <= lastValidDate) {
-			const date = new Date(currentDate);
-			if (date.getMonth() !== monthLoop) {
-				monthLoop = date.getMonth();
-				months.push({
-					name: date.toLocaleString('sv-SE', { month: 'short' }),
-					index: Math.floor(days.length / 7) + 1
-				});
-			}
-			const isBlank = date < firstValidDate;
-			days.push({ date, count: isBlank ? null : 0 });
-			currentDate.setDate(currentDate.getDate() + 1);
-		}
 	}
 
-	async function fetchCountsAndRender() {
-		if (trainerId && clientId) {
-			console.warn('Pass only trainerId OR clientId, not both.');
-			return;
+	const dayOfWeek = firstValidDate.getDay();
+	const daysToSubtract = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+	const weekStart = new Date(firstValidDate);
+	weekStart.setDate(weekStart.getDate() - daysToSubtract);
+
+	days = [];
+	months = [];
+	let currentDate = new Date(weekStart);
+	let monthLoop: number | null = null;
+
+	while (currentDate <= lastValidDate) {
+		const date = new Date(currentDate);
+		if (date.getMonth() !== monthLoop) {
+			monthLoop = date.getMonth();
+			months.push({
+				name: date.toLocaleString('sv-SE', { month: 'short' }),
+				index: Math.floor(days.length / 7) + 1
+			});
 		}
+		const isBlank = date < firstValidDate;
+		const key = formatLocalDate(date);
+		days.push({ date, key, count: isBlank ? null : 0 });
+		currentDate.setDate(currentDate.getDate() + 1);
+	}
+}
 
-		const from = formatLocalDate(firstValidDate);
-		const to = formatLocalDate(lastValidDate);
-		const params = new URLSearchParams({ from, to });
+function buildFetchKey(from: string, to: string) {
+	return `${from}|${to}|${trainerId ?? ''}|${clientId ?? ''}`;
+}
 
-		if (trainerId) params.append('trainerId', trainerId.toString());
-		if (clientId) params.append('clientId', clientId.toString());
+async function fetchCountsAndRender(force = false) {
+	if (trainerId && clientId) {
+		console.warn('Pass only trainerId OR clientId, not both.');
+		return;
+	}
 
-		const res = await fetch(`/api/bookings/counts-per-day?${params}`);
+	const from = formatLocalDate(firstValidDate);
+	const to = formatLocalDate(lastValidDate);
+	const cacheKey = buildFetchKey(from, to);
+
+	if (!force && fetchCache.has(cacheKey)) {
+		countsPerDay = fetchCache.get(cacheKey)!;
+		updateDays();
+		return;
+	}
+
+	currentFetchController?.abort();
+	const controller = new AbortController();
+	currentFetchController = controller;
+
+	const params = new URLSearchParams({ from, to });
+	if (trainerId) params.append('trainerId', trainerId.toString());
+	if (clientId) params.append('clientId', clientId.toString());
+
+	try {
+		const res = await fetch(`/api/bookings/counts-per-day?${params}`, {
+			signal: controller.signal
+		});
 		if (!res.ok) {
 			console.error(await res.text());
 			return;
 		}
 
-		countsPerDay = await res.json();
-
+		const data = (await res.json()) as Record<string, number>;
+		fetchCache.set(cacheKey, data);
+		countsPerDay = data;
 		updateDays();
+	} catch (error) {
+		if ((error as DOMException)?.name === 'AbortError') return;
+		console.error('Failed to load counts per day', error);
 	}
+}
 
-	function updateDays() {
-		days = days.map((day) => {
-			if (day.count === null) return day;
-			const key = formatLocalDate(day.date);
-			return { ...day, count: countsPerDay[key] || 0 };
-		});
-	}
-
-	onMount(async () => {
-		await tick(); // Wait for DOM
-		if (gridContainer) {
-			gridWidth = gridContainer.offsetWidth;
-			const visibleBlocks = Math.floor(gridWidth / (SQUARE_SIZE + GAP));
-			squareLimit = visibleBlocks;
-			daysToShow = squareLimit * 7;
-			setupDates();
-			await fetchCountsAndRender();
-		}
+function updateDays() {
+	days = days.map((day) => {
+		if (day.count === null) return day;
+		return { ...day, count: countsPerDay[day.key] ?? 0 };
 	});
+}
+
+function refreshGrid(force = false) {
+	setupDates();
+	void fetchCountsAndRender(force);
+}
+
+function handleResize(width: number) {
+	if (width <= 0) return;
+	const visibleBlocks = Math.max(1, Math.floor(width / (SQUARE_SIZE + GAP)));
+	if (visibleBlocks === squareLimit && days.length) return;
+	squareLimit = visibleBlocks;
+	daysToShow = squareLimit * 7;
+	refreshGrid();
+}
+
+onMount(async () => {
+	await tick();
+	if (!gridContainer) return;
+	gridWidth = gridContainer.offsetWidth;
+	handleResize(gridWidth);
+	resizeObserver = new ResizeObserver((entries) => {
+		const entry = entries[0];
+		if (!entry) return;
+		gridWidth = entry.contentRect.width;
+		handleResize(gridWidth);
+	});
+	resizeObserver.observe(gridContainer);
+	gridReady = true;
+});
+
+onDestroy(() => {
+	resizeObserver?.disconnect();
+	currentFetchController?.abort();
+});
+
+$: if (gridReady) {
+	const filterKey = `${trainerId ?? ''}|${clientId ?? ''}`;
+	if (filterKey !== lastFilterKey) {
+		lastFilterKey = filterKey;
+		fetchCache.clear();
+		refreshGrid(true);
+	}
+}
 </script>
 
 <div
@@ -206,32 +257,40 @@
 						style="grid-column: {Math.floor(i / 7) + 1}; grid-row: {(i % 7) + 1};"
 					></div>
 				{:else if trainerId}
-					<div
-						use:tooltip={{
-							content: `Datum: ${formatLocalDate(day.date)}, Bokningar: ${day.count}`
-						}}
-						class="cell
-
-                        {day.count === 0 ? 'bg-gray-200' : ''}
-                        {day.count === 1 ? 'bg-orange/10' : ''}
-						{day.count === 2 ? 'bg-orange/30' : ''}
-						{day.count === 3 ? 'bg-orange/55' : ''}
-						{day.count === 4 ? 'bg-orange/80' : ''}
-						{day.count >= 5 ? 'bg-orange' : ''}"
-						style="grid-column: {Math.floor(i / 7) + 1}; grid-row: {(i % 7) + 1};"
-					></div>
+				<div
+					use:tooltip={{
+						content: `Datum: ${day.key}, Bokningar: ${day.count}`
+					}}
+					class={`cell ${
+						day.count === 0
+							? 'bg-gray-200'
+							: day.count === 1
+							? 'bg-orange/10'
+							: day.count === 2
+							? 'bg-orange/30'
+							: day.count === 3
+							? 'bg-orange/55'
+							: day.count === 4
+							? 'bg-orange/80'
+							: 'bg-orange'
+						}`}
+					style={`grid-column: ${Math.floor(i / 7) + 1}; grid-row: ${(i % 7) + 1};`}
+				></div>
 				{:else if clientId}
-					<div
-						use:tooltip={{
-							content: `Datum: ${formatLocalDate(day.date)} ${trainerId ? `, Bokningar: ${day.count}` : ''}`
-						}}
-						class="cell
-
-                        {day.count === 0 ? 'bg-gray-200' : ''}
-                     {day.count > 0 && day.date <= today ? 'bg-orange' : ''}
-                     {day.count > 0 && day.date > today ? 'bg-orange/55' : ''}"
-						style="grid-column: {Math.floor(i / 7) + 1}; grid-row: {(i % 7) + 1};"
-					></div>{/if}
+				<div
+					use:tooltip={{
+						content: `Datum: ${day.key}`
+					}}
+					class={`cell ${
+						day.count === 0
+							? 'bg-gray-200'
+							: day.date <= today
+							? 'bg-orange'
+							: 'bg-orange/55'
+						}`}
+					style={`grid-column: ${Math.floor(i / 7) + 1}; grid-row: ${(i % 7) + 1};`}
+				></div>
+				{/if}
 			{/each}
 		</div>
 	</div>
