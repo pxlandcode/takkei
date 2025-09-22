@@ -5,8 +5,6 @@
 
 	import ProfileBookingSlot from '../profileBookingSlot/ProfileBookingSlot.svelte';
 	import OptionButton from '../../bits/optionButton/OptionButton.svelte';
-	import PopupWrapper from '../popupWrapper/PopupWrapper.svelte';
-	import BookingDetailsPopup from '../bookingDetailsPopup/BookingDetailsPopup.svelte';
 	import Button from '../../bits/button/Button.svelte';
 	import { popupStore } from '$lib/stores/popupStore';
 	import { user } from '$lib/stores/userStore';
@@ -23,8 +21,6 @@
 	let hasMore = writable(true);
 	let selectAllChecked = false;
 
-	let selectedBooking = null;
-	let showBookingDetailsPopup = false;
 	let selectedBookings = writable([]);
 
 	let currentUser = get(user);
@@ -245,8 +241,7 @@
 	}
 
 	function handleBookingClick(event) {
-		selectedBooking = event.detail;
-		showBookingDetailsPopup = true;
+		popupStore.set({ type: 'bookingDetails', data: { booking: event.detail } });
 	}
 </script>
 
@@ -355,26 +350,6 @@
 		{/if}
 	</div>
 </div>
-
-{#if showBookingDetailsPopup && selectedBooking}
-	<PopupWrapper
-		header="Bokningsdetaljer"
-		icon="CircleInfo"
-		on:close={() => {
-			showBookingDetailsPopup = false;
-			selectedBooking = null;
-		}}
-	>
-		<BookingDetailsPopup
-			booking={selectedBooking}
-			on:close={() => {
-				showBookingDetailsPopup = false;
-				selectedBooking = null;
-			}}
-		/>
-	</PopupWrapper>
-{/if}
-
 <style>
 	.custom-scrollbar {
 		scrollbar-width: thin;

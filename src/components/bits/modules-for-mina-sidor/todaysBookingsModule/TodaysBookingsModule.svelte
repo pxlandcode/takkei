@@ -5,8 +5,10 @@
 	import Button from '../../button/Button.svelte';
 	import { fetchBookings } from '$lib/services/api/calendarService';
 	import ProfileBookingSlot from '../../../ui/profileBookingSlot/ProfileBookingSlot.svelte';
+	import type { FullBooking } from '$lib/types/calendarTypes';
+	import { popupStore } from '$lib/stores/popupStore';
 
-	let bookings: any[] = [];
+	let bookings: FullBooking[] = [];
 	let isLoading = true;
 	let selectedDate = new Date();
 
@@ -60,7 +62,8 @@
 				from,
 				to,
 				trainerIds: [$user.id],
-				sortAsc: true
+				sortAsc: true,
+				personalBookings: true
 			};
 
 			bookings = await fetchBookings(filters, fetch);
@@ -69,6 +72,10 @@
 		} finally {
 			isLoading = false;
 		}
+	}
+
+	function openBookingDetails(booking: FullBooking) {
+		popupStore.set({ type: 'bookingDetails', data: { booking } });
 	}
 
 	// Navigation
@@ -110,7 +117,11 @@
 	{:else}
 		<div class="max-h-[280px] space-y-2 overflow-y-auto pr-1 custom-scrollbar">
 			{#each bookings as booking}
-				<ProfileBookingSlot {booking} isClient={false} />
+				<ProfileBookingSlot
+					{booking}
+					isClient={false}
+					on:bookingClick={(event) => openBookingDetails(event.detail)}
+				/>
 			{/each}
 		</div>
 	{/if}

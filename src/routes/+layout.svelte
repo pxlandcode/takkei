@@ -18,6 +18,7 @@
 
 	import { popupStore } from '$lib/stores/popupStore';
 	import MailComponent from '../components/ui/mailComponent/MailComponent.svelte';
+	import BookingDetailsPopup from '../components/ui/bookingDetailsPopup/BookingDetailsPopup.svelte';
 	import { loadingStore } from '$lib/stores/loading';
 
 	export let data;
@@ -107,6 +108,19 @@
 		on:close={() => popupStore.set(null)}
 	>
 		<MailComponent {...$popupStore.data} />
+	</PopupWrapper>
+{/if}
+
+{#if $popupStore?.type === 'bookingDetails'}
+	<PopupWrapper
+		header="Bokningsdetaljer"
+		icon="CircleInfo"
+		on:close={() => popupStore.set(null)}
+	>
+		<BookingDetailsPopup
+			booking={$popupStore.data.booking}
+			on:close={() => popupStore.set(null)}
+		/>
 	</PopupWrapper>
 {/if}
 

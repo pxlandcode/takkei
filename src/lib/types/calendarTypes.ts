@@ -82,5 +82,7 @@ export type BookingFilters = {
 	trainerIds?: number[] | null;
 	clientIds?: number[] | null;
 	userIds?: number[] | null;
-	personalBooking?: boolean | null;
+	forwardOnly?: boolean;
+	sortAsc?: boolean;
+	personalBookings?: boolean;
 };
