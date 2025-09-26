@@ -58,6 +58,7 @@
 		currentUser: null,
 		isTrial: false,
 		internalEducation: false,
+		education: false,
 		name: '',
 		text: '',
 		date: startTime
@@ -151,13 +152,17 @@
 			bookingObject.bookingType = { label: 'Privat', value: 'Private' };
 			bookingObject.isTrial = false;
 			bookingObject.internalEducation = false;
+			bookingObject.education = false;
 			bookingObject.user_id = null;
 			bookingObject.clientId = null;
 			bookingObject.internal = false;
+			bookingObject.attendees = [];
+			bookingObject.user_ids = [];
 		} else if (selectedBookingComponent === 'meeting') {
 			bookingObject.bookingType = { label: 'Möte', value: 'Meeting' };
 			bookingObject.isTrial = false;
 			bookingObject.internalEducation = false;
+			bookingObject.education = false;
 			bookingObject.user_id = null;
 			bookingObject.clientId = null;
 			bookingObject.internal = false;
@@ -165,19 +170,29 @@
 			bookingObject.bookingType = null;
 			bookingObject.isTrial = true;
 			bookingObject.internalEducation = false;
+			bookingObject.education = false;
 			bookingObject.user_id = null;
 			bookingObject.internal = false;
+			bookingObject.attendees = [];
+			bookingObject.user_ids = [];
 		} else if (selectedBookingComponent === 'practice') {
 			bookingObject.bookingType = { label: 'Praktiktimme', value: 'Practice' };
 			bookingObject.isTrial = false;
 			bookingObject.internalEducation = true;
+			bookingObject.education = false;
 			bookingObject.clientId = null;
 			bookingObject.internal = false;
+			bookingObject.attendees = [];
+			bookingObject.user_ids = [];
 		} else if (selectedBookingComponent === 'flight') {
 			bookingObject.bookingType = null;
 			bookingObject.isTrial = false;
 			bookingObject.internal = true;
+			bookingObject.internalEducation = false;
+			bookingObject.education = false;
 			bookingObject.repeat = false;
+			bookingObject.attendees = [];
+			bookingObject.user_ids = [];
 		} else if (selectedBookingComponent === 'education') {
 			bookingObject.bookingType = { label: 'Utbildningstimme', value: 'Education' };
 			bookingObject.isTrial = false;
@@ -186,12 +201,17 @@
 			bookingObject.clientId = null;
 			bookingObject.user_id = null;
 			bookingObject.internal = false;
+			bookingObject.attendees = [];
+			bookingObject.user_ids = [];
 		} else {
 			bookingObject.bookingType = null;
 			bookingObject.isTrial = false;
 			bookingObject.internalEducation = false;
+			bookingObject.education = false;
 			bookingObject.user_id = null;
 			bookingObject.internal = false;
+			bookingObject.attendees = [];
+			bookingObject.user_ids = [];
 		}
 	}
 
