@@ -15,7 +15,6 @@
 	$: $user;
 	$: if ($user && selectedDate) loadBookings();
 
-	/* NEW: keep everything in Stockholm and use the "noon" trick */
 	const TZ = 'Europe/Stockholm';
 
 	function ymdStockholm(d: Date): string {
@@ -27,11 +26,10 @@
 		})
 			.formatToParts(d)
 			.reduce((a, p) => ((a[p.type] = p.value), a), {} as Record<string, string>);
-		return `${parts.year}-${parts.month}-${parts.day}`; // YYYY-MM-DD (Stockholm)
+		return `${parts.year}-${parts.month}-${parts.day}`;
 	}
 	function dayParam(d: Date) {
-		// <-- send this to the API
-		return `${ymdStockholm(d)} 12:00:00`; // noon in Stockholm avoids UTC day flip
+		return `${ymdStockholm(d)} 12:00:00`;
 	}
 	function addDays(d: Date, n: number) {
 		const x = new Date(d);
@@ -40,7 +38,6 @@
 	}
 
 	function formatDateLabel(date: Date): string {
-		// CHANGED: make the label explicitly Stockholm
 		return date.toLocaleDateString('sv-SE', {
 			timeZone: TZ,
 			weekday: 'long',

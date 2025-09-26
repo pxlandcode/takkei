@@ -109,7 +109,7 @@ export async function GET({ params }) {
 	const passes_per_payment =
 		installments_count > 0 ? Number(total_sessions) / Number(installments_count) : null;
 
-	const overbooked = used_sessions > article_sessions;
+	const overbooked = used_sessions > total_sessions;
 
 	// Valid to … (old show page used created_at + 1 year)
 	const valid_to = row.created_at
