@@ -30,14 +30,14 @@ export function confirm(node: HTMLElement, params: ConfirmParams) {
 
 		popover = document.createElement('div');
 		popover.className =
-			'confirm-popover absolute z-[2147483647] max-w-xs rounded-md border border-gray-bright bg-white p-4 shadow-xl';
+			'confirm-popover absolute z-2147483647 max-w-xs rounded-md border border-gray-bright bg-white p-4 shadow-xl';
 
 		popover.innerHTML = `
 			<p class="mb-1 font-semibold text-gray">${title}</p>
 			<p class="mb-3 text-sm text-gray">${description}</p>
 			<div class="flex justify-end gap-6">
 				<button data-cancel class="text-base text-error hover:text-error-hover hover:underline">Avbryt</button>
-				<button data-confirm class="rounded bg-success hover:bg-success-hover px-8 py-1 text-base text-white">${actionLabel}</button>
+				<button data-confirm class="rounded-sm bg-success hover:bg-success-hover px-8 py-1 text-base text-white">${actionLabel}</button>
 			</div>
 		`;
 

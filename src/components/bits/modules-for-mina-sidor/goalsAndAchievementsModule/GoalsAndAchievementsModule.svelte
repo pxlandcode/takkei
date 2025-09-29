@@ -136,11 +136,11 @@
 					class="flex flex-col items-center gap-2"
 				>
 					<div
-						class="relative flex h-12 w-12 items-center justify-center rounded-full bg-yellow-400 shadow-sm transition hover:scale-105"
+						class="relative flex h-12 w-12 items-center justify-center rounded-full bg-yellow-400 shadow-xs transition hover:scale-105"
 					>
 						<span class="text-xl">🏆</span>
 						<span
-							class="absolute bottom-[-6px] right-[-6px] rounded-full bg-orange-500 px-1.5 py-0.5 text-[10px] text-white shadow"
+							class="absolute bottom-[-6px] right-[-6px] rounded-full bg-orange-500 px-1.5 py-0.5 text-[10px] text-white shadow-sm"
 						>
 							x{achievement.achieved}
 						</span>

@@ -463,7 +463,7 @@
 					min="2000"
 					max="2100"
 					bind:value={year}
-					class="rounded border p-2"
+					class="rounded-sm border p-2"
 					on:change={() => {
 						if (activeOwnerId) loadAnchors();
 					}}
@@ -473,7 +473,7 @@
 			<div class="flex flex-wrap items-end gap-3">
 				<input
 					type="number"
-					class="rounded border p-2"
+					class="rounded-sm border p-2"
 					bind:value={yearDraft}
 					disabled={!isEditing}
 					min="0"
@@ -542,12 +542,12 @@
 							<div class="mb-1 text-sm font-medium">{w.week_start} – {w.week_end}</div>
 							{#if w.isAnchor}
 								<span
-									class="mb-1 inline-block rounded bg-green-100 px-2 py-0.5 text-xs text-green-700"
+									class="mb-1 inline-block rounded-sm bg-green-100 px-2 py-0.5 text-xs text-green-700"
 									>låst</span
 								>
 							{:else}
 								<span
-									class="mb-1 inline-block rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-600"
+									class="mb-1 inline-block rounded-sm bg-gray-100 px-2 py-0.5 text-xs text-gray-600"
 									>automatisk</span
 								>
 							{/if}

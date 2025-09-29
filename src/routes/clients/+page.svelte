@@ -250,7 +250,7 @@
 				bind:value={searchQuery}
 				on:input={debouncedSearch}
 				placeholder="Sök klient..."
-				class="w-full min-w-60 max-w-md rounded-lg border border-gray-300 p-2 focus:border-blue-500 focus:outline-none"
+				class="w-full min-w-60 max-w-md rounded-lg border border-gray-300 p-2 focus:border-blue-500 focus:outline-hidden"
 			/>
 
 			<div class="min-w-60">

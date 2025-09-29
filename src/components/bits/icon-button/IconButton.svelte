@@ -24,8 +24,8 @@
         ${transparent && type === 'cancel' ? 'hover:text-red-500' : ''}
         h-12 w-12
         ${small ? 'h-8 w-8' : ''}
-        focus:outline-none active:translate-y-1 active:scale-95
-        active:shadow-sm`}
+        focus:outline-hidden active:translate-y-1 active:scale-95
+        active:shadow-xs`}
 >
 	<Icon {icon} {size} />
 </button>

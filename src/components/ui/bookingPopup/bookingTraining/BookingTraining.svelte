@@ -320,7 +320,7 @@
 				/>
 
 				{#if repeatedBookings.length > 0}
-					<div class="flex flex-col gap-2 rounded border border-gray-300 bg-gray-50 p-4">
+					<div class="flex flex-col gap-2 rounded-sm border border-gray-300 bg-gray-50 p-4">
 						{#if repeatedBookings.filter((b) => b.conflict).length > 0}
 							<h3 class="flex items-center justify-between text-lg font-semibold">
 								Konflikter
@@ -333,7 +333,7 @@
 
 						<!-- Show conflicts first -->
 						{#each repeatedBookings.filter((b) => b.conflict) as week}
-							<div class="mb-2 rounded border border-red bg-red/10 p-3">
+							<div class="mb-2 rounded-sm border border-red bg-red/10 p-3">
 								{week.date}, kl {week.selectedTime}
 								<div class="mt-2">
 									<Dropdown
@@ -363,7 +363,7 @@
 
 						<h3 class="text-lg font-semibold">Bokningar klara att bokas:</h3>
 						{#each repeatedBookings.filter((b) => !b.conflict) as week}
-							<div class="mb-1 rounded border border-green bg-green-bright/10 p-2">
+							<div class="mb-1 rounded-sm border border-green bg-green-bright/10 p-2">
 								{week.date}, kl {week.selectedTime}
 							</div>
 						{/each}

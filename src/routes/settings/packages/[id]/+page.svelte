@@ -269,7 +269,7 @@
 				och inga pass kan bokas mot paketet.
 			</p>
 			<label class="mb-2 block text-sm font-medium">Datum</label>
-			<input class="mb-3 w-full rounded border p-2" type="date" bind:value={freezeDate} />
+			<input class="mb-3 w-full rounded-sm border p-2" type="date" bind:value={freezeDate} />
 			{#if freezeErr}<p class="mb-2 text-sm text-red-600">{freezeErr}</p>{/if}
 			<div class="mt-4 flex justify-end gap-2">
 				<Button text="Avbryt" variant="ghost" on:click={() => (showFreeze = false)} />
@@ -294,7 +294,7 @@
 				<h3 class="text-lg font-semibold">Lägg till fakturanummer</h3>
 			</div>
 			<label class="mb-2 block text-sm font-medium">Fakturanummer</label>
-			<input class="mb-3 w-full rounded border p-2" type="number" bind:value={invoiceNo} />
+			<input class="mb-3 w-full rounded-sm border p-2" type="number" bind:value={invoiceNo} />
 			{#if invoiceErr}<p class="mb-2 text-sm text-red-600">{invoiceErr}</p>{/if}
 			<div class="mt-4 flex justify-end gap-2">
 				<Button text="Avbryt" variant="ghost" on:click={() => (showInvoice = false)} />

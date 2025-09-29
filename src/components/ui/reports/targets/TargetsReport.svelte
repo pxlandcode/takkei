@@ -190,7 +190,7 @@
 				min="2000"
 				max="2100"
 				bind:value={selectedYear}
-				class="mt-1 w-full rounded border p-2"
+				class="mt-1 w-full rounded-sm border p-2"
 				on:change={() => {
 					yearsForSummary = [selectedYear - 2, selectedYear - 1, selectedYear].filter(
 						(y) => y > 1999
@@ -204,11 +204,11 @@
 			<label class="text-sm">Visa år (summering)</label>
 			<div class="mt-1 flex flex-wrap items-center gap-2">
 				{#each yearsForSummary as y}
-					<span class="rounded border px-2 py-1 text-sm">{y}</span>
+					<span class="rounded-sm border px-2 py-1 text-sm">{y}</span>
 				{/each}
 				<button
 					type="button"
-					class="rounded border px-2 py-1 text-xs hover:bg-gray-50"
+					class="rounded-sm border px-2 py-1 text-xs hover:bg-gray-50"
 					on:click={() => {
 						const y = selectedYear + 1;
 						if (!yearsForSummary.includes(y)) yearsForSummary = [...yearsForSummary, y];
@@ -217,7 +217,7 @@
 				>
 				<button
 					type="button"
-					class="rounded border px-2 py-1 text-xs hover:bg-gray-50"
+					class="rounded-sm border px-2 py-1 text-xs hover:bg-gray-50"
 					on:click={() => {
 						if (yearsForSummary.length > 1) yearsForSummary = yearsForSummary.slice(0, -1);
 					}}
@@ -347,8 +347,8 @@
 				{/each}
 			</div>
 			<div class="mt-3 text-sm">
-				<span class="inline-block rounded bg-green-500/20 px-2 py-0.5 text-green-700">Utfört</span>
-				<span class="ml-2 inline-block rounded bg-blue-300/30 px-2 py-0.5 text-blue-700">Mål</span>
+				<span class="inline-block rounded-sm bg-green-500/20 px-2 py-0.5 text-green-700">Utfört</span>
+				<span class="ml-2 inline-block rounded-sm bg-blue-300/30 px-2 py-0.5 text-blue-700">Mål</span>
 				<span class="ml-2 text-xs text-gray-500"
 					>(Totalt = union av bokningar, utan dubbelräkning)</span
 				>

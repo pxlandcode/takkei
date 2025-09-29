@@ -67,7 +67,7 @@
 			<tr>
 				{#if !noSelect}
 					<th class="w-12 p-2 py-4 pl-4">
-						<input type="checkbox" class="h-5 w-5 rounded border-gray" />
+						<input type="checkbox" class="h-5 w-5 rounded-sm border-gray" />
 					</th>
 				{/if}
 
@@ -106,7 +106,7 @@
 				<tr class="hover:bg-gray-100">
 					{#if !noSelect}
 						<td class="p-4">
-							<input type="checkbox" class="h-5 w-5 rounded border-gray" />
+							<input type="checkbox" class="h-5 w-5 rounded-sm border-gray" />
 						</td>
 					{/if}
 					{#each headers as header}
@@ -156,7 +156,7 @@
 				<div class="flex items-center justify-between">
 					<h3 class="text-lg font-semibold">{row[headers[0].key]}</h3>
 					{#if !noSelect}
-						<input type="checkbox" class="h-5 w-5 rounded border-gray" />
+						<input type="checkbox" class="h-5 w-5 rounded-sm border-gray" />
 					{/if}
 				</div>
 				{#each headers as header, i}

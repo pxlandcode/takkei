@@ -107,13 +107,13 @@
 </script>
 
 <div class="relative flex w-full flex-col gap-1" use:clickOutside={closeDropdown}>
-	<label for={id} class="mb-2 block text-sm font-medium text-gray">{label}</label>
+	<label for={id} class="text-gray mb-2 block text-sm font-medium">{label}</label>
 
 	<!-- Dropdown button -->
 	<button
 		type="button"
 		{id}
-		class="group flex w-full items-center justify-between rounded border border-gray bg-white px-3 py-2 text-left text-black transition-colors duration-150 hover:bg-gray hover:text-white focus:outline-blue-500"
+		class="group border-gray hover:bg-gray flex w-full cursor-pointer items-center justify-between rounded-sm border bg-white px-3 py-2 text-left text-black transition-colors duration-150 hover:text-white focus:outline-blue-500"
 		on:click={toggleDropdown}
 		aria-haspopup="listbox"
 		aria-expanded={showDropdown}
@@ -149,7 +149,7 @@
 				<li class="p-2">
 					<input
 						type="text"
-						class="w-full rounded-lg border p-2 focus:outline-blue"
+						class="focus:outline-blue w-full rounded-lg border p-2"
 						placeholder="Sök..."
 						bind:value={searchQuery}
 						on:keydown={handleKeydown}
@@ -158,7 +158,7 @@
 			{/if}
 
 			{#each filteredOptions as option, index}
-				<li class="flex cursor-pointer items-center p-2 hover:bg-gray hover:text-white">
+				<li class="hover:bg-gray flex cursor-pointer items-center p-2 hover:text-white">
 					<Checkbox
 						id={option.name + index}
 						name={option.name}

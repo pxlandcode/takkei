@@ -94,7 +94,7 @@
 
 					<div class="flex items-center gap-4">
 						{#if item.start_time && item.end_time}
-							<div class="relative h-4 w-full overflow-hidden rounded bg-error/20">
+							<div class="relative h-4 w-full overflow-hidden rounded-sm bg-error/20">
 								<div
 									class="absolute bottom-0 top-0 bg-green"
 									style="

@@ -27,7 +27,7 @@
 			text-black
 			transition-colors
 			duration-150
-			focus:outline-none
+			focus:outline-hidden
 			{errors[name] ? 'border-red-500' : 'border-gray-300 focus:border-gray-500'}"
 		{placeholder}
 		bind:value

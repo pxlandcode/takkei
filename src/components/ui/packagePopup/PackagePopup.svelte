@@ -152,7 +152,7 @@
 				{errors}
 			/>
 		</div>
-		<div class="mt-[6px] flex-shrink-0 md:mt-0">
+		<div class="mt-[6px] shrink-0 md:mt-0">
 			{#if customerId}
 				{#if customerLocked}
 					<Button icon="Lock" variant="secondary" on:click={() => (customerLocked = false)} />

@@ -75,7 +75,7 @@
 	{/if}
 
 	{#if vacations.length > 0}
-		<ul class="overflow-hidden rounded border border-gray-300">
+		<ul class="overflow-hidden rounded-sm border border-gray-300">
 			{#each vacations as v (v.start_date + v.end_date)}
 				<li class="grid grid-cols-[auto_1fr_auto] items-center gap-4 px-4 py-3 text-sm">
 					<!-- Left: remove + from -->
@@ -96,7 +96,7 @@
 					<!-- Middle: squares -->
 					<div class="flex flex-wrap gap-[2px]" bind:this={squareContainer}>
 						{#each getDaysBetween(v.start_date, v.end_date).slice(0, squareLimit - 1) as d (d.toDateString())}
-							<div class="h-[12px] w-[12px] rounded-sm bg-orange"></div>
+							<div class="h-[12px] w-[12px] rounded-xs bg-orange"></div>
 						{/each}
 
 						{#if getDaysBetween(v.start_date, v.end_date).length > squareLimit}
@@ -107,7 +107,7 @@
 							</div>
 						{:else}
 							{#each Array(squareLimit - getDaysBetween(v.start_date, v.end_date).length).fill(0) as _}
-								<div class="h-[12px] w-[12px] rounded-sm bg-gray-200"></div>
+								<div class="h-[12px] w-[12px] rounded-xs bg-gray-200"></div>
 							{/each}
 						{/if}
 					</div>

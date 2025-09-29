@@ -123,7 +123,7 @@
 			{/if}
 
 			<div class="hidden h-full items-center lg:flex">
-				<div class="relative h-4 w-full overflow-hidden rounded bg-error/20">
+				<div class="relative h-4 w-full overflow-hidden rounded-sm bg-error/20">
 					{#if day.start_time && day.end_time}
 						<div
 							class="absolute bottom-0 top-0 bg-green"

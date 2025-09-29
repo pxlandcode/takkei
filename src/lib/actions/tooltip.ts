@@ -74,7 +74,7 @@ export function tooltip(node: HTMLElement, params: TooltipParams) {
 		tooltipEl.className =
 			'fixed z-50 transition-opacity duration-100 opacity-0 pointer-events-auto';
 		tooltipEl.innerHTML = `
-      <div class="relative bg-white text-black px-2 py-1 rounded shadow-lg border border-black max-w-sm z-20">
+      <div class="relative bg-white text-black px-2 py-1 rounded-sm shadow-lg border border-black max-w-sm z-20">
         <div id="tooltip-arrow" class="absolute w-0 h-0"></div>
         <div>${content}</div>
       </div>

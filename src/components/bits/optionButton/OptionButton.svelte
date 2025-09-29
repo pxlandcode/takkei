@@ -29,7 +29,7 @@
 	}
 
 	$: buttonClasses = `
-		flex-1 flex flex-row gap-1 text-center font-semibold transition-all duration-200 active:scale-90  hover:text-white items-center justify-center 
+		flex-1 flex flex-row gap-1 text-center font-semibold transition-all duration-200 active:scale-90  hover:text-white items-center justify-center cursor-pointer 
 		${size === 'small' ? 'h-8 text-xs' : 'h-[46px] text-sm'} 
 		${variant === 'black' ? 'text-black hover:bg-black ' : '  '}
          ${variant === 'gray' ? 'text-gray hover:bg-gray' : ''}
@@ -56,11 +56,11 @@
 				<Icon icon={labelIcon} size={labelIconSize} color="gray" />
 			{/if}
 
-			<label for={id} class="mb-1 block text-sm font-medium text-gray">{label}</label>
+			<label for={id} class="text-gray mb-1 block text-sm font-medium">{label}</label>
 		</div>
 	{/if}
 	<div class={wrapperClasses}>
-		<div {id} class="flex gap-[2px] rounded">
+		<div {id} class="flex gap-[2px] rounded-sm">
 			{#each options as option, index}
 				<button
 					type="button"

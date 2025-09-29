@@ -45,7 +45,7 @@
 				id="email"
 				type="email"
 				bind:value={email}
-				class="w-full rounded-md border border-gray-medium bg-transparent px-4 py-2 text-white placeholder-gray-bright focus:outline-none focus:ring-2 focus:ring-primary"
+				class="w-full rounded-md border border-gray-medium bg-transparent px-4 py-2 text-white placeholder-gray-bright focus:outline-hidden focus:ring-2 focus:ring-primary"
 				placeholder="email@takkei.se"
 				required
 			/>
@@ -56,7 +56,7 @@
 				id="password"
 				type="password"
 				bind:value={password}
-				class="w-full rounded-md border border-gray-medium bg-transparent px-4 py-2 text-white placeholder-gray-bright focus:outline-none focus:ring-2 focus:ring-primary"
+				class="w-full rounded-md border border-gray-medium bg-transparent px-4 py-2 text-white placeholder-gray-bright focus:outline-hidden focus:ring-2 focus:ring-primary"
 				placeholder="Lösenord"
 				required
 			/>

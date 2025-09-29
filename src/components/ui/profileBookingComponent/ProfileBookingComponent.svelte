@@ -276,7 +276,7 @@
 
 	{#if clientId}
 		<div
-			class="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg bg-orange/10 px-4 py-3 shadow-sm"
+			class="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg bg-orange/10 px-4 py-3 shadow-xs"
 		>
 			<div class="flex items-center gap-3">
 				<!-- ✅ Select-all (loaded) using your Checkbox component -->
@@ -310,7 +310,7 @@
 					iconLeft="Mail"
 					variant="primary"
 					small
-					class="!bg-orange text-white disabled:cursor-not-allowed disabled:opacity-50"
+					class="bg-orange! text-white disabled:cursor-not-allowed disabled:opacity-50"
 					on:click={sendBookingConfirmations}
 				/>
 			</div>

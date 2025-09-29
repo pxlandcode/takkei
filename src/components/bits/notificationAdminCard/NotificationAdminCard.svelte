@@ -82,13 +82,13 @@
 </script>
 
 <div
-	class="rounded border border-l-0 shadow-sm"
+	class="rounded-sm border border-l-0 shadow-xs"
 	class:border-orange={eventType === 'client'}
 	class:border-error={eventType === 'alert'}
 	class:border-success={eventType === 'info'}
 >
 	<div
-		class="rounded border-l-4 bg-white p-4"
+		class="rounded-sm border-l-4 bg-white p-4"
 		class:border-orange={eventType === 'client'}
 		class:border-error={eventType === 'alert'}
 		class:border-success={eventType === 'info'}

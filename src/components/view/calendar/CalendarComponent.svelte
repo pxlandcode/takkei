@@ -371,7 +371,7 @@
 		</div>
 		{#if calendarIsLoading}
 			<div
-				class="pointer-events-none absolute right-4 top-3 z-10 flex items-center gap-2 rounded-full bg-white/80 px-3 py-1 text-xs font-medium text-gray-dark shadow-sm"
+				class="pointer-events-none absolute right-4 top-3 z-10 flex items-center gap-2 rounded-full bg-white/80 px-3 py-1 text-xs font-medium text-gray-dark shadow-xs"
 				aria-live="polite"
 			>
 				<svg class="h-4 w-4 animate-spin text-orange" viewBox="0 0 24 24" fill="none" aria-hidden="true">

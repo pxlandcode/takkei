@@ -57,7 +57,7 @@
 			: Math.max(MIN_VISIBLE_PCT, Math.min(MAX_BAR_PCT, rawPct * (MAX_BAR_PCT / 100)));
 </script>
 
-<div class="grid grid-cols-[140px,1fr,120px,78px] items-center gap-3">
+<div class="grid grid-cols-[140px_1fr_120px_78px] items-center gap-3">
 	<!-- Label -->
 	<div class="text-sm font-medium capitalize">{name}</div>
 
@@ -74,7 +74,7 @@
 		<input
 			type="number"
 			inputmode="numeric"
-			class="w-full rounded border px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-orange disabled:opacity-60"
+			class="w-full rounded-sm border px-2 py-1 text-sm focus:outline-hidden focus:ring-2 focus:ring-orange disabled:opacity-60"
 			bind:value={draft}
 			{disabled}
 			min="0"
@@ -86,7 +86,7 @@
 		/>
 		<button
 			type="button"
-			class="rounded border px-2 py-1 text-xs hover:bg-gray-50 disabled:opacity-40"
+			class="rounded-sm border px-2 py-1 text-xs hover:bg-gray-50 disabled:opacity-40"
 			disabled={disabled || value <= 0}
 			on:click={() => {
 				const v = Math.max(0, value - 1);
@@ -97,7 +97,7 @@
 		>
 		<button
 			type="button"
-			class="rounded border px-2 py-1 text-xs hover:bg-gray-50 disabled:opacity-40"
+			class="rounded-sm border px-2 py-1 text-xs hover:bg-gray-50 disabled:opacity-40"
 			disabled={disabled || value >= cap}
 			on:click={() => {
 				const v = Math.min(cap, value + 1);
@@ -111,17 +111,17 @@
 	<!-- Status + lock toggle -->
 	<div class="flex items-center justify-end gap-2">
 		{#if locked}
-			<span class="xt-green-700 text-x rounded px-2 py-1"
+			<span class="xt-green-700 text-x rounded-sm px-2 py-1"
 				><Icon icon="Lock" size="14" color="error" /></span
 			>
 		{:else}
-			<span class="rounded px-2 py-1 text-xs"
+			<span class="rounded-sm px-2 py-1 text-xs"
 				><Icon icon="Unlocked" size="14" color="success" /></span
 			>
 		{/if}
 		<button
 			type="button"
-			class="rounded border px-2 py-1 text-xs hover:bg-gray-50 disabled:opacity-60"
+			class="rounded-sm border px-2 py-1 text-xs hover:bg-gray-50 disabled:opacity-60"
 			on:click={handleRefreshClick}
 			{disabled}
 			title={locked ? 'Lås upp' : 'Lås'}
