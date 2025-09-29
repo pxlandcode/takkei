@@ -1,5 +1,4 @@
-import type { FullBooking } from '$lib/types/calendarTypes';
-import type { BookingFilters } from './types';
+import type { FullBooking, BookingFilters } from '$lib/types/calendarTypes';
 
 export async function fetchBookings(
 	filters: BookingFilters,
@@ -84,8 +83,18 @@ export async function fetchBookings(
 
 		// 📌 Transform and combine both types of bookings
 		const transformedStandardBookings = standardBookings.map(transformBooking);
+		const combinedBookings = [...transformedStandardBookings, ...transformedPersonalBookings];
+		const sortAscending = filters.sortAsc === true;
+		combinedBookings.sort((a, b) => {
+			const aTime = new Date(a.booking.startTime).getTime();
+			const bTime = new Date(b.booking.startTime).getTime();
+			if (Number.isNaN(aTime) || Number.isNaN(bTime)) {
+				return 0;
+			}
+			return sortAscending ? aTime - bTime : bTime - aTime;
+		});
 
-		return [...transformedStandardBookings, ...transformedPersonalBookings];
+		return combinedBookings;
 	} catch (error) {
 		console.error('Error in fetchBookings:', error);
 		return [];

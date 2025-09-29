@@ -28,7 +28,7 @@ export async function fetchUser(
 			from: fromDate,
 			to: toDate,
 			trainerIds: [trainerId],
-			personalBooking: false
+			personalBookings: false
 		};
 
 		const bookingsData: FullBooking[] = await fetchBookings(bookingFilters, fetchFn);

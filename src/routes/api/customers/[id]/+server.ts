@@ -41,23 +41,39 @@ export async function GET({ params }) {
 
 	// chargeable bookings used up to now per package
 	const ids = rawPackages.map((p: any) => p.id);
-	let bookingCounts: Record<number, number> = {};
+	let bookingCounts: Record<number, { total: number; usedUntilNow: number }> = {};
 	if (ids.length) {
 		const rows = await query(
-			`SELECT package_id, COUNT(*)::int AS cnt
-   FROM bookings
-   WHERE package_id = ANY($1::int[])
-     AND (status IS NULL OR status NOT IN ('Cancelled','Canceled'))
-   GROUP BY package_id`,
+			`SELECT
+			    package_id,
+			    COUNT(*)::int AS total_cnt,
+			    SUM(CASE WHEN start_time < NOW() THEN 1 ELSE 0 END)::int AS used_until_now
+			  FROM bookings
+			  WHERE package_id = ANY($1::int[])
+			    AND (status IS NULL OR status NOT IN ('Cancelled','Late_cancelled','Canceled'))
+			  GROUP BY package_id`,
 			[ids]
 		);
-		bookingCounts = rows.reduce((acc: any, r: any) => ((acc[r.package_id] = r.cnt), acc), {});
+		bookingCounts = rows.reduce(
+			(acc: Record<number, { total: number; usedUntilNow: number }>, row: any) => {
+				acc[row.package_id] = {
+					total: row.total_cnt ?? 0,
+					usedUntilNow: row.used_until_now ?? 0
+				};
+				return acc;
+			},
+			{}
+		);
 	}
 
 	const packages = rawPackages.map((p: any) => {
-		const sessions = Number(p.article_sessions) || 0;
-		const used = bookingCounts[p.id] ?? 0;
-		const remaining = Math.max(0, sessions - used);
+		const hasSessions = p.article_sessions !== null && p.article_sessions !== undefined;
+		const sessions = hasSessions ? Number(p.article_sessions) : null;
+		const counts = bookingCounts[p.id] ?? { total: 0, usedUntilNow: 0 };
+		const usedTotal = counts.total ?? 0;
+		const usedUntilNow = counts.usedUntilNow ?? 0;
+		const remaining = sessions != null ? Math.max(0, sessions - usedTotal) : null;
+		const remainingToday = sessions != null ? Math.max(0, sessions - usedUntilNow) : null;
 
 		return {
 			id: p.id,
@@ -72,7 +88,11 @@ export async function GET({ params }) {
 			autogiro: !!p.autogiro,
 			frozen_from_date: p.frozen_from_date,
 			invoice_numbers: p.invoice_numbers || [],
-			remaining_sessions: remaining // <-- Saldo in the old UI
+			remaining_sessions: remaining, // <-- Saldo in the old UI
+			remaining_sessions_today: remainingToday,
+			used_sessions_total: usedTotal,
+			used_sessions_until_now: usedUntilNow,
+			total_sessions: sessions
 		};
 	});
 

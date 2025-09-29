@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { tooltip } from '$lib/actions/tooltip';
 	import { formatTime } from '$lib/helpers/calendarHelpers/calendar-utils';
 
 	import { IconCancel, IconClock, IconDumbbell, IconGymnastics } from '$lib/icons';
@@ -21,6 +20,7 @@
 	const dispatch = createEventDispatcher();
 
 	$: bookingColor = booking.location?.color ? booking.location.color : '#4B5563';
+	$: isPersonalBooking = booking.isPersonalBooking;
 
 	// ✅ Compute end time
 	$: endTime =
@@ -29,7 +29,10 @@
 
 	// ✅ Assign booking icon dynamically
 	$: bookingIcon = (() => {
-		if (booking.booking.status === 'Cancelled' || booking.booking.status === 'Late_cancelled') {
+		if (
+			!isPersonalBooking &&
+			(booking.booking.status === 'Cancelled' || booking.booking.status === 'Late_cancelled')
+		) {
 			return IconCancel;
 		}
 		const kind = booking.additionalInfo?.bookingContent?.kind?.toLowerCase() ?? '';
@@ -43,6 +46,21 @@
 			default:
 				return IconClock;
 		}
+	})();
+
+	$: bookingHeadline = (() => {
+		if (isPersonalBooking) {
+			const name = booking.personalBooking?.name?.trim();
+			if (name) return name;
+			return 'Personlig bokning';
+		}
+		if (booking.booking.status === 'Cancelled') {
+			return 'Avbokad';
+		}
+		if (booking.booking.status === 'Late_cancelled') {
+			return 'Sen avbokning';
+		}
+		return booking.additionalInfo?.bookingContent?.kind ?? 'Bokning';
 	})();
 
 	// ✅ Format date for display
@@ -93,13 +111,7 @@
 		<div class="flex flex-col">
 			<div class="flex flex-row">
 				<p class="font-base">
-					<strong>
-						{booking.booking.status === 'Cancelled'
-							? 'Avbokad'
-							: booking.booking.status === 'Late_cancelled'
-								? 'Sen avbokning'
-								: booking.additionalInfo.bookingContent.kind}
-					</strong>
+					<strong>{bookingHeadline}</strong>
 				</p>
 			</div>
 			<p>
@@ -114,20 +126,30 @@
 
 	<!-- ✅ Trainer Info -->
 	<div class="flex items-center text-sm">
-		{#if isClient}
-			<a
-				href="javascript:void(0);"
-				on:click|stopPropagation={() => goto(`/users/${booking.trainer?.id}`)}
-				class="font-medium text-orange hover:underline"
-				>{`${booking.trainer?.firstname} ${booking.trainer?.lastname}`}</a
-			>
+		{#if isPersonalBooking}
+			<span class="font-medium text-gray-700">Visa detaljer</span>
+		{:else if isClient}
+			{#if booking.trainer?.id}
+				<a
+					href="javascript:void(0);"
+					on:click|stopPropagation={() => goto(`/users/${booking.trainer?.id}`)}
+					class="font-medium text-orange hover:underline"
+					>{`${booking.trainer?.firstname ?? ''} ${booking.trainer?.lastname ?? ''}`.trim() || 'Okänd tränare'}</a
+				>
+			{:else}
+				<span class="font-medium text-gray-600">Okänd tränare</span>
+			{/if}
 		{:else}
-			<a
-				href="javascript:void(0);"
-				on:click|stopPropagation={() => goto(`/clients/${booking.client?.id}`)}
-				class="font-medium text-orange hover:underline"
-				>{`${booking.client?.firstname} ${booking.client?.lastname}`}</a
-			>
+			{#if booking.client?.id}
+				<a
+					href="javascript:void(0);"
+					on:click|stopPropagation={() => goto(`/clients/${booking.client?.id}`)}
+					class="font-medium text-orange hover:underline"
+					>{`${booking.client?.firstname ?? ''} ${booking.client?.lastname ?? ''}`.trim() || 'Okänd klient'}</a
+				>
+			{:else}
+				<span class="font-medium text-gray-600">Okänd klient</span>
+			{/if}
 		{/if}
 	</div>
 </button>

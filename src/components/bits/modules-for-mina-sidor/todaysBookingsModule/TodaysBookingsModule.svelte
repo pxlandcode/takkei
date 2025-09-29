@@ -5,15 +5,16 @@
 	import Button from '../../button/Button.svelte';
 	import { fetchBookings } from '$lib/services/api/calendarService';
 	import ProfileBookingSlot from '../../../ui/profileBookingSlot/ProfileBookingSlot.svelte';
+	import type { FullBooking } from '$lib/types/calendarTypes';
+	import { popupStore } from '$lib/stores/popupStore';
 
-	let bookings: any[] = [];
+	let bookings: FullBooking[] = [];
 	let isLoading = true;
 	let selectedDate = new Date();
 
 	$: $user;
 	$: if ($user && selectedDate) loadBookings();
 
-	/* NEW: keep everything in Stockholm and use the "noon" trick */
 	const TZ = 'Europe/Stockholm';
 
 	function ymdStockholm(d: Date): string {
@@ -25,11 +26,10 @@
 		})
 			.formatToParts(d)
 			.reduce((a, p) => ((a[p.type] = p.value), a), {} as Record<string, string>);
-		return `${parts.year}-${parts.month}-${parts.day}`; // YYYY-MM-DD (Stockholm)
+		return `${parts.year}-${parts.month}-${parts.day}`;
 	}
 	function dayParam(d: Date) {
-		// <-- send this to the API
-		return `${ymdStockholm(d)} 12:00:00`; // noon in Stockholm avoids UTC day flip
+		return `${ymdStockholm(d)} 12:00:00`;
 	}
 	function addDays(d: Date, n: number) {
 		const x = new Date(d);
@@ -38,7 +38,6 @@
 	}
 
 	function formatDateLabel(date: Date): string {
-		// CHANGED: make the label explicitly Stockholm
 		return date.toLocaleDateString('sv-SE', {
 			timeZone: TZ,
 			weekday: 'long',
@@ -60,7 +59,8 @@
 				from,
 				to,
 				trainerIds: [$user.id],
-				sortAsc: true
+				sortAsc: true,
+				personalBookings: true
 			};
 
 			bookings = await fetchBookings(filters, fetch);
@@ -69,6 +69,10 @@
 		} finally {
 			isLoading = false;
 		}
+	}
+
+	function openBookingDetails(booking: FullBooking) {
+		popupStore.set({ type: 'bookingDetails', data: { booking } });
 	}
 
 	// Navigation
@@ -110,7 +114,11 @@
 	{:else}
 		<div class="max-h-[280px] space-y-2 overflow-y-auto pr-1 custom-scrollbar">
 			{#each bookings as booking}
-				<ProfileBookingSlot {booking} isClient={false} />
+				<ProfileBookingSlot
+					{booking}
+					isClient={false}
+					on:bookingClick={(event) => openBookingDetails(event.detail)}
+				/>
 			{/each}
 		</div>
 	{/if}

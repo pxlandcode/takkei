@@ -40,6 +40,7 @@ export async function createBooking(
 
 			requestData = {
 				client_id: bookingObject.clientId ?? null,
+				package_id: bookingObject.packageId ?? null,
 				trainer_id: bookingObject.trainerId ?? null,
 				user_id: userIdForTraining,
 				start_time: `${bookingObject.date}T${bookingObject.time}:00`,

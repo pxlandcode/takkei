@@ -30,7 +30,7 @@ export async function fetchClient(
 			from: fromDate,
 			to: toDate,
 			clientIds: [clientId],
-			personalBooking: false
+			personalBookings: false
 		};
 
 		const bookingsData: FullBooking[] = await fetchBookings(bookingFilters, fetchFn);
