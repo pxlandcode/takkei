@@ -2,7 +2,7 @@
 	import Button from '../../bits/button/Button.svelte';
 	import BookingGrid from '../bookingGrid/BookingGrid.svelte';
 	import ProfileClientEdit from '../ProfileClientEdit/ProfileClientEdit.svelte';
-	import ProfileEdit from '../ProfileEdit/ProfileEdit.svelte';
+	import ProfileClientPackages from '../ProfileClientPackages/ProfileClientPackages.svelte';
 
 	export let client;
 
@@ -44,7 +44,8 @@
 		{/if}
 	</div>
 
-	<!-- Booking Heatmap -->
+	<ProfileClientPackages clientId={client.id} />
+
 	<div class="pb-8">
 		<BookingGrid clientId={client.id} />
 	</div>
