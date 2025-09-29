@@ -16,38 +16,49 @@
 		{ label: 'Fryst', key: 'frozen' },
 		{ label: 'Autogiro', key: 'autogiro' },
 		{ label: 'Fakturanummer', key: 'invoice_no' },
-		{ label: 'Saldo', key: 'saldo' } // remaining sessions
+		{ label: 'Saldo', key: 'saldo' },
+		{ label: 'Bokningar', key: 'bookings' }
 	];
 
-	const packageTable = customer.packages?.map((pkg) => ({
-		id: pkg.id,
-		type: [
-			{
-				type: 'link',
-				label: pkg.article?.name || 'Okänd typ',
-				// preloads detail on hover for snappy UX:
-				attrs: { 'data-sveltekit-preload-data': 'hover' },
-				action: () => goto(`/settings/packages/${pkg.id}`)
-			}
-		],
-		client: [
-			pkg.client
-				? {
-						type: 'link',
-						label: `${pkg.client.firstname} ${pkg.client.lastname}`,
-						attrs: { 'data-sveltekit-preload-data': 'hover' },
-						action: () => goto(`/clients/${pkg.client.id}`)
+	const packageTable = customer.packages?.map((pkg) => {
+		const totalSessions = pkg.total_sessions ?? null;
+		const usedSessions = pkg.used_sessions_total ?? 0;
+		const saldoValue =
+			pkg.remaining_sessions_today != null ? String(pkg.remaining_sessions_today) : '—';
+		const bookingsValue =
+			totalSessions != null ? `${usedSessions}/${totalSessions}` : String(usedSessions);
+
+		return {
+			id: pkg.id,
+			type: [
+				{
+					type: 'link',
+					label: pkg.article?.name || 'Okänd typ',
+					// preloads package detail on hover for snappier navigation
+					attrs: { 'data-sveltekit-preload-data': 'hover' },
+					action: () => goto(`/settings/packages/${pkg.id}`)
+				}
+			],
+			client: [
+				pkg.client
+					? {
+							type: 'link',
+							label: `${pkg.client.firstname} ${pkg.client.lastname}`,
+							attrs: { 'data-sveltekit-preload-data': 'hover' },
+							action: () => goto(`/clients/${pkg.client.id}`)
 					}
-				: { type: 'text', label: '—' }
-		],
-		frozen: pkg.frozen_from_date ? 'Ja' : 'Nej',
-		autogiro: pkg.autogiro ? 'Ja' : 'Nej',
-		invoice_no:
-			Array.isArray(pkg.invoice_numbers) && pkg.invoice_numbers.length
-				? String(pkg.invoice_numbers[0])
-				: '—',
-		saldo: String(pkg.remaining_sessions ?? '—')
-	}));
+					: { type: 'text', label: '—' }
+			],
+			frozen: pkg.frozen_from_date ? 'Ja' : 'Nej',
+			autogiro: pkg.autogiro ? 'Ja' : 'Nej',
+			invoice_no:
+				Array.isArray(pkg.invoice_numbers) && pkg.invoice_numbers.length
+					? String(pkg.invoice_numbers[0])
+					: '—',
+			saldo: saldoValue,
+			bookings: bookingsValue
+		};
+	});
 
 	function handleCreatePackage() {
 		showAddPackageModal = false; /* refresh */

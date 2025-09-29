@@ -32,6 +32,17 @@ export const POST: RequestHandler = async ({ request }) => {
 			internal_education = false
 		} = data;
 
+		const isRegularTraining = !try_out && !internal_education && !education && !internal;
+		let resolvedPackageId = package_id;
+		let resolvedAddedToPackageDate = added_to_package_date;
+
+		if (!resolvedPackageId && isRegularTraining && client_id) {
+			resolvedPackageId = await findAvailablePackageForClient(client_id);
+			if (resolvedPackageId && !resolvedAddedToPackageDate) {
+				resolvedAddedToPackageDate = new Date();
+			}
+		}
+
 		if (internal_education) {
 			if (!user_id) {
 				return new Response(JSON.stringify({ error: 'user_id is required for Praktiktimme' }), {
@@ -88,7 +99,7 @@ export const POST: RequestHandler = async ({ request }) => {
 			`,
 			[
 				client_id,
-				package_id,
+				resolvedPackageId,
 				selectedRoomId,
 				trainer_id,
 				status,
@@ -101,7 +112,7 @@ export const POST: RequestHandler = async ({ request }) => {
 				try_out,
 				cancel_reason,
 				cancel_time,
-				added_to_package_date,
+				resolvedAddedToPackageDate,
 				education,
 				internal,
 				user_id,
@@ -111,7 +122,7 @@ export const POST: RequestHandler = async ({ request }) => {
 				actual_cancel_time,
 				internal_education
 			]
-		);
+			);
 
 		const bookingId = result[0].id;
 
@@ -125,3 +136,105 @@ export const POST: RequestHandler = async ({ request }) => {
 		});
 	}
 };
+
+async function findAvailablePackageForClient(clientId: number): Promise<number | null> {
+	const directPackages = await query(
+		`
+			SELECT
+				p.id,
+				p.frozen_from_date,
+				a.sessions,
+				(
+					SELECT COUNT(*)::int
+					FROM bookings b
+					WHERE b.package_id = p.id
+						AND (b.status IS NULL OR b.status NOT IN ('Cancelled','Canceled','Late_cancelled'))
+				) AS used_sessions
+			FROM packages p
+			LEFT JOIN articles a ON a.id = p.article_id
+			WHERE p.client_id = $1
+			ORDER BY p.id ASC
+		`,
+		[clientId]
+	);
+
+	const directMatch = pickPackageWithCapacity(directPackages);
+	if (directMatch) return directMatch;
+
+	const customerRows = await query(
+		`
+			SELECT customer_id
+			FROM client_customer_relationships
+			WHERE client_id = $1
+				AND active = TRUE
+		`,
+		[clientId]
+	);
+
+	const uniqueCustomerIds = Array.from(
+		new Set(
+			customerRows
+				.map((row: any) => row.customer_id)
+				.filter((id: number | null) => typeof id === 'number')
+		)
+	);
+
+	if (!uniqueCustomerIds.length) return null;
+
+	const sharedPackages = await query(
+		`
+			SELECT
+				p.id,
+				p.frozen_from_date,
+				a.sessions,
+				(
+					SELECT COUNT(*)::int
+					FROM bookings b
+					WHERE b.package_id = p.id
+						AND (b.status IS NULL OR b.status NOT IN ('Cancelled','Canceled','Late_cancelled'))
+				) AS used_sessions
+			FROM packages p
+			LEFT JOIN articles a ON a.id = p.article_id
+			WHERE p.client_id IS NULL
+				AND p.customer_id = ANY($1::int[])
+			ORDER BY p.id ASC
+		`,
+		[uniqueCustomerIds]
+	);
+
+	return pickPackageWithCapacity(sharedPackages);
+}
+
+function pickPackageWithCapacity(rows: any[]): number | null {
+	if (!Array.isArray(rows) || rows.length === 0) return null;
+	const now = new Date();
+
+	for (const row of rows) {
+		const freezeDate = row.frozen_from_date ? new Date(row.frozen_from_date) : null;
+		if (freezeDate && !Number.isNaN(freezeDate.getTime()) && freezeDate <= now) {
+			continue;
+		}
+
+		const totalSessions =
+			row.sessions === null || row.sessions === undefined ? null : Number(row.sessions);
+		const usedSessions = Number(row.used_sessions ?? 0);
+
+		if (Number.isNaN(usedSessions)) {
+			continue;
+		}
+
+		if (totalSessions === null) {
+			return row.id;
+		}
+
+		if (Number.isNaN(totalSessions) || totalSessions <= 0) {
+			continue;
+		}
+
+		if (usedSessions < totalSessions) {
+			return row.id;
+		}
+	}
+
+	return null;
+}
