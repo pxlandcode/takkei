@@ -39,6 +39,7 @@
 	},
 	"dependencies": {
 		"@inlang/paraglide-sveltekit": "^0.11.1",
+		"@pixelcode_/blocks": "^1.0.1",
 		"@sendgrid/mail": "^8.1.5",
 		"date-fns": "^4.1.0",
 		"dotenv": "^16.4.7",

@@ -7,6 +7,7 @@
 	import Button from '../../../bits/button/Button.svelte';
 	import OptionButton from '../../../bits/optionButton/OptionButton.svelte';
 	import Icon from '../../../bits/icon-component/Icon.svelte';
+	import { Datepicker } from '@pixelcode_/blocks/components';
 
 	// ----- Filters -----
 	function firstOfMonth(d = new Date()) {
@@ -22,6 +23,25 @@
 	let startMonth = toMonthStr(firstOfMonth()); // t.ex. "2025-08"
 	let endDate = toDateStr(new Date()); // t.ex. "2025-08-11"
 	let includeZeroBalances = { value: 'no', label: 'Dölj nollsaldo' };
+
+	type DatepickerOptions = {
+		view?: 'days' | 'months' | 'years';
+		minView?: 'days' | 'months' | 'years';
+		dateFormat?: string;
+		maxDate?: Date | string | number;
+	};
+
+	const monthPickerOptions: DatepickerOptions = {
+		view: 'months',
+		minView: 'months',
+		dateFormat: 'yyyy-MM',
+		maxDate: new Date()
+	};
+
+	const datePickerOptions: DatepickerOptions = {
+		dateFormat: 'yyyy-MM-dd',
+		maxDate: new Date()
+	};
 
 	$: headers = [
 		{ label: 'Klient', key: 'client', sort: true, isSearchable: true },
@@ -250,13 +270,13 @@
 	}
 </script>
 
-<div class="m-4 h-full overflow-x-auto custom-scrollbar">
+<div class="custom-scrollbar m-4 h-full overflow-x-auto">
 	<!-- Titel -->
 	<div class="mb-4 flex items-center gap-2">
-		<div class="flex h-7 w-7 items-center justify-center rounded-full bg-text text-white">
+		<div class="bg-text flex h-7 w-7 items-center justify-center rounded-full text-white">
 			<Icon icon="Charts" size="14px" />
 		</div>
-		<h2 class="text-3xl font-semibold text-text">Kunders tillgodohavande</h2>
+		<h2 class="text-text text-3xl font-semibold">Kunders tillgodohavande</h2>
 	</div>
 
 	<!-- Filter -->
@@ -264,21 +284,21 @@
 		<div class="flex flex-col gap-3">
 			<div class="grid gap-3 sm:grid-cols-2">
 				<label class="flex flex-col gap-1">
-					<span class="text-sm text-text/70">Månad</span>
-					<input
-						class="rounded-lg border border-gray-300 p-2"
-						type="month"
+					<span class="text-text/70 text-sm">Månad</span>
+					<Datepicker
 						bind:value={startMonth}
-						max={toMonthStr(new Date())}
+						options={monthPickerOptions}
+						placeholder="Välj månad"
+						class="rounded-sm"
 					/>
 				</label>
 				<label class="flex flex-col gap-1">
-					<span class="text-sm text-text/70">Per datum</span>
-					<input
-						class="rounded-lg border border-gray-300 p-2"
-						type="date"
+					<span class="text-text/70 text-sm">Per datum</span>
+					<Datepicker
 						bind:value={endDate}
-						max={toDateStr(new Date())}
+						options={datePickerOptions}
+						placeholder="Välj datum"
+						class="rounded-sm "
 					/>
 				</label>
 			</div>
@@ -315,14 +335,14 @@
 	</div>
 
 	<!-- Summering -->
-	<div class="mb-3 text-sm text-text/80">
+	<div class="text-text/80 mb-3 text-sm">
 		<strong>Totalsumma (saldo):</strong>
 		{totalBalance.toFixed(2)} kr
 	</div>
 
 	<!-- Tabell -->
 	{#if loading}
-		<div class="py-10 text-text/60">Laddar rapport…</div>
+		<div class="text-text/60 py-10">Laddar rapport…</div>
 	{:else}
 		<Table {headers} data={filteredData} noSelect sideScrollable />
 	{/if}
