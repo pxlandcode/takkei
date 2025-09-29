@@ -7,7 +7,6 @@
 	import Button from '../../../bits/button/Button.svelte';
 	import OptionButton from '../../../bits/optionButton/OptionButton.svelte';
 	import Icon from '../../../bits/icon-component/Icon.svelte';
-	import { add } from 'date-fns';
 
 	// ----- Filters -----
 	function firstOfMonth(d = new Date()) {
@@ -24,8 +23,6 @@
 	let endDate = toDateStr(new Date()); // t.ex. "2025-08-11"
 	let includeZeroBalances = { value: 'no', label: 'Dölj nollsaldo' };
 
-	// ----- Table -----
-	// Reaktiva rubriker så de uppdateras när filtren ändras
 	$: headers = [
 		{ label: 'Klient', key: 'client', sort: true, isSearchable: true },
 		{ label: 'PaketId', key: 'packageId', sort: true, isSearchable: true, width: '110px' },
@@ -52,8 +49,14 @@
 	let searchQuery = '';
 	let loading = false;
 	let totalBalance = 0;
+	let filtersReady = false;
 
 	const USE_MOCK = false;
+
+	type ApiResponse = {
+		rows: ApiRow[];
+		totalBalance?: number;
+	};
 
 	type ApiRow = {
 		client: string;
@@ -101,6 +104,10 @@
 			usedSumMonth: r.usedSumMonth,
 			balance: r.balance
 		};
+	}
+
+	function includeZeroParam() {
+		return includeZeroBalances.value === 'yes' ? '1' : '0';
 	}
 
 	async function fetchReport() {
@@ -154,25 +161,22 @@
 						balance: 0
 					}
 				];
+				totalBalance = rows.reduce((acc, r) => acc + (r.balance ?? 0), 0);
 			} else {
 				const params = new URLSearchParams({
 					start_date: `${startMonth}-01`,
-					end_date: endDate
+					end_date: endDate,
+					include_zero: includeZeroParam()
 				});
 				const res = await fetch(`/api/reports/customer-credit-balance?${params.toString()}`);
 				if (!res.ok) throw new Error('Misslyckades att hämta rapport');
-				const json = await res.json();
+				const json: ApiResponse = await res.json();
 				rows = json?.rows ?? [];
-			}
-
-			if (includeZeroBalances.value === 'no') {
-				rows = rows.filter((r) => Math.abs(r.balance) > 0.0001);
+				totalBalance = json?.totalBalance ?? rows.reduce((acc, r) => acc + (r.balance ?? 0), 0);
 			}
 
 			data = rows.map(mapToTableRow);
 			filteredData = [...data];
-
-			totalBalance = rows.reduce((acc, r) => acc + (r.balance ?? 0), 0);
 		} catch (e) {
 			addToast({
 				type: 'error',
@@ -196,22 +200,29 @@
 					headers.some((h) => {
 						if (!h.isSearchable) return false;
 						const v = row[h.key];
-						return typeof v === 'string' && v.toLowerCase().includes(q);
+						if (typeof v === 'string') return v.toLowerCase().includes(q);
+						if (typeof v === 'number') return v.toString().includes(q);
+						return false;
 					})
 				);
 	}
 
-	onMount(fetchReport);
+	onMount(() => {
+		filtersReady = true;
+	});
 
-	function onRefresh() {
+	$: filterSignature = `${startMonth}|${endDate}|${includeZeroBalances.value}`;
+	$: if (filtersReady && filterSignature) {
 		fetchReport();
 	}
 
 	async function exportExcel() {
+		let success = false;
 		try {
 			const params = new URLSearchParams({
 				start_date: `${startMonth}-01`,
-				end_date: endDate
+				end_date: endDate,
+				include_zero: includeZeroParam()
 			});
 			const res = await fetch(`/api/reports/customer-credit-balance/export?${params.toString()}`);
 			if (!res.ok) throw new Error('Kunde inte skapa Excel');
@@ -224,14 +235,17 @@
 			a.click();
 			a.remove();
 			URL.revokeObjectURL(url);
+			success = true;
 		} catch (e) {
 			addToast({ type: 'error', title: 'Export misslyckades', message: (e as Error).message });
 		} finally {
-			addToast({
-				type: 'success',
-				title: 'Export slutförd',
-				message: 'Excel-filen har skapats.'
-			});
+			if (success) {
+				addToast({
+					type: 'success',
+					title: 'Export slutförd',
+					message: 'Excel-filen har skapats.'
+				});
+			}
 		}
 	}
 </script>
@@ -246,52 +260,58 @@
 	</div>
 
 	<!-- Filter -->
-	<div class="mb-4 grid gap-3 md:grid-cols-2 lg:grid-cols-4">
-		<label class="flex flex-col gap-1">
-			<span class="text-sm text-text/70">Månad (för månadsrader)</span>
-			<input
-				class="rounded-lg border border-gray-300 p-2"
-				type="month"
-				bind:value={startMonth}
-				max={toMonthStr(new Date())}
-			/>
-		</label>
-
-		<label class="flex flex-col gap-1">
-			<span class="text-sm text-text/70">Per datum</span>
-			<input
-				class="rounded-lg border border-gray-300 p-2"
-				type="date"
-				bind:value={endDate}
-				max={toDateStr(new Date())}
-			/>
-		</label>
-
-		<div class="min-w-60">
-			<OptionButton
-				options={[
-					{ value: 'no', label: 'Dölj nollsaldo' },
-					{ value: 'yes', label: 'Visa nollsaldo' }
-				]}
-				bind:selectedOption={includeZeroBalances}
-				size="small"
+	<div class="mb-6 grid gap-6 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
+		<div class="flex flex-col gap-3">
+			<div class="grid gap-3 sm:grid-cols-2">
+				<label class="flex flex-col gap-1">
+					<span class="text-sm text-text/70">Månad</span>
+					<input
+						class="rounded-lg border border-gray-300 p-2"
+						type="month"
+						bind:value={startMonth}
+						max={toMonthStr(new Date())}
+					/>
+				</label>
+				<label class="flex flex-col gap-1">
+					<span class="text-sm text-text/70">Per datum</span>
+					<input
+						class="rounded-lg border border-gray-300 p-2"
+						type="date"
+						bind:value={endDate}
+						max={toDateStr(new Date())}
+					/>
+				</label>
+			</div>
+			<div class="min-w-0">
+				<OptionButton
+					options={[
+						{ value: 'no', label: 'Dölj nollsaldo' },
+						{ value: 'yes', label: 'Visa nollsaldo' }
+					]}
+					bind:selectedOption={includeZeroBalances}
+					size="small"
+					full
+				/>
+			</div>
+			<div>
+				<input
+					type="text"
+					bind:value={searchQuery}
+					placeholder="Sök klient, kund, faktura, produkt…"
+					class="w-full rounded-lg border border-gray-300 p-2 focus:border-blue-500 focus:outline-none"
+				/>
+			</div>
+		</div>
+		<div class="flex justify-end">
+			<Button
+				text="Exportera"
+				variant="primary"
+				iconLeft="Download"
+				iconColor="white"
+				iconSize="12px"
+				on:click={exportExcel}
 			/>
 		</div>
-
-		<div class="flex items-end gap-2">
-			<Button variant="secondary" iconSize="16" icon="Refresh" on:click={onRefresh} />
-			<Button text="Exportera" variant="primary" iconLeft="Download" on:click={exportExcel} />
-		</div>
-	</div>
-
-	<!-- Snabbsök -->
-	<div class="mb-3 max-w-md">
-		<input
-			type="text"
-			bind:value={searchQuery}
-			placeholder="Sök klient, kund, faktura, produkt…"
-			class="w-full rounded-lg border border-gray-300 p-2 focus:border-blue-500 focus:outline-none"
-		/>
 	</div>
 
 	<!-- Summering -->

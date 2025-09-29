@@ -89,6 +89,164 @@ export type ReportRow = {
 	balance: number;
 };
 
+export type CustomerCreditReportFilters = {
+	startDate: string;
+	endDate: string;
+	includeZeroBalances?: boolean;
+};
+
+type CustomerCreditReport = {
+	rows: ReportRow[];
+	totalBalance: number;
+	rawRows: ReportRow[];
+};
+
+function roundMoney(value: number, precision = 2) {
+	const factor = 10 ** precision;
+	return Math.round((value + Number.EPSILON) * factor) / factor;
+}
+
+function toIsoDateLike(date: string) {
+	return date?.length === 10 ? date : new Date(date).toISOString().slice(0, 10);
+}
+
+function getHeaders(endDate: string, startDate: string) {
+	const month = startDate.slice(0, 7);
+	return [
+		'Klient',
+		'PaketId',
+		'Fakt.nr',
+		'Kund (kundnr)',
+		'Produkt',
+		'Paketets pris',
+		'Antal pass',
+		'Pris per pass',
+		'Antal fakturor',
+		`Antal fakt. t.o.m. ${endDate}`,
+		'Fakturerade pass',
+		'Fakturerad summa',
+		'Utnyttjade pass',
+		`Utnyttjade pass ${month}`,
+		'Återstående pass',
+		'Utnyttjad summa',
+		`Utnyttjad summa ${month}`,
+		'Skuld/fordran i kronor'
+	];
+}
+
+function removeZeroBalances(rows: ReportRow[]) {
+	return rows.filter((r) => Math.abs(r.balance ?? 0) > 0.0001);
+}
+
+function formatCustomerCell(row: ReportRow) {
+	return row.customerNo ? `${row.customerName} (${row.customerNo})` : row.customerName;
+}
+
+function createSummaryFilename(endDate: string) {
+	const end = new Date(`${endDate}T00:00:00`);
+	const monthFormatter = new Intl.DateTimeFormat('sv-SE', { month: 'short' });
+	const monthStr = monthFormatter.format(end).replace('.', '').toLowerCase();
+	const now = new Date();
+	const nowStamp = `${now.toISOString().slice(0, 10)}_${now
+		.toISOString()
+		.slice(11, 16)
+		.replace(':', '')}`;
+	return `resultat_kunders_tillgodohavande_${monthStr}_${end.getFullYear()}_${nowStamp}.xlsx`;
+}
+
+async function createWorkbook(): Promise<import('exceljs').Workbook> {
+	const mod = await import('exceljs');
+	const ExcelJS = (mod as any)?.Workbook ? mod : (mod as any)?.default;
+	if (!ExcelJS?.Workbook) {
+		throw new Error('ExcelJS module does not expose a Workbook constructor.');
+	}
+	return new ExcelJS.Workbook();
+}
+
+export async function getCustomerCreditReport(
+	filters: CustomerCreditReportFilters
+): Promise<CustomerCreditReport> {
+	const start = toIsoDateLike(filters.startDate);
+	const end = toIsoDateLike(filters.endDate);
+	const includeZeroBalances = filters.includeZeroBalances ?? false;
+
+	const rawRows = await getCustomerCreditRows(start, end);
+	const rows = includeZeroBalances ? rawRows : removeZeroBalances(rawRows);
+	const totalBalance = roundMoney(
+		rows.reduce((acc, row) => acc + (row.balance ?? 0), 0)
+	);
+
+	return { rows, totalBalance, rawRows };
+}
+
+export async function buildCustomerCreditWorkbook(filters: CustomerCreditReportFilters) {
+	const start = toIsoDateLike(filters.startDate);
+	const end = toIsoDateLike(filters.endDate);
+	const includeZeroBalances = filters.includeZeroBalances ?? false;
+
+	const { rawRows } = await getCustomerCreditReport({
+		startDate: start,
+		endDate: end,
+		includeZeroBalances: true
+	});
+	const rows = includeZeroBalances ? rawRows : removeZeroBalances(rawRows);
+	const totalBalance = roundMoney(rows.reduce((acc, r) => acc + (r.balance ?? 0), 0));
+
+	const workbook = await createWorkbook();
+	const worksheet = workbook.addWorksheet('Tillgodohavande');
+
+	const headers = getHeaders(end, start);
+	worksheet.addRow(headers);
+	worksheet.getRow(1).font = { bold: true };
+
+	for (const row of rows) {
+		worksheet.addRow([
+			row.client,
+			row.packageId,
+			row.invoiceNumbers.join(', '),
+			formatCustomerCell(row),
+			row.product,
+			row.packagePrice,
+			row.sessions,
+			row.pricePerSession,
+			row.invoiceCount,
+			row.invoicesUntilEnd,
+			row.paidSessions,
+			row.paidSum,
+			row.usedSessions,
+			row.usedSessionsMonth,
+			row.remainingSessions,
+			row.usedSum,
+			row.usedSumMonth,
+			row.balance
+		]);
+	}
+
+	const moneyFmt = '#,##0.00';
+	const intFmt = '0';
+	const moneyCols = [6, 8, 12, 16, 17, 18];
+	const intCols = [2, 7, 9, 10, 11, 13, 14, 15];
+
+	for (const index of moneyCols) {
+		worksheet.getColumn(index).numFmt = moneyFmt;
+	}
+	for (const index of intCols) {
+		worksheet.getColumn(index).numFmt = intFmt;
+	}
+
+	const totalRow = worksheet.addRow(new Array(headers.length).fill(''));
+	totalRow.getCell(headers.length).value = totalBalance;
+	totalRow.getCell(headers.length).numFmt = moneyFmt;
+	totalRow.font = { bold: true };
+
+	worksheet.views = [{ state: 'frozen', ySplit: 1 }];
+
+	const buffer = (await workbook.xlsx.writeBuffer()) as Uint8Array;
+	const filename = createSummaryFilename(end);
+
+	return { buffer, filename };
+}
+
 export async function getCustomerCreditRows(
 	start_date: string,
 	end_date: string
