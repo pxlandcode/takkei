@@ -21,6 +21,7 @@
 	}
 
 	let startMonth = toMonthStr(firstOfMonth()); // t.ex. "2025-08"
+	let startMonthInput = startMonth;
 	let endDate = toDateStr(new Date()); // t.ex. "2025-08-11"
 	let includeZeroBalances = { value: 'no', label: 'Dölj nollsaldo' };
 
@@ -30,6 +31,10 @@
 		dateFormat?: string;
 		maxDate?: Date | string | number;
 	};
+
+	function normalizeMonth(value: string | undefined | null) {
+		return value ? value.slice(0, 7) : '';
+	}
 
 	const monthPickerOptions: DatepickerOptions = {
 		view: 'months',
@@ -130,6 +135,11 @@
 		return includeZeroBalances.value === 'yes' ? '1' : '0';
 	}
 
+	function startDateParam() {
+		const normalized = startMonth || normalizeMonth(startMonthInput);
+		return normalized ? `${normalized}-01` : `${toMonthStr(firstOfMonth())}-01`;
+	}
+
 	async function fetchReport() {
 		loading = true;
 		totalBalance = 0;
@@ -184,7 +194,7 @@
 				totalBalance = rows.reduce((acc, r) => acc + (r.balance ?? 0), 0);
 			} else {
 				const params = new URLSearchParams({
-					start_date: `${startMonth}-01`,
+					start_date: startDateParam(),
 					end_date: endDate,
 					include_zero: includeZeroParam()
 				});
@@ -231,6 +241,16 @@
 		filtersReady = true;
 	});
 
+	$: {
+		const normalizedStartMonth = normalizeMonth(startMonthInput);
+		if (startMonthInput && startMonthInput !== normalizedStartMonth) {
+			startMonthInput = normalizedStartMonth;
+		}
+		if (startMonth !== normalizedStartMonth) {
+			startMonth = normalizedStartMonth;
+		}
+	}
+
 	$: filterSignature = `${startMonth}|${endDate}|${includeZeroBalances.value}`;
 	$: if (filtersReady && filterSignature) {
 		fetchReport();
@@ -240,7 +260,7 @@
 		let success = false;
 		try {
 			const params = new URLSearchParams({
-				start_date: `${startMonth}-01`,
+				start_date: startDateParam(),
 				end_date: endDate,
 				include_zero: includeZeroParam()
 			});
@@ -286,20 +306,14 @@
 				<label class="flex flex-col gap-1">
 					<span class="text-text/70 text-sm">Månad</span>
 					<Datepicker
-						bind:value={startMonth}
+						bind:value={startMonthInput}
 						options={monthPickerOptions}
 						placeholder="Välj månad"
-						class="rounded-sm"
 					/>
 				</label>
 				<label class="flex flex-col gap-1">
 					<span class="text-text/70 text-sm">Per datum</span>
-					<Datepicker
-						bind:value={endDate}
-						options={datePickerOptions}
-						placeholder="Välj datum"
-						class="rounded-sm "
-					/>
+					<Datepicker bind:value={endDate} options={datePickerOptions} placeholder="Välj datum" />
 				</label>
 			</div>
 			<div class="min-w-0">

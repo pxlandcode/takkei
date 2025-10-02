@@ -70,33 +70,32 @@
 	let weekDays: { dayLabel: string; dateLabel: string; fullDate: Date }[] = [];
 
 	// Compute displayed days dynamically
-	$:
-		{
-			if (singleDayView) {
-				const selected = parseLocalDateStr(filters?.date);
-				weekDays = [
-					{
-						dayLabel: selected.toLocaleDateString('sv-SE', { weekday: 'long' }),
-						dateLabel: selected.getDate().toString(),
-						fullDate: selected
-					}
-				];
-			} else {
-				const startOfWeek = filters?.from
-					? getMondayOfWeek(parseLocalDateStr(filters.from))
-					: getMondayOfWeek(new Date());
+	$: {
+		if (singleDayView) {
+			const selected = parseLocalDateStr(filters?.date);
+			weekDays = [
+				{
+					dayLabel: selected.toLocaleDateString('sv-SE', { weekday: 'long' }),
+					dateLabel: selected.getDate().toString(),
+					fullDate: selected
+				}
+			];
+		} else {
+			const startOfWeek = filters?.from
+				? getMondayOfWeek(parseLocalDateStr(filters.from))
+				: getMondayOfWeek(new Date());
 
-				weekDays = Array.from({ length: 7 }, (_, i) => {
-					const d = new Date(startOfWeek);
-					d.setDate(d.getDate() + i);
-					return {
-						dayLabel: d.toLocaleDateString('sv-SE', { weekday: 'long' }),
-						dateLabel: d.getDate().toString(),
-						fullDate: d
-					};
-				});
-			}
+			weekDays = Array.from({ length: 7 }, (_, i) => {
+				const d = new Date(startOfWeek);
+				d.setDate(d.getDate() + i);
+				return {
+					dayLabel: d.toLocaleDateString('sv-SE', { weekday: 'long' }),
+					dateLabel: d.getDate().toString(),
+					fullDate: d
+				};
+			});
 		}
+	}
 
 	const hourHeight = 50;
 
@@ -302,7 +301,9 @@
 			return blocks;
 		}
 
-		const available = [...dayAvail].sort((a, b) => (a.from < b.from ? -1 : a.from > b.from ? 1 : 0));
+		const available = [...dayAvail].sort((a, b) =>
+			a.from < b.from ? -1 : a.from > b.from ? 1 : 0
+		);
 
 		const dayStartMin = startHour * 60;
 		const dayEndMin = (startHour + totalHours) * 60;
@@ -366,24 +367,42 @@
 		class="relative grid h-16"
 		style="grid-template-columns: minmax(60px, 8%) repeat({weekDays.length}, minmax(100px, 1fr));"
 	>
-		<div class="relative flex h-full flex-col items-center justify-center text-gray">
+		<div class="text-gray relative flex h-full flex-col items-center justify-center">
 			<ClockIcon size="30px" />
 		</div>
 		{#if calendarIsLoading}
 			<div
-				class="pointer-events-none absolute right-4 top-3 z-10 flex items-center gap-2 rounded-full bg-white/80 px-3 py-1 text-xs font-medium text-gray-dark shadow-xs"
+				class="text-gray-dark pointer-events-none absolute top-3 right-4 z-10 flex items-center gap-2 rounded-full bg-white/80 px-3 py-1 text-xs font-medium shadow-xs"
 				aria-live="polite"
 			>
-				<svg class="h-4 w-4 animate-spin text-orange" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-					<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-					<path class="opacity-75" d="M4 12a8 8 0 018-8" stroke="currentColor" stroke-width="4" stroke-linecap="round" />
+				<svg
+					class="text-orange h-4 w-4 animate-spin"
+					viewBox="0 0 24 24"
+					fill="none"
+					aria-hidden="true"
+				>
+					<circle
+						class="opacity-25"
+						cx="12"
+						cy="12"
+						r="10"
+						stroke="currentColor"
+						stroke-width="4"
+					/>
+					<path
+						class="opacity-75"
+						d="M4 12a8 8 0 018-8"
+						stroke="currentColor"
+						stroke-width="4"
+						stroke-linecap="round"
+					/>
 				</svg>
 				<span>Laddar kalender...</span>
 			</div>
 		{/if}
 		{#each weekDays as { dayLabel, dateLabel, fullDate }}
 			<div
-				class="mx-1 flex flex-col items-center rounded-lg bg-gray py-2
+				class="bg-gray mx-1 flex flex-col items-center rounded-lg py-2
 		       text-white {isSameLocalDay(fullDate, new Date()) ? 'bg-orange' : ''}"
 			>
 				<p class="text-lg">{dayLabel}</p>
@@ -395,7 +414,7 @@
 	<!-- CALENDAR GRID -->
 	<div
 		bind:this={calendarContainer}
-		class="relative grid grid-cols-{weekDays.length + 1}  overflow-x-hidden bg-gray-bright/20"
+		class="relative grid grid-cols-{weekDays.length + 1}  bg-gray-bright/20 overflow-x-hidden"
 		style="grid-template-columns: minmax(60px, 8%) repeat({weekDays.length}, minmax(100px, 1fr));"
 	>
 		<CurrentTimeIndicator {startHour} {hourHeight} />
@@ -409,17 +428,17 @@
 
 		<!-- DAYS & BOOKINGS -->
 		{#each weekDays as _, dayIndex}
-			<div class="relative flex flex-col gap-1 border-l border-gray-bright">
-				{#each (unavailableBlocksByDay[dayIndex] ?? []) as block}
+			<div class="border-gray-bright relative flex flex-col gap-1 border-l">
+				{#each unavailableBlocksByDay[dayIndex] ?? [] as block}
 					<div
-						class="unavailable-striped absolute left-0 right-0"
+						class="unavailable-striped absolute right-0 left-0"
 						style="top: {block.top}px; height: {block.height}px; z-index: 0;"
 					/>
 				{/each}
 
-				{#each (emptySlotBlocksByDay[dayIndex] ?? []) as slot}
+				{#each emptySlotBlocksByDay[dayIndex] ?? [] as slot}
 					<button
-						class="absolute left-0 right-0 cursor-pointer hover:bg-orange/20"
+						class="hover:bg-orange/20 absolute right-0 left-0 cursor-pointer"
 						style="top: {slot.top}px; height: {hourHeight}px; z-index: 0;"
 						on:click={() => openBookingPopup(slot.start)}
 						use:tooltip={{
@@ -428,7 +447,7 @@
 					>
 					</button>
 				{/each}
-				{#each (layoutByDay[dayIndex] ?? []) as layoutItem, i}
+				{#each layoutByDay[dayIndex] ?? [] as layoutItem, i}
 					<BookingSlot
 						booking={layoutItem.booking}
 						{startHour}
