@@ -73,6 +73,7 @@ export const POST: RequestHandler = async ({ request }) => {
 					SELECT 1 FROM bookings b
 					WHERE b.room_id = r.id
 					AND b.start_time = $2
+					AND (b.status IS NULL OR LOWER(b.status) NOT IN ('cancelled', 'late_cancelled'))
 				)
 				ORDER BY r.id ASC
 				LIMIT 1
@@ -148,7 +149,7 @@ async function findAvailablePackageForClient(clientId: number): Promise<number |
 					SELECT COUNT(*)::int
 					FROM bookings b
 					WHERE b.package_id = p.id
-						AND (b.status IS NULL OR b.status NOT IN ('Cancelled','Canceled','Late_cancelled'))
+						AND (b.status IS NULL OR LOWER(b.status) NOT IN ('cancelled', 'late_cancelled'))
 				) AS used_sessions
 			FROM packages p
 			LEFT JOIN articles a ON a.id = p.article_id
@@ -191,7 +192,7 @@ async function findAvailablePackageForClient(clientId: number): Promise<number |
 					SELECT COUNT(*)::int
 					FROM bookings b
 					WHERE b.package_id = p.id
-						AND (b.status IS NULL OR b.status NOT IN ('Cancelled','Canceled','Late_cancelled'))
+						AND (b.status IS NULL OR LOWER(b.status) NOT IN ('cancelled', 'late_cancelled'))
 				) AS used_sessions
 			FROM packages p
 			LEFT JOIN articles a ON a.id = p.article_id
