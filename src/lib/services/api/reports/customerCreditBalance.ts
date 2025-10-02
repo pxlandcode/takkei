@@ -2,6 +2,7 @@ import { query } from '$lib/db';
 
 type DbRow = {
 	package_id: number;
+	customer_id: number;
 	sessions: number | null;
 	product_name: string;
 	article_price: string | number | null;
@@ -11,9 +12,13 @@ type DbRow = {
 	customer_name: string;
 	customer_no: string | null;
 	client_name: string | null;
+	fallback_client_name: string | null;
+	first_payment_date: string | null;
 	invoice_count: number;
 	used_total: number;
 	used_month: number;
+	chargeable_total: number;
+	last_used_at: string | null;
 };
 
 function toNumber(n: unknown, def = 0) {
@@ -22,6 +27,12 @@ function toNumber(n: unknown, def = 0) {
 }
 
 // Accept both YAML and JSON (same parser we used before)
+
+function normalizeDateKey(raw: string) {
+	const leadingTrimmed = raw.replace(/^['"]/, '').trim();
+	return leadingTrimmed.replace(/['"](?=\s*:\s*)/, '').replace(/['"]$/, '');
+}
+
 function parseInstallments(text: string | null): Record<string, { sum: number }> {
 	if (!text || !text.trim()) return {};
 	const t = text.trim();
@@ -45,14 +56,15 @@ function parseInstallments(text: string | null): Record<string, { sum: number }>
 	for (const raw of lines) {
 		const line = raw.trim();
 		if (!line || line === '---') continue;
-		const m1 = line.match(/^(\d{4}-\d{1,2}-\d{1,2})\s*:\s*$/);
+		const normalized = normalizeDateKey(line);
+		const m1 = normalized.match(/^(\d{4}-\d{1,2}-\d{1,2})\s*:\s*$/);
 		if (m1) {
 			current = m1[1];
 			if (!out[current]) out[current] = { sum: 0 };
 			continue;
 		}
-		const m2 = line.match(
-			/^(\d{4}-\d{1,2}-\d{1,2})\s*:\s*\{?\s*sum\s*:\s*([0-9]+(?:\.[0-9]+)?)\s*\}?\s*$/i
+		const m2 = normalized.match(
+			/^(\d{4}-\d{1,2}-\d{1,2})\s*:\s*\{?\s*:?(?:sum)\s*:\s*([0-9]+(?:\.[0-9]+)?)\s*\}?\s*$/i
 		);
 		if (m2) {
 			out[m2[1]] = { sum: Number(m2[2]) };
@@ -60,7 +72,7 @@ function parseInstallments(text: string | null): Record<string, { sum: number }>
 			continue;
 		}
 		if (current) {
-			const m3 = line.match(/^sum\s*:\s*([0-9]+(?:\.[0-9]+)?)\s*$/i);
+			const m3 = normalized.match(/^:?(?:sum)\s*:\s*([0-9]+(?:\.[0-9]+)?)\s*$/i);
 			if (m3) out[current].sum = Number(m3[1]);
 		}
 	}
@@ -108,6 +120,40 @@ function roundMoney(value: number, precision = 2) {
 
 function toIsoDateLike(date: string) {
 	return date?.length === 10 ? date : new Date(date).toISOString().slice(0, 10);
+}
+
+function getStartMonthDate(start: string) {
+	const iso = toIsoDateLike(start);
+	return new Date(`${iso.slice(0, 7)}-01T00:00:00`);
+}
+
+function deriveEndPaymentDate(
+	installments: Record<string, { sum: number }>,
+	firstPayment: string | null
+) {
+	const keys = Object.keys(installments).map((k) => toIsoDateLike(k)).filter(Boolean).sort();
+	if (keys.length > 0) return new Date(`${keys[keys.length - 1]}T00:00:00`);
+	if (firstPayment) return new Date(`${toIsoDateLike(firstPayment)}T00:00:00`);
+	return null;
+}
+
+function shouldDropPackage(
+	row: DbRow,
+	sessions: number,
+	startDate: string,
+	installments: Record<string, { sum: number }>
+) {
+	if (!sessions || sessions <= 0) return false;
+	const fullyUsed = toNumber(row.chargeable_total) >= sessions;
+	if (!fullyUsed) return false;
+	const start = new Date(`${toIsoDateLike(startDate)}T00:00:00`);
+	const lastUsed = row.last_used_at ? new Date(row.last_used_at) : null;
+	if (!lastUsed || lastUsed >= start) return false;
+	const endPayment = deriveEndPaymentDate(installments, row.first_payment_date);
+	if (!endPayment) return false;
+	const endPaymentMonthStart = new Date(endPayment.getFullYear(), endPayment.getMonth(), 1);
+	const startMonthStart = getStartMonthDate(startDate);
+	return endPaymentMonthStart < startMonthStart;
 }
 
 function getHeaders(endDate: string, startDate: string) {
@@ -253,44 +299,104 @@ export async function getCustomerCreditRows(
 ): Promise<ReportRow[]> {
 	const sql = `
 WITH base AS (
-  SELECT p.id AS package_id, a.sessions, a.name AS product_name, a.price AS article_price,
-         p.paid_price, p.invoice_numbers, p.payment_installments_per_date AS installments_text,
-         cu.name AS customer_name, cu.customer_no,
-         (cl.firstname || ' ' || cl.lastname) AS client_name
+  SELECT p.id AS package_id,
+         p.customer_id,
+         a.sessions,
+         a.name AS product_name,
+         a.price AS article_price,
+         p.paid_price,
+         p.invoice_numbers,
+         p.payment_installments_per_date AS installments_text,
+         cu.name AS customer_name,
+         cu.customer_no,
+         (cl.firstname || ' ' || cl.lastname) AS client_name,
+         p.first_payment_date
   FROM packages p
   JOIN articles a   ON a.id = p.article_id
   JOIN customers cu ON cu.id = p.customer_id
   LEFT JOIN clients cl ON cl.id = p.client_id
+  WHERE p.first_payment_date IS NOT NULL
+    AND p.first_payment_date <= $2::date
 ),
 usage AS (
-  SELECT p.id AS package_id,
-         COUNT(*) FILTER (WHERE b.start_time <= ($2::date + interval '1 day' - interval '1 second'))::int AS used_total,
-         COUNT(*) FILTER (WHERE b.start_time >= $1::timestamp
-                          AND b.start_time <= ($2::date + interval '1 day' - interval '1 second'))::int AS used_month
-  FROM packages p
-  LEFT JOIN bookings b ON b.package_id = p.id
+  SELECT bs.package_id,
+         COUNT(b.id)::int AS chargeable_total,
+         COUNT(b.id) FILTER (WHERE b.start_time <= ($2::date + interval '1 day' - interval '1 second'))::int AS used_total,
+         COUNT(b.id) FILTER (WHERE b.start_time >= $1::timestamp
+                              AND b.start_time <= ($2::date + interval '1 day' - interval '1 second'))::int AS used_month
+  FROM base bs
+  LEFT JOIN bookings b ON b.package_id = bs.package_id
     AND COALESCE(b.try_out, false) = false
-    AND COALESCE(b.actual_cancel_time, b.cancel_time) IS NULL
+    AND (
+      COALESCE(b.actual_cancel_time, b.cancel_time) IS NULL
+      OR b.status IN ('Late Cancelled', 'LateCancelled', 'Late Canceled', 'LateCanceled', 'Late_cancelled')
+    )
     AND (b.status IS NULL OR b.status NOT IN ('Cancelled','Canceled','CancelledByUser'))
-  GROUP BY p.id
+  GROUP BY bs.package_id
+),
+last_usage AS (
+  SELECT bs.package_id,
+         MAX(b.start_time) AS last_used_at
+  FROM base bs
+  LEFT JOIN bookings b ON b.package_id = bs.package_id
+    AND COALESCE(b.try_out, false) = false
+    AND (
+      COALESCE(b.actual_cancel_time, b.cancel_time) IS NULL
+      OR b.status IN ('Late Cancelled', 'LateCancelled', 'Late Canceled', 'LateCanceled', 'Late_cancelled')
+    )
+    AND (b.status IS NULL OR b.status NOT IN ('Cancelled','Canceled','CancelledByUser'))
+  GROUP BY bs.package_id
+),
+training_client AS (
+  SELECT DISTINCT ON (p.id) p.id AS package_id,
+         cl.firstname || ' ' || cl.lastname AS fallback_client_name
+  FROM packages p
+  JOIN client_customer_relationships ccr ON ccr.customer_id = p.customer_id
+  JOIN clients cl ON cl.id = ccr.client_id
+  WHERE ccr.relationship IN ('Training', 'Training and Membership')
+    AND cl.active = true
+  ORDER BY p.id, cl.firstname, cl.lastname
 )
-SELECT b.package_id, b.sessions, b.product_name, b.article_price, b.paid_price,
-       b.invoice_numbers, b.installments_text, b.customer_name, b.customer_no, b.client_name,
+SELECT b.package_id,
+       b.customer_id,
+       b.sessions,
+       b.product_name,
+       b.article_price,
+       b.paid_price,
+       b.invoice_numbers,
+       b.installments_text,
+       b.customer_name,
+       b.customer_no,
+       b.client_name,
+       b.first_payment_date,
        CARDINALITY(COALESCE(b.invoice_numbers, ARRAY[]::int[]))::int AS invoice_count,
-       COALESCE(u.used_total,0) AS used_total, COALESCE(u.used_month,0) AS used_month
+       COALESCE(u.used_total, 0) AS used_total,
+       COALESCE(u.used_month, 0) AS used_month,
+       COALESCE(u.chargeable_total, 0) AS chargeable_total,
+       lu.last_used_at,
+       tc.fallback_client_name
 FROM base b
 LEFT JOIN usage u ON u.package_id = b.package_id
-ORDER BY b.customer_name, b.client_name NULLS LAST, b.package_id;`;
+LEFT JOIN last_usage lu ON lu.package_id = b.package_id
+LEFT JOIN training_client tc ON tc.package_id = b.package_id
+ORDER BY COALESCE(b.client_name, tc.fallback_client_name, b.customer_name), b.customer_name, b.package_id;`;
 
 	const rows = (await query(sql, [start_date, end_date])) as DbRow[];
-
-	return rows.map((r) => {
+	const filteredRows = rows.filter((r) => {
 		const sessions = toNumber(r.sessions);
-		const articlePrice = toNumber(r.article_price);
+		const installments = parseInstallments(r.installments_text);
+		return !shouldDropPackage(r, sessions, start_date, installments);
+	});
+
+	return filteredRows.map((r) => {
+		const sessions = toNumber(r.sessions);
 		const paidPrice = toNumber(r.paid_price);
+		const articlePrice = toNumber(r.article_price);
 		const invoiceNumbers = (r.invoice_numbers ?? []).map(String);
-		const basePrice = paidPrice || articlePrice || 0;
-		const pps = sessions > 0 ? basePrice / sessions : 0;
+		const computedPps = sessions > 0 ? paidPrice / sessions : 0;
+		const fallbackPps = sessions > 0 ? articlePrice / sessions : 0;
+		const ppsExact = computedPps || fallbackPps;
+		const pps = Math.round(ppsExact * 100) / 100;
 
 		const installments = parseInstallments(r.installments_text);
 		const keys = Object.keys(installments).sort();
@@ -307,13 +413,15 @@ ORDER BY b.customer_name, b.client_name NULLS LAST, b.package_id;`;
 		const usedTotal = toNumber(r.used_total);
 		const usedMonth = toNumber(r.used_month);
 		const remaining = Math.max(sessions - usedTotal, 0);
-		const usedSum = usedTotal * pps;
-		const usedSumMonth = usedMonth * pps;
-		const paidSessions = pps === 0 ? 0 : paidSum / pps;
+		const usedSum = usedTotal * ppsExact;
+		const usedSumMonth = usedMonth * ppsExact;
+		const paidSessions = ppsExact === 0 ? 0 : paidSum / ppsExact;
 		const balance = paidSum - usedSum;
 
+		const clientName = r.client_name || r.fallback_client_name || r.customer_name;
+
 		return {
-			client: r.client_name ?? '',
+			client: clientName ?? '',
 			packageId: r.package_id,
 			invoiceNumbers,
 			customerName: r.customer_name,
@@ -321,7 +429,7 @@ ORDER BY b.customer_name, b.client_name NULLS LAST, b.package_id;`;
 			product: r.product_name,
 			packagePrice: paidPrice,
 			sessions,
-			pricePerSession: Math.round(pps * 100) / 100,
+			pricePerSession: pps,
 			invoiceCount,
 			invoicesUntilEnd,
 			paidSessions: Math.round(paidSessions * 100) / 100,

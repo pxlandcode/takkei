@@ -48,7 +48,19 @@
 		maxDate: new Date()
 	};
 
-	$: headers = [
+	type Header = {
+		label: string;
+		key: string;
+		sort?: boolean;
+		isSearchable?: boolean;
+		width?: string;
+	};
+
+	let headers: Header[] = [];
+
+	$: {
+		const headerMonth = startMonth || normalizeMonth(startMonthInput) || toMonthStr(firstOfMonth());
+		headers = [
 		{ label: 'Klient', key: 'client', sort: true, isSearchable: true },
 		{ label: 'PaketId', key: 'packageId', sort: true, isSearchable: true, width: '110px' },
 		{ label: 'Fakt.nr', key: 'invoiceNumbers', isSearchable: true },
@@ -62,12 +74,13 @@
 		{ label: 'Fakturerade pass', key: 'paidSessions', sort: true },
 		{ label: 'Fakturerad summa', key: 'paidSum', sort: true },
 		{ label: 'Utnyttjade pass', key: 'usedSessions', sort: true },
-		{ label: `Utnyttjade pass ${startMonth}`, key: 'usedSessionsMonth', sort: true },
+		{ label: `Utnyttjade pass ${headerMonth}`, key: 'usedSessionsMonth', sort: true },
 		{ label: 'Återstående pass', key: 'remainingSessions', sort: true },
 		{ label: 'Utnyttjad summa', key: 'usedSum', sort: true },
-		{ label: `Utnyttjad summa ${startMonth}`, key: 'usedSumMonth', sort: true },
+		{ label: `Utnyttjad summa ${headerMonth}`, key: 'usedSumMonth', sort: true },
 		{ label: 'Skuld/fordran i kronor', key: 'balance', sort: true }
-	];
+		];
+	}
 
 	let data: TableType = [];
 	let filteredData: TableType = [];
