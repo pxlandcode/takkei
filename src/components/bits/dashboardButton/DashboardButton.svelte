@@ -18,7 +18,7 @@
 <div class="relative inline-block">
 	<button
 		on:click={navigate}
-		class="flex h-[96px] w-[96px] flex-col items-center justify-center gap-3 rounded-lg transition duration-200 glass hover:bg-white/20 active:translate-y-1 active:scale-95"
+		class="glass flex h-[96px] w-[96px] cursor-pointer flex-col items-center justify-center gap-3 rounded-lg transition duration-200 hover:bg-white/20 active:translate-y-1 active:scale-95"
 		aria-label={label}
 	>
 		<Icon {icon} size="35px" color="white" />
@@ -27,7 +27,7 @@
 
 	{#if notificationCount > 0}
 		<span
-			class="bg-notification absolute right-1 top-1 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full px-1 text-xs font-semibold text-white"
+			class="bg-notification absolute top-1 right-1 flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-xs font-semibold text-white"
 		>
 			{notificationCount}
 		</span>

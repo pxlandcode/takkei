@@ -12,7 +12,7 @@
 	$: achievedPct = clampPct((achieved / denom) * 100);
 </script>
 
-<div class="grid grid-cols-[140px,1fr,120px] items-center gap-3">
+<div class="grid grid-cols-[140px_1fr_120px] items-center gap-3">
 	<div class="text-sm font-medium">{label}</div>
 
 	<div class="relative h-2 w-full overflow-hidden rounded-full bg-gray-200">

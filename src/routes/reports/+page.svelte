@@ -8,7 +8,7 @@
 
 	const menuItems = [
 		{
-			label: 'Tillgodohavande',
+			label: 'Tillgodo',
 			icon: 'Charts',
 			component: CustomersCreditReport,
 			requiredRoles: ['Administrator', 'Economy Admin']

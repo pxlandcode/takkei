@@ -7,7 +7,7 @@
 	import Button from '../../../bits/button/Button.svelte';
 	import OptionButton from '../../../bits/optionButton/OptionButton.svelte';
 	import Icon from '../../../bits/icon-component/Icon.svelte';
-	import { add } from 'date-fns';
+	import { Datepicker } from '@pixelcode_/blocks/components';
 
 	// ----- Filters -----
 	function firstOfMonth(d = new Date()) {
@@ -21,12 +21,46 @@
 	}
 
 	let startMonth = toMonthStr(firstOfMonth()); // t.ex. "2025-08"
+	let startMonthInput = startMonth;
 	let endDate = toDateStr(new Date()); // t.ex. "2025-08-11"
 	let includeZeroBalances = { value: 'no', label: 'Dölj nollsaldo' };
 
-	// ----- Table -----
-	// Reaktiva rubriker så de uppdateras när filtren ändras
-	$: headers = [
+	type DatepickerOptions = {
+		view?: 'days' | 'months' | 'years';
+		minView?: 'days' | 'months' | 'years';
+		dateFormat?: string;
+		maxDate?: Date | string | number;
+	};
+
+	function normalizeMonth(value: string | undefined | null) {
+		return value ? value.slice(0, 7) : '';
+	}
+
+	const monthPickerOptions: DatepickerOptions = {
+		view: 'months',
+		minView: 'months',
+		dateFormat: 'yyyy-MM',
+		maxDate: new Date()
+	};
+
+	const datePickerOptions: DatepickerOptions = {
+		dateFormat: 'yyyy-MM-dd',
+		maxDate: new Date()
+	};
+
+	type Header = {
+		label: string;
+		key: string;
+		sort?: boolean;
+		isSearchable?: boolean;
+		width?: string;
+	};
+
+	let headers: Header[] = [];
+
+	$: {
+		const headerMonth = startMonth || normalizeMonth(startMonthInput) || toMonthStr(firstOfMonth());
+		headers = [
 		{ label: 'Klient', key: 'client', sort: true, isSearchable: true },
 		{ label: 'PaketId', key: 'packageId', sort: true, isSearchable: true, width: '110px' },
 		{ label: 'Fakt.nr', key: 'invoiceNumbers', isSearchable: true },
@@ -40,20 +74,27 @@
 		{ label: 'Fakturerade pass', key: 'paidSessions', sort: true },
 		{ label: 'Fakturerad summa', key: 'paidSum', sort: true },
 		{ label: 'Utnyttjade pass', key: 'usedSessions', sort: true },
-		{ label: `Utnyttjade pass ${startMonth}`, key: 'usedSessionsMonth', sort: true },
+		{ label: `Utnyttjade pass ${headerMonth}`, key: 'usedSessionsMonth', sort: true },
 		{ label: 'Återstående pass', key: 'remainingSessions', sort: true },
 		{ label: 'Utnyttjad summa', key: 'usedSum', sort: true },
-		{ label: `Utnyttjad summa ${startMonth}`, key: 'usedSumMonth', sort: true },
+		{ label: `Utnyttjad summa ${headerMonth}`, key: 'usedSumMonth', sort: true },
 		{ label: 'Skuld/fordran i kronor', key: 'balance', sort: true }
-	];
+		];
+	}
 
 	let data: TableType = [];
 	let filteredData: TableType = [];
 	let searchQuery = '';
 	let loading = false;
 	let totalBalance = 0;
+	let filtersReady = false;
 
 	const USE_MOCK = false;
+
+	type ApiResponse = {
+		rows: ApiRow[];
+		totalBalance?: number;
+	};
 
 	type ApiRow = {
 		client: string;
@@ -101,6 +142,15 @@
 			usedSumMonth: r.usedSumMonth,
 			balance: r.balance
 		};
+	}
+
+	function includeZeroParam() {
+		return includeZeroBalances.value === 'yes' ? '1' : '0';
+	}
+
+	function startDateParam() {
+		const normalized = startMonth || normalizeMonth(startMonthInput);
+		return normalized ? `${normalized}-01` : `${toMonthStr(firstOfMonth())}-01`;
 	}
 
 	async function fetchReport() {
@@ -154,25 +204,22 @@
 						balance: 0
 					}
 				];
+				totalBalance = rows.reduce((acc, r) => acc + (r.balance ?? 0), 0);
 			} else {
 				const params = new URLSearchParams({
-					start_date: `${startMonth}-01`,
-					end_date: endDate
+					start_date: startDateParam(),
+					end_date: endDate,
+					include_zero: includeZeroParam()
 				});
 				const res = await fetch(`/api/reports/customer-credit-balance?${params.toString()}`);
 				if (!res.ok) throw new Error('Misslyckades att hämta rapport');
-				const json = await res.json();
+				const json: ApiResponse = await res.json();
 				rows = json?.rows ?? [];
-			}
-
-			if (includeZeroBalances.value === 'no') {
-				rows = rows.filter((r) => Math.abs(r.balance) > 0.0001);
+				totalBalance = json?.totalBalance ?? rows.reduce((acc, r) => acc + (r.balance ?? 0), 0);
 			}
 
 			data = rows.map(mapToTableRow);
 			filteredData = [...data];
-
-			totalBalance = rows.reduce((acc, r) => acc + (r.balance ?? 0), 0);
 		} catch (e) {
 			addToast({
 				type: 'error',
@@ -196,22 +243,39 @@
 					headers.some((h) => {
 						if (!h.isSearchable) return false;
 						const v = row[h.key];
-						return typeof v === 'string' && v.toLowerCase().includes(q);
+						if (typeof v === 'string') return v.toLowerCase().includes(q);
+						if (typeof v === 'number') return v.toString().includes(q);
+						return false;
 					})
 				);
 	}
 
-	onMount(fetchReport);
+	onMount(() => {
+		filtersReady = true;
+	});
 
-	function onRefresh() {
+	$: {
+		const normalizedStartMonth = normalizeMonth(startMonthInput);
+		if (startMonthInput && startMonthInput !== normalizedStartMonth) {
+			startMonthInput = normalizedStartMonth;
+		}
+		if (startMonth !== normalizedStartMonth) {
+			startMonth = normalizedStartMonth;
+		}
+	}
+
+	$: filterSignature = `${startMonth}|${endDate}|${includeZeroBalances.value}`;
+	$: if (filtersReady && filterSignature) {
 		fetchReport();
 	}
 
 	async function exportExcel() {
+		let success = false;
 		try {
 			const params = new URLSearchParams({
-				start_date: `${startMonth}-01`,
-				end_date: endDate
+				start_date: startDateParam(),
+				end_date: endDate,
+				include_zero: includeZeroParam()
 			});
 			const res = await fetch(`/api/reports/customer-credit-balance/export?${params.toString()}`);
 			if (!res.ok) throw new Error('Kunde inte skapa Excel');
@@ -224,85 +288,88 @@
 			a.click();
 			a.remove();
 			URL.revokeObjectURL(url);
+			success = true;
 		} catch (e) {
 			addToast({ type: 'error', title: 'Export misslyckades', message: (e as Error).message });
 		} finally {
-			addToast({
-				type: 'success',
-				title: 'Export slutförd',
-				message: 'Excel-filen har skapats.'
-			});
+			if (success) {
+				addToast({
+					type: 'success',
+					title: 'Export slutförd',
+					message: 'Excel-filen har skapats.'
+				});
+			}
 		}
 	}
 </script>
 
-<div class="m-4 h-full overflow-x-auto custom-scrollbar">
+<div class="custom-scrollbar m-4 h-full overflow-x-auto">
 	<!-- Titel -->
 	<div class="mb-4 flex items-center gap-2">
-		<div class="flex h-7 w-7 items-center justify-center rounded-full bg-text text-white">
+		<div class="bg-text flex h-7 w-7 items-center justify-center rounded-full text-white">
 			<Icon icon="Charts" size="14px" />
 		</div>
-		<h2 class="text-3xl font-semibold text-text">Kunders tillgodohavande</h2>
+		<h2 class="text-text text-3xl font-semibold">Kunders tillgodohavande</h2>
 	</div>
 
 	<!-- Filter -->
-	<div class="mb-4 grid gap-3 md:grid-cols-2 lg:grid-cols-4">
-		<label class="flex flex-col gap-1">
-			<span class="text-sm text-text/70">Månad (för månadsrader)</span>
-			<input
-				class="rounded-lg border border-gray-300 p-2"
-				type="month"
-				bind:value={startMonth}
-				max={toMonthStr(new Date())}
-			/>
-		</label>
-
-		<label class="flex flex-col gap-1">
-			<span class="text-sm text-text/70">Per datum</span>
-			<input
-				class="rounded-lg border border-gray-300 p-2"
-				type="date"
-				bind:value={endDate}
-				max={toDateStr(new Date())}
-			/>
-		</label>
-
-		<div class="min-w-60">
-			<OptionButton
-				options={[
-					{ value: 'no', label: 'Dölj nollsaldo' },
-					{ value: 'yes', label: 'Visa nollsaldo' }
-				]}
-				bind:selectedOption={includeZeroBalances}
-				size="small"
+	<div class="mb-6 grid gap-6 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
+		<div class="flex flex-col gap-3">
+			<div class="grid gap-3 sm:grid-cols-2">
+				<label class="flex flex-col gap-1">
+					<span class="text-text/70 text-sm">Månad</span>
+					<Datepicker
+						bind:value={startMonthInput}
+						options={monthPickerOptions}
+						placeholder="Välj månad"
+					/>
+				</label>
+				<label class="flex flex-col gap-1">
+					<span class="text-text/70 text-sm">Per datum</span>
+					<Datepicker bind:value={endDate} options={datePickerOptions} placeholder="Välj datum" />
+				</label>
+			</div>
+			<div class="min-w-0">
+				<OptionButton
+					options={[
+						{ value: 'no', label: 'Dölj nollsaldo' },
+						{ value: 'yes', label: 'Visa nollsaldo' }
+					]}
+					bind:selectedOption={includeZeroBalances}
+					size="small"
+					full
+				/>
+			</div>
+			<div>
+				<input
+					type="text"
+					bind:value={searchQuery}
+					placeholder="Sök klient, kund, faktura, produkt…"
+					class="w-full rounded-lg border border-gray-300 p-2 focus:border-blue-500 focus:outline-hidden"
+				/>
+			</div>
+		</div>
+		<div class="flex justify-end">
+			<Button
+				text="Exportera"
+				variant="primary"
+				iconLeft="Download"
+				iconColor="white"
+				iconSize="12px"
+				on:click={exportExcel}
 			/>
 		</div>
-
-		<div class="flex items-end gap-2">
-			<Button variant="secondary" iconSize="16" icon="Refresh" on:click={onRefresh} />
-			<Button text="Exportera" variant="primary" iconLeft="Download" on:click={exportExcel} />
-		</div>
-	</div>
-
-	<!-- Snabbsök -->
-	<div class="mb-3 max-w-md">
-		<input
-			type="text"
-			bind:value={searchQuery}
-			placeholder="Sök klient, kund, faktura, produkt…"
-			class="w-full rounded-lg border border-gray-300 p-2 focus:border-blue-500 focus:outline-none"
-		/>
 	</div>
 
 	<!-- Summering -->
-	<div class="mb-3 text-sm text-text/80">
+	<div class="text-text/80 mb-3 text-sm">
 		<strong>Totalsumma (saldo):</strong>
 		{totalBalance.toFixed(2)} kr
 	</div>
 
 	<!-- Tabell -->
 	{#if loading}
-		<div class="py-10 text-text/60">Laddar rapport…</div>
+		<div class="text-text/60 py-10">Laddar rapport…</div>
 	{:else}
 		<Table {headers} data={filteredData} noSelect sideScrollable />
 	{/if}

@@ -122,7 +122,7 @@
 <button
 	on:click={() => dispatch('onClick', { booking })}
 	bind:this={bookingSlot}
-	class="absolute z-20 flex flex-col gap-[2px] p-1 text-xs text-gray shadow-sm {showIcon
+	class="text-gray absolute z-20 flex cursor-pointer flex-col gap-[2px] p-1 text-xs shadow-xs {showIcon
 		? 'items-start'
 		: 'items-center'} {booking.trainer?.id === $user.id
 		? 'border-2'
@@ -142,7 +142,7 @@
 	{#if !booking.isPersonalBooking}
 		<div class="flex flex-row">
 			<div
-				class="relative flex items-center justify-center gap-2 rounded-sm px-1"
+				class="relative flex items-center justify-center gap-2 rounded-xs px-1"
 				style="color: {bookingColor}"
 			>
 				{#if showIcon}
@@ -150,7 +150,7 @@
 				{/if}
 
 				<div class="flex flex-row text-xs">
-					<div class="flex flex-col gap-1 whitespace-nowrap text-left">
+					<div class="flex flex-col gap-1 text-left whitespace-nowrap">
 						<p class="" bind:this={trainerNameElement}>
 							{useInitials
 								? trainerInitials

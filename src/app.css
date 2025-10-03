@@ -1,9 +1,121 @@
+@import '@pixelcode_/blocks/app.css';
+@import 'tailwindcss';
 
-@import 'tailwindcss/base';
-@import 'tailwindcss/components';
-@import 'tailwindcss/utilities';
+@config '../tailwind.config.ts';
 
 
+
+/*
+  fixes for pixelblocks
+*/
+
+:root {
+  --color-background: #f8f9fb;
+  --color-foreground: #1f2227;
+  --color-muted: rgba(31, 34, 39, 0.08);
+  --color-muted-fg: #5b6474;
+  --color-card: #ffffff;
+  --color-card-fg: #1f2227;
+  --color-border: #cdd5e0;
+  --color-input: #ffffff;
+  --color-primary: #dd890b;
+  --color-primary-fg: #ffffff;
+  --spacing: 4px;
+  --default-font-family: 'Inter', sans-serif;
+}
+
+.h-xs {
+  height: calc(var(--spacing, 4px) * 6);
+}
+
+.h-sm {
+  height: calc(var(--spacing, 4px) * 8);
+}
+
+.h-md {
+  height: calc(var(--spacing, 4px) * 10);
+}
+
+.h-lg {
+  height: calc(var(--spacing, 4px) * 12);
+}
+
+.h-xl {
+  height: calc(var(--spacing, 4px) * 14);
+}
+
+.h-xxl {
+  height: calc(var(--spacing, 4px) * 16);
+}
+
+.pl-8 {
+  padding-left: calc(var(--spacing, 4px) * 8);
+}
+
+.pl-9 {
+  padding-left: calc(var(--spacing, 4px) * 9);
+}
+
+.pl-10 {
+  padding-left: calc(var(--spacing, 4px) * 10);
+}
+
+.pl-11 {
+  padding-left: calc(var(--spacing, 4px) * 11);
+}
+
+.pr-16 {
+  padding-right: calc(var(--spacing, 4px) * 16);
+}
+
+
+
+
+
+.left-3 {
+  left: calc(var(--spacing, 4px) * 2);
+}
+
+
+
+.pointer-events-none {
+  pointer-events: none;
+}
+
+
+
+
+
+/*
+  The default border color has changed to `currentcolor` in Tailwind CSS v4,
+  so we've added these compatibility styles to make sure everything still
+  looks the same as it did with Tailwind CSS v3.
+
+  If we ever want to remove these styles, we need to add an explicit border
+  color utility to any element that depends on these defaults.
+*/
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentcolor);
+  }
+  button,
+  [role="button"],
+  input[type='button'],
+  input[type='submit'],
+  input[type='reset'] {
+    cursor: pointer;
+  }
+}
+
+@theme {
+    --color-primary: #dd890b;
+    --font-inter: 'Inter', sans-serif;
+	--default-font-family: var(--font-inter);
+}
 
 * {
     @apply box-border;
@@ -22,4 +134,3 @@
     font-style: normal;
     font-display: swap;
 }
-

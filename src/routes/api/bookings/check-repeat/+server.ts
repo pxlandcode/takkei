@@ -56,7 +56,7 @@ export const POST: RequestHandler = async ({ request }) => {
         SELECT room_id, start_time
         FROM bookings
         WHERE start_time BETWEEN $1 AND $2
-          AND status != 'Cancelled'
+          AND LOWER(status) NOT IN ('cancelled', 'late_cancelled')
           AND room_id = ANY($3::int[])
       `,
 			[dayStart, dayEnd, roomIds]
@@ -89,7 +89,7 @@ export const POST: RequestHandler = async ({ request }) => {
           SELECT start_time
           FROM bookings
           WHERE start_time BETWEEN $1 AND $2
-            AND status != 'Cancelled'
+            AND LOWER(status) NOT IN ('cancelled', 'late_cancelled')
             AND trainer_id = $3
         `,
 				[dayStart, dayEnd, trainerId]
@@ -121,7 +121,7 @@ export const POST: RequestHandler = async ({ request }) => {
             SELECT start_time
             FROM bookings
             WHERE start_time BETWEEN $1 AND $2
-              AND status != 'Cancelled'
+              AND LOWER(status) NOT IN ('cancelled', 'late_cancelled')
               AND user_id = $3
           `,
 					[dayStart, dayEnd, userId]

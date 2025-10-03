@@ -43,7 +43,7 @@
 
 	{#if canEdit()}
 		<div class="mb-4 flex w-full flex-col gap-2 md:flex-row md:items-end">
-			<div class="flex-grow">
+			<div class="grow">
 				<Input bind:value={description} label="Kort beskrivning" maxlength={50} />
 			</div>
 			<div class="mb-4 md:ml-2">
@@ -55,8 +55,8 @@
 	{#if absences.length > 0}
 		<ul class="space-y-3">
 			{#each absences as a (`${a.id ?? a.start_time}-${a.description ?? ''}`)}
-				<li class="flex items-start justify-between gap-4 rounded border px-4 py-3 text-sm">
-					<div class="flex flex-grow flex-col gap-1">
+				<li class="flex items-start justify-between gap-4 rounded-sm border px-4 py-3 text-sm">
+					<div class="flex grow flex-col gap-1">
 						<div class="flex items-center gap-2">
 							<strong class={a.status === 'Open' ? 'text-error' : 'text-success'}>
 								{a.status === 'Open' ? 'Pågående' : 'Avslutad'}

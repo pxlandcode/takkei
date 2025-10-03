@@ -85,14 +85,14 @@
 {:else if alerts[currentIndex]}
 	<div class="flex w-[600px] max-w-[600px] flex-col gap-4 p-1">
 		<!-- Alert Box -->
-		<div class="rounded-lg bg-red-50 p-4 shadow-sm">
+		<div class="rounded-lg bg-red-50 p-4 shadow-xs">
 			<div class="flex items-start gap-3">
 				<div class="color-error mt-1">
 					<Icon icon="CircleAlert" size="20px" />
 				</div>
 				<div class="flex-1">
 					<div class="flex flex-row justify-between">
-						<h2 class="text-lg font-semibold text-error">{alerts[currentIndex].name}</h2>
+						<h2 class="text-error text-lg font-semibold">{alerts[currentIndex].name}</h2>
 						{#if alerts.length > 1}
 							<p class="text-sm text-gray-500">
 								{currentIndex + 1}/{alerts.length}
@@ -109,7 +109,7 @@
 						</p>
 					{/if}
 
-					<p class="mt-3 whitespace-pre-line text-sm text-gray-800">
+					<p class="mt-3 text-sm whitespace-pre-line text-gray-800">
 						{alerts[currentIndex].description}
 					</p>
 				</div>
@@ -120,7 +120,7 @@
 		<div class="mt-2 flex items-center justify-end border-t pt-4">
 			<button
 				on:click={confirmAndNext}
-				class="rounded bg-error px-4 py-2 text-sm font-medium text-white hover:bg-red-600"
+				class="bg-error cursor-pointer rounded-sm px-4 py-2 text-sm font-medium text-white hover:bg-red-600"
 			>
 				Jag säkerställer att jag har läst
 			</button>

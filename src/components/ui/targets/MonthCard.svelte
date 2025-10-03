@@ -20,9 +20,9 @@
 	<div class="mb-2 flex items-center justify-between">
 		<span class="text-sm font-medium capitalize">{name}</span>
 		{#if isAnchor}
-			<span class="rounded bg-green-100 px-2 py-0.5 text-xs text-green-700">låst</span>
+			<span class="rounded-sm bg-green-100 px-2 py-0.5 text-xs text-green-700">låst</span>
 		{:else}
-			<span class="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-600">automatisk</span>
+			<span class="rounded-sm bg-gray-100 px-2 py-0.5 text-xs text-gray-600">automatisk</span>
 		{/if}
 	</div>
 

@@ -94,7 +94,7 @@
 				type="text"
 				bind:value={searchQuery}
 				placeholder="Sök plats..."
-				class="w-full max-w-md rounded-lg border border-gray-300 p-2 focus:border-blue-500 focus:outline-none"
+				class="w-full max-w-md rounded-lg border border-gray-300 p-2 focus:border-blue-500 focus:outline-hidden"
 			/>
 			<Button icon="Filter" variant="secondary" on:click={() => alert('Filter placeholder')} />
 		</div>

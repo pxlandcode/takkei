@@ -40,7 +40,7 @@
 
 	// Dynamic class setup
 	$: buttonClasses = `
-		flex items-center justify-center gap-2 rounded-md shadow-sm transition-all duration-200 
+		flex items-center justify-center gap-2 rounded-md shadow-xs transition-all duration-200 cursor-pointer
 		${variant === 'primary' ? 'bg-primary text-white hover:bg-primary-hover' : ''}
 		${variant === 'secondary' ? 'bg-white text-gray border border-gray hover:bg-white/80' : ''}
 		${variant === 'cancel' ? 'bg-error text-white hover:bg-error-hover' : ''}
@@ -50,7 +50,7 @@
 		${icon && !text ? (small ? 'h-8 w-8' : 'h-[45px] w-[45px]') : 'p-2'}
         ${!icon && text ? (small ? 'text-sm' : 'h-[45px]') : 'text-base'}
         ${full ? 'w-full' : ''}
-		focus:outline-none active:translate-y-1 active:scale-95 active:shadow-sm
+		focus:outline-hidden active:translate-y-1 active:scale-95 active:shadow-xs
         disabled:opacity-60 disabled:cursor-not-allowed disabled:pointer-events-none
 	`;
 </script>
@@ -113,7 +113,7 @@
 	{/if}
 	{#if notificationCount > 0}
 		<span
-			class="absolute -right-1 -top-1 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-notification px-1 text-xs font-semibold text-white"
+			class="bg-notification absolute -top-1 -right-1 flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-xs font-semibold text-white"
 		>
 			{notificationCount}
 		</span>

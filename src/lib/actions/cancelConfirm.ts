@@ -66,7 +66,7 @@ export function cancelConfirm(node: HTMLElement, { onConfirm, startTimeISO }: Ca
 
 		popover = document.createElement('div');
 		popover.className =
-			'cancel-popover absolute z-[2147483647] max-w-xs rounded-md border border-gray-bright bg-white p-4 shadow-xl';
+			'cancel-popover absolute z-2147483647 max-w-xs rounded-md border border-gray-bright bg-white p-4 shadow-xl';
 
 		selectedReason = '';
 
@@ -77,7 +77,7 @@ export function cancelConfirm(node: HTMLElement, { onConfirm, startTimeISO }: Ca
 		popover.innerHTML = `
       <p class="mb-2 font-semibold text-gray">Avbryt bokning</p>
       <label class="mb-2 block text-sm font-medium text-gray" for="cancel-reason-select">Orsak</label>
-      <select id="cancel-reason-select" data-reason class="mb-2 w-full rounded border border-gray px-2 py-2 text-sm">
+      <select id="cancel-reason-select" data-reason class="mb-2 w-full rounded-sm border border-gray px-2 py-2 text-sm">
         <option value="" selected disabled>Välj orsak</option>
         ${reasonOptionsHTML}
       </select>
@@ -85,7 +85,7 @@ export function cancelConfirm(node: HTMLElement, { onConfirm, startTimeISO }: Ca
       <p data-late-note class="mt-2 text-xs text-error hidden">Sen avbokning – debiteringsregler kan gälla.</p>
       <div class="mt-3 flex justify-end gap-4">
         <button data-cancel class="text-base text-error hover:text-error-hover hover:underline">Avbryt</button>
-        <button data-confirm disabled class="rounded bg-gray px-6 py-1 text-base text-white cursor-not-allowed">Bekräfta</button>
+        <button data-confirm disabled class="rounded-sm bg-gray px-6 py-1 text-base text-white cursor-not-allowed">Bekräfta</button>
       </div>
     `;
 
@@ -110,8 +110,8 @@ export function cancelConfirm(node: HTMLElement, { onConfirm, startTimeISO }: Ca
 			const setConfirmState = (enabled: boolean) => {
 				confirmBtn.disabled = !enabled;
 				confirmBtn.className = enabled
-					? 'rounded bg-success hover:bg-success-hover px-6 py-1 text-base text-white'
-					: 'rounded bg-gray px-6 py-1 text-base text-white cursor-not-allowed';
+					? 'rounded-sm bg-success hover:bg-success-hover px-6 py-1 text-base text-white'
+					: 'rounded-sm bg-gray px-6 py-1 text-base text-white cursor-not-allowed';
 			};
 
 			const onReasonChange = () => {

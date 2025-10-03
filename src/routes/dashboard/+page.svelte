@@ -50,7 +50,7 @@
 	{/if}
 
 	<button
-		class="rounded bg-blue-600 px-4 py-2 text-white disabled:opacity-60"
+		class="rounded-sm bg-blue-600 px-4 py-2 text-white disabled:opacity-60"
 		disabled={status === 'sending'}
 		on:click={sendTestMail}
 	>

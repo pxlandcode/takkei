@@ -65,7 +65,7 @@
 		<div class="space-y-2">
 			{#each rooms as room, i}
 				<div
-					class="relative flex items-center justify-between rounded border px-3 py-2 transition-opacity"
+					class="relative flex items-center justify-between rounded-sm border px-3 py-2 transition-opacity"
 					class:opacity-50={!room.active}
 				>
 					{#if !room.active}
@@ -98,7 +98,7 @@
 	<div>
 		<label class="mb-1 block text-sm">Förhandsvisning</label>
 		<div
-			class="w-full max-w-xs rounded-md border p-2 text-xs text-gray-700 shadow-sm"
+			class="w-full max-w-xs rounded-md border p-2 text-xs text-gray-700 shadow-xs"
 			style="background-color: {color}20; border-color: {color}; color: {color};"
 		>
 			<div class="flex flex-row gap-2">

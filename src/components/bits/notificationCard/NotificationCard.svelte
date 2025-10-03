@@ -50,13 +50,13 @@
 </script>
 
 <div
-	class="rounded border border-l-0 shadow-sm"
+	class="rounded-sm border border-l-0 shadow-xs"
 	class:border-orange={type === 'client'}
 	class:border-error={type === 'alert'}
 	class:border-success={type === 'info'}
 >
 	<div
-		class="rounded border-l-4 bg-white {small ? 'p-2' : 'p-4'}"
+		class="rounded-sm border-l-4 bg-white {small ? 'p-2' : 'p-4'}"
 		class:border-orange={type === 'client'}
 		class:border-error={type === 'alert'}
 		class:border-success={type === 'info'}
@@ -118,7 +118,7 @@
 					</p>
 					{#if !expanded && (message.length > 120 || message.includes('\n'))}
 						<div
-							class="fade-footer pointer-events-none absolute bottom-0 left-0 h-8 w-full rounded-b bg-gradient-to-t from-white via-white/80 to-transparent"
+							class="fade-footer pointer-events-none absolute bottom-0 left-0 h-8 w-full rounded-b bg-linear-to-t from-white via-white/80 to-transparent"
 						></div>
 					{/if}
 				</div>
