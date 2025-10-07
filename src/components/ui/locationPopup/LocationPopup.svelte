@@ -40,7 +40,7 @@
 	}
 </script>
 
-<div class="min-w-80 space-y-6">
+<div class="w-full min-w-0 space-y-6 sm:min-w-[20rem]">
 	<!-- 🏷 Name -->
 	<Input bind:value={name} name="locationName" label="Namn" placeholder="Lokalens namn" />
 
@@ -65,7 +65,7 @@
 		<div class="space-y-2">
 			{#each rooms as room, i}
 				<div
-					class="relative flex items-center justify-between rounded-sm border px-3 py-2 transition-opacity"
+					class="relative flex flex-col gap-3 rounded-sm border px-3 py-2 transition-opacity sm:flex-row sm:items-center sm:justify-between"
 					class:opacity-50={!room.active}
 				>
 					{#if !room.active}
@@ -73,13 +73,14 @@
 					{/if}
 
 					<Input
+						class="w-full"
 						name={`room-${i}`}
 						placeholder="Rumnamn"
 						bind:value={room.name}
 						disabled={!isEditingRooms}
 					/>
 
-					<div class="ml-2 flex items-center gap-2">
+					<div class="flex items-center gap-2 sm:ml-2">
 						<label class="text-sm text-gray-600">Aktiv</label>
 						<input
 							type="checkbox"

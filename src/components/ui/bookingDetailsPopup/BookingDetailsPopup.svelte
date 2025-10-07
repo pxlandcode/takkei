@@ -238,11 +238,11 @@ function handleCloseEditor(event: CustomEvent<{ booking?: FullBooking }>) {
 {:else if showEditor}
 	<p class="p-4 text-sm text-gray">Laddar redigeringsformulär...</p>
 {:else}
-	<div class="flex w-[600px] flex-col gap-4 bg-white">
-		<div class="mt-4 flex items-center justify-between">
+	<div class="flex w-full max-w-full flex-col gap-4 bg-white p-4 sm:w-[600px] sm:max-w-[600px]">
+		<div class="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 			<h2 class="text-xl font-semibold">Bokningsdetaljer</h2>
 
-			<div class="flex gap-3">
+			<div class="flex flex-wrap gap-2 sm:flex-nowrap sm:gap-3 sm:justify-end">
 				{#if !isCancelled}
 					<Button iconLeft="Edit" text="Redigera" variant="primary" small on:click={handleEdit} />
 					<Button

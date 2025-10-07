@@ -96,7 +96,7 @@
 {#if alerts.length === 0}
 	<p class="text-sm text-gray-500">Inga aktiva viktiga meddelanden.</p>
 {:else if alerts[currentIndex]}
-	<div class="flex w-[600px] max-w-[600px] flex-col gap-4 p-1">
+	<div class="flex w-full max-w-full flex-col gap-4 p-4 sm:w-[600px] sm:max-w-[600px]">
 		<!-- Alert Box -->
 		<div class="rounded-lg bg-red-50 p-4 shadow-xs">
 			<div class="flex items-start gap-3">
@@ -130,11 +130,11 @@
 		</div>
 
 		<!-- Footer -->
-		<div class="mt-2 flex items-center justify-end border-t pt-4">
+		<div class="mt-2 flex flex-col items-stretch gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-end">
 			<button
 				on:click={confirmAndNext}
 				disabled={isProcessing}
-				class="bg-error cursor-pointer rounded-sm px-4 py-2 text-sm font-medium text-white hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-70"
+				class="w-full bg-error cursor-pointer rounded-sm px-4 py-2 text-sm font-medium text-white hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-70 sm:w-auto"
 			>
 				Jag säkerställer att jag har läst
 			</button>

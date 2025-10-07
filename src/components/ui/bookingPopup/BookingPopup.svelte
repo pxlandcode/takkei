@@ -117,8 +117,7 @@
 
 		if (type === 'practice' || type === 'education') {
 			if (!bookingObject.trainerId) errors.trainer = 'Välj en tränare.';
-			if (type === 'practice' && !bookingObject.user_id)
-				errors.trainee = 'Välj en trainee.';
+			if (type === 'practice' && !bookingObject.user_id) errors.trainee = 'Välj en trainee.';
 			if (!bookingObject.locationId) errors.locations = 'Välj en plats.';
 			if (!hasDate) errors.date = 'Välj ett datum.';
 			if (!hasTime) errors.time = 'Välj en tid.';
@@ -369,10 +368,11 @@
 </script>
 
 <!-- Booking Manager UI -->
-<div class="flex w-full max-w-[600px] flex-col gap-4 bg-white md:w-[600px]">
+<div class="flex w-full max-w-full flex-col gap-4 bg-white sm:max-w-[600px]">
 	<!-- Booking Type Selector -->
 
 	<!-- Booking Type Selector -->
+
 	<OptionsSelect
 		bind:selectedValue={selectedBookingComponent}
 		options={[
@@ -385,6 +385,7 @@
 			{ label: 'Personlig', icon: 'Person', value: 'personal' }
 		]}
 	/>
+
 	<!-- Dynamic Booking Component -->
 	{#if selectedBookingComponent === 'training' || selectedBookingComponent === 'trial' || selectedBookingComponent === 'flight'}
 		<BookingTraining
