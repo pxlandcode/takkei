@@ -19,6 +19,7 @@
 	import { popupStore } from '$lib/stores/popupStore';
 	import MailComponent from '../components/ui/mailComponent/MailComponent.svelte';
 	import BookingDetailsPopup from '../components/ui/bookingDetailsPopup/BookingDetailsPopup.svelte';
+	import AlertPopup from '../components/ui/alertPopup/AlertPopup.svelte';
 	import { loadingStore } from '$lib/stores/loading';
 
 	export let data;
@@ -121,6 +122,18 @@
 			booking={$popupStore.data.booking}
 			on:close={() => popupStore.set(null)}
 		/>
+	</PopupWrapper>
+{/if}
+
+{#if $popupStore?.type === 'alert'}
+	<PopupWrapper
+		noClose
+		dismissable={false}
+		header={$popupStore?.data?.header || 'Viktigt meddelande'}
+		icon="CircleAlert"
+		on:close={() => popupStore.set(null)}
+	>
+		<AlertPopup on:finished={() => popupStore.set(null)} />
 	</PopupWrapper>
 {/if}
 

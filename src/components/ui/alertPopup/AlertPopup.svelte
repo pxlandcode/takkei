@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { get } from 'svelte/store';
 	import { user } from '$lib/stores/userStore';
+	import { notificationStore } from '$lib/stores/notificationStore';
 
 	import { addToast } from '$lib/stores/toastStore';
 	import { AppToastType } from '$lib/types/toastTypes';
@@ -12,6 +13,8 @@
 
 	let alerts = [];
 	let currentIndex = 0;
+
+	let isProcessing = false;
 
 	onMount(fetchAlerts);
 
@@ -24,6 +27,10 @@
 			if (!res.ok) throw new Error('Kunde inte hämta viktiga meddelanden');
 			alerts = await res.json();
 			currentIndex = 0;
+			if (alerts.length === 0) {
+				await notificationStore.updateFromServer(currentUser.id);
+				dispatch('finished');
+			}
 		} catch (err) {
 			addToast({
 				type: AppToastType.CANCEL,
@@ -47,9 +54,12 @@
 	}
 
 	async function confirmAndNext() {
+		if (isProcessing) return;
+
 		const currentUser = get(user);
 		const current = alerts[currentIndex];
 		if (!current || !currentUser?.id) return;
+		isProcessing = true;
 
 		try {
 			const res = await fetch('/api/notifications', {
@@ -64,6 +74,7 @@
 			if (!res.ok) throw new Error('Misslyckades att markera som läst');
 
 			alerts = [...alerts.slice(0, currentIndex), ...alerts.slice(currentIndex + 1)];
+			await notificationStore.updateFromServer(currentUser.id);
 
 			if (alerts.length === 0) {
 				dispatch('finished');
@@ -76,6 +87,8 @@
 				message: 'Kunde inte markera som läst',
 				description: err.message
 			});
+		} finally {
+			isProcessing = false;
 		}
 	}
 </script>
@@ -120,7 +133,8 @@
 		<div class="mt-2 flex items-center justify-end border-t pt-4">
 			<button
 				on:click={confirmAndNext}
-				class="bg-error cursor-pointer rounded-sm px-4 py-2 text-sm font-medium text-white hover:bg-red-600"
+				disabled={isProcessing}
+				class="bg-error cursor-pointer rounded-sm px-4 py-2 text-sm font-medium text-white hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-70"
 			>
 				Jag säkerställer att jag har läst
 			</button>

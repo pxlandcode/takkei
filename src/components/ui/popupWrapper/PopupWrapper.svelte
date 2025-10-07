@@ -47,8 +47,8 @@
 
 	// Size classes for container
 	function containerClass() {
-		const base = 'bg-white shadow-lg flex flex-col overflow-hidden max-h-[80dvh] md:rounded-2xl w-full';
-		const modalSize = `md:w-[min(66vw,900px)]`;
+		const base = 'bg-white shadow-lg flex flex-col overflow-hidden h-full max-h-full md:max-h-[80dvh] md:rounded-2xl w-full';
+		const modalSize = 'rounded-2xl w-full max-w-full sm:max-w-[min(90vw,900px)] md:max-w-[min(66vw,900px)] sm:mx-auto';
 		const drawerBase = 'min-h-screen md:min-h-[unset]';
 		const byVar: Record<typeof variant, string> = {
 			modal: `${modalSize}`,
@@ -61,7 +61,13 @@
 	}
 
 	// Apply explicit width/height for modal only
-	$: sizeStyle = variant === 'modal' ? `width:${width};height:${height};` : '';
+	$: sizeStyle = (() => {
+		if (variant !== 'modal') return '';
+		let style = '';
+		if (width && width !== 'fit-content') style += `width:${width};`;
+		if (height && height !== 'fit-content') style += `height:${height};`;
+		return style;
+	})();
 
 	// Ensure dialog is shown when open flips true
 	$: (async () => {
@@ -130,12 +136,25 @@
 	.popup-dialog {
 		padding: 0;
 		border: none;
+		box-sizing: border-box;
+		position: fixed;
+		inset: 0;
+		margin: 0;
 		width: 100vw;
 		height: 100vh;
+		height: 100dvh;
+		max-width: none;
+		max-height: none;
 		background: transparent;
 		display: grid;
-		place-items: center; /* centers modal variant; drawers use self-start/end */
-		padding: 1rem;
+		align-items: stretch;
+		justify-items: stretch;
+	}
+	@media (min-width: 640px) {
+		.popup-dialog {
+			padding: 1rem;
+			place-items: center; /* recentre modal on larger viewports */
+		}
 	}
 	.popup-dialog::backdrop {
 		background: rgba(0, 0, 0, 0.5);

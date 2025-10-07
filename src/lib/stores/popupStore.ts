@@ -7,6 +7,7 @@ export type PopupStoreType =
 	| { type: 'clientForm' }
 	| { type: 'booking'; data?: { clientId?: number; trainerId?: number } }
 	| { type: 'bookingDetails'; data: { booking: FullBooking } }
+	| { type: 'alert'; data?: { header?: string } }
 	| null;
 type MailPopupData = {
 	prefilledRecipients?: string[];

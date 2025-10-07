@@ -7,11 +7,9 @@
 	import DashboardButton from '../../bits/dashboardButton/DashboardButton.svelte';
 	import DashboardIcon from './DashboardIcon.svelte';
 	import { notificationStore } from '$lib/stores/notificationStore';
-	import { on } from 'svelte/events';
 	import { onMount } from 'svelte';
 	import { user } from '$lib/stores/userStore';
-	import PopupWrapper from '../../ui/popupWrapper/PopupWrapper.svelte';
-	import AlertPopup from '../../ui/alertPopup/AlertPopup.svelte';
+	import { popupStore } from '$lib/stores/popupStore';
 
 	import { get } from 'svelte/store';
 
@@ -33,6 +31,14 @@
 
 	$: clientNotifications = $notificationStore.byType.client ?? 0;
 	$: alertNotifications = $notificationStore.byType.alert ?? 0;
+
+	$: {
+		if (alertNotifications > 0 && $popupStore?.type !== 'alert') {
+			popupStore.set({ type: 'alert' });
+		} else if (alertNotifications === 0 && $popupStore?.type === 'alert') {
+			popupStore.set(null);
+		}
+	}
 
 	$: buttons = [
 		{ label: 'Kalender', icon: 'Calendar', href: '/calendar' },
@@ -71,9 +77,3 @@
 		<DashboardIcon></DashboardIcon>
 	</div>
 </div>
-
-{#if alertNotifications > 0}
-	<PopupWrapper noClose header="Viktigt meddelande" icon="CircleAlert">
-		<AlertPopup on:finished={() => (alertNotifications = 0)} />
-	</PopupWrapper>
-{/if}

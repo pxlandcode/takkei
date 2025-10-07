@@ -1,46 +1,70 @@
 <script lang="ts">
-	import { createEventDispatcher, onMount, tick } from 'svelte';
+	import { onMount, tick } from 'svelte';
 	import { tooltip } from '$lib/actions/tooltip';
-	import {
-		getMeetingHeight,
-		getTopOffset,
-		formatTime
-	} from '$lib/helpers/calendarHelpers/calendar-utils';
-	import { getShortAddress } from '$lib/helpers/locationHelpers/location-utils';
+	import { getMeetingHeight, getTopOffset } from '$lib/helpers/calendarHelpers/calendar-utils';
+
 	import { IconClock, IconDumbbell, IconGymnastics } from '$lib/icons';
 
 	import type { FullBooking } from '$lib/types/calendarTypes';
 	import { user } from '$lib/stores/userStore';
 	import IconMobility from '$icons/IconMobility.svelte';
+	import { on } from 'svelte/events';
 
-	export let booking: FullBooking;
-	export let startHour: number;
-	export let hourHeight: number;
-	export let i: number;
-	export let toolTipText: string | undefined;
+	type Props = {
+		booking: FullBooking;
+		startHour: number;
+		hourHeight: number;
+		toolTipText?: string;
+		columnIndex?: number;
+		columnCount?: number;
+		onbookingselected: () => void;
+	};
 
-	export let columnIndex = 0;
-	export let columnCount = 1;
+	let {
+		booking,
+		startHour,
+		hourHeight,
+		toolTipText,
+		columnIndex = 0,
+		columnCount = 1,
+		onbookingselected
+	}: Props = $props();
 
-	const dispatch = createEventDispatcher();
-
-	let bookingSlot: HTMLDivElement | null = null;
-	let trainerNameElement: HTMLSpanElement | null = null;
-	let clientNameElement: HTMLSpanElement | null = null;
-	let width = 200;
-	let useInitials = false;
+	let bookingSlot: HTMLButtonElement | undefined = $state();
+	let trainerNameElement: HTMLSpanElement | undefined = $state();
+	let clientNameElement: HTMLSpanElement | undefined = $state();
+	let width = $state(200);
+	let useInitials = $state(false);
 	let debounceTimer: NodeJS.Timeout;
-	let showIcon = true;
+	let showIcon = $state(true);
 
-	$: endTime =
+	const endTime = $derived(
 		booking.booking.endTime ??
-		new Date(new Date(booking.booking.startTime).getTime() + 60 * 60 * 1000).toISOString();
+			new Date(new Date(booking.booking.startTime).getTime() + 60 * 60 * 1000).toISOString()
+	);
 
-	$: topOffset = getTopOffset(booking.booking.startTime, startHour, hourHeight);
-	$: meetingHeight = getMeetingHeight(booking.booking.startTime, endTime, hourHeight);
-	$: bookingColor = booking.location?.color ?? booking.trainer?.color ?? '#000000';
+	const topOffset = $derived(getTopOffset(booking.booking.startTime, startHour, hourHeight));
+	const meetingHeight = $derived(getMeetingHeight(booking.booking.startTime, endTime, hourHeight));
+	const bookingColor = $derived(booking.location?.color ?? '#000000');
 
-	$: bookingIcon = (() => {
+	const colWidth = $derived(100 / columnCount);
+	const colLeft = $derived(columnIndex * colWidth);
+
+	const trainerInitials =
+		booking.trainer?.firstname && booking.trainer?.lastname
+			? `${booking.trainer.firstname[0]}${booking.trainer.lastname[0]}`
+			: booking.isPersonalBooking
+				? 'P'
+				: 'T';
+	const clientInitials =
+		booking.client?.firstname && booking.client?.lastname
+			? `${booking.client.firstname[0]}${booking.client.lastname[0]}`
+			: 'C';
+
+	// $: colWidth = 100 / columnCount;
+	// $: colLeft = columnIndex * colWidth;
+
+	const bookingIcon = $derived.by(() => {
 		const kind = booking.additionalInfo?.bookingContent?.kind?.toLowerCase() ?? '';
 		switch (kind) {
 			case 'weightlifting':
@@ -52,23 +76,11 @@
 			default:
 				return IconClock;
 		}
-	})();
+	});
 
-	$: trainerInitials =
-		booking.trainer?.firstname && booking.trainer?.lastname
-			? `${booking.trainer.firstname[0]}${booking.trainer.lastname[0]}`
-			: booking.isPersonalBooking
-				? 'P'
-				: 'T';
-	$: clientInitials =
-		booking.client?.firstname && booking.client?.lastname
-			? `${booking.client.firstname[0]}${booking.client.lastname[0]}`
-			: 'C';
-
-	$: colWidth = 100 / columnCount;
-	$: colLeft = columnIndex * colWidth;
-
-	let fullNameWidth = 0; // Store full name width
+	let fullNameWidth = $state(0);
+	$inspect({ fullNameWidth });
+	$inspect({ useInitials });
 
 	async function measureFullNameWidth() {
 		await tick();
@@ -94,6 +106,7 @@
 
 		showIcon = fullNameWidth < containerWidth;
 	}
+
 	onMount(async () => {
 		await tick(); // Ensure DOM elements are rendered
 
@@ -120,11 +133,11 @@
 </script>
 
 <button
-	on:click={() => dispatch('onClick', { booking })}
 	bind:this={bookingSlot}
+	on:click={onbookingselected}
 	class="text-gray absolute z-20 flex cursor-pointer flex-col gap-[2px] p-1 text-xs shadow-xs {showIcon
 		? 'items-start'
-		: 'items-center'} {booking.trainer?.id === $user.id
+		: 'items-center'} {booking.trainer?.id === $user?.id
 		? 'border-2'
 		: ''} {booking.isPersonalBooking
 		? booking.additionalInfo?.bookingContent.kind === 'Private'
