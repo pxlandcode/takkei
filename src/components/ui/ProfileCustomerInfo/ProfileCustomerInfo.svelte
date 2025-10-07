@@ -1,5 +1,6 @@
 <script lang="ts">
 	import Button from '../../bits/button/Button.svelte';
+	import ProfileCustomerClients from '../ProfileCustomerClients/ProfileCustomerClients.svelte';
 	import CustomerEdit from '../CustomerEdit/CustomerEdit.svelte';
 	import Table from '../../bits/table/Table.svelte';
 	import { goto } from '$app/navigation';
@@ -7,7 +8,15 @@
 	import PackagePopup from '../packagePopup/PackagePopup.svelte';
 
 	export let customer;
+	export let onCustomerChange: (value: any) => void = () => {};
 	let isEditing = false;
+
+	function handleClientsUpdated(event) {
+		const updatedClients = event.detail ?? [];
+		customer = { ...customer, clients: updatedClients };
+		onCustomerChange?.(customer);
+	}
+
 	let showAddPackageModal = false;
 
 	const packageHeaders = [
@@ -98,6 +107,12 @@
 			<CustomerEdit {customer} onSave={() => (isEditing = false)} />
 		{/if}
 	</div>
+
+	<ProfileCustomerClients
+		customerId={customer.id}
+		clients={customer.clients ?? []}
+		on:clientsUpdated={handleClientsUpdated}
+	/>
 
 	<div class="rounded-lg bg-white p-6 shadow-md">
 		<div class="mb-4 flex items-center justify-between">

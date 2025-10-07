@@ -16,12 +16,16 @@
 
 	$: customerId = Number($page.params.id);
 
+	function handleCustomerChange(updatedCustomer: any) {
+		customer = updatedCustomer;
+	}
+
 	const menuItems = [
 		{
 			label: 'Profil',
 			icon: 'Customer',
 			component: ProfileCustomerInfo,
-			props: () => (customer ? { customer } : {})
+			props: () => (customer ? { customer, onCustomerChange: handleCustomerChange } : {})
 		},
 		{
 			label: 'Bokningar',
