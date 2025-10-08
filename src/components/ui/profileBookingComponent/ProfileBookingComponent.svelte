@@ -6,10 +6,12 @@
 	import ProfileBookingSlot from '../profileBookingSlot/ProfileBookingSlot.svelte';
 	import OptionButton from '../../bits/optionButton/OptionButton.svelte';
 	import Button from '../../bits/button/Button.svelte';
-	import { popupStore } from '$lib/stores/popupStore';
+	import { openPopup } from '$lib/stores/popupStore';
 	import { user } from '$lib/stores/userStore';
 	import { debounce } from '$lib/utils/debounce';
 	import Checkbox from '../../bits/checkbox/Checkbox.svelte';
+	import BookingDetailsPopup from '../bookingDetailsPopup/BookingDetailsPopup.svelte';
+	import MailComponent from '../mailComponent/MailComponent.svelte';
 
 	export let trainerId: number | null = null;
 	export let clientId: number | null = null;
@@ -198,15 +200,17 @@
 			`${currentUser.firstname}, Takkei Trainingsystems`
 		].join('<br>');
 
-		popupStore.set({
-			type: 'mail',
+		openPopup({
 			header: `Maila bokningsbekräftelse till ${clientEmail}`,
-			data: {
+			icon: 'Mail',
+			component: MailComponent,
+			width: '900px',
+			props: {
 				prefilledRecipients: [clientEmail],
 				subject: 'Bokningsbekräftelse',
 				header: 'Bekräftelse på dina bokningar',
 				subheader: 'Tack för din bokning!',
-				body: body,
+				body,
 				lockedFields: ['recipients'],
 				autoFetchUsersAndClients: false
 			}
@@ -241,7 +245,18 @@
 	}
 
 	function handleBookingClick(event) {
-		popupStore.set({ type: 'bookingDetails', data: { booking: event.detail } });
+		openPopup({
+			header: 'Bokningsdetaljer',
+			icon: 'CircleInfo',
+			component: BookingDetailsPopup,
+			props: { booking: event.detail },
+			maxWidth: '650px',
+			listeners: {
+				updated: () => {
+					loadMoreBookings(true);
+				}
+			}
+		});
 	}
 </script>
 
@@ -250,12 +265,12 @@
 	<div class="mb-4 grid grid-cols-1 gap-4 md:grid-cols-2">
 		<!-- ✅ Start Date Filter -->
 		<div>
-			<label class="text-sm font-medium text-gray">Från datum</label>
+			<label class="text-gray text-sm font-medium">Från datum</label>
 			<input
 				type="date"
 				value={$selectedDate}
 				on:change={updateStartDate}
-				class="h-9 w-full rounded-lg border p-2 text-gray"
+				class="text-gray h-9 w-full rounded-lg border p-2"
 			/>
 		</div>
 
@@ -276,7 +291,7 @@
 
 	{#if clientId}
 		<div
-			class="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg bg-orange/10 px-4 py-3 shadow-xs"
+			class="bg-orange/10 mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg px-4 py-3 shadow-xs"
 		>
 			<div class="flex items-center gap-3">
 				<!-- ✅ Select-all (loaded) using your Checkbox component -->
@@ -319,7 +334,7 @@
 
 	<!-- 🔹 Booking List (Infinite Scroll) -->
 	<div
-		class="h-full max-h-[65vh] space-y-3 overflow-y-scroll pt-4 custom-scrollbar"
+		class="custom-scrollbar h-full max-h-[65vh] space-y-3 overflow-y-scroll pt-4"
 		on:scroll={handleScroll}
 	>
 		{#each $bookings as booking (booking.booking.id)}
@@ -342,14 +357,15 @@
 		{/each}
 
 		{#if $isLoading}
-			<p class="mt-4 text-center text-gray-bright">Laddar fler bokningar...</p>
+			<p class="text-gray-bright mt-4 text-center">Laddar fler bokningar...</p>
 		{/if}
 
 		{#if !$hasMore && $bookings.length > 0}
-			<p class="mt-4 text-center text-gray-bright">Inga fler bokningar att visa.</p>
+			<p class="text-gray-bright mt-4 text-center">Inga fler bokningar att visa.</p>
 		{/if}
 	</div>
 </div>
+
 <style>
 	.custom-scrollbar {
 		scrollbar-width: thin;

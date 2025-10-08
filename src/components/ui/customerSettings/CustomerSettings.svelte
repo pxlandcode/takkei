@@ -5,19 +5,25 @@
 	import Button from '../../bits/button/Button.svelte';
 	import OptionButton from '../../bits/optionButton/OptionButton.svelte';
 	import Table from '../../bits/table/Table.svelte';
-	import PopupWrapper from '../../ui/popupWrapper/PopupWrapper.svelte';
 	import CustomerForm from '../../ui/customerForm/CustomerForm.svelte';
 	import { debounce } from '$lib/utils/debounce';
 	import { loadingStore } from '$lib/stores/loading';
 	import MailComponent from '../mailComponent/MailComponent.svelte';
-
-	let showCustomerModal = false;
+	import { openPopup } from '$lib/stores/popupStore';
 
 	function openCustomerForm() {
-		showCustomerModal = true;
-	}
-	function closeCustomerForm() {
-		showCustomerModal = false;
+		openPopup({
+			header: 'Ny kund',
+			icon: 'Plus',
+			component: CustomerForm,
+			maxWidth: '650px',
+			listeners: {
+				created: () => {
+					fetchPaginatedCustomers(true);
+				}
+			},
+			closeOn: ['created']
+		});
 	}
 
 	let data: TableType = [];
@@ -34,7 +40,6 @@
 	let sortOrder = 'asc';
 
 	let selectedCustomerEmail: string | null = null;
-	let showMailPopup = false;
 
 	const headers = [
 		{ label: 'Kund', key: 'name', icon: 'Person', sort: true, isSearchable: true },
@@ -49,7 +54,7 @@
 	function onSendCustomerEmail(email: string) {
 		if (!email) return;
 		selectedCustomerEmail = email;
-		showMailPopup = true;
+		openMailPopup(email);
 	}
 
 	async function handleSortChange(event) {
@@ -79,13 +84,13 @@
 
 			const fetched = await res.json();
 
-				const newData = fetched.map((cust) => ({
-					id: cust.id,
-					name: [{ type: 'link', label: cust.name, action: () => onGoToCustomer(cust.id) }],
-					email: [{ type: 'link', label: cust.email, action: () => onSendCustomerEmail(cust.email) }],
-					phone: cust.phone || '',
-					isActive: cust.active
-				}));
+			const newData = fetched.map((cust) => ({
+				id: cust.id,
+				name: [{ type: 'link', label: cust.name, action: () => onGoToCustomer(cust.id) }],
+				email: [{ type: 'link', label: cust.email, action: () => onSendCustomerEmail(cust.email) }],
+				phone: cust.phone || '',
+				isActive: cust.active
+			}));
 
 			data = [...data, ...newData];
 
@@ -133,13 +138,32 @@
 			fetchPaginatedCustomers();
 		}
 	}
+
+	function openMailPopup(email: string) {
+		openPopup({
+			header: `Maila ${email}`,
+			icon: 'Mail',
+			component: MailComponent,
+			width: '900px',
+			props: {
+				prefilledRecipients: [email],
+				lockedFields: ['recipients'],
+				autoFetchUsersAndClients: false
+			},
+			listeners: {
+				close: () => {
+					selectedCustomerEmail = null;
+				}
+			}
+		});
+	}
 </script>
 
 <div class="my-b flex flex-row items-center justify-between">
 	<h2 class="text-xl font-semibold">Kunder</h2>
 </div>
 
-<div class="h-full overflow-x-scroll custom-scrollbar" on:scroll={handleScroll}>
+<div class="custom-scrollbar h-full overflow-x-scroll" on:scroll={handleScroll}>
 	<div class="my-4 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
 		<Button text="Lägg till kund" variant="primary" on:click={openCustomerForm} />
 
@@ -149,7 +173,7 @@
 				bind:value={searchQuery}
 				on:input={debouncedSearch}
 				placeholder="Sök kund..."
-				class="w-full min-w-60 max-w-md rounded-lg border border-gray-300 p-2 focus:border-blue-500 focus:outline-hidden"
+				class="w-full max-w-md min-w-60 rounded-lg border border-gray-300 p-2 focus:border-blue-500 focus:outline-hidden"
 			/>
 
 			<div class="min-w-80">
@@ -177,29 +201,4 @@
 	{/if}
 </div>
 
-<!-- Modal for CustomerForm -->
-{#if showCustomerModal}
-	<PopupWrapper header="Ny kund" icon="Plus" on:close={closeCustomerForm}>
-		<CustomerForm
-			on:created={() => {
-				closeCustomerForm();
-				fetchPaginatedCustomers(true);
-			}}
-		/>
-	</PopupWrapper>
-{/if}
-
-{#if showMailPopup && selectedCustomerEmail}
-	<PopupWrapper
-		width="900px"
-		header="Maila {selectedCustomerEmail}"
-		icon="Mail"
-		on:close={() => ((showMailPopup = false), (selectedCustomerEmail = null))}
-	>
-		<MailComponent
-			prefilledRecipients={[selectedCustomerEmail]}
-			lockedFields={['recipients']}
-			autoFetchUsersAndClients={false}
-		/>
-	</PopupWrapper>
-{/if}
+<!-- Popups handled via global store -->

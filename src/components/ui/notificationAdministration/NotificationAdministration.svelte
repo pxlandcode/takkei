@@ -1,22 +1,29 @@
 <script lang="ts">
 	import Button from '../../bits/button/Button.svelte';
 
-	import PopupWrapper from '../../ui/popupWrapper/PopupWrapper.svelte';
-	import NotificationCreator from '../../ui/notificationCreator/NotificationCreator.svelte';
-	import NotificationAdminList from '../notificationAdminList/NotificationAdminList.svelte';
+import NotificationCreator from '../../ui/notificationCreator/NotificationCreator.svelte';
+import NotificationAdminList from '../notificationAdminList/NotificationAdminList.svelte';
+import { openPopup } from '$lib/stores/popupStore';
 
-	let showAddModal = false;
+let refreshKey = 0;
 
-	let refreshKey = 0;
+function handleCreated() {
+	refreshKey++;
+}
 
-	function closePopup() {
-		showAddModal = false;
-	}
-
-	function handleCreated() {
-		showAddModal = false;
-		refreshKey++;
-	}
+function openNotificationPopup() {
+	openPopup({
+		header: 'Ny notifikation',
+		icon: 'Notification',
+		component: NotificationCreator,
+		listeners: {
+			created: () => {
+				handleCreated();
+			}
+		},
+		closeOn: ['created']
+	});
+}
 </script>
 
 <div class="h-full overflow-x-scroll custom-scrollbar">
@@ -30,15 +37,11 @@
 			text="Skapa ny notifikation"
 			icon="Plus"
 			variant="primary"
-			on:click={() => (showAddModal = true)}
+			on:click={openNotificationPopup}
 		/>
 	</div>
 
 	<NotificationAdminList {refreshKey} />
 
-	{#if showAddModal}
-		<PopupWrapper header="Ny notifikation" icon="Notification" on:close={closePopup}>
-			<NotificationCreator on:created={handleCreated} />
-		</PopupWrapper>
-	{/if}
+<!-- Popups handled via global store -->
 </div>

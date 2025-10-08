@@ -6,18 +6,16 @@
 	import Navigation from '../../../components/bits/navigation/Navigation.svelte';
 	import { clientProfileStore } from '$lib/stores/clientProfileStore';
 	import ProfileClientInfo from '../../../components/ui/ProfileClientInfo/ProfileClientInfo.svelte';
-	import ProfileBookingComponent from '../../../components/ui/profileBookingComponent/ProfileBookingComponent.svelte';
-	import ProfileNotesComponent from '../../../components/ui/profileNotesComponent/ProfileNotesComponent.svelte';
-	import PopupWrapper from '../../../components/ui/popupWrapper/PopupWrapper.svelte';
-	import MailComponent from '../../../components/ui/mailComponent/MailComponent.svelte';
-	import { goto } from '$app/navigation';
-	import { calendarStore } from '$lib/stores/calendarStore';
-	import BookingPopup from '../../../components/ui/bookingPopup/BookingPopup.svelte';
+import ProfileBookingComponent from '../../../components/ui/profileBookingComponent/ProfileBookingComponent.svelte';
+import ProfileNotesComponent from '../../../components/ui/profileNotesComponent/ProfileNotesComponent.svelte';
+import MailComponent from '../../../components/ui/mailComponent/MailComponent.svelte';
+import { goto } from '$app/navigation';
+import { calendarStore } from '$lib/stores/calendarStore';
+import BookingPopup from '../../../components/ui/bookingPopup/BookingPopup.svelte';
+import { openPopup } from '$lib/stores/popupStore';
 
 	let clientId: number;
 	let client = null;
-	let showMailPopup = false;
-	let showBookingPopup = false;
 
 	$: clientId = Number($page.params.slug);
 
@@ -55,12 +53,39 @@
 		}
 	];
 
-	let selectedTab = menuItems[0];
+let selectedTab = menuItems[0];
 
-	function goToCalendar() {
-		calendarStore.setNewFilters({ clientIds: [clientId] }, fetch);
-		goto(`/calendar?clientId=${clientId}`);
-	}
+function goToCalendar() {
+	calendarStore.setNewFilters({ clientIds: [clientId] }, fetch);
+	goto(`/calendar?clientId=${clientId}`);
+}
+
+function openMailPopup() {
+	const target = client?.client;
+	if (!target?.email) return;
+	openPopup({
+		header: `Maila ${target.firstname ?? ''} ${target.lastname ?? ''}`.trim(),
+		icon: 'Mail',
+		component: MailComponent,
+		width: '900px',
+		props: {
+			prefilledRecipients: [target.email],
+			lockedFields: ['recipients'],
+			autoFetchUsersAndClients: false
+		}
+	});
+}
+
+function openBookingPopup() {
+	if (!clientId) return;
+	openPopup({
+		header: 'Bokning',
+		icon: 'Plus',
+		component: BookingPopup,
+		props: { clientId },
+		maxWidth: '650px'
+	});
+}
 </script>
 
 <!-- Header -->
@@ -75,7 +100,7 @@
 	</div>
 
 	<div class="mr-14 flex space-x-2 md:mr-0">
-		<Button icon="Mail" variant="secondary" on:click={() => (showMailPopup = true)} />
+		<Button icon="Mail" variant="secondary" on:click={openMailPopup} />
 		<Button icon="Calendar" variant="secondary" on:click={goToCalendar} />
 		<Button
 			iconLeft="Plus"
@@ -83,7 +108,7 @@
 			text="Boka"
 			variant="primary"
 			icon="Plus"
-			on:click={() => (showBookingPopup = true)}
+			on:click={openBookingPopup}
 		/>
 	</div>
 </div>
@@ -97,26 +122,8 @@
 	{/if}
 </Navigation>
 
-{#if showMailPopup && client?.client?.email}
-	<PopupWrapper
-		width="900px"
-		header="Maila {client.client.firstname} {client.client.lastname}"
-		icon="Mail"
-		on:close={() => (showMailPopup = false)}
-	>
-		<MailComponent
-			prefilledRecipients={[client.client.email]}
-			lockedFields={['recipients']}
-			autoFetchUsersAndClients={false}
-		/>
-	</PopupWrapper>
-{/if}
-
-{#if showBookingPopup}
-	<PopupWrapper header="Bokning" icon="Plus" on:close={() => (showBookingPopup = false)}>
-		<BookingPopup on:close={() => (showBookingPopup = false)} {clientId} />
-	</PopupWrapper>
-{/if}
+{
+}
 
 <style>
 	.tab-button {

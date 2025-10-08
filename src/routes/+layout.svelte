@@ -13,24 +13,26 @@
 	import { onMount } from 'svelte';
 	import { browser } from '$app/environment';
 	import { goto } from '$app/navigation';
-	import Button from '../components/bits/button/Button.svelte';
-	import PopupWrapper from '../components/ui/popupWrapper/PopupWrapper.svelte';
+import Button from '../components/bits/button/Button.svelte';
+import PopupWrapper from '../components/ui/popupWrapper/PopupWrapper.svelte';
+import PopupContentHost from '../components/ui/popupWrapper/PopupContentHost.svelte';
 
-	import { popupStore } from '$lib/stores/popupStore';
-	import MailComponent from '../components/ui/mailComponent/MailComponent.svelte';
-	import BookingDetailsPopup from '../components/ui/bookingDetailsPopup/BookingDetailsPopup.svelte';
-	import AlertPopup from '../components/ui/alertPopup/AlertPopup.svelte';
+import { popupStore, closePopup, type PopupState } from '$lib/stores/popupStore';
 	import { loadingStore } from '$lib/stores/loading';
 
-	export let data;
+export let data;
 	$user = data.user;
 
-	let isMobile = false;
-	let showDrawer = false;
+let isMobile = false;
+let showDrawer = false;
 
-	$: currentRoute = $page.url.pathname;
+let popup: PopupState | null = null;
+let popupListeners: Record<string, (event: CustomEvent<any>) => void> = {};
+let popupProps: Record<string, unknown> = {};
 
-	$: navigating.to && loadingStore.loading(!!navigating.to);
+$: currentRoute = $page.url.pathname;
+
+$: navigating.to && loadingStore.loading(!!navigating.to);
 
 	// Detect mobile and route changes
 	onMount(() => {
@@ -46,10 +48,43 @@
 		}
 	});
 
-	function closeDrawer() {
-		showDrawer = false;
-		goto('/');
+function closeDrawer() {
+	showDrawer = false;
+	goto('/');
+}
+
+function buildListeners(state: PopupState | null) {
+	if (!state) return {};
+	const listeners: Record<string, (event: CustomEvent<any>) => void> = {};
+	const rawListeners = state.listeners ?? {};
+
+	for (const [eventName, handler] of Object.entries(rawListeners)) {
+		if (eventName === 'close') continue;
+		listeners[eventName] = handler;
 	}
+
+	const closeEvents = (state.closeOn ?? []).filter((eventName) => eventName !== 'close');
+	for (const eventName of closeEvents) {
+		const existing = listeners[eventName];
+		listeners[eventName] = (event) => {
+			existing?.(event);
+			closePopup();
+		};
+	}
+
+	return listeners;
+}
+
+function handlePopupClose(event: CustomEvent<any>) {
+	if (popup?.listeners?.close) {
+		popup.listeners.close(event);
+	}
+	closePopup();
+}
+
+$: popup = $popupStore;
+$: popupListeners = buildListeners(popup);
+$: popupProps = popup?.props ? { ...popup.props } : {};
 </script>
 
 <ParaglideJS {i18n}>
@@ -98,42 +133,26 @@
 
 		<LoadingOverlay />
 		<ToastContainer />
-	{/if}
+{/if}
 </ParaglideJS>
 
-{#if $popupStore?.type === 'mail'}
+{#if popup}
 	<PopupWrapper
-		width="900px"
-		header={$popupStore?.header || 'Skicka E-post'}
-		icon="Mail"
-		on:close={() => popupStore.set(null)}
+		header={popup.header ?? 'Popup'}
+		icon={popup.icon}
+		noClose={popup.noClose}
+		dismissable={popup.dismissable ?? true}
+		width={popup.width}
+		height={popup.height}
+		maxWidth={popup.maxWidth}
+		maxHeight={popup.maxHeight}
+		on:close={handlePopupClose}
 	>
-		<MailComponent {...$popupStore.data} />
-	</PopupWrapper>
-{/if}
-
-{#if $popupStore?.type === 'bookingDetails'}
-	<PopupWrapper
-		header="Bokningsdetaljer"
-		icon="CircleInfo"
-		on:close={() => popupStore.set(null)}
-	>
-		<BookingDetailsPopup
-			booking={$popupStore.data.booking}
-			on:close={() => popupStore.set(null)}
+		<PopupContentHost
+			component={popup.component}
+			props={popupProps}
+			listeners={popupListeners}
 		/>
-	</PopupWrapper>
-{/if}
-
-{#if $popupStore?.type === 'alert'}
-	<PopupWrapper
-		noClose
-		dismissable={false}
-		header={$popupStore?.data?.header || 'Viktigt meddelande'}
-		icon="CircleAlert"
-		on:close={() => popupStore.set(null)}
-	>
-		<AlertPopup on:finished={() => popupStore.set(null)} />
 	</PopupWrapper>
 {/if}
 

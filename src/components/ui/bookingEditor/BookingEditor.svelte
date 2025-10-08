@@ -4,8 +4,9 @@
 
 	import BookingTraining from '../bookingPopup/bookingTraining/BookingTraining.svelte';
 	import BookingPractice from '../bookingPopup/bookingPractice/BookingPractice.svelte';
-	import BookingMeeting from '../bookingPopup/bookingMeeting/BookingMeeting.svelte';
-	import Button from '../../bits/button/Button.svelte';
+import BookingMeeting from '../bookingPopup/bookingMeeting/BookingMeeting.svelte';
+import Button from '../../bits/button/Button.svelte';
+import MailComponent from '../mailComponent/MailComponent.svelte';
 
 	import type { FullBooking } from '$lib/types/calendarTypes';
 	import { locations, fetchLocations } from '$lib/stores/locationsStore';
@@ -18,7 +19,7 @@ import { clients, fetchClients, getClientEmails } from '$lib/stores/clientsStore
 	import { user } from '$lib/stores/userStore';
 	import { calendarStore } from '$lib/stores/calendarStore';
 	import { loadingStore } from '$lib/stores/loading';
-	import { popupStore } from '$lib/stores/popupStore';
+import { openPopup } from '$lib/stores/popupStore';
 	import {
 		handleBookingEmail,
 		updateTrainingBooking,
@@ -465,28 +466,30 @@ function buildUpdatedFullBooking(
 			.map((b) => `${b.date} kl. ${b.time}${b.locationName ? ` på ${b.locationName}` : ''}`)
 			.join('<br>');
 
-		popupStore.set({
-			type: 'mail',
-			header: `Maila bokningsuppdatering till ${recipient}`,
-			data: {
-				prefilledRecipients: recipient,
-				subject: 'Bokningsuppdatering',
-				header: 'Din bokning har uppdaterats',
-				subheader: 'Nya detaljer för din bokning',
-				body: `
-				Hej!<br><br>
-				Följande bokning har uppdaterats:<br>
-				${locationsSummary}<br><br>
-				Kontakta oss om något inte stämmer.<br><br>
-				Hälsningar,<br>
-				${currentUser?.firstname ?? ''}<br>
-				Takkei Trainingsystems
-			`,
-				lockedFields: ['recipients'],
-				autoFetchUsersAndClients: false
-			}
-		});
-	}
+	openPopup({
+		header: `Maila bokningsuppdatering till ${recipient}`,
+		icon: 'Mail',
+		component: MailComponent,
+		width: '900px',
+		props: {
+			prefilledRecipients: [recipient],
+			subject: 'Bokningsuppdatering',
+			header: 'Din bokning har uppdaterats',
+			subheader: 'Nya detaljer för din bokning',
+			body: `
+			Hej!<br><br>
+			Följande bokning har uppdaterats:<br>
+			${locationsSummary}<br><br>
+			Kontakta oss om något inte stämmer.<br><br>
+			Hälsningar,<br>
+			${currentUser?.firstname ?? ''}<br>
+			Takkei Trainingsystems
+		`,
+			lockedFields: ['recipients'],
+			autoFetchUsersAndClients: false
+		}
+	});
+}
 
 	async function handleUpdate() {
 		if (!editableBooking) return;

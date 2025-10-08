@@ -7,14 +7,13 @@
 	import Navigation from '../../../components/bits/navigation/Navigation.svelte';
 	import ProfileInfo from '../../../components/ui/ProfileInfo/ProfileInfo.svelte';
 	import ProfileBookingComponent from '../../../components/ui/profileBookingComponent/ProfileBookingComponent.svelte';
-	import ProfileNotesComponent from '../../../components/ui/profileNotesComponent/ProfileNotesComponent.svelte';
-	import PopupWrapper from '../../../components/ui/popupWrapper/PopupWrapper.svelte';
-	import MailComponent from '../../../components/ui/mailComponent/MailComponent.svelte';
+import ProfileNotesComponent from '../../../components/ui/profileNotesComponent/ProfileNotesComponent.svelte';
+import MailComponent from '../../../components/ui/mailComponent/MailComponent.svelte';
+import { openPopup } from '$lib/stores/popupStore';
 
 	let trainerId: number;
 	let profile = null;
 	let trainer = null;
-	let showMailPopup = false;
 
 	$: trainerId = Number($page.params.slug);
 
@@ -50,12 +49,27 @@
 		if (trainerId) await profileStore.loadUser(trainerId, fetch);
 	});
 
-	$: {
-		if ($profileStore.users[trainerId]) {
-			profile = $profileStore.users[trainerId];
-			trainer = profile.user;
-		}
+$: {
+	if ($profileStore.users[trainerId]) {
+		profile = $profileStore.users[trainerId];
+		trainer = profile.user;
 	}
+}
+
+function openMailPopup() {
+	if (!trainer?.email) return;
+	openPopup({
+		header: `Maila ${trainer.firstname ?? ''} ${trainer.lastname ?? ''}`.trim(),
+		icon: 'Mail',
+		component: MailComponent,
+		width: '900px',
+		props: {
+			prefilledRecipients: [trainer.email],
+			lockedFields: ['recipients'],
+			autoFetchUsersAndClients: false
+		}
+	});
+}
 </script>
 
 <!-- Page Header -->
@@ -70,7 +84,7 @@
 	</div>
 
 	<div class="mr-14 flex space-x-2 md:mr-0">
-		<Button icon="Mail" variant="secondary" on:click={() => (showMailPopup = true)} />
+	<Button icon="Mail" variant="secondary" on:click={openMailPopup} />
 		<Button icon="Calendar" variant="secondary" />
 		<Button iconLeft="Plus" iconLeftSize="12px" text="Boka" variant="primary" icon="Plus" />
 	</div>
@@ -83,18 +97,3 @@
 		<p class="text-gray-500">Innehåll kommer snart.</p>
 	{/if}
 </Navigation>
-
-{#if showMailPopup && trainer}
-	<PopupWrapper
-		width="900px"
-		header="Maila {trainer.firstname} {trainer.lastname}"
-		icon="Mail"
-		on:close={() => (showMailPopup = false)}
-	>
-		<MailComponent
-			prefilledRecipients={[trainer.email]}
-			lockedFields={['recipients']}
-			autoFetchUsersAndClients={false}
-		/>
-	</PopupWrapper>
-{/if}

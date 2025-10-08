@@ -4,15 +4,14 @@
 	import { loadingStore } from '$lib/stores/loading';
 	import Icon from '../../../../components/bits/icon-component/Icon.svelte';
 	import Navigation from '../../../../components/bits/navigation/Navigation.svelte';
-	import ProfileCustomerInfo from '../../../../components/ui/ProfileCustomerInfo/ProfileCustomerInfo.svelte';
-	import ProfileNotesComponent from '../../../../components/ui/profileNotesComponent/ProfileNotesComponent.svelte';
-	import PopupWrapper from '../../../../components/ui/popupWrapper/PopupWrapper.svelte';
-	import MailComponent from '../../../../components/ui/mailComponent/MailComponent.svelte';
-	import Button from '../../../../components/bits/button/Button.svelte';
+import ProfileCustomerInfo from '../../../../components/ui/ProfileCustomerInfo/ProfileCustomerInfo.svelte';
+import ProfileNotesComponent from '../../../../components/ui/profileNotesComponent/ProfileNotesComponent.svelte';
+import MailComponent from '../../../../components/ui/mailComponent/MailComponent.svelte';
+import Button from '../../../../components/bits/button/Button.svelte';
+import { openPopup } from '$lib/stores/popupStore';
 
 	let customerId: number;
 	let customer: any = null;
-	let showMailPopup = false;
 
 	$: customerId = Number($page.params.id);
 
@@ -20,9 +19,9 @@
 		customer = updatedCustomer;
 	}
 
-	const menuItems = [
-		{
-			label: 'Profil',
+const menuItems = [
+	{
+		label: 'Profil',
 			icon: 'Customer',
 			component: ProfileCustomerInfo,
 			props: () => (customer ? { customer, onCustomerChange: handleCustomerChange } : {})
@@ -40,7 +39,23 @@
 		}
 	];
 
-	let selectedTab = menuItems[0];
+let selectedTab = menuItems[0];
+
+function openMailPopup() {
+	if (!customer) return;
+	const recipients = customer.email ? [customer.email] : [];
+	openPopup({
+		header: `Maila ${customer.name ?? ''}`.trim(),
+		icon: 'Mail',
+		component: MailComponent,
+		width: '900px',
+		props: {
+			prefilledRecipients: recipients,
+			lockedFields: ['recipients'],
+			autoFetchUsersAndClients: false
+		}
+	});
+}
 
 	onMount(async () => {
 		if (!customerId) return;
@@ -68,7 +83,7 @@
 	</div>
 
 	<div class="mr-14 flex space-x-2 md:mr-0">
-		<Button icon="Mail" variant="secondary" on:click={() => (showMailPopup = true)} />
+	<Button icon="Mail" variant="secondary" on:click={openMailPopup} />
 	</div>
 </div>
 
@@ -79,18 +94,3 @@
 		<p class="text-gray-500">Innehåll kommer snart.</p>
 	{/if}
 </Navigation>
-
-{#if showMailPopup && customer}
-	<PopupWrapper
-		width="900px"
-		header="Maila {customer.name}"
-		icon="Mail"
-		on:close={() => (showMailPopup = false)}
-	>
-		<MailComponent
-			prefilledRecipients={[customer.email]}
-			lockedFields={['recipients']}
-			autoFetchUsersAndClients={false}
-		/>
-	</PopupWrapper>
-{/if}

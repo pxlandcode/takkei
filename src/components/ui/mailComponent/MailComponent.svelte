@@ -15,7 +15,7 @@
 	import OptionButton from '../../bits/optionButton/OptionButton.svelte';
 	import { addToast } from '$lib/stores/toastStore';
 	import { AppToastType } from '$lib/types/toastTypes';
-	import { popupStore } from '$lib/stores/popupStore';
+import { closePopup } from '$lib/stores/popupStore';
 
 	export let autoFetchUsersAndClients: boolean = true;
 
@@ -157,7 +157,7 @@
 			});
 		} finally {
 			loadingStore.loading(false);
-			popupStore.set(null);
+			closePopup();
 		}
 	}
 </script>

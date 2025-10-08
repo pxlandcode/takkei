@@ -6,8 +6,10 @@
 	import { expoInOut } from 'svelte/easing';
 
 	export let header = 'Popup';
-	export let width = 'fit-content';
-	export let height = 'fit-content';
+export let width = 'fit-content';
+export let height = 'fit-content';
+export let maxWidth: string | undefined;
+export let maxHeight: string | undefined;
 	export let noClose = false;
 	export let icon: string | undefined;
 
@@ -47,7 +49,8 @@
 
 	// Size classes for container
 	function containerClass() {
-		const base = 'bg-white shadow-lg flex flex-col overflow-hidden h-full max-h-full md:max-h-[80dvh] md:rounded-2xl w-full';
+		const base =
+			'bg-white shadow-lg flex flex-col overflow-hidden h-full md:h-auto max-h-full md:max-h-[80dvh] md:rounded-2xl w-full';
 		const modalSize = 'rounded-2xl w-full max-w-full sm:max-w-[min(90vw,900px)] md:max-w-[min(66vw,900px)] sm:mx-auto';
 		const drawerBase = 'min-h-screen md:min-h-[unset]';
 		const byVar: Record<typeof variant, string> = {
@@ -62,10 +65,13 @@
 
 	// Apply explicit width/height for modal only
 	$: sizeStyle = (() => {
-		if (variant !== 'modal') return '';
 		let style = '';
-		if (width && width !== 'fit-content') style += `width:${width};`;
-		if (height && height !== 'fit-content') style += `height:${height};`;
+		const applyWidth = width && width !== 'fit-content';
+		const applyHeight = height && height !== 'fit-content';
+		if (applyWidth) style += `width:${width};`;
+		if (applyHeight) style += `height:${height};`;
+		if (maxWidth) style += `max-width:${maxWidth};`;
+		if (maxHeight) style += `max-height:${maxHeight};`;
 		return style;
 	})();
 

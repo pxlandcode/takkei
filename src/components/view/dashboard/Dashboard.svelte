@@ -9,7 +9,8 @@
 	import { notificationStore } from '$lib/stores/notificationStore';
 	import { onMount } from 'svelte';
 	import { user } from '$lib/stores/userStore';
-	import { popupStore } from '$lib/stores/popupStore';
+import { popupStore, openPopup, closePopup } from '$lib/stores/popupStore';
+import AlertPopup from '../../ui/alertPopup/AlertPopup.svelte';
 
 	import { get } from 'svelte/store';
 
@@ -24,7 +25,7 @@
 		date.setHours(2, 0, 0, 0);
 		calendarStore.goToWeek(date, fetch);
 
-		const { weekStart, weekEnd } = getWeekStartAndEnd(date);
+const { weekStart, weekEnd } = getWeekStartAndEnd(date);
 
 		goto(`/calendar?from=${weekStart}&to=${weekEnd}`);
 	}
@@ -32,13 +33,15 @@
 	$: clientNotifications = $notificationStore.byType.client ?? 0;
 	$: alertNotifications = $notificationStore.byType.alert ?? 0;
 
-	$: {
-		if (alertNotifications > 0 && $popupStore?.type !== 'alert') {
-			popupStore.set({ type: 'alert' });
-		} else if (alertNotifications === 0 && $popupStore?.type === 'alert') {
-			popupStore.set(null);
-		}
+$: activePopup = $popupStore;
+
+$: {
+	if (alertNotifications > 0 && activePopup?.id !== 'alert') {
+		openAlertPopup();
+	} else if (alertNotifications === 0 && activePopup?.id === 'alert') {
+		closePopup();
 	}
+}
 
 	$: buttons = [
 		{ label: 'Kalender', icon: 'Calendar', href: '/calendar' },
@@ -49,10 +52,22 @@
 			href: '/clients',
 			notificationCount: clientNotifications
 		},
-		{ label: 'Nyheter', icon: 'Newspaper', href: '/news' },
-		{ label: 'Rapporter', icon: 'Charts', href: '/reports' },
-		{ label: 'Inställningar', icon: 'Settings', href: '/settings' }
-	];
+	{ label: 'Nyheter', icon: 'Newspaper', href: '/news' },
+	{ label: 'Rapporter', icon: 'Charts', href: '/reports' },
+	{ label: 'Inställningar', icon: 'Settings', href: '/settings' }
+];
+
+function openAlertPopup() {
+	openPopup({
+		id: 'alert',
+		header: 'Viktigt meddelande',
+		icon: 'CircleAlert',
+		component: AlertPopup,
+		dismissable: false,
+		noClose: true,
+		closeOn: ['finished']
+	});
+}
 </script>
 
 <div class="hide-scrollbar flex h-full w-[320px] flex-col justify-between gap-4 overflow-scroll">
