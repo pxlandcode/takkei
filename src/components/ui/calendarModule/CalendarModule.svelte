@@ -6,6 +6,8 @@
 	import { goto } from '$app/navigation';
 	import { user } from '$lib/stores/userStore';
 	import { calendarStore } from '$lib/stores/calendarStore';
+	import { locations, fetchLocations } from '$lib/stores/locationsStore';
+	import { clickOutside } from '$lib/actions/clickOutside';
 
 	// Props
 	export let selectedDate: Date = new Date();
@@ -38,6 +40,9 @@
 	$: monthDays = getMonthDays(new Date(currentKey));
 
 	let selectedWeekRowIndex: number | null = null;
+	let moduleRef: HTMLDivElement | null = null;
+	let showLocationDropdown = false;
+	const dropdownOffset = { top: 70, left: 93 };
 
 	// ---- Store → calendar sync (only when store date string changes) ----
 	$: storeDateStr = $calendarStore.filters.date ?? null;
@@ -142,11 +147,62 @@
 		goto(`/calendar?trainerId=${currentUser.id}`);
 	}
 
+	function closeLocationDropdown(event?: MouseEvent) {
+		if (event) {
+			const path = event.composedPath?.() ?? [];
+			const clickedTrigger = path.some(
+				(node) =>
+					node instanceof HTMLElement && node.dataset?.locationTrigger === 'true'
+			);
+			if (clickedTrigger) {
+				setTimeout(() => closeLocationDropdown(), 0);
+				return;
+			}
+		}
+
+		showLocationDropdown = false;
+	}
+
+	async function openLocationCalender(event: MouseEvent) {
+		event.preventDefault();
+		event.stopPropagation();
+
+		if (!moduleRef) {
+			showLocationDropdown = !showLocationDropdown;
+			return;
+		}
+
+		if (!showLocationDropdown) {
+			if (get(locations).length === 0) {
+				await fetchLocations();
+			}
+
+			showLocationDropdown = true;
+			await tick();
+		} else {
+			closeLocationDropdown();
+		}
+	}
+
+	function selectLocation(locationId: number) {
+		closeLocationDropdown();
+		calendarStore.setNewFilters({ locationIds: [locationId] }, fetch);
+		goto(`/calendar?locationId=${locationId}`);
+	}
+
 	onMount(updateTodayRow);
+	onMount(async () => {
+		if (!get(locations).length) {
+			await fetchLocations();
+		}
+	});
 	$: $currentDate, monthDays, updateTodayRow();
 </script>
 
-<div class="relative h-auto w-[320px] rounded-lg p-4 text-sm font-light glass">
+<div
+	bind:this={moduleRef}
+	class="glass relative h-auto w-[320px] rounded-lg p-4 text-sm font-light"
+>
 	<!-- Header -->
 	<div class="mb-4 flex items-center justify-between">
 		<div class="flex w-36 flex-row items-center justify-between text-white">
@@ -160,14 +216,42 @@
 				<Icon icon="ChevronRight" size="16px" />
 			</button>
 		</div>
-		<Button
-			text="Min kalender"
-			small
-			variant="secondary"
-			iconLeft="Calendar"
-			on:click={openMyCalender}
-		/>
+		<div class="flex flex-row justify-between gap-4">
+			<Button variant="secondary" icon="CalendarMy" iconSize="25px" on:click={openMyCalender} />
+			<Button
+				variant="secondary"
+				icon="CalendarLocation"
+				iconSize="25px"
+				data-location-trigger="true"
+				on:click={openLocationCalender}
+			/>
+		</div>
 	</div>
+
+	{#if showLocationDropdown}
+		<div
+			use:clickOutside={closeLocationDropdown}
+			class="border-gray-bright text-gray absolute z-50 w-52 overflow-hidden rounded-md border bg-white text-sm shadow-xl"
+			style={`top: ${dropdownOffset.top}px; left: ${dropdownOffset.left}px;`}
+		>
+			{#if $locations.length === 0}
+				<div class="text-gray-medium px-4 py-3">Inga platser tillgängliga</div>
+			{:else}
+				<ul class="divide-gray-bright flex flex-col divide-y">
+					{#each $locations as location}
+						<li>
+							<button
+								class="text-gray w-full px-4 py-2 text-left hover:bg-gray-100"
+								on:click={() => selectLocation(location.id)}
+							>
+								{location.name}
+							</button>
+						</li>
+					{/each}
+				</ul>
+			{/if}
+		</div>
+	{/if}
 
 	<!-- Days of the week -->
 	<div class="flex w-full flex-col items-center justify-center">
@@ -196,7 +280,7 @@
 						{#if isToday(day)}
 							<div
 								bind:this={todayRef}
-								class="absolute z-0 h-8 w-8 rounded-full bg-orange hover:bg-primary-hover"
+								class="bg-orange hover:bg-primary-hover absolute z-0 h-8 w-8 rounded-full"
 							></div>
 						{/if}
 						<p class="pointer-events-none z-10">{day.getDate()}</p>

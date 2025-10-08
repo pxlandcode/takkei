@@ -1,10 +1,10 @@
-export function clickOutside(node: HTMLElement, callback: () => void) {
+export function clickOutside(node: HTMLElement, callback: (event?: MouseEvent) => void) {
 	const handleClick = (event: MouseEvent) => {
 		// If click is inside the element, do nothing
 		if (node.contains(event.target as Node)) return;
 
 		// If click is outside, run the callback
-		callback();
+		callback(event);
 	};
 
 	// ✅ Attach event listener immediately
