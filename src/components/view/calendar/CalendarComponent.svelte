@@ -82,7 +82,7 @@
 	let gridTemplateColumns = `${timeColumnWidth} repeat(${weekDays.length}, ${dayColumnWidth})`;
 
 	$: isCompactWeek = isMobile && mobileWeekMode && !singleDayView;
-	$: timeColumnWidth = isCompactWeek ? 'minmax(48px, 12vw)' : 'minmax(60px, 8%)';
+	$: timeColumnWidth = isMobile ? 'minmax(48px, 12vw)' : 'minmax(60px, 8%)';
 	$: dayColumnWidth = isCompactWeek ? 'minmax(0, 1fr)' : 'minmax(100px, 1fr)';
 	$: gridTemplateColumns = `${timeColumnWidth} repeat(${weekDays.length}, ${dayColumnWidth})`;
 
@@ -385,16 +385,16 @@
 	});
 </script>
 
-<div class="flex h-full flex-col gap-2 overflow-x-auto rounded-tl-md rounded-tr-md md:gap-10">
+<div class="flex h-full flex-col overflow-x-auto rounded-tl-md rounded-tr-md md:gap-10">
 	<!-- WEEK HEADER -->
 	<div
 		class="relative grid"
-		class:h-14={isCompactWeek}
-		class:h-16={!isCompactWeek}
+		class:h-14={isMobile}
+		class:h-16={!isMobile}
 		style={`grid-template-columns: ${gridTemplateColumns};`}
 	>
 		<div class="text-gray relative flex h-full flex-col items-center justify-center">
-			<ClockIcon size={isCompactWeek ? '24px' : '30px'} />
+			<ClockIcon size={isMobile ? '24px' : '30px'} />
 		</div>
 		{#if calendarIsLoading}
 			<div
@@ -426,29 +426,35 @@
 				<span>Laddar kalender...</span>
 			</div>
 		{/if}
-		{#each weekDays as { dayLabel, dayShortLabel, dateLabel, fullDate }}
+		{#each weekDays as { dayLabel, dayShortLabel, dateLabel, fullDate }, index (dateLabel)}
 			<div
-				class="bg-gray flex flex-col items-center rounded-lg text-white transition-colors focus:outline-none"
-				class:mx-1={!isCompactWeek}
-				class:mx-0={isCompactWeek}
-				class:py-2={!isCompactWeek}
-				class:py-1={isCompactWeek}
+				class="bg-gray flex flex-col items-center text-white transition-colors focus:outline-none"
+				class:mx-1={!isMobile}
+				class:mx-0={isMobile}
+				class:py-2={!isMobile}
+				class:py-1={isMobile}
+				class:rounded-lg={!isMobile}
+				class:rounded-none={isMobile}
+				class:border-r={isCompactWeek}
+				class:border-white={isCompactWeek}
+				class:border-opacity-40={isCompactWeek}
+				class:border-r-0={isCompactWeek && index === weekDays.length - 1}
 				class:cursor-pointer={isCompactWeek}
 				class:bg-orange={isSameLocalDay(fullDate, new Date())}
 				on:click={() => handleCompactDaySelection(fullDate)}
 			>
 				<p
 					class="capitalize"
-					class:text-lg={!isCompactWeek}
-					class:text-xs={isCompactWeek}
-					class:tracking-wide={isCompactWeek}
+					class:text-lg={!isMobile}
+					class:text-xs={isMobile}
+					class:tracking-wide={isMobile}
 				>
 					{isCompactWeek ? dayShortLabel : dayLabel}
 				</p>
 				<p
 					class="leading-tight font-semibold"
-					class:text-4xl={!isCompactWeek}
-					class:text-base={isCompactWeek}
+					class:text-4xl={!isMobile}
+					class:text-base={isMobile}
 				>
 					{dateLabel}
 				</p>
