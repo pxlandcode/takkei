@@ -16,6 +16,7 @@
 	import { addToast } from '$lib/stores/toastStore';
 	import { AppToastType } from '$lib/types/toastTypes';
 	import OptionButton from '../../bits/optionButton/OptionButton.svelte';
+	import { closePopup } from '$lib/stores/popupStore';
 
 	let filters = get(calendarStore).filters;
 	let selectedUsers: User[] = [];
@@ -140,11 +141,7 @@
 		let updated = [...event.detail.selected];
 		if (singleFilterMode) {
 			if (selectedEntity !== 'trainer') {
-				addToast({
-					type: AppToastType.NOTE,
-					message: 'Begränsat filter',
-					description: 'Byt filtertyp för att välja en tränare.'
-				});
+				showRestrictionToast('tränare');
 				return;
 			}
 			updated = updated.slice(-1);
@@ -162,11 +159,7 @@
 		let updated = [...event.detail.selected];
 		if (singleFilterMode) {
 			if (selectedEntity !== 'location') {
-				addToast({
-					type: AppToastType.NOTE,
-					message: 'Begränsat filter',
-					description: 'Byt filtertyp för att välja en plats.'
-				});
+				showRestrictionToast('plats');
 				return;
 			}
 			updated = updated.slice(-1);
@@ -184,11 +177,7 @@
 		let updated = [...event.detail.selected];
 		if (singleFilterMode) {
 			if (selectedEntity !== 'client') {
-				addToast({
-					type: AppToastType.NOTE,
-					message: 'Begränsat filter',
-					description: 'Byt filtertyp för att välja en kund.'
-				});
+				showRestrictionToast('kund');
 				return;
 			}
 			updated = updated.slice(-1);
@@ -262,13 +251,17 @@
 		}
 	}
 
+	function showRestrictionToast(label: string) {
+		addToast({
+			type: AppToastType.NOTE,
+			message: 'Begränsat filter',
+			description: `Byt filtertyp för att välja ${label}.`
+		});
+	}
+
 	function onSelectAllUsers() {
 		if (singleFilterMode && selectedEntity !== 'trainer') {
-			addToast({
-				type: AppToastType.NOTE,
-				message: 'Begränsat filter',
-				description: 'Byt filtertyp för att välja flera tränare.'
-			});
+			showRestrictionToast('flera tränare');
 			return;
 		}
 		selectedUsers = $users;
@@ -280,11 +273,7 @@
 
 	function onSelectAllClients() {
 		if (singleFilterMode && selectedEntity !== 'client') {
-			addToast({
-				type: AppToastType.NOTE,
-				message: 'Begränsat filter',
-				description: 'Byt filtertyp för att välja flera kunder.'
-			});
+			showRestrictionToast('flera kunder');
 			return;
 		}
 		selectedClients = $clients;
@@ -296,11 +285,7 @@
 
 	function onSelectAllLocations() {
 		if (singleFilterMode && selectedEntity !== 'location') {
-			addToast({
-				type: AppToastType.NOTE,
-				message: 'Begränsat filter',
-				description: 'Byt filtertyp för att välja flera platser.'
-			});
+			showRestrictionToast('flera platser');
 			return;
 		}
 		selectedLocations = $locations;
@@ -312,11 +297,7 @@
 
 	function onSelectMe() {
 		if (singleFilterMode && selectedEntity !== 'trainer') {
-			addToast({
-				type: AppToastType.NOTE,
-				message: 'Begränsat filter',
-				description: 'Byt filtertyp för att välja en tränare.'
-			});
+			showRestrictionToast('en tränare');
 			return;
 		}
 		const allUsers = get(users);
@@ -335,11 +316,7 @@
 
 	function onSelectMyPrimaryLocation() {
 		if (singleFilterMode && selectedEntity !== 'location') {
-			addToast({
-				type: AppToastType.NOTE,
-				message: 'Begränsat filter',
-				description: 'Byt filtertyp för att välja en plats.'
-			});
+			showRestrictionToast('en plats');
 			return;
 		}
 		const allLocations = get(locations);
@@ -355,10 +332,6 @@
 				description: 'Kunde inte hitta aktuell primära plats.'
 			});
 		}
-	}
-
-	function onClose() {
-		dispatch('close');
 	}
 
 	function handleEntitySwitch(value: EntityKey) {
@@ -416,13 +389,11 @@
 			message: 'Filter uppdaterade',
 			description: `Filtrerar bokningar baserat på nya filter. `
 		});
+
 		dispatch('applied', {
 			preferredEntity: singleFilterMode ? selectedEntity : null
 		});
-		if (singleFilterMode) {
-			preferredEntity = selectedEntity;
-		}
-		onClose();
+		closePopup();
 	}
 </script>
 
@@ -486,22 +457,22 @@
 						/>
 					</div>
 				</div>
-				{:else}
-					<div class="flex flex-col gap-2">
-						<Dropdown
-							id="client-single"
-							label="Kund"
-							placeholder="Välj kund"
-							options={clientDropdownOptions}
-							selectedValue={selectedClientId}
-							on:change={handleSingleClientChange}
-							search={true}
-							infiniteScroll={true}
-							maxNumberOfSuggestions={20}
-						/>
-					</div>
-				{/if}
 			{:else}
+				<div class="flex flex-col gap-2">
+					<Dropdown
+						id="client-single"
+						label="Kund"
+						placeholder="Välj kund"
+						options={clientDropdownOptions}
+						selectedValue={selectedClientId}
+						on:change={handleSingleClientChange}
+						search={true}
+						infiniteScroll={true}
+						maxNumberOfSuggestions={20}
+					/>
+				</div>
+			{/if}
+		{:else}
 			<div class="flex flex-col gap-2 sm:flex-row">
 				<div class="flex-1">
 					<DropdownCheckbox
@@ -534,12 +505,7 @@
 						iconColor="green"
 					/>
 
-					<Button
-						icon="Trash"
-						iconColor="error"
-						variant="secondary"
-						on:click={onDeSelectAllUsers}
-					/>
+					<Button icon="Trash" iconColor="error" variant="secondary" on:click={onDeSelectAllUsers} />
 				</div>
 			</div>
 
@@ -616,9 +582,7 @@
 				<Button icon="Trash" iconColor="error" variant="secondary" on:click={onDeSelectAllClients} />
 			</div>
 		</div>
-	{/if}
 
-	{#if !singleFilterMode}
 		<div class="mt-4">
 			<FilterBox
 				{selectedUsers}
