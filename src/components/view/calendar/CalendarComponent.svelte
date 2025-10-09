@@ -14,6 +14,8 @@
 	export let startHour = 4;
 	export let totalHours = 19;
 	export let singleDayView = false;
+	export let isMobile = false;
+	export let mobileWeekMode = false;
 
 	const dispatch = createEventDispatcher();
 
@@ -67,7 +69,22 @@
 		return monday;
 	}
 
-	let weekDays: { dayLabel: string; dateLabel: string; fullDate: Date }[] = [];
+	let weekDays: {
+		dayLabel: string;
+		dayShortLabel: string;
+		dateLabel: string;
+		fullDate: Date;
+	}[] = [];
+
+	let isCompactWeek = false;
+	let timeColumnWidth = 'minmax(60px, 8%)';
+	let dayColumnWidth = 'minmax(100px, 1fr)';
+	let gridTemplateColumns = `${timeColumnWidth} repeat(${weekDays.length}, ${dayColumnWidth})`;
+
+	$: isCompactWeek = isMobile && mobileWeekMode && !singleDayView;
+	$: timeColumnWidth = isMobile ? 'minmax(48px, 12vw)' : 'minmax(60px, 8%)';
+	$: dayColumnWidth = isCompactWeek ? 'minmax(0, 1fr)' : 'minmax(100px, 1fr)';
+	$: gridTemplateColumns = `${timeColumnWidth} repeat(${weekDays.length}, ${dayColumnWidth})`;
 
 	// Compute displayed days dynamically
 	$: {
@@ -76,6 +93,7 @@
 			weekDays = [
 				{
 					dayLabel: selected.toLocaleDateString('sv-SE', { weekday: 'long' }),
+					dayShortLabel: selected.toLocaleDateString('sv-SE', { weekday: 'short' }),
 					dateLabel: selected.getDate().toString(),
 					fullDate: selected
 				}
@@ -90,6 +108,7 @@
 				d.setDate(d.getDate() + i);
 				return {
 					dayLabel: d.toLocaleDateString('sv-SE', { weekday: 'long' }),
+					dayShortLabel: d.toLocaleDateString('sv-SE', { weekday: 'short' }),
 					dateLabel: d.getDate().toString(),
 					fullDate: d
 				};
@@ -339,6 +358,11 @@
 		dispatch('onTimeSlotClick', { startTime });
 	}
 
+	function handleCompactDaySelection(fullDate: Date) {
+		if (!isCompactWeek) return;
+		dispatch('daySelected', { date: ymdLocal(fullDate) });
+	}
+
 	onMount(() => {
 		const now = new Date();
 		const currentHour = now.getHours();
@@ -361,14 +385,16 @@
 	});
 </script>
 
-<div class="flex h-full flex-col gap-10 overflow-x-auto rounded-tl-md rounded-tr-md">
+<div class="flex h-full flex-col overflow-x-auto rounded-tl-md rounded-tr-md md:gap-10">
 	<!-- WEEK HEADER -->
 	<div
-		class="relative grid h-16"
-		style="grid-template-columns: minmax(60px, 8%) repeat({weekDays.length}, minmax(100px, 1fr));"
+		class="relative grid"
+		class:h-14={isMobile}
+		class:h-16={!isMobile}
+		style={`grid-template-columns: ${gridTemplateColumns};`}
 	>
 		<div class="text-gray relative flex h-full flex-col items-center justify-center">
-			<ClockIcon size="30px" />
+			<ClockIcon size={isMobile ? '24px' : '30px'} />
 		</div>
 		{#if calendarIsLoading}
 			<div
@@ -400,13 +426,38 @@
 				<span>Laddar kalender...</span>
 			</div>
 		{/if}
-		{#each weekDays as { dayLabel, dateLabel, fullDate }}
+		{#each weekDays as { dayLabel, dayShortLabel, dateLabel, fullDate }, index (dateLabel)}
 			<div
-				class="bg-gray mx-1 flex flex-col items-center rounded-lg py-2
-		       text-white {isSameLocalDay(fullDate, new Date()) ? 'bg-orange' : ''}"
+				class="bg-gray flex flex-col items-center text-white transition-colors focus:outline-none"
+				class:mx-1={!isMobile}
+				class:mx-0={isMobile}
+				class:py-2={!isMobile}
+				class:py-1={isMobile}
+				class:rounded-lg={!isMobile}
+				class:rounded-none={isMobile}
+				class:border-r={isCompactWeek}
+				class:border-white={isCompactWeek}
+				class:border-opacity-40={isCompactWeek}
+				class:border-r-0={isCompactWeek && index === weekDays.length - 1}
+				class:cursor-pointer={isCompactWeek}
+				class:bg-orange={isSameLocalDay(fullDate, new Date())}
+				on:click={() => handleCompactDaySelection(fullDate)}
 			>
-				<p class="text-lg">{dayLabel}</p>
-				<p class="text-4xl">{dateLabel}</p>
+				<p
+					class="capitalize"
+					class:text-lg={!isMobile}
+					class:text-xs={isMobile}
+					class:tracking-wide={isMobile}
+				>
+					{isCompactWeek ? dayShortLabel : dayLabel}
+				</p>
+				<p
+					class="leading-tight font-semibold"
+					class:text-4xl={!isMobile}
+					class:text-base={isMobile}
+				>
+					{dateLabel}
+				</p>
 			</div>
 		{/each}
 	</div>
@@ -414,8 +465,10 @@
 	<!-- CALENDAR GRID -->
 	<div
 		bind:this={calendarContainer}
-		class="relative grid grid-cols-{weekDays.length + 1}  bg-gray-bright/20 overflow-x-hidden"
-		style="grid-template-columns: minmax(60px, 8%) repeat({weekDays.length}, minmax(100px, 1fr));"
+		class="bg-gray-bright/20 relative grid"
+		class:overflow-x-hidden={!isCompactWeek}
+		class:overflow-x-auto={isCompactWeek}
+		style={`grid-template-columns: ${gridTemplateColumns};`}
 	>
 		<CurrentTimeIndicator {startHour} {hourHeight} />
 
@@ -428,7 +481,10 @@
 
 		<!-- DAYS & BOOKINGS -->
 		{#each weekDays as _, dayIndex}
-			<div class="border-gray-bright relative flex flex-col gap-1 border-l">
+			<div
+				class="border-gray-bright relative flex flex-col gap-1 border-l"
+				class:gap-0.5={isCompactWeek}
+			>
 				{#each unavailableBlocksByDay[dayIndex] ?? [] as block}
 					<div
 						class="unavailable-striped absolute right-0 left-0"
