@@ -1,12 +1,18 @@
 import { query } from '$lib/db';
+import { extractStockholmMinutes } from '$lib/server/stockholm-time';
 import type { RequestHandler } from '@sveltejs/kit';
 
-function extractTimeInMinutesFromDate(dateObj: Date): number {
-	return dateObj.getHours() * 60 + dateObj.getMinutes();
-}
+type Interval = { start: number; end: number };
+type RoomInterval = Interval & { roomId: number | null };
+
+const SLOT_LENGTH_MINUTES = 60;
+
 function extractTimeInMinutes(timeStr: string): number {
 	const [h, m] = timeStr.split(':').map(Number);
 	return h * 60 + m;
+}
+function isNotNull<T>(value: T | null | undefined): value is T {
+	return value !== null && value !== undefined;
 }
 function overlaps(startA: number, endA: number, startB: number, endB: number): boolean {
 	return startA < endB && startB < endA;
@@ -30,7 +36,7 @@ export const POST: RequestHandler = async ({ request }) => {
 
 	const baseDate = new Date(date);
 	const slotStart = extractTimeInMinutes(time);
-	const slotEnd = slotStart + 60;
+	const slotEnd = slotStart + SLOT_LENGTH_MINUTES;
 
 	const repeatedBookings = [];
 
@@ -72,15 +78,31 @@ export const POST: RequestHandler = async ({ request }) => {
       `,
 			[dayStart, dayEnd, trainerId]
 		);
-		const trainerPersonalIntervals = personalBookings.map((b: any) => ({
-			start: extractTimeInMinutesFromDate(new Date(b.start_time)),
-			end: extractTimeInMinutesFromDate(new Date(b.end_time))
-		}));
+		const trainerPersonalIntervals: Interval[] = personalBookings
+			.map((b: any): Interval | null => {
+				const start = extractStockholmMinutes(b.start_time);
+				const end = extractStockholmMinutes(b.end_time);
+				if (start === null || end === null) return null;
+				return { start, end };
+			})
+			.filter(isNotNull);
+
+		const bookingIntervals: RoomInterval[] = bookings
+			.map((b: any): RoomInterval | null => {
+				const start = extractStockholmMinutes(b.start_time);
+				if (start === null) return null;
+				return {
+					start,
+					end: start + SLOT_LENGTH_MINUTES,
+					roomId: b.room_id === null ? null : Number(b.room_id)
+				};
+			})
+			.filter(isNotNull);
 
 		// NEW: check trainer & trainee "user-busy" windows (only if asked)
-		let trainerBookingIntervals: { start: number; end: number }[] = [];
-		let traineePersonalIntervals: { start: number; end: number }[] = [];
-		let traineeBookingIntervals: { start: number; end: number }[] = [];
+		let trainerBookingIntervals: Interval[] = [];
+		let traineePersonalIntervals: Interval[] = [];
+		let traineeBookingIntervals: Interval[] = [];
 
 		if (checkUsersBusy) {
 			// Trainer's existing client/practice bookings
@@ -94,10 +116,13 @@ export const POST: RequestHandler = async ({ request }) => {
         `,
 				[dayStart, dayEnd, trainerId]
 			);
-			trainerBookingIntervals = tBookings.map((b: any) => {
-				const s = extractTimeInMinutesFromDate(new Date(b.start_time));
-				return { start: s, end: s + 60 };
-			});
+			trainerBookingIntervals = tBookings
+				.map((b: any): Interval | null => {
+					const start = extractStockholmMinutes(b.start_time);
+					if (start === null) return null;
+					return { start, end: start + SLOT_LENGTH_MINUTES };
+				})
+				.filter(isNotNull);
 
 			if (userId) {
 				// Trainee personal bookings
@@ -110,10 +135,14 @@ export const POST: RequestHandler = async ({ request }) => {
           `,
 					[dayStart, dayEnd, userId]
 				);
-				traineePersonalIntervals = traineePersonal.map((b: any) => ({
-					start: extractTimeInMinutesFromDate(new Date(b.start_time)),
-					end: extractTimeInMinutesFromDate(new Date(b.end_time))
-				}));
+				traineePersonalIntervals = traineePersonal
+					.map((b: any): Interval | null => {
+						const start = extractStockholmMinutes(b.start_time);
+						const end = extractStockholmMinutes(b.end_time);
+						if (start === null || end === null) return null;
+						return { start, end };
+					})
+					.filter(isNotNull);
 
 				// Trainee practice bookings (bookings.user_id = trainee)
 				const traineeBookings = await query(
@@ -126,22 +155,21 @@ export const POST: RequestHandler = async ({ request }) => {
           `,
 					[dayStart, dayEnd, userId]
 				);
-				traineeBookingIntervals = traineeBookings.map((b: any) => {
-					const s = extractTimeInMinutesFromDate(new Date(b.start_time));
-					return { start: s, end: s + 60 };
-				});
+				traineeBookingIntervals = traineeBookings
+					.map((b: any): Interval | null => {
+						const start = extractStockholmMinutes(b.start_time);
+						if (start === null) return null;
+						return { start, end: start + SLOT_LENGTH_MINUTES };
+					})
+					.filter(isNotNull);
 			}
 		}
 
 		// room conflicts
 		const roomConflicts = new Set(
-			bookings
-				.filter((b: any) => {
-					const s = extractTimeInMinutesFromDate(new Date(b.start_time));
-					const e = s + 60;
-					return overlaps(slotStart, slotEnd, s, e);
-				})
-				.map((b: any) => b.room_id)
+			bookingIntervals
+				.filter((booking) => overlaps(slotStart, slotEnd, booking.start, booking.end))
+				.map((booking) => booking.roomId)
 		);
 		const allRoomsTaken = roomConflicts.size >= roomIds.length;
 
@@ -160,16 +188,12 @@ export const POST: RequestHandler = async ({ request }) => {
 			for (let h = 5; h <= 21; h++) {
 				for (let m of [0, 30]) {
 					const altStart = h * 60 + m;
-					const altEnd = altStart + 60;
+					const altEnd = altStart + SLOT_LENGTH_MINUTES;
 
 					const altRoomConflicts = new Set(
-						bookings
-							.filter((b: any) => {
-								const s = extractTimeInMinutesFromDate(new Date(b.start_time));
-								const e = s + 60;
-								return overlaps(altStart, altEnd, s, e);
-							})
-							.map((b: any) => b.room_id)
+						bookingIntervals
+							.filter((booking) => overlaps(altStart, altEnd, booking.start, booking.end))
+							.map((booking) => booking.roomId)
 					);
 					const altTrainer = trainerBusy.some((b) => overlaps(altStart, altEnd, b.start, b.end));
 					const altTrainee = traineeBusy.some((b) => overlaps(altStart, altEnd, b.start, b.end));

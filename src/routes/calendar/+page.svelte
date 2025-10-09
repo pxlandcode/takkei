@@ -176,147 +176,153 @@
 		];
 	}
 
-function arraysEqual(a: number[], b: number[]) {
-	if (a.length !== b.length) return false;
-	return a.every((value, index) => value === b[index]);
-}
+	function arraysEqual(a: number[], b: number[]) {
+		if (a.length !== b.length) return false;
+		return a.every((value, index) => value === b[index]);
+	}
 
-const filterTypeLabels: Record<'clientIds' | 'locationIds' | 'trainerIds', string> = {
-	clientIds: 'kund',
-	locationIds: 'plats',
-	trainerIds: 'tränare'
-};
+	const filterTypeLabels: Record<'clientIds' | 'locationIds' | 'trainerIds', string> = {
+		clientIds: 'kund',
+		locationIds: 'plats',
+		trainerIds: 'tränare'
+	};
 
-function enforceMobileWeekFilters() {
-	if (!filters) return;
-	const summary = getSelectionSummary();
-	const activeGroups = summary.filter((item) => item.values.length > 0);
+	function enforceMobileWeekFilters() {
+		if (!filters) return;
+		const summary = getSelectionSummary();
+		const activeGroups = summary.filter((item) => item.values.length > 0);
 
 		if (activeGroups.length === 0) {
 			return;
 		}
 
-	const hasMultipleGroups = activeGroups.length > 1;
-	const groupWithMultipleSelections = activeGroups.find((item) => item.values.length > 1);
+		const hasMultipleGroups = activeGroups.length > 1;
+		const groupWithMultipleSelections = activeGroups.find((item) => item.values.length > 1);
 
-	if (!hasMultipleGroups && !groupWithMultipleSelections) {
-		preferredMobileFilterKey = activeGroups[0]?.key ?? null;
-		return;
-	}
+		if (!hasMultipleGroups && !groupWithMultipleSelections) {
+			preferredMobileFilterKey = activeGroups[0]?.key ?? null;
+			return;
+		}
 
-	const trainerGroup = activeGroups.find((item) => item.key === 'trainerIds');
-	const locationGroup = activeGroups.find((item) => item.key === 'locationIds');
+		const trainerGroup = activeGroups.find((item) => item.key === 'trainerIds');
+		const locationGroup = activeGroups.find((item) => item.key === 'locationIds');
 
-	let chosenGroup =
-		(trainerGroup &&
-			currentUserId != null &&
-			trainerGroup.values.includes(currentUserId) &&
-			trainerGroup) ||
-		(locationGroup &&
+		let chosenGroup =
+			(trainerGroup &&
+				currentUserId != null &&
+				trainerGroup.values.includes(currentUserId) &&
+				trainerGroup) ||
+			(locationGroup &&
+				currentUserDefaultLocationId != null &&
+				locationGroup.values.includes(currentUserDefaultLocationId) &&
+				locationGroup) ||
+			activeGroups.find((item) => item.key === preferredMobileFilterKey) ||
+			activeGroups[0];
+
+		if (!chosenGroup) {
+			chosenGroup = activeGroups[0];
+		}
+
+		let chosenValues: number[] = [];
+		if (chosenGroup.key === 'trainerIds' && currentUserId != null && trainerGroup) {
+			chosenValues = trainerGroup.values.includes(currentUserId)
+				? [currentUserId]
+				: chosenGroup.values.slice(0, 1);
+		} else if (
+			chosenGroup.key === 'locationIds' &&
 			currentUserDefaultLocationId != null &&
-			locationGroup.values.includes(currentUserDefaultLocationId) &&
-			locationGroup) ||
-		activeGroups.find((item) => item.key === preferredMobileFilterKey) ||
-		activeGroups[0];
+			locationGroup
+		) {
+			chosenValues = locationGroup.values.includes(currentUserDefaultLocationId)
+				? [currentUserDefaultLocationId]
+				: chosenGroup.values.slice(0, 1);
+		} else {
+			chosenValues = chosenGroup.values.slice(0, 1);
+		}
 
-	if (!chosenGroup) {
-		chosenGroup = activeGroups[0];
-	}
+		const desiredTrainerIds = chosenGroup.key === 'trainerIds' ? chosenValues : [];
+		const desiredLocationIds = chosenGroup.key === 'locationIds' ? chosenValues : [];
+		const desiredClientIds = chosenGroup.key === 'clientIds' ? chosenValues : [];
 
-	let chosenValues: number[] = [];
-	if (chosenGroup.key === 'trainerIds' && currentUserId != null && trainerGroup) {
-		chosenValues = trainerGroup.values.includes(currentUserId)
-			? [currentUserId]
-			: chosenGroup.values.slice(0, 1);
-	} else if (
-		chosenGroup.key === 'locationIds' &&
-		currentUserDefaultLocationId != null &&
-		locationGroup
-	) {
-		chosenValues = locationGroup.values.includes(currentUserDefaultLocationId)
-			? [currentUserDefaultLocationId]
-			: chosenGroup.values.slice(0, 1);
-	} else {
-		chosenValues = chosenGroup.values.slice(0, 1);
-	}
-
-	const desiredTrainerIds = chosenGroup.key === 'trainerIds' ? chosenValues : [];
-	const desiredLocationIds = chosenGroup.key === 'locationIds' ? chosenValues : [];
-	const desiredClientIds = chosenGroup.key === 'clientIds' ? chosenValues : [];
-
-	const currentClientIds = Array.isArray(filters.clientIds) ? filters.clientIds : [];
-	const currentLocationIds = Array.isArray(filters.locationIds) ? filters.locationIds : [];
-	const currentTrainerIds = Array.isArray(filters.trainerIds) ? filters.trainerIds : [];
+		const currentClientIds = Array.isArray(filters.clientIds) ? filters.clientIds : [];
+		const currentLocationIds = Array.isArray(filters.locationIds) ? filters.locationIds : [];
+		const currentTrainerIds = Array.isArray(filters.trainerIds) ? filters.trainerIds : [];
 
 		const shouldUpdate =
 			!arraysEqual(currentClientIds, desiredClientIds) ||
 			!arraysEqual(currentLocationIds, desiredLocationIds) ||
 			!arraysEqual(currentTrainerIds, desiredTrainerIds);
 
-	if (!shouldUpdate) {
-		preferredMobileFilterKey = chosenGroup.key;
-		return;
-	}
-
-	calendarStore.updateFilters(
-		{
-			clientIds: chosenGroup.key === 'clientIds' ? desiredClientIds : null,
-			locationIds: chosenGroup.key === 'locationIds' ? desiredLocationIds : [],
-			trainerIds: chosenGroup.key === 'trainerIds' ? desiredTrainerIds : null
-		},
-		fetch
-	);
-
-	if (!hasShownMobileFilterToast) {
-		const keptId = chosenValues[0] != null ? ` (ID ${chosenValues[0]})` : '';
-		addToast({
-			type: AppToastType.NOTE,
-			message: 'Mobil vecka',
-			description: `Vi behöll endast filtret för ${filterTypeLabels[chosenGroup.key]}${keptId}.`
-		});
-		hasShownMobileFilterToast = true;
-	}
-
-	preferredMobileFilterKey = chosenGroup.key;
-}
-
-function mapPreferredKeyToPopup(key: typeof preferredMobileFilterKey): 'trainer' | 'location' | 'client' | null {
-	if (key === 'trainerIds') return 'trainer';
-	if (key === 'locationIds') return 'location';
-	if (key === 'clientIds') return 'client';
-	return null;
-}
-
-function mapPreferredKeyFromPopup(
-	key: 'trainer' | 'location' | 'client' | null
-): typeof preferredMobileFilterKey {
-	if (key === 'trainer') return 'trainerIds';
-	if (key === 'location') return 'locationIds';
-	if (key === 'client') return 'clientIds';
-	return null;
-}
-
-function openFilterPopup() {
-	openPopup({
-		header: 'Filter',
-		icon: 'Filter',
-		component: FilteringPopup,
-		maxWidth: '650px',
-		props: {
-			isMobile,
-			isDayView: calendarView.value,
-			preferredEntity: mapPreferredKeyToPopup(preferredMobileFilterKey)
-		},
-		listeners: {
-			preferredEntityChange: (event) => {
-				preferredMobileFilterKey = mapPreferredKeyFromPopup(event.detail?.preferredEntity ?? null);
-			},
-			applied: (event) => {
-				preferredMobileFilterKey = mapPreferredKeyFromPopup(event.detail?.preferredEntity ?? null);
-			}
+		if (!shouldUpdate) {
+			preferredMobileFilterKey = chosenGroup.key;
+			return;
 		}
-	});
-}
+
+		calendarStore.updateFilters(
+			{
+				clientIds: chosenGroup.key === 'clientIds' ? desiredClientIds : null,
+				locationIds: chosenGroup.key === 'locationIds' ? desiredLocationIds : [],
+				trainerIds: chosenGroup.key === 'trainerIds' ? desiredTrainerIds : null
+			},
+			fetch
+		);
+
+		if (!hasShownMobileFilterToast) {
+			const keptId = chosenValues[0] != null ? ` (ID ${chosenValues[0]})` : '';
+			addToast({
+				type: AppToastType.NOTE,
+				message: 'Mobil vecka',
+				description: `Vi behöll endast filtret för ${filterTypeLabels[chosenGroup.key]}${keptId}.`
+			});
+			hasShownMobileFilterToast = true;
+		}
+
+		preferredMobileFilterKey = chosenGroup.key;
+	}
+
+	function mapPreferredKeyToPopup(
+		key: typeof preferredMobileFilterKey
+	): 'trainer' | 'location' | 'client' | null {
+		if (key === 'trainerIds') return 'trainer';
+		if (key === 'locationIds') return 'location';
+		if (key === 'clientIds') return 'client';
+		return null;
+	}
+
+	function mapPreferredKeyFromPopup(
+		key: 'trainer' | 'location' | 'client' | null
+	): typeof preferredMobileFilterKey {
+		if (key === 'trainer') return 'trainerIds';
+		if (key === 'location') return 'locationIds';
+		if (key === 'client') return 'clientIds';
+		return null;
+	}
+
+	function openFilterPopup() {
+		openPopup({
+			header: 'Filter',
+			icon: 'Filter',
+			component: FilteringPopup,
+			maxWidth: '650px',
+			props: {
+				isMobile,
+				isDayView: calendarView.value,
+				preferredEntity: mapPreferredKeyToPopup(preferredMobileFilterKey)
+			},
+			listeners: {
+				preferredEntityChange: (event) => {
+					preferredMobileFilterKey = mapPreferredKeyFromPopup(
+						event.detail?.preferredEntity ?? null
+					);
+				},
+				applied: (event) => {
+					preferredMobileFilterKey = mapPreferredKeyFromPopup(
+						event.detail?.preferredEntity ?? null
+					);
+				}
+			}
+		});
+	}
 
 	function openBookingPopup(initialStartTime: Date | null = null) {
 		openPopup({
@@ -324,7 +330,7 @@ function openFilterPopup() {
 			icon: 'Plus',
 			component: BookingPopup,
 			props: { startTime: initialStartTime },
-			maxWidth: '960px'
+			maxWidth: '650px'
 		});
 	}
 </script>

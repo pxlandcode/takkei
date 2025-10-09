@@ -1,11 +1,16 @@
 import { query } from '$lib/db';
+import { extractStockholmMinutes } from '$lib/server/stockholm-time';
 import type { RequestHandler } from '@sveltejs/kit';
 
 const SLOT_LENGTH_MINUTES = 60;
 const TRAVEL_BUFFER_MINUTES = 25;
 
-function extractTimeInMinutes(date: Date): number {
-	return date.getHours() * 60 + date.getMinutes();
+type Interval = { start: number; end: number };
+type RoomInterval = Interval & { roomId: number | null };
+type LocationInterval = Interval & { locationId: number | null };
+
+function isNotNull<T>(value: T | null | undefined): value is T {
+	return value !== null && value !== undefined;
 }
 
 function extractTime(timeStr: string): number {
@@ -121,15 +126,17 @@ export const POST: RequestHandler = async ({ request }) => {
 		[dayStart, dayEnd, trainerIdNumber]
 	);
 
-	const trainerPersonalIntervals: { start: number; end: number }[] = personalBookings.map(
-		(row: any) => ({
-			start: extractTimeInMinutes(new Date(row.start_time)),
-			end: extractTimeInMinutes(new Date(row.end_time))
+	const trainerPersonalIntervals: Interval[] = personalBookings
+		.map((row: any) => {
+			const start = extractStockholmMinutes(row.start_time);
+			const end = extractStockholmMinutes(row.end_time);
+			if (start === null || end === null) return null;
+			return { start, end };
 		})
-	);
+		.filter(isNotNull);
 
 	// 7. NEW: Trainee’s busy intervals (only when asked)
-	let traineeIntervals: { start: number; end: number }[] = [];
+	let traineeIntervals: Interval[] = [];
 	if (checkUsersBusy && userId) {
 		const [traineePersonal, traineePractice] = await Promise.all([
 			query(
@@ -147,26 +154,54 @@ export const POST: RequestHandler = async ({ request }) => {
 			)
 		]);
 
-		traineeIntervals = [
-			...traineePersonal.map((row: any) => ({
-				start: extractTimeInMinutes(new Date(row.start_time)),
-				end: extractTimeInMinutes(new Date(row.end_time))
-			})),
-			...traineePractice.map((row: any) => {
-				const s = extractTimeInMinutes(new Date(row.start_time));
-				return { start: s, end: s + SLOT_LENGTH_MINUTES }; // bookings table has 60-min slots
+		const traineePersonalIntervals = traineePersonal
+			.map((row: any) => {
+				const start = extractStockholmMinutes(row.start_time);
+				const end = extractStockholmMinutes(row.end_time);
+				if (start === null || end === null) return null;
+				return { start, end };
 			})
-		];
+			.filter(isNotNull);
+
+		const traineePracticeIntervals = traineePractice
+			.map((row: any) => {
+				const start = extractStockholmMinutes(row.start_time);
+				if (start === null) return null;
+				return { start, end: start + SLOT_LENGTH_MINUTES };
+			})
+			.filter(isNotNull);
+
+		traineeIntervals = [...traineePersonalIntervals, ...traineePracticeIntervals];
 	}
 
-	const trainerLocationIntervals = trainerBookings.map((row: any) => {
-		const start = extractTimeInMinutes(new Date(row.start_time));
-		return {
-			start,
-			end: start + SLOT_LENGTH_MINUTES,
-			locationId: row.location_id === null ? null : Number(row.location_id)
-		};
-	});
+	const trainerLocationIntervals: LocationInterval[] = trainerBookings
+		.map((row: any): LocationInterval | null => {
+			const start = extractStockholmMinutes(row.start_time);
+			if (start === null) return null;
+			return {
+				start,
+				end: start + SLOT_LENGTH_MINUTES,
+				locationId: row.location_id === null ? null : Number(row.location_id)
+			};
+		})
+		.filter(isNotNull);
+
+	const trainerBookingIntervals: Interval[] = trainerLocationIntervals.map(({ start, end }) => ({
+		start,
+		end
+	}));
+
+	const bookingIntervals: RoomInterval[] = bookings
+		.map((row: any): RoomInterval | null => {
+			const start = extractStockholmMinutes(row.start_time);
+			if (start === null) return null;
+			return {
+				start,
+				end: start + SLOT_LENGTH_MINUTES,
+				roomId: row.room_id === null ? null : Number(row.room_id)
+			};
+		})
+		.filter(isNotNull);
 
 	const availableSlots: string[] = [];
 	const outsideAvailabilitySlots: string[] = [];
@@ -179,13 +214,9 @@ export const POST: RequestHandler = async ({ request }) => {
 
 			// room capacity
 			const bookedRoomIdsAtThisSlot = new Set(
-				bookings
-					.filter((b) => {
-						const bookingStart = extractTimeInMinutes(new Date(b.start_time));
-						const bookingEnd = bookingStart + SLOT_LENGTH_MINUTES;
-						return overlaps(slotStart, slotEnd, bookingStart, bookingEnd);
-					})
-					.map((b) => b.room_id)
+				bookingIntervals
+					.filter((booking) => overlaps(slotStart, slotEnd, booking.start, booking.end))
+					.map((booking) => booking.roomId)
 			);
 			if (bookedRoomIdsAtThisSlot.size === roomIds.length) continue;
 
@@ -197,6 +228,11 @@ export const POST: RequestHandler = async ({ request }) => {
 				outsideAvailabilitySlots.push(label);
 				continue;
 			}
+
+			const trainerClientBookingConflict = trainerBookingIntervals.some((interval) =>
+				overlaps(slotStart, slotEnd, interval.start, interval.end)
+			);
+			if (trainerClientBookingConflict) continue;
 
 			// trainer personal / meetings
 			const trainerConflict = trainerPersonalIntervals.some((b) =>

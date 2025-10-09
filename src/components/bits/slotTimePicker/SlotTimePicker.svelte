@@ -47,8 +47,8 @@
 					userId: traineeUserId ?? undefined
 				});
 
-				availableSlots = res.availableSlots;
-				outsideAvailabilitySlots = res.outsideAvailabilitySlots;
+				availableSlots = res.availableSlots ?? [];
+				outsideAvailabilitySlots = res.outsideAvailabilitySlots ?? [];
 
 				const merged = [
 					...availableSlots.map((t) => ({ label: t, value: t, unavailable: false })),
