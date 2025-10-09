@@ -1,9 +1,6 @@
 import { query } from '$lib/db';
+import { extractStockholmMinutes } from '$lib/server/stockholm-time';
 import type { RequestHandler } from '@sveltejs/kit';
-
-function extractTimeInMinutesFromDate(dateObj: Date): number {
-	return dateObj.getHours() * 60 + dateObj.getMinutes();
-}
 
 function extractTimeInMinutes(timeStr: string): number {
 	const [h, m] = timeStr.split(':').map(Number);
@@ -69,10 +66,9 @@ export const POST: RequestHandler = async ({ request }) => {
 		const conflictingUserIds = new Set<number>();
 
 		for (const b of personalBookings) {
-			const startDate = new Date(b.start_time);
-			const endDate = new Date(b.end_time);
-			const start = extractTimeInMinutesFromDate(startDate);
-			const end = extractTimeInMinutesFromDate(endDate);
+			const start = extractStockholmMinutes(b.start_time);
+			const end = extractStockholmMinutes(b.end_time);
+			if (start === null || end === null) continue;
 
 			if (overlaps(slotStart, slotEnd, start, end)) {
 				if (b.user_id && user_ids.includes(b.user_id)) {
@@ -98,8 +94,9 @@ export const POST: RequestHandler = async ({ request }) => {
 					const altEnd = altStart + (slotEnd - slotStart);
 
 					const conflict = personalBookings.some((b) => {
-						const s = extractTimeInMinutesFromDate(new Date(b.start_time));
-						const e = extractTimeInMinutesFromDate(new Date(b.end_time));
+						const s = extractStockholmMinutes(b.start_time);
+						const e = extractStockholmMinutes(b.end_time);
+						if (s === null || e === null) return false;
 						return overlaps(altStart, altEnd, s, e);
 					});
 
