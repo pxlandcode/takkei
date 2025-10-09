@@ -6,8 +6,10 @@
 	import { expoInOut } from 'svelte/easing';
 
 	export let header = 'Popup';
-	export let width = 'fit-content';
-	export let height = 'fit-content';
+export let width = 'fit-content';
+export let height = 'fit-content';
+export let maxWidth: string | undefined;
+export let maxHeight: string | undefined;
 	export let noClose = false;
 	export let icon: string | undefined;
 
@@ -47,8 +49,9 @@
 
 	// Size classes for container
 	function containerClass() {
-		const base = 'bg-white shadow-lg flex flex-col overflow-hidden max-h-[80dvh] md:rounded-2xl w-full';
-		const modalSize = `md:w-[min(66vw,900px)]`;
+		const base =
+			'bg-white shadow-lg flex flex-col overflow-hidden h-full md:h-auto max-h-full md:max-h-[80dvh] md:rounded-2xl w-full';
+		const modalSize = 'rounded-2xl w-full max-w-full sm:max-w-[min(90vw,900px)] md:max-w-[min(66vw,900px)] sm:mx-auto';
 		const drawerBase = 'min-h-screen md:min-h-[unset]';
 		const byVar: Record<typeof variant, string> = {
 			modal: `${modalSize}`,
@@ -61,7 +64,16 @@
 	}
 
 	// Apply explicit width/height for modal only
-	$: sizeStyle = variant === 'modal' ? `width:${width};height:${height};` : '';
+	$: sizeStyle = (() => {
+		let style = '';
+		const applyWidth = width && width !== 'fit-content';
+		const applyHeight = height && height !== 'fit-content';
+		if (applyWidth) style += `width:${width};`;
+		if (applyHeight) style += `height:${height};`;
+		if (maxWidth) style += `max-width:${maxWidth};`;
+		if (maxHeight) style += `max-height:${maxHeight};`;
+		return style;
+	})();
 
 	// Ensure dialog is shown when open flips true
 	$: (async () => {
@@ -130,12 +142,25 @@
 	.popup-dialog {
 		padding: 0;
 		border: none;
+		box-sizing: border-box;
+		position: fixed;
+		inset: 0;
+		margin: 0;
 		width: 100vw;
 		height: 100vh;
+		height: 100dvh;
+		max-width: none;
+		max-height: none;
 		background: transparent;
 		display: grid;
-		place-items: center; /* centers modal variant; drawers use self-start/end */
-		padding: 1rem;
+		align-items: stretch;
+		justify-items: stretch;
+	}
+	@media (min-width: 640px) {
+		.popup-dialog {
+			padding: 1rem;
+			place-items: center; /* recentre modal on larger viewports */
+		}
 	}
 	.popup-dialog::backdrop {
 		background: rgba(0, 0, 0, 0.5);

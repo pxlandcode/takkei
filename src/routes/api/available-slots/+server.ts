@@ -1,6 +1,9 @@
 import { query } from '$lib/db';
 import type { RequestHandler } from '@sveltejs/kit';
 
+const SLOT_LENGTH_MINUTES = 60;
+const TRAVEL_BUFFER_MINUTES = 25;
+
 function extractTimeInMinutes(date: Date): number {
 	return date.getHours() * 60 + date.getMinutes();
 }
@@ -17,8 +20,10 @@ function overlaps(startA: number, endA: number, startB: number, endB: number): b
 export const POST: RequestHandler = async ({ request }) => {
 	const body = await request.json();
 	const { date, trainerId, locationId, checkUsersBusy = false, userId = null } = body;
+	const trainerIdNumber = Number(trainerId);
+	const locationIdNumber = Number(locationId);
 
-	if (!date || !trainerId || !locationId) {
+	if (!date || Number.isNaN(trainerIdNumber) || Number.isNaN(locationIdNumber)) {
 		return new Response(JSON.stringify({ error: 'Missing parameters' }), { status: 400 });
 	}
 
@@ -37,7 +42,7 @@ export const POST: RequestHandler = async ({ request }) => {
          (start_time <= $2 AND end_time >= $2)
          OR (start_time <= $2 AND end_time IS NULL)
        )`,
-			[trainerId, date]
+			[trainerIdNumber, date]
 		);
 		if (absences.length > 0) {
 			return new Response(JSON.stringify({ availableSlots: [], outsideAvailabilitySlots: [] }));
@@ -48,7 +53,7 @@ export const POST: RequestHandler = async ({ request }) => {
 	const vacations = await query(
 		`SELECT 1 FROM vacations
      WHERE user_id = $1 AND start_date <= $2 AND end_date >= $2`,
-		[trainerId, date]
+		[trainerIdNumber, date]
 	);
 	if (vacations.length > 0) {
 		return new Response(JSON.stringify({ availableSlots: [], outsideAvailabilitySlots: [] }));
@@ -58,7 +63,7 @@ export const POST: RequestHandler = async ({ request }) => {
 	const dateAvailabilities = await query(
 		`SELECT start_time, end_time FROM date_availabilities
      WHERE user_id = $1 AND date = $2 AND available = true`,
-		[trainerId, date]
+		[trainerIdNumber, date]
 	);
 
 	let availability = dateAvailabilities.map((a) => ({
@@ -70,7 +75,7 @@ export const POST: RequestHandler = async ({ request }) => {
 		const weekday = ((targetDate.getDay() + 6) % 7) + 1;
 		const weekly = await query(
 			`SELECT start_time, end_time FROM weekly_availabilities WHERE user_id = $1 AND weekday = $2`,
-			[trainerId, weekday]
+			[trainerIdNumber, weekday]
 		);
 		availability = weekly.map((a) => ({
 			from: extractTime(a.start_time),
@@ -84,7 +89,7 @@ export const POST: RequestHandler = async ({ request }) => {
 
 	// 4. Active rooms (same)
 	const rooms = await query(`SELECT id FROM rooms WHERE location_id = $1 AND active = true`, [
-		locationId
+		locationIdNumber
 	]);
 	const roomIds = rooms.map((r) => r.id);
 	if (roomIds.length === 0) {
@@ -100,12 +105,20 @@ export const POST: RequestHandler = async ({ request }) => {
 		[dayStart, dayEnd, roomIds]
 	);
 
+	const trainerBookings = await query(
+		`SELECT start_time, location_id FROM bookings
+     WHERE start_time BETWEEN $1 AND $2
+       AND LOWER(status) NOT IN ('cancelled', 'late_cancelled')
+       AND trainer_id = $3`,
+		[dayStart, dayEnd, trainerIdNumber]
+	);
+
 	// 6. Trainer personal bookings (same)
 	const personalBookings = await query(
 		`SELECT start_time, end_time FROM personal_bookings
      WHERE start_time BETWEEN $1 AND $2
        AND (user_id = $3 OR $3 = ANY(user_ids))`,
-		[dayStart, dayEnd, trainerId]
+		[dayStart, dayEnd, trainerIdNumber]
 	);
 
 	const trainerPersonalIntervals: { start: number; end: number }[] = personalBookings.map(
@@ -141,10 +154,19 @@ export const POST: RequestHandler = async ({ request }) => {
 			})),
 			...traineePractice.map((row: any) => {
 				const s = extractTimeInMinutes(new Date(row.start_time));
-				return { start: s, end: s + 60 }; // bookings table has 60-min slots
+				return { start: s, end: s + SLOT_LENGTH_MINUTES }; // bookings table has 60-min slots
 			})
 		];
 	}
+
+	const trainerLocationIntervals = trainerBookings.map((row: any) => {
+		const start = extractTimeInMinutes(new Date(row.start_time));
+		return {
+			start,
+			end: start + SLOT_LENGTH_MINUTES,
+			locationId: row.location_id === null ? null : Number(row.location_id)
+		};
+	});
 
 	const availableSlots: string[] = [];
 	const outsideAvailabilitySlots: string[] = [];
@@ -152,7 +174,7 @@ export const POST: RequestHandler = async ({ request }) => {
 	for (let h = 5; h <= 21; h++) {
 		for (const m of [30]) {
 			const slotStart = h * 60 + m;
-			const slotEnd = slotStart + 60;
+			const slotEnd = slotStart + SLOT_LENGTH_MINUTES;
 			const label = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
 
 			// room capacity
@@ -160,7 +182,7 @@ export const POST: RequestHandler = async ({ request }) => {
 				bookings
 					.filter((b) => {
 						const bookingStart = extractTimeInMinutes(new Date(b.start_time));
-						const bookingEnd = bookingStart + 60;
+						const bookingEnd = bookingStart + SLOT_LENGTH_MINUTES;
 						return overlaps(slotStart, slotEnd, bookingStart, bookingEnd);
 					})
 					.map((b) => b.room_id)
@@ -189,6 +211,25 @@ export const POST: RequestHandler = async ({ request }) => {
 				);
 				if (traineeConflict) continue;
 			}
+
+			const travelConflict = trainerLocationIntervals.some((booking) => {
+				if (booking.locationId === null || booking.locationId === locationIdNumber) return false;
+
+				if (overlaps(slotStart, slotEnd, booking.start, booking.end)) {
+					return true;
+				}
+
+				if (booking.end <= slotStart) {
+					return slotStart - booking.end < TRAVEL_BUFFER_MINUTES;
+				}
+
+				if (booking.start >= slotEnd) {
+					return booking.start - slotEnd < TRAVEL_BUFFER_MINUTES;
+				}
+
+				return false;
+			});
+			if (travelConflict) continue;
 
 			availableSlots.push(label);
 		}

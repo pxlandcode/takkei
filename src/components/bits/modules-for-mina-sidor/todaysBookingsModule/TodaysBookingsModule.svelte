@@ -6,7 +6,8 @@
 	import { fetchBookings } from '$lib/services/api/calendarService';
 	import ProfileBookingSlot from '../../../ui/profileBookingSlot/ProfileBookingSlot.svelte';
 	import type { FullBooking } from '$lib/types/calendarTypes';
-	import { popupStore } from '$lib/stores/popupStore';
+	import { openPopup } from '$lib/stores/popupStore';
+	import BookingDetailsPopup from '../../../ui/bookingDetailsPopup/BookingDetailsPopup.svelte';
 
 	let bookings: FullBooking[] = [];
 	let isLoading = true;
@@ -72,7 +73,18 @@
 	}
 
 	function openBookingDetails(booking: FullBooking) {
-		popupStore.set({ type: 'bookingDetails', data: { booking } });
+		openPopup({
+			header: 'Bokningsdetaljer',
+			icon: 'CircleInfo',
+			component: BookingDetailsPopup,
+			props: { booking },
+			maxWidth: '650px',
+			listeners: {
+				updated: () => {
+					loadBookings();
+				}
+			}
+		});
 	}
 
 	// Navigation
@@ -91,10 +103,10 @@
 	<!-- Header -->
 	<div class="mb-3 flex items-center justify-between gap-2">
 		<div class="flex items-center gap-2">
-			<div class="flex h-6 w-6 items-center justify-center rounded-full bg-text text-white">
+			<div class="bg-text flex h-6 w-6 items-center justify-center rounded-full text-white">
 				<Icon icon="Clock" size="14px" />
 			</div>
-			<h3 class="text-lg font-semibold text-text">Bokningar</h3>
+			<h3 class="text-text text-lg font-semibold">Bokningar</h3>
 		</div>
 
 		<!-- Navigation Buttons -->
@@ -110,9 +122,9 @@
 	{#if isLoading}
 		<p class="text-sm text-gray-500">Laddar bokningar...</p>
 	{:else if bookings.length === 0}
-		<p class="text-sm italic text-gray-400">Inga bokningar denna dag 🧘</p>
+		<p class="text-sm text-gray-400 italic">Inga bokningar denna dag 🧘</p>
 	{:else}
-		<div class="max-h-[280px] space-y-2 overflow-y-auto pr-1 custom-scrollbar">
+		<div class="custom-scrollbar max-h-[280px] space-y-2 overflow-y-auto pr-1">
 			{#each bookings as booking}
 				<ProfileBookingSlot
 					{booking}

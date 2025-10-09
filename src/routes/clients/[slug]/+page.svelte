@@ -8,16 +8,14 @@
 	import ProfileClientInfo from '../../../components/ui/ProfileClientInfo/ProfileClientInfo.svelte';
 	import ProfileBookingComponent from '../../../components/ui/profileBookingComponent/ProfileBookingComponent.svelte';
 	import ProfileNotesComponent from '../../../components/ui/profileNotesComponent/ProfileNotesComponent.svelte';
-	import PopupWrapper from '../../../components/ui/popupWrapper/PopupWrapper.svelte';
 	import MailComponent from '../../../components/ui/mailComponent/MailComponent.svelte';
 	import { goto } from '$app/navigation';
 	import { calendarStore } from '$lib/stores/calendarStore';
 	import BookingPopup from '../../../components/ui/bookingPopup/BookingPopup.svelte';
+	import { openPopup } from '$lib/stores/popupStore';
 
 	let clientId: number;
 	let client = null;
-	let showMailPopup = false;
-	let showBookingPopup = false;
 
 	$: clientId = Number($page.params.slug);
 
@@ -61,21 +59,48 @@
 		calendarStore.setNewFilters({ clientIds: [clientId] }, fetch);
 		goto(`/calendar?clientId=${clientId}`);
 	}
+
+	function openMailPopup() {
+		const target = client?.client;
+		if (!target?.email) return;
+		openPopup({
+			header: `Maila ${target.firstname ?? ''} ${target.lastname ?? ''}`.trim(),
+			icon: 'Mail',
+			component: MailComponent,
+			width: '900px',
+			props: {
+				prefilledRecipients: [target.email],
+				lockedFields: ['recipients'],
+				autoFetchUsersAndClients: false
+			}
+		});
+	}
+
+	function openBookingPopup() {
+		if (!clientId) return;
+		openPopup({
+			header: 'Bokning',
+			icon: 'Plus',
+			component: BookingPopup,
+			props: { clientId },
+			maxWidth: '650px'
+		});
+	}
 </script>
 
 <!-- Header -->
 <div class="m-4 flex flex-wrap items-center justify-between gap-2">
 	<div class="flex items-center gap-2">
-		<div class="flex h-7 w-7 items-center justify-center rounded-full bg-text text-white">
+		<div class="bg-text flex h-7 w-7 items-center justify-center rounded-full text-white">
 			<Icon icon="Person" size="18px" />
 		</div>
-		<h2 class="text-3xl font-semibold text-text">
+		<h2 class="text-text text-3xl font-semibold">
 			{client ? `${client.client.firstname} ${client.client.lastname}` : 'Laddar klient...'}
 		</h2>
 	</div>
 
 	<div class="mr-14 flex space-x-2 md:mr-0">
-		<Button icon="Mail" variant="secondary" on:click={() => (showMailPopup = true)} />
+		<Button icon="Mail" variant="secondary" on:click={openMailPopup} />
 		<Button icon="Calendar" variant="secondary" on:click={goToCalendar} />
 		<Button
 			iconLeft="Plus"
@@ -83,7 +108,7 @@
 			text="Boka"
 			variant="primary"
 			icon="Plus"
-			on:click={() => (showBookingPopup = true)}
+			on:click={openBookingPopup}
 		/>
 	</div>
 </div>
@@ -96,27 +121,6 @@
 		<p class="text-gray-500">Innehåll kommer snart.</p>
 	{/if}
 </Navigation>
-
-{#if showMailPopup && client?.client?.email}
-	<PopupWrapper
-		width="900px"
-		header="Maila {client.client.firstname} {client.client.lastname}"
-		icon="Mail"
-		on:close={() => (showMailPopup = false)}
-	>
-		<MailComponent
-			prefilledRecipients={[client.client.email]}
-			lockedFields={['recipients']}
-			autoFetchUsersAndClients={false}
-		/>
-	</PopupWrapper>
-{/if}
-
-{#if showBookingPopup}
-	<PopupWrapper header="Bokning" icon="Plus" on:close={() => (showBookingPopup = false)}>
-		<BookingPopup on:close={() => (showBookingPopup = false)} {clientId} />
-	</PopupWrapper>
-{/if}
 
 <style>
 	.tab-button {

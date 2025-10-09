@@ -1,8 +1,6 @@
 import { json } from '@sveltejs/kit';
 import { query } from '$lib/db';
 
-const EXCLUDED_STATUSES = ["Cancelled", "Canceled", "Late_cancelled"];
-
 export async function GET({ params }) {
 	const clientId = Number(params.slug);
 	if (!Number.isInteger(clientId)) {
@@ -67,9 +65,9 @@ export async function GET({ params }) {
 				SUM(CASE WHEN start_time < NOW() THEN 1 ELSE 0 END)::int AS used_until_now
 			FROM bookings
 			WHERE package_id = ANY($1::int[])
-				AND (status IS NULL OR status NOT IN (${EXCLUDED_STATUSES.map((_, i) => `$${i + 2}`).join(', ')}))
+				AND (status IS NULL OR LOWER(status) <> 'cancelled')
 			GROUP BY package_id`,
-			[ids, ...EXCLUDED_STATUSES]
+			[ids]
 		);
 
 		const bookingCounts = bookingCountsRows.reduce(
@@ -94,9 +92,7 @@ export async function GET({ params }) {
 			const remaining = sessions != null ? Math.max(0, sessions - usedTotal) : null;
 			const remainingToday = sessions != null ? Math.max(0, sessions - usedUntilNow) : null;
 
-			const frozenDate = row.frozen_from_date
-				? new Date(row.frozen_from_date).toISOString()
-				: null;
+			const frozenDate = row.frozen_from_date ? new Date(row.frozen_from_date).toISOString() : null;
 			const firstPaymentDate = row.first_payment_date
 				? new Date(row.first_payment_date).toISOString()
 				: null;

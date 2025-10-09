@@ -5,16 +5,12 @@
 	import Button from '../../bits/button/Button.svelte';
 	import Icon from '../../bits/icon-component/Icon.svelte';
 	import Table from '../../bits/table/Table.svelte';
-	import PopupWrapper from '../../ui/popupWrapper/PopupWrapper.svelte';
 	import LocationPopup from '../../ui/locationPopup/LocationPopup.svelte';
+	import { openPopup, closePopup } from '$lib/stores/popupStore';
 
 	let data: TableType = [];
 	let filteredData: TableType = [];
 	let searchQuery = '';
-
-	let showAddModal = false;
-	let showEditModal = false;
-	let selectedLocation = null;
 
 	const headers = [
 		{ label: 'Namn', key: 'name', icon: 'Building', isSearchable: true },
@@ -37,10 +33,7 @@
 					icon: 'Edit',
 					label: '',
 					variant: 'secondary',
-					action: () => {
-						selectedLocation = loc;
-						showEditModal = true;
-					}
+					action: () => openEditLocationPopup(loc)
 				}
 			]
 		}));
@@ -51,20 +44,38 @@
 	async function handleAddLocation(locationData) {
 		await createLocation(locationData);
 		await loadLocations();
-		showAddModal = false;
+		closePopup();
 	}
 
 	async function handleUpdateLocation(locationData) {
 		await updateLocation(locationData.id, locationData);
 		await loadLocations();
-		showEditModal = false;
-		selectedLocation = null;
+		closePopup();
 	}
 
-	function closePopup() {
-		showAddModal = false;
-		showEditModal = false;
-		selectedLocation = null;
+	function openAddLocationPopup() {
+		openPopup({
+			header: 'Lägg till plats',
+			icon: 'Plus',
+			component: LocationPopup,
+			maxWidth: '640px',
+			props: {
+				onSave: handleAddLocation
+			}
+		});
+	}
+
+	function openEditLocationPopup(location) {
+		openPopup({
+			header: 'Redigera plats',
+			icon: 'Edit',
+			component: LocationPopup,
+			maxWidth: '500px',
+			props: {
+				location,
+				onSave: handleUpdateLocation
+			}
+		});
 	}
 
 	$: {
@@ -85,9 +96,9 @@
 <div class="mb-4 flex flex-row items-center justify-between">
 	<h2 class="text-xl font-semibold">Lokaler</h2>
 </div>
-<div class="h-full overflow-x-scroll custom-scrollbar">
+<div class="custom-scrollbar h-full overflow-x-scroll">
 	<div class="mb-4 flex flex-row items-center justify-between">
-		<Button text="Lägg till plats" variant="primary" on:click={() => (showAddModal = true)} />
+		<Button text="Lägg till plats" variant="primary" on:click={openAddLocationPopup} />
 
 		<div class="ml-4 flex flex-row gap-4">
 			<input
@@ -102,15 +113,5 @@
 
 	<Table {headers} data={filteredData} />
 
-	{#if showAddModal}
-		<PopupWrapper header="Lägg till plats" icon="Plus" on:close={closePopup}>
-			<LocationPopup onSave={handleAddLocation} />
-		</PopupWrapper>
-	{/if}
-
-	{#if showEditModal && selectedLocation}
-		<PopupWrapper header="Redigera plats" icon="Edit" on:close={closePopup}>
-			<LocationPopup location={selectedLocation} onSave={handleUpdateLocation} />
-		</PopupWrapper>
-	{/if}
+	<!-- Popups handled via global store -->
 </div>

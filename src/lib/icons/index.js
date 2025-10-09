@@ -65,6 +65,8 @@ import IconUncheck from './IconUncheck.svelte';
 import IconShiningStar from './IconShiningStar.svelte';
 import IconGraduationCap from './IconGraduationCap.svelte';
 import IconPlane from './IconPlane.svelte';
+import IconCalendarLocation from './IconCalendarLocation.svelte';
+import IconCalendarMy from './IconCalendarMy.svelte';
 
 export {
 	IconClose,
@@ -133,5 +135,7 @@ export {
 	IconUncheck,
 	IconShiningStar,
 	IconGraduationCap,
-	IconPlane
+	IconPlane,
+	IconCalendarLocation,
+	IconCalendarMy
 };

@@ -6,23 +6,14 @@
 	import OptionButton from '../../components/bits/optionButton/OptionButton.svelte';
 	import BookingPopup from '../../components/ui/bookingPopup/BookingPopup.svelte';
 	import FilteringPopup from '../../components/ui/filteringPopup/FilteringPopup.svelte';
-	import PopupWrapper from '../../components/ui/popupWrapper/PopupWrapper.svelte';
 	import CalendarComponent from '../../components/view/calendar/CalendarComponent.svelte';
+	import BookingDetailsPopup from '../../components/ui/bookingDetailsPopup/BookingDetailsPopup.svelte';
 	import type { FullBooking } from '$lib/types/calendarTypes';
-	import { popupStore } from '$lib/stores/popupStore';
+	import { openPopup } from '$lib/stores/popupStore';
 
 	export let data;
 
-	let filterOpen = false;
-
-	let bookingOpen = false;
-
 	let isMobile = false;
-
-	let startTime = null;
-	let selectedTrainerId = null;
-	let selectedLocationId = null;
-	let selectedClientId = null;
 
 	$: filters = $calendarStore.filters;
 
@@ -36,7 +27,18 @@
 	);
 
 	function handleBookingClick(booking: FullBooking) {
-		popupStore.set({ type: 'bookingDetails', data: { booking } });
+		openPopup({
+			header: 'Bokningsdetaljer',
+			icon: 'CircleInfo',
+			component: BookingDetailsPopup,
+			props: { booking },
+			maxWidth: '650px',
+			listeners: {
+				updated: () => {
+					calendarStore.refresh(fetch);
+				}
+			}
+		});
 	}
 
 	let calendarView = { value: false, label: 'Vecka', icon: 'Week' };
@@ -65,11 +67,6 @@
 		};
 	}
 
-	function closePopup() {
-		filterOpen = false;
-		bookingOpen = false;
-	}
-
 	function onNext() {
 		if (calendarView.value) {
 			calendarStore.goToNextDay(fetch);
@@ -92,12 +89,30 @@
 
 	function handleTimeSlotClick(event) {
 		const timeSlot = event.detail.startTime;
-		startTime = timeSlot;
-		bookingOpen = true;
+		openBookingPopup(timeSlot);
+	}
+
+	function openFilterPopup() {
+		openPopup({
+			header: 'Filter',
+			icon: 'Filter',
+			component: FilteringPopup,
+			maxWidth: '650px'
+		});
+	}
+
+	function openBookingPopup(initialStartTime: Date | null = null) {
+		openPopup({
+			header: 'Bokning',
+			icon: 'Plus',
+			component: BookingPopup,
+			props: { startTime: initialStartTime },
+			maxWidth: '960px'
+		});
 	}
 </script>
 
-<div class="h-full overflow-x-hidden overflow-y-hidden custom-scrollbar">
+<div class="custom-scrollbar h-full overflow-x-hidden overflow-y-hidden">
 	<div
 		class="mx-2 mt-2 flex flex-col items-center gap-4 lg:flex-row lg:items-center lg:justify-between"
 	>
@@ -112,7 +127,7 @@
 				/>
 			</div>
 		</div>
-		<div class="mx-auto mb-4 mr-14 flex flex-row gap-2 md:mr-0 md:gap-4 lg:mb-0">
+		<div class="mx-auto mr-14 mb-4 flex flex-row gap-2 md:mr-0 md:gap-4 lg:mb-0">
 			<div class="flex flex-row gap-2">
 				<Button icon="ChevronLeft" variant="secondary" iconSize="16px" on:click={onPrevious}
 				></Button>
@@ -120,11 +135,7 @@
 				<Button icon="ChevronRight" variant="secondary" iconSize="16px" on:click={onNext}></Button>
 			</div>
 			<div class="flex flex-row gap-2">
-				<Button
-					on:click={() => (filterOpen = true)}
-					icon="Filter"
-					variant="secondary"
-					iconSize="16px"
+				<Button on:click={openFilterPopup} icon="Filter" variant="secondary" iconSize="16px"
 				></Button>
 
 				<Button
@@ -132,10 +143,7 @@
 					variant="primary"
 					text="Boka"
 					iconLeftSize="13px"
-					on:click={() => {
-						startTime = null;
-						bookingOpen = true;
-					}}
+					on:click={() => openBookingPopup(null)}
 				></Button>
 			</div>
 		</div>
@@ -150,15 +158,3 @@
 		/>
 	{/key}
 </div>
-
-{#if filterOpen}
-	<PopupWrapper header="Filter" icon="Filter" on:close={closePopup}>
-		<FilteringPopup on:close={closePopup} />
-	</PopupWrapper>
-{/if}
-
-{#if bookingOpen}
-	<PopupWrapper header="Bokning" icon="Plus" on:close={closePopup}>
-		<BookingPopup on:close={closePopup} {startTime} />
-	</PopupWrapper>
-{/if}

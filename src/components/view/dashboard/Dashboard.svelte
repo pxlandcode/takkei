@@ -7,11 +7,10 @@
 	import DashboardButton from '../../bits/dashboardButton/DashboardButton.svelte';
 	import DashboardIcon from './DashboardIcon.svelte';
 	import { notificationStore } from '$lib/stores/notificationStore';
-	import { on } from 'svelte/events';
 	import { onMount } from 'svelte';
 	import { user } from '$lib/stores/userStore';
-	import PopupWrapper from '../../ui/popupWrapper/PopupWrapper.svelte';
-	import AlertPopup from '../../ui/alertPopup/AlertPopup.svelte';
+import { popupStore, openPopup, closePopup } from '$lib/stores/popupStore';
+import AlertPopup from '../../ui/alertPopup/AlertPopup.svelte';
 
 	import { get } from 'svelte/store';
 
@@ -26,13 +25,23 @@
 		date.setHours(2, 0, 0, 0);
 		calendarStore.goToWeek(date, fetch);
 
-		const { weekStart, weekEnd } = getWeekStartAndEnd(date);
+const { weekStart, weekEnd } = getWeekStartAndEnd(date);
 
 		goto(`/calendar?from=${weekStart}&to=${weekEnd}`);
 	}
 
 	$: clientNotifications = $notificationStore.byType.client ?? 0;
 	$: alertNotifications = $notificationStore.byType.alert ?? 0;
+
+$: activePopup = $popupStore;
+
+$: {
+	if (alertNotifications > 0 && activePopup?.id !== 'alert') {
+		openAlertPopup();
+	} else if (alertNotifications === 0 && activePopup?.id === 'alert') {
+		closePopup();
+	}
+}
 
 	$: buttons = [
 		{ label: 'Kalender', icon: 'Calendar', href: '/calendar' },
@@ -43,10 +52,22 @@
 			href: '/clients',
 			notificationCount: clientNotifications
 		},
-		{ label: 'Nyheter', icon: 'Newspaper', href: '/news' },
-		{ label: 'Rapporter', icon: 'Charts', href: '/reports' },
-		{ label: 'Inställningar', icon: 'Settings', href: '/settings' }
-	];
+	{ label: 'Nyheter', icon: 'Newspaper', href: '/news' },
+	{ label: 'Rapporter', icon: 'Charts', href: '/reports' },
+	{ label: 'Inställningar', icon: 'Settings', href: '/settings' }
+];
+
+function openAlertPopup() {
+	openPopup({
+		id: 'alert',
+		header: 'Viktigt meddelande',
+		icon: 'CircleAlert',
+		component: AlertPopup,
+		dismissable: false,
+		noClose: true,
+		closeOn: ['finished']
+	});
+}
 </script>
 
 <div class="hide-scrollbar flex h-full w-[320px] flex-col justify-between gap-4 overflow-scroll">
@@ -71,9 +92,3 @@
 		<DashboardIcon></DashboardIcon>
 	</div>
 </div>
-
-{#if alertNotifications > 0}
-	<PopupWrapper noClose header="Viktigt meddelande" icon="CircleAlert">
-		<AlertPopup on:finished={() => (alertNotifications = 0)} />
-	</PopupWrapper>
-{/if}

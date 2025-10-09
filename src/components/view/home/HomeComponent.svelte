@@ -8,34 +8,34 @@
 	import { user } from '../../../lib/stores/userStore';
 	import Button from '../../bits/button/Button.svelte';
 	import BookingPopup from '../../ui/bookingPopup/BookingPopup.svelte';
-	import PopupWrapper from '../../ui/popupWrapper/PopupWrapper.svelte';
+	import { openPopup } from '$lib/stores/popupStore';
 
-	let startTime: Date | null = null;
-	let bookingOpen = false;
-
-	function closePopup() {
-		bookingOpen = false;
+	function openBookingPopup(initialStartTime: Date | null = null) {
+		openPopup({
+			header: 'Bokning',
+			icon: 'Plus',
+			component: BookingPopup,
+			maxWidth: '650px',
+			props: { startTime: initialStartTime }
+		});
 	}
 </script>
 
-<div class="m-4 h-full overflow-x-scroll custom-scrollbar">
+<div class="custom-scrollbar m-4 h-full overflow-x-scroll">
 	<!-- Greeting -->
 	<div class="flex w-full flex-row justify-between">
 		<div class="mb-6 flex items-center gap-2">
-			<div class="flex h-7 w-7 items-center justify-center rounded-full bg-text text-white">
+			<div class="bg-text flex h-7 w-7 items-center justify-center rounded-full text-white">
 				<Icon icon="Person" size="14px" />
 			</div>
-			<h2 class="text-3xl font-semibold text-text">Hej, {$user?.firstname} 👋</h2>
+			<h2 class="text-text text-3xl font-semibold">Hej, {$user?.firstname} 👋</h2>
 		</div>
 		<Button
 			text="Boka"
 			iconLeft="Plus"
 			variant="primary"
 			iconLeftSize="16"
-			on:click={() => {
-				startTime = null;
-				bookingOpen = true;
-			}}
+			on:click={() => openBookingPopup(null)}
 		/>
 	</div>
 
@@ -52,9 +52,3 @@
 		</div>
 	</div>
 </div>
-
-{#if bookingOpen}
-	<PopupWrapper header="Bokning" icon="Plus" on:close={closePopup}>
-		<BookingPopup on:close={closePopup} {startTime} />
-	</PopupWrapper>
-{/if}

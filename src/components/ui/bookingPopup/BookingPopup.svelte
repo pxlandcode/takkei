@@ -17,8 +17,9 @@
 		handleMeetingOrPersonalBooking,
 		handleTrainingBooking
 	} from '$lib/helpers/bookingHelpers/bookingHelpers';
-	import { popupStore } from '$lib/stores/popupStore';
-	import { handleBookingEmail } from '$lib/helpers/bookingHelpers/bookingHelpers';
+import { openPopup } from '$lib/stores/popupStore';
+import { handleBookingEmail } from '$lib/helpers/bookingHelpers/bookingHelpers';
+import MailComponent from '../mailComponent/MailComponent.svelte';
 
 	export let startTime: Date | null = null;
 	export let clientId: number | null = null;
@@ -117,8 +118,7 @@
 
 		if (type === 'practice' || type === 'education') {
 			if (!bookingObject.trainerId) errors.trainer = 'Välj en tränare.';
-			if (type === 'practice' && !bookingObject.user_id)
-				errors.trainee = 'Välj en trainee.';
+			if (type === 'practice' && !bookingObject.user_id) errors.trainee = 'Välj en trainee.';
 			if (!bookingObject.locationId) errors.locations = 'Välj en plats.';
 			if (!hasDate) errors.date = 'Välj ett datum.';
 			if (!hasTime) errors.time = 'Välj en tid.';
@@ -336,18 +336,22 @@
 				});
 
 				if (emailResult === 'edit') {
-					popupStore.set({
-						type: 'mail',
+					openPopup({
 						header: `Maila bokningsbekräftelse till ${clientEmail}`,
-						data: {
-							prefilledRecipients: clientEmail,
+						icon: 'Mail',
+						component: MailComponent,
+						width: '900px',
+						props: {
+							prefilledRecipients: [clientEmail],
 							subject: 'Bokningsbekräftelse',
 							header: 'Bekräftelse på dina bokningar',
 							subheader: 'Tack för din bokning!',
 							body: `
 							Hej!<br><br>
 							Jag har bokat in dig följande tider:<br>
-							${bookedDates.map((b) => `${b.date} kl. ${b.time} på ${b.locationName}`).join('<br>')}<br><br>
+							${bookedDates
+								.map((b) => `${b.date} kl. ${b.time}${b.locationName ? ` på ${b.locationName}` : ''}`)
+								.join('<br>')}<br><br>
 							Du kan boka av eller om din träningstid senast klockan 12.00 dagen innan träning genom att kontakta någon i ditt tränarteam via sms, e‑post eller telefon.<br><br>
 							Hälsningar,<br>
 							${currentUser.firstname}<br>
@@ -369,10 +373,11 @@
 </script>
 
 <!-- Booking Manager UI -->
-<div class="flex w-full max-w-[600px] flex-col gap-4 bg-white md:w-[600px]">
+<div class="flex w-full max-w-full flex-col gap-4 bg-white sm:max-w-[600px]">
 	<!-- Booking Type Selector -->
 
 	<!-- Booking Type Selector -->
+
 	<OptionsSelect
 		bind:selectedValue={selectedBookingComponent}
 		options={[
@@ -385,6 +390,7 @@
 			{ label: 'Personlig', icon: 'Person', value: 'personal' }
 		]}
 	/>
+
 	<!-- Dynamic Booking Component -->
 	{#if selectedBookingComponent === 'training' || selectedBookingComponent === 'trial' || selectedBookingComponent === 'flight'}
 		<BookingTraining

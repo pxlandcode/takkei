@@ -1,16 +1,23 @@
 <script lang="ts">
 	import Button from '../../bits/button/Button.svelte';
+	import ProfileCustomerClients from '../ProfileCustomerClients/ProfileCustomerClients.svelte';
 	import CustomerEdit from '../CustomerEdit/CustomerEdit.svelte';
 	import Table from '../../bits/table/Table.svelte';
 	import { goto } from '$app/navigation';
-	import PopupWrapper from '../popupWrapper/PopupWrapper.svelte';
-	import PackagePopup from '../packagePopup/PackagePopup.svelte';
+import PackagePopup from '../packagePopup/PackagePopup.svelte';
+import { openPopup, closePopup } from '$lib/stores/popupStore';
 
 	export let customer;
+	export let onCustomerChange: (value: any) => void = () => {};
 	let isEditing = false;
-	let showAddPackageModal = false;
 
-	const packageHeaders = [
+	function handleClientsUpdated(event) {
+		const updatedClients = event.detail ?? [];
+		customer = { ...customer, clients: updatedClients };
+		onCustomerChange?.(customer);
+	}
+
+const packageHeaders = [
 		{ label: 'Typ', key: 'type' },
 		{ label: 'Klient', key: 'client' },
 		{ label: 'Fryst', key: 'frozen' },
@@ -60,12 +67,22 @@
 		};
 	});
 
-	function handleCreatePackage() {
-		showAddPackageModal = false; /* refresh */
-	}
-	function closePackagePopup() {
-		showAddPackageModal = false;
-	}
+function handleCreatePackage() {
+	closePopup();
+}
+
+function openPackagePopup() {
+	openPopup({
+		header: 'Lägg till paket',
+		icon: 'Plus',
+		component: PackagePopup,
+		width: '1000px',
+		props: {
+			customerId: customer.id,
+			onSave: handleCreatePackage
+		}
+	});
+}
 </script>
 
 <div class="flex flex-col gap-4">
@@ -99,17 +116,23 @@
 		{/if}
 	</div>
 
+	<ProfileCustomerClients
+		customerId={customer.id}
+		clients={customer.clients ?? []}
+		on:clientsUpdated={handleClientsUpdated}
+	/>
+
 	<div class="rounded-lg bg-white p-6 shadow-md">
 		<div class="mb-4 flex items-center justify-between">
 			<h4 class="text-xl font-semibold">Paket</h4>
-			<Button
-				text="Lägg till paket"
-				variant="secondary"
-				iconLeft="Plus"
-				iconLeftSize="14px"
-				on:click={() => (showAddPackageModal = true)}
-			/>
-		</div>
+		<Button
+			text="Lägg till paket"
+			variant="secondary"
+			iconLeft="Plus"
+			iconLeftSize="14px"
+			on:click={openPackagePopup}
+		/>
+	</div>
 
 		{#if packageTable?.length > 0}
 			<Table headers={packageHeaders} data={packageTable} />
@@ -119,8 +142,4 @@
 	</div>
 </div>
 
-{#if showAddPackageModal}
-	<PopupWrapper width="1000px" header="Lägg till paket" icon="Plus" on:close={closePackagePopup}>
-		<PackagePopup customerId={customer.id} onSave={handleCreatePackage} />
-	</PopupWrapper>
-{/if}
+<!-- Popup handled globally -->

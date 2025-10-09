@@ -452,13 +452,12 @@
 						booking={layoutItem.booking}
 						{startHour}
 						{hourHeight}
-						{i}
 						columnIndex={layoutItem.columnIndex}
 						columnCount={layoutItem.columnCount}
 						toolTipText={layoutItem.booking.booking.startTime
 							? `${new Date(layoutItem.booking.booking.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} ${layoutItem.booking.booking.endTime ? ` - ${new Date(layoutItem.booking.booking.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''}`
 							: ''}
-						on:onClick={(e) => onOpenBooking(e.detail.booking)}
+						onbookingselected={() => onOpenBooking(layoutItem.booking)}
 					/>
 				{/each}
 			</div>

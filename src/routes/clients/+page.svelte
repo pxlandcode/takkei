@@ -10,25 +10,14 @@
 	import OptionButton from '../../components/bits/optionButton/OptionButton.svelte';
 	import { hasRole } from '$lib/helpers/userHelpers/roleHelper';
 	import ClientForm from '../../components/ui/clientForm/ClientForm.svelte';
-	import PopupWrapper from '../../components/ui/popupWrapper/PopupWrapper.svelte';
 	import BookingPopup from '../../components/ui/bookingPopup/BookingPopup.svelte';
 	import { calendarStore } from '$lib/stores/calendarStore';
 	import MailComponent from '../../components/ui/mailComponent/MailComponent.svelte';
 	import { debounce } from '$lib/utils/debounce';
+	import { openPopup } from '$lib/stores/popupStore';
 
-	// State for popups
-	let showClientModal = false;
-	let showBookingPopup = false;
 	let selectedClientsId: number | null = null;
 	let selectedClientEmail: string | null = null;
-	let showMailPopup = false;
-
-	function openClientForm() {
-		showClientModal = true;
-	}
-	function closeClientForm() {
-		showClientModal = false;
-	}
 
 	// Headers (sortable like customers: name + trainer)
 	const headers = [
@@ -67,13 +56,62 @@
 
 	function onBookClient(clientId: number) {
 		selectedClientsId = clientId;
-		showBookingPopup = true;
+		openBookingPopup(clientId);
 	}
 
 	function onSendClientEmail(email: string) {
 		if (!email) return;
 		selectedClientEmail = email;
-		showMailPopup = true;
+		openMailPopup(email);
+	}
+
+	function openClientForm() {
+		openPopup({
+			header: 'Ny klient',
+			icon: 'Plus',
+			component: ClientForm,
+			maxWidth: '650px',
+			listeners: {
+				created: () => {
+					fetchPaginatedClients(true);
+				}
+			},
+			closeOn: ['created']
+		});
+	}
+
+	function openBookingPopup(clientId: number | null) {
+		openPopup({
+			header: 'Bokning',
+			icon: 'Plus',
+			component: BookingPopup,
+			props: { clientId },
+			maxWidth: '650px',
+			listeners: {
+				close: () => {
+					selectedClientsId = null;
+				}
+			}
+		});
+	}
+
+	function openMailPopup(email: string) {
+		openPopup({
+			header: `Maila ${email}`,
+			icon: 'Mail',
+			component: MailComponent,
+			width: '900px',
+			props: {
+				prefilledRecipients: [email],
+				lockedFields: ['recipients'],
+				autoFetchUsersAndClients: false
+			},
+			listeners: {
+				close: () => {
+					selectedClientEmail = null;
+				}
+			}
+		});
 	}
 
 	function buildQueryParams() {
@@ -227,13 +265,13 @@
 	$: selectedStatusOption, selectedOwnershipOption, fetchPaginatedClients(true);
 </script>
 
-<div class="m-4 h-full overflow-x-scroll custom-scrollbar" on:scroll={handleScroll}>
+<div class="custom-scrollbar m-4 h-full overflow-x-scroll" on:scroll={handleScroll}>
 	<!-- Page Title -->
 	<div class="flex items-center gap-2">
-		<div class="flex h-7 w-7 items-center justify-center rounded-full bg-text text-white">
+		<div class="bg-text flex h-7 w-7 items-center justify-center rounded-full text-white">
 			<Icon icon="Person" size="14px" />
 		</div>
-		<h2 class="text-3xl font-semibold text-text">Klienter</h2>
+		<h2 class="text-text text-3xl font-semibold">Klienter</h2>
 	</div>
 
 	<!-- Filters -->
@@ -250,7 +288,7 @@
 				bind:value={searchQuery}
 				on:input={debouncedSearch}
 				placeholder="Sök klient..."
-				class="w-full min-w-60 max-w-md rounded-lg border border-gray-300 p-2 focus:border-blue-500 focus:outline-hidden"
+				class="w-full max-w-md min-w-60 rounded-lg border border-gray-300 p-2 focus:border-blue-500 focus:outline-hidden"
 			/>
 
 			<div class="min-w-60">
@@ -288,42 +326,4 @@
 	{/if}
 </div>
 
-<!-- Modals -->
-{#if showClientModal}
-	<PopupWrapper header="Ny klient" icon="Plus" on:close={closeClientForm}>
-		<ClientForm
-			on:created={() => {
-				closeClientForm();
-				fetchPaginatedClients(true); // refresh list after creating a client
-			}}
-		/>
-	</PopupWrapper>
-{/if}
-
-{#if showBookingPopup}
-	<PopupWrapper
-		header="Bokning"
-		icon="Plus"
-		on:close={() => ((showBookingPopup = false), (selectedClientsId = null))}
-	>
-		<BookingPopup
-			on:close={() => ((showBookingPopup = false), (selectedClientsId = null))}
-			clientId={selectedClientsId}
-		/>
-	</PopupWrapper>
-{/if}
-
-{#if showMailPopup && selectedClientEmail}
-	<PopupWrapper
-		width="900px"
-		header="Maila {selectedClientEmail}"
-		icon="Mail"
-		on:close={() => ((showMailPopup = false), (selectedClientEmail = null))}
-	>
-		<MailComponent
-			prefilledRecipients={[selectedClientEmail]}
-			lockedFields={['recipients']}
-			autoFetchUsersAndClients={false}
-		/>
-	</PopupWrapper>
-{/if}
+<!-- Popups handled via global store -->

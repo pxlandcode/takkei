@@ -18,215 +18,215 @@
 	import { getClientEmails } from '$lib/stores/clientsStore';
 	import { get } from 'svelte/store';
 	import { user } from '$lib/stores/userStore';
-import { users, fetchUsers } from '$lib/stores/usersStore';
+	import { users, fetchUsers } from '$lib/stores/usersStore';
 
-declare function structuredClone<T>(value: T): T;
+	declare function structuredClone<T>(value: T): T;
 
-export let booking: FullBooking;
+	export let booking: FullBooking;
 
-let currentBooking: FullBooking = booking;
-let lastPropBooking: FullBooking = booking;
-let startTime: Date;
-let endTime: Date;
+	let currentBooking: FullBooking = booking;
+	let lastPropBooking: FullBooking = booking;
+	let startTime: Date;
+	let endTime: Date;
 
-const dispatch = createEventDispatcher();
+	const dispatch = createEventDispatcher();
 
-$: if (booking !== lastPropBooking && booking) {
-	lastPropBooking = booking;
-	currentBooking = booking;
-}
+	$: if (booking !== lastPropBooking && booking) {
+		lastPropBooking = booking;
+		currentBooking = booking;
+	}
 
-$: {
-	const start = new Date(currentBooking.booking.startTime);
-	startTime = start;
-	endTime = currentBooking.booking.endTime
-		? new Date(currentBooking.booking.endTime)
-		: new Date(start.getTime() + 60 * 60 * 1000);
-}
+	$: {
+		const start = new Date(currentBooking.booking.startTime);
+		startTime = start;
+		endTime = currentBooking.booking.endTime
+			? new Date(currentBooking.booking.endTime)
+			: new Date(start.getTime() + 60 * 60 * 1000);
+	}
 
-let showEditor = false;
-let editedBooking: FullBooking | null = null;
-let participantNames: string[] = [];
-let isCancelled = false;
-let cancelOptions:
-	| {
-			onConfirm: (reason: string, time: string) => void;
-			startTimeISO: string;
-	  }
-	| null = null;
-let confirmDeleteOptions:
-	| {
-			title?: string;
-			description?: string;
-			action?: () => void;
-			actionLabel?: string;
-	  }
-	| null = null;
+	let showEditor = false;
+	let editedBooking: FullBooking | null = null;
+	let participantNames: string[] = [];
+	let isCancelled = false;
+	let cancelOptions: {
+		onConfirm: (reason: string, time: string) => void;
+		startTimeISO: string;
+	} | null = null;
+	let confirmDeleteOptions: {
+		title?: string;
+		description?: string;
+		action?: () => void;
+		actionLabel?: string;
+	} | null = null;
 
-function normalizeKind(kind?: string | null) {
-	if (!kind) return '';
-	return kind
-		.normalize('NFD')
-		.replace(/[\u0300-\u036f]/g, '')
-		.toLowerCase();
-}
+	function normalizeKind(kind?: string | null) {
+		if (!kind) return '';
+		return kind
+			.normalize('NFD')
+			.replace(/[\u0300-\u036f]/g, '')
+			.toLowerCase();
+	}
 
-function isMeetingBooking(bookingItem: FullBooking) {
-	const personalKind = normalizeKind(bookingItem.personalBooking?.kind ?? null);
-	const contentKind = normalizeKind(bookingItem.additionalInfo?.bookingContent?.kind ?? null);
-	return personalKind.includes('meeting') || personalKind.includes('mote') || contentKind.includes('meeting') || contentKind.includes('mote');
-}
+	function isMeetingBooking(bookingItem: FullBooking) {
+		const personalKind = normalizeKind(bookingItem.personalBooking?.kind ?? null);
+		const contentKind = normalizeKind(bookingItem.additionalInfo?.bookingContent?.kind ?? null);
+		return (
+			personalKind.includes('meeting') ||
+			personalKind.includes('mote') ||
+			contentKind.includes('meeting') ||
+			contentKind.includes('mote')
+		);
+	}
 
-$: requiresCancelReason = !currentBooking.isPersonalBooking && !isMeetingBooking(currentBooking);
-$: cancelOptions = requiresCancelReason
-	? {
-			onConfirm: (reason: string, time: string) => {
-				void performCancellation({ reason, time });
-			},
-			startTimeISO: currentBooking.booking.startTime
-	  }
-	: null;
-$: confirmDeleteOptions = requiresCancelReason
-	? null
-	: {
-			title: 'Ta bort bokning',
-			description: 'Är du säker på att du vill ta bort den här bokningen?',
-			actionLabel: 'Ta bort',
-			action: () => {
-				void performCancellation({});
+	$: requiresCancelReason = !currentBooking.isPersonalBooking && !isMeetingBooking(currentBooking);
+	$: cancelOptions = requiresCancelReason
+		? {
+				onConfirm: (reason: string, time: string) => {
+					void performCancellation({ reason, time });
+				},
+				startTimeISO: currentBooking.booking.startTime
 			}
-	  };
+		: null;
+	$: confirmDeleteOptions = requiresCancelReason
+		? null
+		: {
+				title: 'Ta bort bokning',
+				description: 'Är du säker på att du vill ta bort den här bokningen?',
+				actionLabel: 'Ta bort',
+				action: () => {
+					void performCancellation({});
+				}
+			};
 
-$:
-	isCancelled =
+	$: isCancelled =
 		(currentBooking.booking.status &&
 			currentBooking.booking.status.toLowerCase() === 'cancelled') ||
 		!!currentBooking.booking.cancelTime;
 
-function fmtDateTime(d?: string | Date | null) {
-	if (!d) return '';
-	const date = typeof d === 'string' ? new Date(d) : d;
-	// Swedish date + time, short
-	return date.toLocaleString('sv-SE', {
-		year: 'numeric',
-		month: '2-digit',
-		day: '2-digit',
-		hour: '2-digit',
-		minute: '2-digit'
-	});
-}
-
-function cloneBookingData(source: FullBooking): FullBooking {
-	return typeof structuredClone === 'function'
-		? structuredClone(source)
-		: JSON.parse(JSON.stringify(source));
-}
-
-onMount(async () => {
-	if (currentBooking.isPersonalBooking && get(users).length === 0) {
-		await fetchUsers();
+	function fmtDateTime(d?: string | Date | null) {
+		if (!d) return '';
+		const date = typeof d === 'string' ? new Date(d) : d;
+		// Swedish date + time, short
+		return date.toLocaleString('sv-SE', {
+			year: 'numeric',
+			month: '2-digit',
+			day: '2-digit',
+			hour: '2-digit',
+			minute: '2-digit'
+		});
 	}
 
-	if (currentBooking.isPersonalBooking && currentBooking.personalBooking?.userIds?.length) {
-		const loadedUsers = get(users);
-		const idSet = new Set(currentBooking.personalBooking.userIds);
-		participantNames = loadedUsers
-			.filter((u) => idSet.has(u.id))
-			.map((u) => `${u.firstname} ${u.lastname}`);
+	function cloneBookingData(source: FullBooking): FullBooking {
+		return typeof structuredClone === 'function'
+			? structuredClone(source)
+			: JSON.parse(JSON.stringify(source));
 	}
-});
 
-$: if (currentBooking.isPersonalBooking) {
-	const userList = $users;
-	if (userList.length && currentBooking.personalBooking?.userIds?.length) {
-		const idSet = new Set(currentBooking.personalBooking.userIds);
-		participantNames = userList
-			.filter((u) => idSet.has(u.id))
-			.map((u) => `${u.firstname} ${u.lastname}`);
-	} else {
-		participantNames = [];
-	}
-}
-
-function handleEdit() {
-	if (isCancelled) return;
-	editedBooking = cloneBookingData(currentBooking);
-	showEditor = true;
-}
-
-async function performCancellation({ reason, time }: { reason?: string; time?: string }) {
-	const personalBooking = currentBooking.isPersonalBooking;
-	const meetingBooking = isMeetingBooking(currentBooking);
-
-	let res: { success: boolean; message?: string };
-
-	if (personalBooking) {
-		res = await deletePersonalBooking(currentBooking.booking.id);
-	} else if (meetingBooking) {
-		res = await deleteMeetingBooking(currentBooking.booking.id);
-	} else {
-		if (!reason) {
-			addToast({
-				type: AppToastType.CANCEL,
-				message: 'Orsak saknas',
-				description: 'Vänligen välj en avbokningsorsak.'
-			});
-			return;
+	onMount(async () => {
+		if (currentBooking.isPersonalBooking && get(users).length === 0) {
+			await fetchUsers();
 		}
-		const fallbackTime = new Date().toISOString().slice(0, 16);
-		res = await cancelBooking(currentBooking.booking.id, reason, time ?? fallbackTime);
+
+		if (currentBooking.isPersonalBooking && currentBooking.personalBooking?.userIds?.length) {
+			const loadedUsers = get(users);
+			const idSet = new Set(currentBooking.personalBooking.userIds);
+			participantNames = loadedUsers
+				.filter((u) => idSet.has(u.id))
+				.map((u) => `${u.firstname} ${u.lastname}`);
+		}
+	});
+
+	$: if (currentBooking.isPersonalBooking) {
+		const userList = $users;
+		if (userList.length && currentBooking.personalBooking?.userIds?.length) {
+			const idSet = new Set(currentBooking.personalBooking.userIds);
+			participantNames = userList
+				.filter((u) => idSet.has(u.id))
+				.map((u) => `${u.firstname} ${u.lastname}`);
+		} else {
+			participantNames = [];
+		}
 	}
 
-	if (res.success) {
-		const clientEmail = !personalBooking ? getClientEmails(currentBooking.client?.id) : null;
-		const currentUser = get(user);
+	function handleEdit() {
+		if (isCancelled) return;
+		editedBooking = cloneBookingData(currentBooking);
+		showEditor = true;
+	}
 
-		if (clientEmail) {
-			await sendMail({
-				to: clientEmail,
-				subject: 'Avbokningsbekräftelse',
-				header: 'Din bokning har avbokats',
-				subheader: 'Vi har noterat din avbokning',
-				body: `
+	async function performCancellation({ reason, time }: { reason?: string; time?: string }) {
+		const personalBooking = currentBooking.isPersonalBooking;
+		const meetingBooking = isMeetingBooking(currentBooking);
+
+		let res: { success: boolean; message?: string };
+
+		if (personalBooking) {
+			res = await deletePersonalBooking(currentBooking.booking.id);
+		} else if (meetingBooking) {
+			res = await deleteMeetingBooking(currentBooking.booking.id);
+		} else {
+			if (!reason) {
+				addToast({
+					type: AppToastType.CANCEL,
+					message: 'Orsak saknas',
+					description: 'Vänligen välj en avbokningsorsak.'
+				});
+				return;
+			}
+			const fallbackTime = new Date().toISOString().slice(0, 16);
+			res = await cancelBooking(currentBooking.booking.id, reason, time ?? fallbackTime);
+		}
+
+		if (res.success) {
+			const clientEmail = !personalBooking ? getClientEmails(currentBooking.client?.id) : null;
+			const currentUser = get(user);
+
+			if (clientEmail) {
+				await sendMail({
+					to: clientEmail,
+					subject: 'Avbokningsbekräftelse',
+					header: 'Din bokning har avbokats',
+					subheader: 'Vi har noterat din avbokning',
+					body: `
 				Hej! Din bokning den ${startTime.toLocaleDateString('sv-SE')} har avbokats.<br><br>
 				Tveka inte att kontakta oss om du har några frågor.
 			`,
-				from: {
-					name: `${currentUser.firstname} ${currentUser.lastname}`,
-					email: currentUser.email
-				}
+					from: {
+						name: `${currentUser.firstname} ${currentUser.lastname}`,
+						email: currentUser.email
+					}
+				});
+			}
+
+			addToast({
+				type: AppToastType.SUCCESS,
+				message: personalBooking || meetingBooking ? 'Bokning borttagen' : 'Bokning avbruten',
+				description: res.message ?? 'Bokningen har uppdaterats.'
+			});
+
+			calendarStore.refresh(fetch);
+			onClose();
+		} else {
+			addToast({
+				type: AppToastType.CANCEL,
+				message: 'Fel vid avbokning',
+				description: res.message ?? 'Något gick fel.'
 			});
 		}
-
-		addToast({
-			type: AppToastType.SUCCESS,
-			message: personalBooking || meetingBooking ? 'Bokning borttagen' : 'Bokning avbruten',
-			description: res.message ?? 'Bokningen har uppdaterats.'
-		});
-
-		calendarStore.refresh(fetch);
-		onClose();
-	} else {
-		addToast({
-			type: AppToastType.CANCEL,
-			message: 'Fel vid avbokning',
-			description: res.message ?? 'Något gick fel.'
-		});
 	}
-}
 
-function onClose() {
-	dispatch('close');
-}
-
-function handleCloseEditor(event: CustomEvent<{ booking?: FullBooking }>) {
-	const updated = event?.detail?.booking;
-	if (updated) {
-		currentBooking = updated;
+	function onClose() {
+		dispatch('close');
 	}
-	showEditor = false;
-	dispatch('updated', { booking: currentBooking });
-}
+
+	function handleCloseEditor(event: CustomEvent<{ booking?: FullBooking }>) {
+		const updated = event?.detail?.booking;
+		if (updated) {
+			currentBooking = updated;
+		}
+		showEditor = false;
+		dispatch('updated', { booking: currentBooking });
+	}
 </script>
 
 {#if showEditor && editedBooking}
@@ -236,13 +236,13 @@ function handleCloseEditor(event: CustomEvent<{ booking?: FullBooking }>) {
 		on:close={handleCloseEditor}
 	/>
 {:else if showEditor}
-	<p class="p-4 text-sm text-gray">Laddar redigeringsformulär...</p>
+	<p class="text-gray p-4 text-sm">Laddar redigeringsformulär...</p>
 {:else}
-	<div class="flex w-[600px] flex-col gap-4 bg-white">
-		<div class="mt-4 flex items-center justify-between">
+	<div class="flex w-full max-w-full flex-col gap-4 bg-white sm:w-[600px] sm:max-w-[600px]">
+		<div class="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 			<h2 class="text-xl font-semibold">Bokningsdetaljer</h2>
 
-			<div class="flex gap-3">
+			<div class="flex flex-wrap gap-2 sm:flex-nowrap sm:justify-end sm:gap-3">
 				{#if !isCancelled}
 					<Button iconLeft="Edit" text="Redigera" variant="primary" small on:click={handleEdit} />
 					<Button
@@ -290,7 +290,7 @@ function handleCloseEditor(event: CustomEvent<{ booking?: FullBooking }>) {
 			</div>
 		{/if}
 
-		<div class={isCancelled ? 'pointer-events-none select-none opacity-60' : ''}>
+		<div class={isCancelled ? 'pointer-events-none opacity-60 select-none' : ''}>
 			{#if currentBooking.isPersonalBooking}
 				<p class="text-gray-700">
 					<strong>Namn:</strong>

@@ -7,11 +7,11 @@
 	import Icon from '../../components/bits/icon-component/Icon.svelte';
 	import Button from '../../components/bits/button/Button.svelte';
 	import UserForm from '../../components/ui/userForm/UserForm.svelte';
-	import PopupWrapper from '../../components/ui/popupWrapper/PopupWrapper.svelte';
 	import { hasRole } from '$lib/helpers/userHelpers/roleHelper';
 	import BookingPopup from '../../components/ui/bookingPopup/BookingPopup.svelte';
 	import MailComponent from '../../components/ui/mailComponent/MailComponent.svelte';
 	import { calendarStore } from '$lib/stores/calendarStore';
+	import { openPopup } from '$lib/stores/popupStore';
 
 	// Headers Configuration with isSearchable
 	const headers = [
@@ -26,19 +26,22 @@
 	let filteredData: TableType = [];
 	let searchQuery = '';
 
-	let showUserModal = false;
-
-	let showBookingPopup = false;
 	let selectedTrainerId: number | null = null;
-	let showMailPopup = false;
 	let selectedTrainerEmail: string | null = null;
 
 	function openUserForm() {
-		showUserModal = true;
-	}
-
-	function closeUserForm() {
-		showUserModal = false;
+		openPopup({
+			header: 'Ny användare',
+			icon: 'Plus',
+			component: UserForm,
+			maxWidth: '720px',
+			listeners: {
+				created: () => {
+					fetchUsers();
+				}
+			},
+			closeOn: ['created']
+		});
 	}
 
 	$: isAdmin = hasRole('Administrator');
@@ -54,12 +57,46 @@
 
 	function onBookTrainer(trainerId: number) {
 		selectedTrainerId = trainerId;
-		showBookingPopup = true;
+		openBookingPopup(trainerId);
 	}
 
 	function onSendEmailToTrainer(email: string) {
 		selectedTrainerEmail = email;
-		showMailPopup = true;
+		openMailPopup(email);
+	}
+
+	function openBookingPopup(trainerId: number | null) {
+		openPopup({
+			header: 'Bokning',
+			icon: 'Plus',
+			component: BookingPopup,
+			props: { trainerId },
+			maxWidth: '650px',
+			listeners: {
+				close: () => {
+					selectedTrainerId = null;
+				}
+			}
+		});
+	}
+
+	function openMailPopup(email: string) {
+		openPopup({
+			header: `Maila ${email}`,
+			icon: 'Mail',
+			component: MailComponent,
+			width: '900px',
+			props: {
+				prefilledRecipients: [email],
+				lockedFields: ['recipients'],
+				autoFetchUsersAndClients: false
+			},
+			listeners: {
+				close: () => {
+					selectedTrainerEmail = null;
+				}
+			}
+		});
 	}
 
 	// Fetch Users on Mount
@@ -125,14 +162,14 @@
 	}
 </script>
 
-<div class="m-4 h-full overflow-x-scroll custom-scrollbar">
+<div class="custom-scrollbar m-4 h-full overflow-x-scroll">
 	<!-- Page Title -->
 
 	<div class=" flex items-center gap-2">
-		<div class="flex h-7 w-7 items-center justify-center rounded-full bg-text text-white">
+		<div class="bg-text flex h-7 w-7 items-center justify-center rounded-full text-white">
 			<Icon icon="Person" size="14px" />
 		</div>
-		<h2 class="text-3xl font-semibold text-text">Tränare</h2>
+		<h2 class="text-text text-3xl font-semibold">Tränare</h2>
 	</div>
 	<div class="my-4 flex flex-row items-center justify-between">
 		<div>
@@ -154,41 +191,4 @@
 	<Table noSelect {headers} data={filteredData} />
 </div>
 
-{#if showUserModal}
-	<PopupWrapper header="Ny användare" icon="Plus" on:close={closeUserForm}>
-		<UserForm
-			on:created={() => {
-				closeUserForm();
-				fetchUsers();
-			}}
-		/>
-	</PopupWrapper>
-{/if}
-
-{#if showBookingPopup}
-	<PopupWrapper
-		header="Bokning"
-		icon="Plus"
-		on:close={() => ((showBookingPopup = false), (selectedTrainerId = null))}
-	>
-		<BookingPopup
-			on:close={() => ((showBookingPopup = false), (selectedTrainerId = null))}
-			trainerId={selectedTrainerId}
-		/>
-	</PopupWrapper>
-{/if}
-
-{#if showMailPopup && selectedTrainerEmail}
-	<PopupWrapper
-		width="900px"
-		header="Maila {selectedTrainerEmail}"
-		icon="Mail"
-		on:close={() => ((showMailPopup = false), (selectedTrainerEmail = null))}
-	>
-		<MailComponent
-			prefilledRecipients={[selectedTrainerEmail]}
-			lockedFields={['recipients']}
-			autoFetchUsersAndClients={false}
-		/>
-	</PopupWrapper>
-{/if}
+<!-- Popups handled via global store -->

@@ -1,21 +1,35 @@
-// src/lib/stores/popupStore.ts
 import { writable } from 'svelte/store';
-import type { FullBooking } from '$lib/types/calendarTypes';
+import type { ComponentType } from 'svelte';
 
-export type PopupStoreType =
-	| { type: 'mail'; header: string; data: MailPopupData }
-	| { type: 'clientForm' }
-	| { type: 'booking'; data?: { clientId?: number; trainerId?: number } }
-	| { type: 'bookingDetails'; data: { booking: FullBooking } }
-	| null;
-type MailPopupData = {
-	prefilledRecipients?: string[];
-	subject?: string;
+export type PopupListeners = Record<string, (event: CustomEvent<any>) => void>;
+
+export type PopupState = {
+	id?: string;
+	component: ComponentType;
 	header?: string;
-	subheader?: string;
-	body?: string;
-	lockedFields?: string[];
-	autoFetchUsersAndClients?: boolean;
+	icon?: string;
+	props?: Record<string, unknown>;
+	width?: string;
+	height?: string;
+	maxWidth?: string;
+	maxHeight?: string;
+	dismissable?: boolean;
+	noClose?: boolean;
+	closeOn?: string[];
+	listeners?: PopupListeners;
 };
 
-export const popupStore = writable<PopupStoreType>(null);
+const DEFAULT_CLOSE_ON: string[] = [];
+
+export const popupStore = writable<PopupState | null>(null);
+
+export function openPopup(config: PopupState) {
+	popupStore.set({
+		...config,
+		closeOn: config.closeOn ?? DEFAULT_CLOSE_ON
+	});
+}
+
+export function closePopup() {
+	popupStore.set(null);
+}

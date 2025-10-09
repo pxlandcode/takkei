@@ -16,13 +16,52 @@
 	let phone = '';
 	let person_number = '';
 	let primary_trainer_id: number | null = null;
+	let selectedCustomerId: number | null = null;
+	let customerOptions: { label: string; value: number | null }[] = [{ label: 'Ingen kund', value: null }];
+	let customerLoadError = '';
+	let customersLoading = false;
 	let createdClientId: number | null = null;
 	let errors: Record<string, string> = {};
 	let active = true;
 
 	$: isLoading = $loadingStore.isLoading;
 
-	onMount(fetchUsers);
+	const customerCollator = new Intl.Collator('sv', { sensitivity: 'base' });
+
+	onMount(() => {
+		fetchUsers();
+		loadCustomers();
+	});
+
+	async function loadCustomers() {
+		customersLoading = true;
+		customerLoadError = '';
+		try {
+			const res = await fetch('/api/customers?short=true');
+			if (!res.ok) {
+				throw new Error('Failed to fetch customers');
+			}
+
+			const rows = await res.json();
+			if (Array.isArray(rows)) {
+				const items = rows
+					.map((row) => ({ id: Number(row.id), name: typeof row.name === 'string' ? row.name.trim() : '' }))
+					.filter((row) => Number.isFinite(row.id) && row.id > 0 && row.name.length > 0)
+					.sort((a, b) => customerCollator.compare(a.name, b.name));
+
+				customerOptions = [{ label: 'Ingen kund', value: null }, ...items.map((item) => ({ label: item.name, value: item.id }))];
+			} else {
+				customerOptions = [{ label: 'Ingen kund', value: null }];
+			}
+		} catch (error) {
+			console.error('Error loading customers for client form:', error);
+			customerLoadError = 'Kunde inte hämta kunder.';
+			customerOptions = [{ label: 'Ingen kund', value: null }];
+		} finally {
+			customersLoading = false;
+		}
+	}
+
 
 	$: trainerOptions = ($users || []).map((user) => ({
 		label: `${user.firstname} ${user.lastname}`,
@@ -51,6 +90,7 @@
 					phone,
 					person_number,
 					primary_trainer_id,
+					customer_id: selectedCustomerId ?? null,
 					active
 				})
 			});
@@ -99,6 +139,7 @@
 			phone = '';
 			person_number = '';
 			primary_trainer_id = null;
+			selectedCustomerId = null;
 			createdClientId = null;
 			active = true;
 		}}
@@ -143,6 +184,21 @@
 			bind:selectedValue={primary_trainer_id}
 			search
 		/>
+
+		<Dropdown
+			label="Kund (valfritt)"
+			placeholder={customersLoading && customerOptions.length === 1 ? 'Hämtar kunder...' : 'Välj kund'}
+			id="customer_id"
+			options={customerOptions}
+			bind:selectedValue={selectedCustomerId}
+			disabled={customersLoading && customerOptions.length === 1}
+			search
+			errors={errors}
+		/>
+
+		{#if customerLoadError}
+			<p class="text-sm text-error">{customerLoadError}</p>
+		{/if}
 
 		<div class="mt-2 flex items-center gap-2">
 			<Checkbox id="active" name="active" bind:checked={active} label="Aktiv" {errors} />

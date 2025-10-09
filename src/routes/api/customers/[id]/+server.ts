@@ -50,7 +50,7 @@ export async function GET({ params }) {
 			    SUM(CASE WHEN start_time < NOW() THEN 1 ELSE 0 END)::int AS used_until_now
 			  FROM bookings
 			  WHERE package_id = ANY($1::int[])
-			    AND (status IS NULL OR status NOT IN ('Cancelled','Late_cancelled','Canceled'))
+			    AND (status IS NULL OR LOWER(status) <> 'cancelled')
 			  GROUP BY package_id`,
 			[ids]
 		);

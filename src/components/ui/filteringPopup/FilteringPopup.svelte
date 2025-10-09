@@ -127,24 +127,26 @@
 	}
 </script>
 
-<div class="flex max-h-dvh min-h-[450px] w-[600px] flex-col bg-white p-4">
+<div class="flex max-h-dvh min-h-[450px] w-full max-w-full flex-col bg-white p-4 sm:max-w-[600px]">
 	<div class="flex flex-col gap-4">
-		<div class="flex flex-row gap-2">
-			<DropdownCheckbox
-				label="Tränare"
-				placeholder="Välj tränare"
-				id="users"
-				options={($users || []).map((user) => ({
-					name: `${user.firstname} ${user.lastname}`,
-					value: user
-				}))}
-				maxNumberOfSuggestions={15}
-				infiniteScroll={true}
-				search
-				bind:selectedValues={selectedUsers}
-				on:change={handleUserSelection}
-			/>
-			<div class="mt-7 flex flex-row gap-2">
+		<div class="flex flex-col gap-2 sm:flex-row">
+			<div class="flex-1">
+				<DropdownCheckbox
+					label="Tränare"
+					placeholder="Välj tränare"
+					id="users"
+					options={($users || []).map((user) => ({
+						name: `${user.firstname} ${user.lastname}`,
+						value: user
+					}))}
+					maxNumberOfSuggestions={15}
+					infiniteScroll={true}
+					search
+					bind:selectedValues={selectedUsers}
+					on:change={handleUserSelection}
+				/>
+			</div>
+			<div class="mt-4 flex flex-wrap gap-2 sm:mt-7 sm:flex-nowrap">
 				<Button
 					icon="Person"
 					iconColor="orange"
@@ -163,22 +165,24 @@
 			</div>
 		</div>
 
-		<div class="flex flex-row gap-2">
-			<DropdownCheckbox
-				label="Plats"
-				placeholder="Välj plats"
-				id="locations"
-				options={($locations || []).map((location) => ({
-					name: location.name,
-					value: location
-				}))}
-				maxNumberOfSuggestions={15}
-				infiniteScroll={true}
-				bind:selectedValues={selectedLocations}
-				on:change={handleLocationSelection}
-			/>
+		<div class="flex flex-col gap-2 sm:flex-row">
+			<div class="flex-1">
+				<DropdownCheckbox
+					label="Plats"
+					placeholder="Välj plats"
+					id="locations"
+					options={($locations || []).map((location) => ({
+						name: location.name,
+						value: location
+					}))}
+					maxNumberOfSuggestions={15}
+					infiniteScroll={true}
+					bind:selectedValues={selectedLocations}
+					on:change={handleLocationSelection}
+				/>
+			</div>
 
-			<div class="mt-7 flex flex-row gap-2">
+			<div class="mt-4 flex flex-wrap gap-2 sm:mt-7 sm:flex-nowrap">
 				<Button
 					icon="Building"
 					iconColor="orange"
@@ -203,23 +207,25 @@
 		</div>
 	</div>
 
-	<div class="flex flex-row gap-2">
-		<DropdownCheckbox
-			label="Kunder"
-			placeholder="Välj kunder"
-			id="clients"
-			options={($clients || []).map((client) => ({
-				name: `${client.firstname} ${client.lastname}`,
-				value: client
-			}))}
-			search
-			maxNumberOfSuggestions={15}
-			infiniteScroll={true}
-			bind:selectedValues={selectedClients}
-			on:change={handleClientSelection}
-		/>
+	<div class="flex flex-col gap-2 sm:flex-row">
+		<div class="flex-1">
+			<DropdownCheckbox
+				label="Kunder"
+				placeholder="Välj kunder"
+				id="clients"
+				options={($clients || []).map((client) => ({
+					name: `${client.firstname} ${client.lastname}`,
+					value: client
+				}))}
+				search
+				maxNumberOfSuggestions={15}
+				infiniteScroll={true}
+				bind:selectedValues={selectedClients}
+				on:change={handleClientSelection}
+			/>
+		</div>
 
-		<div class="mt-7 flex flex-row gap-2">
+		<div class="mt-4 flex flex-wrap gap-2 sm:mt-7 sm:flex-nowrap">
 			<Button
 				icon="MultiCheck"
 				variant="secondary"
