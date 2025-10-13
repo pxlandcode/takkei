@@ -50,16 +50,18 @@
 	const colWidth = $derived(100 / columnCount);
 	const colLeft = $derived(columnIndex * colWidth);
 
-	const trainerInitials =
+	const trainerInitials = $derived(
 		booking.trainer?.firstname && booking.trainer?.lastname
 			? `${booking.trainer.firstname[0]}${booking.trainer.lastname[0]}`
 			: booking.isPersonalBooking
 				? 'P'
-				: 'T';
-	const clientInitials =
+				: 'T'
+	);
+	const clientInitials = $derived(
 		booking.client?.firstname && booking.client?.lastname
 			? `${booking.client.firstname[0]}${booking.client.lastname[0]}`
-			: 'C';
+			: 'C'
+	);
 
 	// $: colWidth = 100 / columnCount;
 	// $: colLeft = columnIndex * colWidth;
