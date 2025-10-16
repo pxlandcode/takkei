@@ -1,6 +1,6 @@
 import { query } from '$lib/db';
 
-const LATE_CANCEL_STATES = ['Late_Cancelled'];
+const LATE_CANCEL_STATES = ['Late_cancelled'];
 
 const HARD_CANCEL_STATES = ['Cancelled'];
 
