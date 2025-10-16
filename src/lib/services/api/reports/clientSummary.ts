@@ -61,7 +61,12 @@ type DbRow = {
 	used_sessions: number | null;
 	remaining_sessions: number | null;
 	total_package_value: number | null;
-	customers: string[] | null;
+	customers: Array<{ id?: number; name?: string } | null> | null;
+};
+
+export type CustomerLink = {
+	id: number;
+	name: string;
 };
 
 export type ClientReportRow = {
@@ -72,8 +77,6 @@ export type ClientReportRow = {
 	email: string | null;
 	phone: string | null;
 	active: boolean;
-	membershipStatus: string | null;
-	membershipEndsAt: string | null;
 	primaryTrainerId: number | null;
 	primaryTrainerName: string | null;
 	totalBookings: number;
@@ -88,7 +91,7 @@ export type ClientReportRow = {
 	usedSessions: number;
 	remainingSessions: number;
 	totalPackageValue: number;
-	customers: string[];
+	customers: CustomerLink[];
 	createdAt: string | null;
 	updatedAt: string | null;
 };
@@ -103,6 +106,9 @@ export type ClientReportSummary = {
 
 export type ClientReportFilters = {
 	active?: 'all' | 'active' | 'inactive';
+	search?: string;
+	limit?: number;
+	offset?: number;
 };
 
 export type ClientReport = {
@@ -130,6 +136,67 @@ function applyActiveFilter(rows: ClientReportRow[], filter: ClientReportFilters[
 	if (filter === 'active') return rows.filter((r) => r.active);
 	if (filter === 'inactive') return rows.filter((r) => !r.active);
 	return rows;
+}
+
+const DEFAULT_PAGE_SIZE = 50;
+const MAX_PAGE_SIZE = 200;
+
+function cleanCustomers(customers: DbRow['customers']): CustomerLink[] {
+	if (!Array.isArray(customers)) return [];
+	return customers
+		.filter(
+			(value): value is { id?: number; name?: string } =>
+				value !== null && typeof value === 'object'
+		)
+		.map((value) => {
+			const id = typeof value.id === 'number' && Number.isFinite(value.id) ? value.id : null;
+			const name = typeof value.name === 'string' ? value.name.trim() : '';
+			if (id === null || !name) return null;
+			return { id, name } as CustomerLink;
+		})
+		.filter((value): value is CustomerLink => value !== null);
+}
+
+function applySearchFilter(rows: ClientReportRow[], search?: string) {
+	const query = search?.trim().toLowerCase();
+	if (!query) return rows;
+	return rows.filter((row) => {
+		const targets: string[] = [
+			row.name,
+			row.firstname,
+			row.lastname,
+			row.email ?? '',
+			row.primaryTrainerName ?? '',
+			...row.customers.map((customer) => customer.name)
+		].filter(Boolean);
+		return targets.some((value) => value.toLowerCase().includes(query));
+	});
+}
+
+function sanitizeLimit(limit?: number) {
+	if (limit === undefined || limit === null) return undefined;
+	const parsed = Math.trunc(Number(limit));
+	if (!Number.isFinite(parsed)) return DEFAULT_PAGE_SIZE;
+	if (parsed <= 0) return DEFAULT_PAGE_SIZE;
+	return Math.min(parsed, MAX_PAGE_SIZE);
+}
+
+function sanitizeOffset(offset?: number) {
+	if (offset === undefined || offset === null) return 0;
+	const parsed = Math.trunc(Number(offset));
+	if (!Number.isFinite(parsed) || parsed < 0) return 0;
+	return parsed;
+}
+
+function paginateRows(rows: ClientReportRow[], limit?: number, offset?: number) {
+	const hasExplicitLimit = limit !== undefined && limit !== null;
+	const sanitizedLimit = sanitizeLimit(limit);
+	const start = sanitizeOffset(offset);
+	if (!hasExplicitLimit) {
+		if (start === 0) return rows;
+		return rows.slice(start);
+	}
+	return rows.slice(start, start + (sanitizedLimit ?? DEFAULT_PAGE_SIZE));
 }
 
 export async function getClientReportRows(): Promise<ClientReportRow[]> {
@@ -199,12 +266,17 @@ export async function getClientReportRows(): Promise<ClientReportRow[]> {
 	),
 	customer_links AS (
 		SELECT
-			ccr.client_id,
-			ARRAY_AGG(DISTINCT cu.name ORDER BY cu.name) AS customers
-		FROM client_customer_relationships ccr
-		JOIN customers cu ON cu.id = ccr.customer_id
-		WHERE COALESCE(ccr.active, true) = true
-		GROUP BY ccr.client_id
+			client_id,
+			JSONB_AGG(customer ORDER BY customer->>'name') AS customers
+		FROM (
+			SELECT DISTINCT
+				ccr.client_id,
+				jsonb_build_object('id', cu.id, 'name', cu.name) AS customer
+			FROM client_customer_relationships ccr
+			JOIN customers cu ON cu.id = ccr.customer_id
+			WHERE COALESCE(ccr.active, true) = true
+		) dedup
+		GROUP BY client_id
 	)
 	SELECT
 		cb.id,
@@ -232,7 +304,7 @@ export async function getClientReportRows(): Promise<ClientReportRow[]> {
 		COALESCE(pu.used_sessions, 0) AS used_sessions,
 		COALESCE(ps.total_sessions, 0) - COALESCE(pu.used_sessions, 0) AS remaining_sessions,
 		COALESCE(ps.total_package_value, 0) AS total_package_value,
-		COALESCE(cl.customers, ARRAY[]::text[]) AS customers
+		COALESCE(cl.customers, '[]'::jsonb) AS customers
 	FROM client_base cb
 	LEFT JOIN booking_stats bs ON bs.client_id = cb.id
 	LEFT JOIN package_stats ps ON ps.client_id = cb.id
@@ -264,8 +336,6 @@ export async function getClientReportRows(): Promise<ClientReportRow[]> {
 			email: row.email?.trim() || null,
 			phone: row.phone?.trim() || null,
 			active: Boolean(row.active),
-			membershipStatus: row.membership_status,
-			membershipEndsAt: toIsoString(row.membership_end_time),
 			primaryTrainerId: row.primary_trainer_id,
 			primaryTrainerName: primaryTrainerName || null,
 			totalBookings: toInt(row.total_bookings),
@@ -280,7 +350,7 @@ export async function getClientReportRows(): Promise<ClientReportRow[]> {
 			usedSessions,
 			remainingSessions,
 			totalPackageValue: toNumber(row.total_package_value),
-			customers: Array.isArray(row.customers) ? row.customers : [],
+			customers: cleanCustomers(row.customers),
 			createdAt: toIsoString(row.created_at),
 			updatedAt: toIsoString(row.updated_at)
 		};
@@ -291,11 +361,13 @@ export async function getClientReport(filters: ClientReportFilters = {}): Promis
 	const generatedAt = new Date().toISOString();
 	const allRows = await getClientReportRows();
 	const summary = summarise(allRows, generatedAt);
-	const filteredRows = applyActiveFilter(allRows, filters.active);
-	const filteredSummary = summarise(filteredRows, generatedAt);
+	const activeFiltered = applyActiveFilter(allRows, filters.active);
+	const filteredSummary = summarise(activeFiltered, generatedAt);
+	const searchFiltered = applySearchFilter(activeFiltered, filters.search);
+	const paginatedRows = paginateRows(searchFiltered, filters.limit, filters.offset);
 
 	return {
-		rows: filteredRows,
+		rows: paginatedRows,
 		summary,
 		filteredSummary
 	};
@@ -322,8 +394,8 @@ function asDate(value: string | null) {
 	return Number.isNaN(date.getTime()) ? null : date;
 }
 
-function formatCustomers(customers: string[]) {
-	return customers.join(', ');
+function formatCustomers(customers: CustomerLink[]) {
+	return customers.map((customer) => customer.name).join(', ');
 }
 
 function createFilename(filters: ClientReportFilters, generatedAt: string) {
@@ -337,15 +409,15 @@ function createFilename(filters: ClientReportFilters, generatedAt: string) {
 
 export async function buildClientReportWorkbook(filters: ClientReportFilters = {}) {
 	const generatedAt = new Date().toISOString();
-	const { rows } = await getClientReport(filters);
+	const allRows = await getClientReportRows();
+	const activeFiltered = applyActiveFilter(allRows, filters.active);
+	const rows = applySearchFilter(activeFiltered, filters.search);
 	const workbook = await createWorkbook();
 	const worksheet = workbook.addWorksheet('Klienter');
 
 	worksheet.addRow([
 		'Namn',
 		'Aktiv',
-		'Medlemsstatus',
-		'Medlemskap upphör',
 		'Primär tränare',
 		'E-post',
 		'Telefon',
@@ -371,8 +443,6 @@ export async function buildClientReportWorkbook(filters: ClientReportFilters = {
 		worksheet.addRow([
 			row.name,
 			formatBoolean(row.active),
-			row.membershipStatus ?? '',
-			asDate(row.membershipEndsAt),
 			row.primaryTrainerName ?? '',
 			row.email ?? '',
 			row.phone ?? '',
@@ -394,13 +464,13 @@ export async function buildClientReportWorkbook(filters: ClientReportFilters = {
 		]);
 	}
 
-	const numericColumns = [8, 9, 10, 14, 15, 16, 17, 18];
+	const numericColumns = [6, 7, 8, 12, 13, 14, 15, 16];
 	for (const colIndex of numericColumns) {
 		worksheet.getColumn(colIndex).numFmt = '0';
 	}
-	worksheet.getColumn(19).numFmt = '#,##0.00';
+	worksheet.getColumn(17).numFmt = '#,##0.00';
 
-	const dateColumns = [4, 11, 12, 13, 21, 22];
+	const dateColumns = [9, 10, 11, 19, 20];
 	for (const colIndex of dateColumns) {
 		worksheet.getColumn(colIndex).numFmt = 'yyyy-mm-dd hh:mm';
 	}
@@ -447,16 +517,16 @@ export async function buildClientReportWorkbook(filters: ClientReportFilters = {
 		}
 	);
 
-	totalsRow.getCell(8).value = aggregate.totalBookings;
-	totalsRow.getCell(9).value = aggregate.bookings90;
-	totalsRow.getCell(10).value = aggregate.bookings30;
-	totalsRow.getCell(14).value = aggregate.totalPackages;
-	totalsRow.getCell(15).value = aggregate.activePackages;
-	totalsRow.getCell(16).value = aggregate.totalSessions;
-	totalsRow.getCell(17).value = aggregate.usedSessions;
-	totalsRow.getCell(18).value = aggregate.remainingSessions;
-	totalsRow.getCell(19).value = aggregate.totalValue;
-	totalsRow.getCell(19).numFmt = '#,##0.00';
+	totalsRow.getCell(6).value = aggregate.totalBookings;
+	totalsRow.getCell(7).value = aggregate.bookings90;
+	totalsRow.getCell(8).value = aggregate.bookings30;
+	totalsRow.getCell(12).value = aggregate.totalPackages;
+	totalsRow.getCell(13).value = aggregate.activePackages;
+	totalsRow.getCell(14).value = aggregate.totalSessions;
+	totalsRow.getCell(15).value = aggregate.usedSessions;
+	totalsRow.getCell(16).value = aggregate.remainingSessions;
+	totalsRow.getCell(17).value = aggregate.totalValue;
+	totalsRow.getCell(17).numFmt = '#,##0.00';
 
 	const rawBuffer = await workbook.xlsx.writeBuffer();
 	const buffer =

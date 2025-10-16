@@ -9,11 +9,18 @@ function parseActiveParam(value: string | null): 'all' | 'active' | 'inactive' {
 	return 'all';
 }
 
+function parseSearch(value: string | null): string | undefined {
+	if (!value) return undefined;
+	const trimmed = value.trim();
+	return trimmed.length ? trimmed : undefined;
+}
+
 export const GET: RequestHandler = async ({ url }) => {
 	const active = parseActiveParam(url.searchParams.get('active'));
+	const search = parseSearch(url.searchParams.get('search'));
 
 	try {
-		const { buffer, filename } = await buildClientReportWorkbook({ active });
+		const { buffer, filename } = await buildClientReportWorkbook({ active, search });
 
 		return new Response(buffer, {
 			headers: {

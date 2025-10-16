@@ -1,13 +1,17 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { goto } from '$app/navigation';
 
 	import { addToast } from '$lib/stores/toastStore';
 	import { AppToastType } from '$lib/types/toastTypes';
 	import type { TableType } from '$lib/types/componentTypes';
+	import { debounce } from '$lib/utils/debounce';
+	import { openPopup } from '$lib/stores/popupStore';
 	import Table from '../../../bits/table/Table.svelte';
 	import Button from '../../../bits/button/Button.svelte';
 	import OptionButton from '../../../bits/optionButton/OptionButton.svelte';
 	import Icon from '../../../bits/icon-component/Icon.svelte';
+	import MailComponent from '../../mailComponent/MailComponent.svelte';
 
 	type ActiveOption = { value: 'all' | 'active' | 'inactive'; label: string };
 
@@ -19,6 +23,8 @@
 		generatedAt: string;
 	};
 
+	type CustomerLink = { id: number; name: string };
+
 	type ApiRow = {
 		id: number;
 		name: string;
@@ -27,8 +33,6 @@
 		email: string | null;
 		phone: string | null;
 		active: boolean;
-		membershipStatus: string | null;
-		membershipEndsAt: string | null;
 		primaryTrainerId: number | null;
 		primaryTrainerName: string | null;
 		totalBookings: number;
@@ -43,7 +47,7 @@
 		usedSessions: number;
 		remainingSessions: number;
 		totalPackageValue: number;
-		customers: string[];
+		customers: CustomerLink[];
 		createdAt: string | null;
 		updatedAt: string | null;
 	};
@@ -62,6 +66,20 @@
 		width?: string;
 	};
 
+	type TableCellItem = {
+		type: string;
+		label?: string;
+		content?: string;
+		action?: () => void;
+		icon?: string;
+		variant?: string;
+	};
+
+	type TableRow = { id: number } & Record<
+		string,
+		string | number | TableCellItem[] | boolean | null
+	>;
+
 	const activeOptions: ActiveOption[] = [
 		{ value: 'all', label: 'Alla' },
 		{ value: 'active', label: 'Aktiva' },
@@ -72,7 +90,6 @@
 	let headers: Header[] = [
 		{ label: 'Namn', key: 'name', sort: true, isSearchable: true },
 		{ label: 'Aktiv', key: 'active', sort: true },
-		{ label: 'Medlemsstatus', key: 'membershipStatus', sort: true, isSearchable: true },
 		{ label: 'Primär tränare', key: 'primaryTrainer', sort: true, isSearchable: true },
 		{ label: 'E-post', key: 'email', isSearchable: true },
 		{ label: 'Telefon', key: 'phone', isSearchable: true },
@@ -93,15 +110,21 @@
 		{ label: 'Uppdaterad', key: 'updated', sort: true }
 	];
 
-	type TableRow = Record<string, string | number> & { id: number };
-	let data: TableRow[] = [];
-	let filteredData: TableRow[] = [];
-	let tableData: TableType = [] as unknown as TableType;
+	const pageSize = 50;
+	let page = 0;
+	let hasMore = true;
 	let loading = false;
 	let searchQuery = '';
 	let filtersReady = false;
 	let summary: Summary | null = null;
 	let filteredSummary: Summary | null = null;
+	let rows: TableRow[] = [];
+	let tableData: TableType = [] as unknown as TableType;
+	let sentinel: HTMLDivElement | null = null;
+	let observer: IntersectionObserver | null = null;
+	let sentinelObserved = false;
+	let lastActiveValue: ActiveOption['value'] = activeFilter.value;
+	let pendingReset = false;
 
 	function formatDate(value: string | null, includeTime = false) {
 		if (!value) return '—';
@@ -118,14 +141,78 @@
 		}
 	}
 
-	function mapToTableRow(row: ApiRow) {
+	function onGoToClient(id: number) {
+		goto(`/clients/${id}`);
+	}
+
+	function onGoToTrainer(id: number | null) {
+		if (!id) return;
+		goto(`/users/${id}`);
+	}
+
+	function onGoToCustomer(id: number) {
+		goto(`/settings/customers/${id}`);
+	}
+
+	function openMailPopup(email: string | null) {
+		if (!email) return;
+		openPopup({
+			header: `Maila ${email}`,
+			icon: 'Mail',
+			component: MailComponent,
+			width: '900px',
+			props: {
+				prefilledRecipients: [email],
+				lockedFields: ['recipients'],
+				autoFetchUsersAndClients: false
+			}
+		});
+	}
+
+	function mapToTableRow(row: ApiRow): TableRow {
+		const displayName = row.name?.trim().length ? row.name : 'Visa klient';
+		const nameCell: TableCellItem[] = [
+			{
+				type: 'link',
+				label: displayName,
+				action: () => onGoToClient(row.id)
+			}
+		];
+
+		const trainerCell = row.primaryTrainerId
+			? [
+					{
+						type: 'link',
+						label: row.primaryTrainerName ?? 'Visa tränare',
+						action: () => onGoToTrainer(row.primaryTrainerId)
+					}
+				]
+			: (row.primaryTrainerName ?? 'Ingen');
+
+		const emailCell = row.email
+			? [
+					{
+						type: 'link',
+						label: row.email,
+						action: () => openMailPopup(row.email)
+					}
+				]
+			: '—';
+
+		const customersCell = row.customers.length
+			? row.customers.map((customer) => ({
+					type: 'link',
+					label: customer.name,
+					action: () => onGoToCustomer(customer.id)
+				}))
+			: '—';
+
 		return {
 			id: row.id,
-			name: row.name,
+			name: nameCell,
 			active: row.active ? 'Ja' : 'Nej',
-			membershipStatus: row.membershipStatus ?? '—',
-			primaryTrainer: row.primaryTrainerName ?? '—',
-			email: row.email ?? '—',
+			primaryTrainer: trainerCell,
+			email: emailCell,
 			phone: row.phone ?? '—',
 			totalBookings: row.totalBookings,
 			bookings90: row.bookingsLast90Days,
@@ -139,66 +226,112 @@
 			usedSessions: row.usedSessions,
 			remainingSessions: row.remainingSessions,
 			totalPackageValue: row.totalPackageValue,
-			customers: row.customers.length ? row.customers.join(', ') : '—',
+			customers: customersCell,
 			created: formatDate(row.createdAt, true),
 			updated: formatDate(row.updatedAt, true)
+
 		};
 	}
 
-	async function fetchReport() {
+	async function fetchReport(reset = false) {
+		if (loading) {
+			if (reset) pendingReset = true;
+			return;
+		}
+
+		if (!reset && !hasMore) return;
+
 		loading = true;
+		pendingReset = false;
+
+		if (reset) {
+			page = 0;
+			hasMore = true;
+			rows = [];
+			tableData = [] as unknown as TableType;
+		}
+
 		try {
-			const params = new URLSearchParams({ active: activeFilter.value });
+			const params = new URLSearchParams();
+			params.set('active', activeFilter.value);
+			params.set('limit', String(pageSize));
+			params.set('offset', String(page * pageSize));
+			const trimmedSearch = searchQuery.trim();
+			if (trimmedSearch) params.set('search', trimmedSearch);
 			const res = await fetch(`/api/reports/client-summary?${params.toString()}`);
 			if (!res.ok) throw new Error('Kunde inte hämta klientrapporten');
 			const json: ApiResponse = await res.json();
 			summary = json.summary;
 			filteredSummary = json.filteredSummary;
-			data = json.rows.map(mapToTableRow);
-			filteredData = [...data];
+			const mappedRows = json.rows.map(mapToTableRow);
+			rows = reset ? mappedRows : [...rows, ...mappedRows];
+			tableData = rows as unknown as TableType;
+			page += 1;
+			hasMore = json.rows.length === pageSize;
 		} catch (error) {
 			addToast({
 				type: AppToastType.CANCEL,
 				message: 'Kunde inte ladda rapporten',
 				description: (error as Error).message
 			});
-			data = [];
-			filteredData = [];
-			summary = filteredSummary = null;
+			if (reset) {
+				rows = [];
+				tableData = [] as unknown as TableType;
+				summary = filteredSummary = null;
+			}
+			hasMore = false;
 		} finally {
 			loading = false;
+			if (pendingReset) {
+				pendingReset = false;
+				fetchReport(true);
+			}
 		}
 	}
 
-	$: if (data) {
-		const q = searchQuery.trim().toLowerCase();
-		filteredData = !q
-			? [...data]
-			: data.filter((row) =>
-					headers.some((header) => {
-						if (!header.isSearchable) return false;
-						const value = row[header.key] as string | number | undefined;
-						if (typeof value === 'string') return value.toLowerCase().includes(q);
-						if (typeof value === 'number') return value.toString().includes(q);
-						return false;
-					})
-				);
-	}
-	$: tableData = filteredData as unknown as TableType;
+	const debouncedSearch = debounce(() => fetchReport(true), 300);
 
 	onMount(() => {
 		filtersReady = true;
+		fetchReport(true);
+
+		observer = new IntersectionObserver(
+			(entries) => {
+				if (entries.some((entry) => entry.isIntersecting)) {
+					fetchReport();
+				}
+			},
+			{ rootMargin: '200px 0px', threshold: 0 }
+		);
+
+		if (sentinel) {
+			observer.observe(sentinel);
+			sentinelObserved = true;
+		}
+
+		return () => observer?.disconnect();
 	});
 
-	$: filterSignature = `${activeFilter.value}`;
-	$: if (filtersReady && filterSignature) {
-		fetchReport();
+	$: if (observer && sentinel && !sentinelObserved) {
+		observer.observe(sentinel);
+		sentinelObserved = true;
+	}
+
+	$: if (!sentinel) {
+		sentinelObserved = false;
+	}
+
+	$: if (filtersReady && activeFilter.value !== lastActiveValue) {
+		lastActiveValue = activeFilter.value;
+		fetchReport(true);
 	}
 
 	async function exportExcel() {
 		let success = false;
 		try {
 			const params = new URLSearchParams({ active: activeFilter.value });
+			const trimmedSearch = searchQuery.trim();
+			if (trimmedSearch) params.set('search', trimmedSearch);
 			const res = await fetch(`/api/reports/client-summary/export?${params.toString()}`);
 			if (!res.ok) throw new Error('Kunde inte skapa Excel');
 			const blob = await res.blob();
@@ -254,6 +387,7 @@
 					<input
 						type="text"
 						bind:value={searchQuery}
+						on:input={debouncedSearch}
 						placeholder="Sök namn, e-post, tränare, kund..."
 						class="w-full rounded-lg border border-gray-300 p-2 focus:border-blue-500 focus:outline-hidden"
 					/>
@@ -301,9 +435,23 @@
 		</p>
 	{/if}
 
-	{#if loading}
+	{#if rows.length === 0 && loading}
 		<div class="text-text/60 py-10">Laddar rapport…</div>
+	{:else if rows.length === 0}
+		<div class="text-text/60 py-10">Inga resultat att visa.</div>
 	{:else}
 		<Table {headers} data={tableData} noSelect sideScrollable />
+	{/if}
+
+	{#if rows.length > 0}
+		<div bind:this={sentinel} class="h-1 w-full"></div>
+	{/if}
+
+	{#if loading && rows.length > 0}
+		<p class="text-text/60 py-4 text-center text-sm">Laddar fler rader…</p>
+	{/if}
+
+	{#if !hasMore && rows.length > 0 && !loading}
+		<p class="text-text/60 py-4 text-center text-sm">Inga fler rader att visa.</p>
 	{/if}
 </div>

@@ -9,11 +9,21 @@ function parseActiveParam(value: string | null): 'all' | 'active' | 'inactive' {
 	return 'all';
 }
 
+function parsePositiveInt(value: string | null): number | undefined {
+	if (!value) return undefined;
+	const parsed = Number.parseInt(value, 10);
+	if (!Number.isFinite(parsed) || parsed < 0) return undefined;
+	return parsed;
+}
+
 export const GET: RequestHandler = async ({ url }) => {
 	const active = parseActiveParam(url.searchParams.get('active'));
+	const search = url.searchParams.get('search') ?? undefined;
+	const limit = parsePositiveInt(url.searchParams.get('limit'));
+	const offset = parsePositiveInt(url.searchParams.get('offset'));
 
 	try {
-		const report = await getClientReport({ active });
+		const report = await getClientReport({ active, search, limit, offset });
 		return json(report);
 	} catch (error) {
 		console.error('Failed to fetch client report', error);
