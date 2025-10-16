@@ -36,3 +36,16 @@ npm run build
 You can preview the production build with `npm run preview`.
 
 > To deploy your app, you may need to install an [adapter](https://svelte.dev/docs/kit/adapters) for your target environment.
+
+## Rapporter
+
+### Klientrapport
+
+- **UI:** `Rapporter → Klienter`
+- **Endpoint:** `GET /api/reports/client-summary?active=all|active|inactive`
+- **Export:** `GET /api/reports/client-summary/export` (same filter params)
+- **Filter:** Visa alla, endast aktiva eller endast inaktiva klienter. Fritextsökning på namn, e-post, tränare, kund m.m.
+- **Kolumner:** Bokningsstatistik (totalt, 90 d, 30 d), paketstatus, utnyttjade/återstående pass, kopplade kunder, första/senaste/nästa bokning m.m.
+- **Summeringar:** Kort som visar antal klienter baserat på aktuellt filter samt totalöversikt för hela databasen med tidstämpel.
+
+> Excel-exporten innehåller samma kolumner som den webbaserade tabellen samt en totalsummering längst ned.

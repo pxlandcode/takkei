@@ -4,9 +4,16 @@
 	import Navigation from '../../components/bits/navigation/Navigation.svelte';
 	import Button from '../../components/bits/button/Button.svelte';
 	import CustomersCreditReport from '../../components/ui/reports/customersCreditReport/CustomersCreditReport.svelte';
+	import ClientReport from '../../components/ui/reports/clientReport/ClientReport.svelte';
 	import TargetsReport from '../../components/ui/reports/targets/TargetsReport.svelte';
 
 	const menuItems = [
+		{
+			label: 'Klienter',
+			icon: 'Person',
+			component: ClientReport,
+			requiredRoles: ['Administrator', 'Economy Admin', 'Trainer']
+		},
 		{
 			label: 'Tillgodo',
 			icon: 'Charts',
@@ -26,10 +33,10 @@
 
 <div class="m-4 ml-3 flex flex-wrap items-center justify-between">
 	<div class="flex shrink-0 items-center gap-2">
-		<div class="flex h-7 w-7 items-center justify-center rounded-full bg-text text-white">
+		<div class="bg-text flex h-7 w-7 items-center justify-center rounded-full text-white">
 			<Icon icon="Charts" size="14px" />
 		</div>
-		<h2 class="text-3xl font-semibold text-text">Rapporter</h2>
+		<h2 class="text-text text-3xl font-semibold">Rapporter</h2>
 	</div>
 </div>
 
