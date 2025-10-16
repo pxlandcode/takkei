@@ -229,7 +229,6 @@
 			customers: customersCell,
 			created: formatDate(row.createdAt, true),
 			updated: formatDate(row.updatedAt, true)
-
 		};
 	}
 

@@ -16,12 +16,26 @@
 
 	let clientId: number;
 	let client = null;
+	let isLoading = true;
+	let selectedTabProps: Record<string, unknown> | null = null;
+	let canRenderSelectedTab = false;
+	let isAwaitingTabData = false;
 
 	$: clientId = Number($page.params.slug);
 
 	onMount(async () => {
-		if (clientId) {
+		if (!clientId) {
+			isLoading = false;
+			return;
+		}
+
+		isLoading = true;
+		try {
 			await clientProfileStore.loadClient(clientId, fetch);
+		} catch (error) {
+			console.error('Failed to load client profile:', error);
+		} finally {
+			isLoading = false;
 		}
 	});
 
@@ -29,6 +43,7 @@
 		const storeData = $clientProfileStore.clients[clientId];
 		if (storeData) {
 			client = storeData;
+			isLoading = false;
 		}
 	}
 
@@ -52,8 +67,25 @@
 			props: () => (clientId ? { targetId: clientId, isClient: true } : {})
 		}
 	];
+	const defaultTab = menuItems.find((item) => item.label === 'Profil') ?? menuItems[0];
+	let selectedTab = defaultTab;
 
-	let selectedTab = menuItems[0];
+	$: if (!selectedTab && defaultTab) {
+		selectedTab = defaultTab;
+	}
+
+	$: {
+		// ensure reactivity when client data changes
+		client;
+		clientId;
+		const props = selectedTab?.props ? selectedTab.props() : null;
+		selectedTabProps = props;
+		isAwaitingTabData =
+			Boolean(selectedTab?.component) &&
+			Boolean(selectedTab?.props) &&
+			(!props || Object.keys(props).length === 0);
+		canRenderSelectedTab = Boolean(selectedTab?.component) && !isAwaitingTabData;
+	}
 
 	function goToCalendar() {
 		calendarStore.setNewFilters({ clientIds: [clientId] }, fetch);
@@ -115,8 +147,10 @@
 
 <!-- Shared Navigation and Component Rendering -->
 <Navigation {menuItems} bind:selectedTab>
-	{#if selectedTab.component && (!selectedTab.props || Object.keys(selectedTab.props()).length > 0)}
-		<svelte:component this={selectedTab.component} {...selectedTab.props()} />
+	{#if isLoading || isAwaitingTabData}
+		<p class="text-gray-500">Laddar innehåll...</p>
+	{:else if canRenderSelectedTab}
+		<svelte:component this={selectedTab.component} {...selectedTabProps ?? {}} />
 	{:else}
 		<p class="text-gray-500">Innehåll kommer snart.</p>
 	{/if}
