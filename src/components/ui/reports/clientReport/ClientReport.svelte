@@ -21,6 +21,10 @@
 		inactive: number;
 		activeWithRecentBooking: number;
 		generatedAt: string;
+		lateCancelledLast90Days: number;
+		lateCancelledLast30Days: number;
+		cancelledLast90Days: number;
+		cancelledLast30Days: number;
 	};
 
 	type CustomerLink = { id: number; name: string };
@@ -38,6 +42,10 @@
 		totalBookings: number;
 		bookingsLast90Days: number;
 		bookingsLast30Days: number;
+		lateCancelledLast90Days: number;
+		lateCancelledLast30Days: number;
+		cancelledLast90Days: number;
+		cancelledLast30Days: number;
 		firstBookingAt: string | null;
 		lastBookingAt: string | null;
 		nextBookingAt: string | null;
@@ -96,6 +104,10 @@
 		{ label: 'Tot. bokningar', key: 'totalBookings', sort: true },
 		{ label: 'Bokningar 90d', key: 'bookings90', sort: true },
 		{ label: 'Bokningar 30d', key: 'bookings30', sort: true },
+		{ label: 'Sen avb. 90d', key: 'lateCancelled90', sort: true },
+		{ label: 'Sen avb. 30d', key: 'lateCancelled30', sort: true },
+		{ label: 'Avbokningar 90d', key: 'cancelled90', sort: true },
+		{ label: 'Avbokningar 30d', key: 'cancelled30', sort: true },
 		{ label: 'Första bokning', key: 'firstBooking', sort: true },
 		{ label: 'Senaste bokning', key: 'lastBooking', sort: true },
 		{ label: 'Nästa bokning', key: 'nextBooking', sort: true },
@@ -217,6 +229,10 @@
 			totalBookings: row.totalBookings,
 			bookings90: row.bookingsLast90Days,
 			bookings30: row.bookingsLast30Days,
+			lateCancelled90: row.lateCancelledLast90Days,
+			lateCancelled30: row.lateCancelledLast30Days,
+			cancelled90: row.cancelledLast90Days,
+			cancelled30: row.cancelledLast30Days,
 			firstBooking: formatDate(row.firstBookingAt, true),
 			lastBooking: formatDate(row.lastBookingAt, true),
 			nextBooking: formatDate(row.nextBookingAt, true),
@@ -423,15 +439,37 @@
 				<p class="text-text/70 text-sm">Aktiva med bokning (90 d)</p>
 				<p class="text-text text-2xl font-semibold">{filteredSummary.activeWithRecentBooking}</p>
 			</div>
+			<!-- <div class="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+				<p class="text-text/70 text-sm">Sent avbokade (90 d)</p>
+				<p class="text-text text-2xl font-semibold">{filteredSummary.lateCancelledLast90Days}</p>
+			</div>
+			<div class="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+				<p class="text-text/70 text-sm">Sent avbokade (30 d)</p>
+				<p class="text-text text-2xl font-semibold">{filteredSummary.lateCancelledLast30Days}</p>
+			</div>
+			<div class="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+				<p class="text-text/70 text-sm">Avbokade (90 d)</p>
+				<p class="text-text text-2xl font-semibold">{filteredSummary.cancelledLast90Days}</p>
+			</div>
+			<div class="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+				<p class="text-text/70 text-sm">Avbokade (30 d)</p>
+				<p class="text-text text-2xl font-semibold">{filteredSummary.cancelledLast30Days}</p>
+			</div> -->
 		</div>
 	{/if}
 
 	{#if summary}
-		<p class="text-text/60 mb-4 text-sm">
+		<p class="text-text/60 mb-2 text-sm">
 			Totalt i databasen: <strong>{summary.total}</strong> klienter (aktiva: {summary.active},
 			inaktiva:
 			{summary.inactive}). Uppdaterad {formatDate(summary.generatedAt, true)}.
 		</p>
+		<!-- <p class="text-text/60 mb-4 text-sm">
+			Sen avbokade (90 d): <strong>{summary.lateCancelledLast90Days}</strong>, 30 d:
+			<strong>{summary.lateCancelledLast30Days}</strong>. Avbokade (90 d):
+			<strong>{summary.cancelledLast90Days}</strong>, 30 d:
+			<strong>{summary.cancelledLast30Days}</strong>.
+		</p> -->
 	{/if}
 
 	{#if rows.length === 0 && loading}
