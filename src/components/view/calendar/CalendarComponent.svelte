@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
+	import { get } from 'svelte/store';
 	import type { FullBooking } from '$lib/types/calendarTypes';
 	import type { CalendarFilters } from '$lib/stores/calendarStore';
 	import HourSlot from './hour-slot/HourSlot.svelte';
@@ -10,12 +11,22 @@
 	import ClockIcon from '../../bits/clock-icon/ClockIcon.svelte';
 	import { createEventDispatcher } from 'svelte';
 	import { tooltip } from '$lib/actions/tooltip';
+	import { locations, fetchLocations } from '$lib/stores/locationsStore';
+	import SlotDialog from './slot-dialog/SlotDialog.svelte';
 
-	export let startHour = 4;
-	export let totalHours = 19;
-	export let singleDayView = false;
-	export let isMobile = false;
-	export let mobileWeekMode = false;
+	let {
+		startHour = 4,
+		totalHours = 19,
+		singleDayView = false,
+		isMobile = false,
+		mobileWeekMode = false
+	}: {
+		startHour?: number;
+		totalHours?: number;
+		singleDayView?: boolean;
+		isMobile?: boolean;
+		mobileWeekMode?: boolean;
+	} = $props();
 
 	const dispatch = createEventDispatcher();
 
@@ -26,18 +37,29 @@
 		columnCount: number;
 	};
 
+
 	let calendarContainer: HTMLDivElement | null = null;
 
-	let bookings: FullBooking[] = [];
-	let filters: CalendarFilters | undefined;
-	let availability: AvailabilityMap = {};
-	let calendarIsLoading = false;
+	let bookings = $state<FullBooking[]>([]);
+	let filters = $state<CalendarFilters | undefined>(undefined);
+	let availability = $state<AvailabilityMap>({});
+	let calendarIsLoading = $state(false);
 
 	const unsubscribe = calendarStore.subscribe((store) => {
 		bookings = store.bookings;
 		filters = store.filters;
 		availability = store.availability;
 		calendarIsLoading = store.isLoading;
+	});
+
+	onMount(async () => {
+		try {
+			if (get(locations).length === 0) {
+				await fetchLocations();
+			}
+		} catch (error) {
+			console.error('Failed to load locations', error);
+		}
 	});
 
 	function parseLocalDateStr(s?: string | null) {
@@ -69,28 +91,21 @@
 		return monday;
 	}
 
-	let weekDays: {
+	type WeekDayInfo = {
 		dayLabel: string;
 		dayShortLabel: string;
 		dateLabel: string;
 		fullDate: Date;
-	}[] = [];
+	};
 
-	let isCompactWeek = false;
-	let timeColumnWidth = 'minmax(60px, 8%)';
-	let dayColumnWidth = 'minmax(100px, 1fr)';
-	let gridTemplateColumns = `${timeColumnWidth} repeat(${weekDays.length}, ${dayColumnWidth})`;
+	const isCompactWeek = $derived(isMobile && mobileWeekMode && !singleDayView);
+	const timeColumnWidth = $derived(isMobile ? 'minmax(48px, 12vw)' : 'minmax(60px, 8%)');
+	const dayColumnWidth = $derived(isCompactWeek ? 'minmax(0, 1fr)' : 'minmax(100px, 1fr)');
 
-	$: isCompactWeek = isMobile && mobileWeekMode && !singleDayView;
-	$: timeColumnWidth = isMobile ? 'minmax(48px, 12vw)' : 'minmax(60px, 8%)';
-	$: dayColumnWidth = isCompactWeek ? 'minmax(0, 1fr)' : 'minmax(100px, 1fr)';
-	$: gridTemplateColumns = `${timeColumnWidth} repeat(${weekDays.length}, ${dayColumnWidth})`;
-
-	// Compute displayed days dynamically
-	$: {
+	const weekDays = $derived.by<WeekDayInfo[]>(() => {
 		if (singleDayView) {
 			const selected = parseLocalDateStr(filters?.date);
-			weekDays = [
+			return [
 				{
 					dayLabel: selected.toLocaleDateString('sv-SE', { weekday: 'long' }),
 					dayShortLabel: selected.toLocaleDateString('sv-SE', { weekday: 'short' }),
@@ -98,41 +113,110 @@
 					fullDate: selected
 				}
 			];
-		} else {
-			const startOfWeek = filters?.from
-				? getMondayOfWeek(parseLocalDateStr(filters.from))
-				: getMondayOfWeek(new Date());
-
-			weekDays = Array.from({ length: 7 }, (_, i) => {
-				const d = new Date(startOfWeek);
-				d.setDate(d.getDate() + i);
-				return {
-					dayLabel: d.toLocaleDateString('sv-SE', { weekday: 'long' }),
-					dayShortLabel: d.toLocaleDateString('sv-SE', { weekday: 'short' }),
-					dateLabel: d.getDate().toString(),
-					fullDate: d
-				};
-			});
 		}
-	}
+
+		const startOfWeek = filters?.from
+			? getMondayOfWeek(parseLocalDateStr(filters.from))
+			: getMondayOfWeek(new Date());
+
+		return Array.from({ length: 7 }, (_, i) => {
+			const d = new Date(startOfWeek);
+			d.setDate(d.getDate() + i);
+			return {
+				dayLabel: d.toLocaleDateString('sv-SE', { weekday: 'long' }),
+				dayShortLabel: d.toLocaleDateString('sv-SE', { weekday: 'short' }),
+				dateLabel: d.getDate().toString(),
+				fullDate: d
+			};
+		});
+	});
+
+	const gridTemplateColumns = $derived(
+		`${timeColumnWidth} repeat(${weekDays.length}, ${dayColumnWidth})`
+	);
 
 	const hourHeight = 50;
 
-	let dayDateStrings: string[] = [];
-	let bookingsByDay: FullBooking[][] = [];
-	let layoutByDay: LayoutInfo[][] = [];
-	let emptySlotBlocksByDay: { top: number; start: Date }[][] = [];
-	let unavailableBlocksByDay: { top: number; height: number }[][] = [];
+	const dayDateStrings = $derived(weekDays.map(({ fullDate }) => ymdLocal(fullDate)));
 
-	$: dayDateStrings = weekDays.map(({ fullDate }) => ymdLocal(fullDate));
-	$: bookingsByDay = partitionBookingsByDay(bookings, dayDateStrings, filters, singleDayView);
-	$: layoutByDay = bookingsByDay.map((dayBookings) => layoutDayBookings(dayBookings));
-	$: emptySlotBlocksByDay = weekDays.map(({ fullDate }, idx) =>
-		computeEmptySlotBlocks(fullDate, bookingsByDay[idx] ?? [], filters, availability)
+	const bookingsByDay = $derived.by(() =>
+		partitionBookingsByDay(bookings, dayDateStrings, filters, singleDayView)
 	);
-	$: unavailableBlocksByDay = weekDays.map(({ fullDate }) =>
-		computeUnavailableBlocks(fullDate, filters, availability)
+
+	const layoutByDay = $derived(bookingsByDay.map((dayBookings) => layoutDayBookings(dayBookings)));
+
+	const emptySlotBlocksByDay = $derived.by(() =>
+		weekDays.map(({ fullDate }, idx) =>
+			computeEmptySlotBlocks(fullDate, bookingsByDay[idx] ?? [], filters, availability)
+		)
 	);
+
+	const unavailableBlocksByDay = $derived.by(() =>
+		weekDays.map(({ fullDate }) => computeUnavailableBlocks(fullDate, filters, availability))
+	);
+
+	type SlotDialogActionsConfig = {
+		mode: 'actions';
+		booking: FullBooking;
+		startTime: Date;
+		locationId: number;
+	};
+
+	type SlotDialogSelectConfig = {
+		mode: 'select';
+		bookings: FullBooking[];
+		startTime: Date;
+		locationId: number;
+	};
+
+	type SlotDialogConfig = SlotDialogActionsConfig | SlotDialogSelectConfig;
+
+	type SlotDialogView = {
+		anchor: HTMLElement;
+		config: SlotDialogConfig;
+	};
+
+	let slotDialogView = $state<SlotDialogView | null>(null);
+
+	function openSlotDialog(anchor: HTMLElement, config: SlotDialogConfig): boolean {
+		if (!anchor || !anchor.isConnected) return false;
+		slotDialogView = { anchor, config };
+		return true;
+	}
+
+	$effect(() => {
+		const view = slotDialogView;
+		if (!view) return;
+		const locationIds = Array.isArray(filters?.locationIds) ? filters.locationIds : [];
+		if (locationIds.length !== 1 || locationIds[0] !== view.config.locationId) {
+			slotDialogView = null;
+		}
+	});
+
+	$effect(() => {
+		const view = slotDialogView;
+		if (!view) return;
+		if (!view.anchor.isConnected) {
+			slotDialogView = null;
+		}
+	});
+
+	$effect(() => {
+		const view = slotDialogView;
+		if (!view) return;
+		if (view.config.mode === 'actions') {
+			const bookingId = view.config.booking.booking.id;
+			if (!bookings.some((current) => current.booking.id === bookingId)) {
+				slotDialogView = null;
+			}
+		} else {
+			const ids = new Set(view.config.bookings.map((option) => option.booking.id));
+			const present = bookings.filter((b) => ids.has(b.booking.id)).length;
+			if (present !== ids.size) {
+				slotDialogView = null;
+			}
+		}
+	});
 
 	function getStart(booking: FullBooking): number {
 		return new Date(booking.booking.startTime).getTime();
@@ -196,6 +280,112 @@
 
 		return results;
 	}
+
+	function openBookingDetails(booking: FullBooking) {
+		slotDialogView = null;
+		dispatch('onBookingClick', { booking });
+	}
+
+	function openBookingCreation(startTime: Date) {
+		slotDialogView = null;
+		dispatch('onTimeSlotClick', { startTime });
+	}
+
+	function findBookingsInSameSlot(target: FullBooking, locationId: number): FullBooking[] {
+		if (!target?.booking?.startTime) {
+			return [target];
+		}
+
+		const dayKey = ymdLocal(new Date(target.booking.startTime));
+		const targetStart = getStart(target);
+		const targetEnd = getEnd(target);
+		const matches: FullBooking[] = [];
+
+		for (const booking of bookings) {
+			if (!booking?.booking?.startTime) continue;
+			if (booking.location?.id !== locationId) continue;
+
+			const candidateDayKey = ymdLocal(new Date(booking.booking.startTime));
+			if (candidateDayKey !== dayKey) continue;
+
+			const bookingStart = getStart(booking);
+			const bookingEnd = getEnd(booking);
+			const overlaps = !(bookingEnd <= targetStart || bookingStart >= targetEnd);
+
+			if (overlaps) {
+				matches.push(booking);
+			}
+		}
+
+		return matches
+			.sort((a, b) => {
+				const roomA = a.room?.name ?? '';
+				const roomB = b.room?.name ?? '';
+
+				if (roomA && roomB && roomA !== roomB) {
+					return roomA.localeCompare(roomB, 'sv');
+				}
+
+				return getStart(a) - getStart(b);
+			})
+			.filter((booking, index, array) => {
+				const firstIndex = array.findIndex((other) => other.booking.id === booking.booking.id);
+				return firstIndex === index;
+			});
+	}
+
+	function handleBookingSlotClick(event: MouseEvent, booking: FullBooking) {
+		event.preventDefault();
+		event.stopPropagation();
+
+		const targetElement = event.currentTarget as HTMLElement | null;
+		const bookingLocationId = booking.location?.id ?? null;
+
+		if (!targetElement || !bookingLocationId) {
+			openBookingDetails(booking);
+			return;
+		}
+
+		const locationIds = Array.isArray(filters?.locationIds) ? filters.locationIds : [];
+		if (locationIds.length !== 1 || locationIds[0] !== bookingLocationId) {
+			openBookingDetails(booking);
+			return;
+		}
+
+		const selectedLocation = get(locations).find((loc) => loc.id === bookingLocationId);
+		const activeRooms = selectedLocation?.rooms?.filter((room) => room.active) ?? [];
+
+		if (!selectedLocation || activeRooms.length <= 1) {
+			openBookingDetails(booking);
+			return;
+		}
+
+	const slotBookings = findBookingsInSameSlot(booking, bookingLocationId);
+
+	if (slotBookings.length >= 2) {
+		const opened = openSlotDialog(targetElement, {
+			mode: 'select',
+			bookings: slotBookings,
+			startTime: new Date(booking.booking.startTime),
+			locationId: bookingLocationId
+		});
+		if (!opened) {
+			openBookingDetails(booking);
+		}
+		return;
+	}
+
+	const opened = openSlotDialog(targetElement, {
+		mode: 'actions',
+		booking,
+		startTime: new Date(booking.booking.startTime),
+		locationId: bookingLocationId
+	});
+
+	if (!opened) {
+		openBookingDetails(booking);
+	}
+}
 
 	function partitionBookingsByDay(
 		allBookings: FullBooking[],
@@ -376,13 +566,10 @@
 		}
 	});
 
-	function onOpenBooking(booking: FullBooking) {
-		dispatch('onBookingClick', { booking });
-	}
-
-	onDestroy(() => {
-		unsubscribe();
-	});
+onDestroy(() => {
+	slotDialogView = null;
+	unsubscribe();
+});
 </script>
 
 <div class="flex h-full flex-col overflow-x-auto rounded-tl-md rounded-tr-md md:gap-10">
@@ -513,12 +700,27 @@
 						toolTipText={layoutItem.booking.booking.startTime
 							? `${new Date(layoutItem.booking.booking.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} ${layoutItem.booking.booking.endTime ? ` - ${new Date(layoutItem.booking.booking.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''}`
 							: ''}
-						onbookingselected={() => onOpenBooking(layoutItem.booking)}
+						onbookingselected={(event) => handleBookingSlotClick(event, layoutItem.booking)}
 					/>
 				{/each}
 			</div>
 		{/each}
 	</div>
+	{#if slotDialogView}
+		<SlotDialog
+			anchor={slotDialogView.anchor}
+			config={slotDialogView.config}
+			on:close={() => (slotDialogView = null)}
+			on:openBooking={(event) => {
+				slotDialogView = null;
+				openBookingDetails(event.detail.booking);
+			}}
+			on:createBooking={(event) => {
+				slotDialogView = null;
+				openBookingCreation(event.detail.startTime);
+			}}
+		/>
+	{/if}
 </div>
 
 <style>
