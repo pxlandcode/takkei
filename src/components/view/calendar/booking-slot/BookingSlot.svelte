@@ -10,15 +10,15 @@
 	import IconMobility from '$icons/IconMobility.svelte';
 	import { on } from 'svelte/events';
 
-	type Props = {
-		booking: FullBooking;
-		startHour: number;
-		hourHeight: number;
-		toolTipText?: string;
-		columnIndex?: number;
-		columnCount?: number;
-		onbookingselected: () => void;
-	};
+        type Props = {
+                booking: FullBooking;
+                startHour: number;
+                hourHeight: number;
+                toolTipText?: string;
+                columnIndex?: number;
+                columnCount?: number;
+                onbookingselected: (event: MouseEvent) => void;
+        };
 
 	let {
 		booking,
