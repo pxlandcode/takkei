@@ -1,15 +1,18 @@
 <script lang="ts">
-	import { onMount, onDestroy } from 'svelte';
+        import { onMount, onDestroy, tick } from 'svelte';
 	import type { FullBooking } from '$lib/types/calendarTypes';
 	import type { CalendarFilters } from '$lib/stores/calendarStore';
 	import HourSlot from './hour-slot/HourSlot.svelte';
 	import CurrentTimePill from './current-time-pill/CurrentTimePill.svelte';
 	import BookingSlot from './booking-slot/BookingSlot.svelte';
 	import CurrentTimeIndicator from './current-time-indicator/current-time-indicator.svelte';
-	import { calendarStore } from '$lib/stores/calendarStore';
-	import ClockIcon from '../../bits/clock-icon/ClockIcon.svelte';
-	import { createEventDispatcher } from 'svelte';
-	import { tooltip } from '$lib/actions/tooltip';
+        import { calendarStore } from '$lib/stores/calendarStore';
+        import ClockIcon from '../../bits/clock-icon/ClockIcon.svelte';
+        import { createEventDispatcher } from 'svelte';
+        import { tooltip } from '$lib/actions/tooltip';
+        import { formatTime } from '$lib/helpers/calendarHelpers/calendar-utils';
+        import { locations as locationsStore, fetchLocations } from '$lib/stores/locationsStore';
+        import type { Location } from '$lib/stores/locationsStore';
 
 	export let startHour = 4;
 	export let totalHours = 19;
@@ -19,26 +22,55 @@
 
 	const dispatch = createEventDispatcher();
 
-	type AvailabilityMap = Record<string, { from: string; to: string }[] | null>;
-	type LayoutInfo = {
-		booking: FullBooking;
-		columnIndex: number;
-		columnCount: number;
-	};
+        type AvailabilityMap = Record<string, { from: string; to: string }[] | null>;
+        type LayoutInfo = {
+                booking: FullBooking;
+                columnIndex: number;
+                columnCount: number;
+        };
+
+        type SlotActionState = {
+                dayIndex: number;
+                slotStart: Date;
+                slotStartMs: number;
+                booking: FullBooking;
+                triggerRect: DOMRect | null;
+        };
+
+        type BookingSelectionState = {
+                dayIndex: number;
+                slotStart: Date;
+                slotStartMs: number;
+                bookings: FullBooking[];
+                triggerRect: DOMRect | null;
+        };
 
 	let calendarContainer: HTMLDivElement | null = null;
 
-	let bookings: FullBooking[] = [];
-	let filters: CalendarFilters | undefined;
-	let availability: AvailabilityMap = {};
-	let calendarIsLoading = false;
+        let bookings: FullBooking[] = [];
+        let filters: CalendarFilters | undefined;
+        let availability: AvailabilityMap = {};
+        let calendarIsLoading = false;
 
-	const unsubscribe = calendarStore.subscribe((store) => {
-		bookings = store.bookings;
-		filters = store.filters;
-		availability = store.availability;
-		calendarIsLoading = store.isLoading;
-	});
+        let availableLocations: Location[] = [];
+        let activeSlotAction: SlotActionState | null = null;
+        let bookingSelection: BookingSelectionState | null = null;
+        let selectionDialog: HTMLDialogElement | null = null;
+
+        const unsubscribe = calendarStore.subscribe((store) => {
+                bookings = store.bookings;
+                filters = store.filters;
+                availability = store.availability;
+                calendarIsLoading = store.isLoading;
+                if (activeSlotAction || bookingSelection) {
+                        closeActivePanel();
+                        resetSelectionDialog();
+                }
+        });
+
+        const unsubscribeLocations = locationsStore.subscribe((value) => {
+                availableLocations = Array.isArray(value) ? value : [];
+        });
 
 	function parseLocalDateStr(s?: string | null) {
 		if (!s) return new Date();
@@ -116,7 +148,8 @@
 		}
 	}
 
-	const hourHeight = 50;
+        const hourHeight = 50;
+        const SLOT_DURATION_MINUTES = 60;
 
 	let dayDateStrings: string[] = [];
 	let bookingsByDay: FullBooking[][] = [];
@@ -291,11 +324,11 @@
 		return results;
 	}
 
-	function computeUnavailableBlocks(
-		dayDateInput: Date,
-		currentFilters: CalendarFilters | undefined,
-		availabilityMap: AvailabilityMap
-	): { top: number; height: number }[] {
+        function computeUnavailableBlocks(
+                dayDateInput: Date,
+                currentFilters: CalendarFilters | undefined,
+                availabilityMap: AvailabilityMap
+        ): { top: number; height: number }[] {
 		if (!currentFilters?.trainerIds || currentFilters.trainerIds.length !== 1) {
 			return [];
 		}
@@ -349,26 +382,257 @@
 				top: ((cursor - dayStartMin) / 60) * hourHeight,
 				height: ((dayEndMin - cursor) / 60) * hourHeight
 			});
-		}
+                }
 
-		return blocks;
-	}
+                return blocks;
+        }
 
-	function openBookingPopup(startTime: Date) {
-		dispatch('onTimeSlotClick', { startTime });
-	}
+        function getSlotEnd(start: Date): Date {
+                const end = new Date(start);
+                end.setMinutes(end.getMinutes() + SLOT_DURATION_MINUTES);
+                return end;
+        }
+
+        function findBookingsForSlot(
+                slotStart: Date,
+                dayIndex: number,
+                locationId: number | null = null
+        ): FullBooking[] {
+                const slotEnd = getSlotEnd(slotStart);
+                const dayBookings = bookingsByDay[dayIndex] ?? [];
+
+                return dayBookings.filter((booking) => {
+                        if (locationId && booking.location?.id !== locationId) {
+                                return false;
+                        }
+
+                        const bookingStart = new Date(booking.booking.startTime);
+                        const bookingEnd = booking.booking.endTime
+                                ? new Date(booking.booking.endTime)
+                                : new Date(bookingStart.getTime() + SLOT_DURATION_MINUTES * 60 * 1000);
+
+                        return bookingStart < slotEnd && bookingEnd > slotStart;
+                });
+        }
+
+        function getSingleFilteredLocation(): Location | null {
+                const locationIds = filters?.locationIds ?? [];
+                if (!locationIds || locationIds.length !== 1) {
+                        return null;
+                }
+                if (filters?.roomId != null) {
+                        return null;
+                }
+
+                return availableLocations.find((location) => location.id === locationIds[0]) ?? null;
+        }
+
+        function countActiveRooms(location: Location | null): number {
+                if (!location || !Array.isArray(location.rooms)) {
+                        return 0;
+                }
+                return location.rooms.filter((room) => room?.active !== false).length;
+        }
+
+        function formatBookingTimeRange(booking: FullBooking): string {
+                const start = booking.booking.startTime;
+                const end =
+                        booking.booking.endTime ??
+                        new Date(new Date(start).getTime() + SLOT_DURATION_MINUTES * 60 * 1000).toISOString();
+                return `${formatTime(start)} – ${formatTime(end)}`;
+        }
+
+        function formatSlotStartLabel(slotStart: Date): string {
+                return formatTime(slotStart.toISOString());
+        }
+
+        function getOverlayPosition(rect: DOMRect | null) {
+                if (typeof window === 'undefined') {
+                        return { left: 0, top: 0 };
+                }
+                const viewportWidth = window.innerWidth;
+                const viewportHeight = window.innerHeight;
+                const fallbackLeft = viewportWidth / 2;
+                const fallbackTop = viewportHeight / 2;
+
+                if (!rect) {
+                        return { left: fallbackLeft, top: fallbackTop };
+                }
+
+                const horizontalPadding = 24;
+                const verticalOffset = 16;
+                const left = Math.min(
+                        Math.max(rect.left + rect.width / 2, horizontalPadding),
+                        viewportWidth - horizontalPadding
+                );
+                const top = Math.max(rect.top - verticalOffset, verticalOffset);
+                return { left, top };
+        }
+
+        function closeActivePanel() {
+                activeSlotAction = null;
+        }
+
+        function resetSelectionDialog() {
+                if (selectionDialog?.open) {
+                        selectionDialog.close();
+                }
+                bookingSelection = null;
+        }
+
+        function clearSlotInteractions() {
+                closeActivePanel();
+                resetSelectionDialog();
+        }
+
+        function handleEmptySlotClick(event: Event, slotStart: Date) {
+                event.stopPropagation();
+                if (event instanceof KeyboardEvent) {
+                        event.preventDefault();
+                }
+                clearSlotInteractions();
+                openBookingPopup(new Date(slotStart));
+        }
+
+        function handleSlotKeydown(event: KeyboardEvent, slotStart: Date) {
+                if (event.key === 'Enter' || event.key === ' ') {
+                        handleEmptySlotClick(event, slotStart);
+                }
+        }
+
+        async function handleBookingSlotClick(
+                event: MouseEvent,
+                booking: FullBooking,
+                dayIndex: number
+        ) {
+                event.stopPropagation();
+
+                const singleLocation = getSingleFilteredLocation();
+                const hasSpecificRoomSelected = filters?.roomId != null;
+                const hasMultipleRooms = countActiveRooms(singleLocation) > 1;
+
+                if (!singleLocation || !hasMultipleRooms || hasSpecificRoomSelected) {
+                        clearSlotInteractions();
+                        onOpenBooking(booking);
+                        return;
+                }
+
+                const slotStart = new Date(booking.booking.startTime);
+                const overlappingBookings = findBookingsForSlot(slotStart, dayIndex, singleLocation.id);
+                const rect = (event.currentTarget as HTMLElement | null)?.getBoundingClientRect() ?? null;
+
+                if (overlappingBookings.length <= 1) {
+                        resetSelectionDialog();
+                        activeSlotAction = {
+                                dayIndex,
+                                slotStart,
+                                slotStartMs: slotStart.getTime(),
+                                booking,
+                                triggerRect: rect
+                        };
+                        return;
+                }
+
+                closeActivePanel();
+                await showBookingSelectionDialog({
+                        dayIndex,
+                        slotStart,
+                        slotStartMs: slotStart.getTime(),
+                        bookings: overlappingBookings,
+                        triggerRect: rect
+                });
+        }
+
+        async function showBookingSelectionDialog(state: BookingSelectionState) {
+                bookingSelection = state;
+                await tick();
+                if (!selectionDialog) return;
+                if (!selectionDialog.open) {
+                        selectionDialog.showModal();
+                }
+                positionSelectionDialog(state);
+        }
+
+        function positionSelectionDialog(state: BookingSelectionState) {
+                if (!selectionDialog) return;
+                const position = getOverlayPosition(state.triggerRect);
+                selectionDialog.style.left = `${position.left}px`;
+                selectionDialog.style.top = `${position.top}px`;
+        }
+
+        function handleDialogBackdropClick(event: MouseEvent) {
+                if (!selectionDialog) return;
+                if (event.target === selectionDialog) {
+                        selectionDialog.close();
+                }
+        }
+
+        function handleSelectionDialogClose() {
+                bookingSelection = null;
+        }
+
+        function openBookingFromPanel() {
+                if (!activeSlotAction) return;
+                const { booking } = activeSlotAction;
+                clearSlotInteractions();
+                onOpenBooking(booking);
+        }
+
+        function createBookingFromPanel() {
+                if (!activeSlotAction) return;
+                const { slotStart } = activeSlotAction;
+                clearSlotInteractions();
+                openBookingPopup(new Date(slotStart));
+        }
+
+        function openBookingFromDialog(booking: FullBooking) {
+                clearSlotInteractions();
+                onOpenBooking(booking);
+        }
+
+        function openBookingPopup(startTime: Date) {
+                dispatch('onTimeSlotClick', { startTime });
+        }
 
 	function handleCompactDaySelection(fullDate: Date) {
 		if (!isCompactWeek) return;
 		dispatch('daySelected', { date: ymdLocal(fullDate) });
 	}
 
-	onMount(() => {
-		const now = new Date();
-		const currentHour = now.getHours();
-		const offset = (currentHour - startHour) * hourHeight - hourHeight * 2;
+        onMount(() => {
+                if (!availableLocations.length) {
+                        fetchLocations().catch(() => {
+                                // handled in store
+                        });
+                }
 
-		if (calendarContainer) {
+                const handleKeydown = (event: KeyboardEvent) => {
+                        if (event.key === 'Escape') {
+                                clearSlotInteractions();
+                        }
+                };
+
+                const handleResize = () => {
+                        if (bookingSelection) {
+                                positionSelectionDialog(bookingSelection);
+                        }
+                };
+
+                window.addEventListener('keydown', handleKeydown);
+                window.addEventListener('resize', handleResize);
+
+                return () => {
+                        window.removeEventListener('keydown', handleKeydown);
+                        window.removeEventListener('resize', handleResize);
+                };
+        });
+
+        onMount(() => {
+                const now = new Date();
+                const currentHour = now.getHours();
+                const offset = (currentHour - startHour) * hourHeight - hourHeight * 2;
+
+                if (calendarContainer) {
 			calendarContainer.scrollTo({
 				top: Math.max(offset, 0),
 				behavior: 'smooth'
@@ -376,16 +640,21 @@
 		}
 	});
 
-	function onOpenBooking(booking: FullBooking) {
-		dispatch('onBookingClick', { booking });
-	}
+        function onOpenBooking(booking: FullBooking) {
+                dispatch('onBookingClick', { booking });
+        }
 
-	onDestroy(() => {
-		unsubscribe();
-	});
+        onDestroy(() => {
+                unsubscribe();
+                unsubscribeLocations();
+                resetSelectionDialog();
+        });
 </script>
 
-<div class="flex h-full flex-col overflow-x-auto rounded-tl-md rounded-tr-md md:gap-10">
+<div
+        class="flex h-full flex-col overflow-x-auto rounded-tl-md rounded-tr-md md:gap-10"
+        on:click={clearSlotInteractions}
+>
 	<!-- WEEK HEADER -->
 	<div
 		class="relative grid"
@@ -492,44 +761,213 @@
 					/>
 				{/each}
 
-				{#each emptySlotBlocksByDay[dayIndex] ?? [] as slot}
-					<button
-						class="hover:bg-orange/20 absolute right-0 left-0 cursor-pointer"
-						style="top: {slot.top}px; height: {hourHeight}px; z-index: 0;"
-						on:click={() => openBookingPopup(slot.start)}
-						use:tooltip={{
-							content: `${slot.start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - ${new Date(slot.start.getTime() + 60 * 60 * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
-						}}
-					>
-					</button>
-				{/each}
-				{#each layoutByDay[dayIndex] ?? [] as layoutItem, i}
-					<BookingSlot
-						booking={layoutItem.booking}
-						{startHour}
+                                {#each emptySlotBlocksByDay[dayIndex] ?? [] as slot}
+                                        {@const slotEnd = new Date(slot.start.getTime() + SLOT_DURATION_MINUTES * 60 * 1000)}
+                                        {@const slotLabel = `${slot.start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - ${slotEnd.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`}
+                                        <button
+                                                type="button"
+                                                class="hover:bg-orange/20 absolute right-0 left-0 cursor-pointer"
+                                                style="top: {slot.top}px; height: {hourHeight}px; z-index: 0;"
+                                                aria-label={slotLabel}
+                                                on:click={(event) => handleEmptySlotClick(event, slot.start)}
+                                                on:keydown={(event) => handleSlotKeydown(event, slot.start)}
+                                                use:tooltip={{ content: slotLabel }}
+                                        >
+                                        </button>
+                                {/each}
+                                {#each layoutByDay[dayIndex] ?? [] as layoutItem, i}
+                                        <BookingSlot
+                                                booking={layoutItem.booking}
+                                                {startHour}
 						{hourHeight}
 						columnIndex={layoutItem.columnIndex}
 						columnCount={layoutItem.columnCount}
 						toolTipText={layoutItem.booking.booking.startTime
 							? `${new Date(layoutItem.booking.booking.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} ${layoutItem.booking.booking.endTime ? ` - ${new Date(layoutItem.booking.booking.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''}`
 							: ''}
-						onbookingselected={() => onOpenBooking(layoutItem.booking)}
-					/>
-				{/each}
+                                                onbookingselected={(event) =>
+                                                        handleBookingSlotClick(event, layoutItem.booking, dayIndex)
+                                                }
+                                        />
+                                {/each}
 			</div>
-		{/each}
-	</div>
+                {/each}
+        </div>
+
+        {#if activeSlotAction}
+                {@const panelPosition = getOverlayPosition(activeSlotAction.triggerRect)}
+                <div
+                        class="slot-action-panel pointer-events-auto"
+                        style={`top: ${panelPosition.top}px; left: ${panelPosition.left}px;`}
+                        role="dialog"
+                        aria-label="Alternativ för bokningsslot"
+                        on:click|stopPropagation
+                >
+                        <p class="text-[11px] uppercase tracking-[0.3em] text-gray-500">
+                                {formatBookingTimeRange(activeSlotAction.booking)}
+                        </p>
+                        {#if activeSlotAction.booking.room?.name}
+                                <p class="mt-1 text-sm font-medium text-gray-700">
+                                        {activeSlotAction.booking.room.name}
+                                </p>
+                        {/if}
+                        <div class="mt-3 flex gap-2">
+                                <button
+                                        type="button"
+                                        class="slot-action-button slot-action-button--secondary"
+                                        on:click={openBookingFromPanel}
+                                >
+                                        Öppna bokning
+                                </button>
+                                <button
+                                        type="button"
+                                        class="slot-action-button slot-action-button--primary"
+                                        on:click={createBookingFromPanel}
+                                >
+                                        Skapa bokning
+                                </button>
+                        </div>
+                </div>
+        {/if}
+
+        <dialog
+                class="booking-selection-dialog"
+                bind:this={selectionDialog}
+                on:click|stopPropagation={handleDialogBackdropClick}
+                on:close={handleSelectionDialogClose}
+        >
+                {#if bookingSelection}
+                        <div class="flex flex-col gap-3">
+                                <div>
+                                        <p class="text-xs font-semibold uppercase tracking-[0.3em] text-gray-500">
+                                                {formatSlotStartLabel(bookingSelection.slotStart)}
+                                        </p>
+                                        <h2 class="mt-1 text-sm font-semibold text-gray-800">
+                                                Välj bokning att öppna
+                                        </h2>
+                                </div>
+                                <div class="space-y-2">
+                                        {#each bookingSelection.bookings as booking (booking.booking.id)}
+                                                <button
+                                                        type="button"
+                                                        class="booking-selection-option"
+                                                        on:click={() => openBookingFromDialog(booking)}
+                                                >
+                                                        <div class="flex items-center justify-between gap-2">
+                                                                <span class="text-sm font-semibold text-gray-800">
+                                                                        {booking.room?.name ?? 'Okänt rum'}
+                                                                </span>
+                                                                <span class="text-xs text-gray-500">
+                                                                        {formatBookingTimeRange(booking)}
+                                                                </span>
+                                                        </div>
+                                                        <div class="mt-1 flex flex-wrap gap-2 text-xs text-gray-500">
+                                                                {#if booking.trainer}
+                                                                        <span
+                                                                                >Tränare:
+                                                                                {`${booking.trainer.firstname} ${booking.trainer.lastname}`}
+                                                                        </span>
+                                                                {/if}
+                                                                {#if booking.client}
+                                                                        <span
+                                                                                >Kund:
+                                                                                {`${booking.client.firstname ?? ''} ${booking.client.lastname ?? ''}`.trim() ||
+                                                                                        'Ej angiven'}
+                                                                        </span>
+                                                                {/if}
+                                                        </div>
+                                                </button>
+                                        {/each}
+                                </div>
+                        </div>
+                {/if}
+        </dialog>
 </div>
 
 <style>
-	.unavailable-striped {
-		background-image: repeating-linear-gradient(
+        .unavailable-striped {
+                background-image: repeating-linear-gradient(
 			45deg,
 			rgba(255, 0, 0, 0.1) 0px,
 			rgba(255, 0, 0, 0.1) 5px,
 			transparent 5px,
 			transparent 10px
-		);
-		pointer-events: none;
-	}
+                );
+                pointer-events: none;
+        }
+
+        .slot-action-panel {
+                position: fixed;
+                z-index: 70;
+                transform: translate(-50%, -100%) translateY(-8px);
+                border-radius: 16px;
+                background: #ffffff;
+                padding: 16px;
+                box-shadow: 0 16px 40px rgba(15, 23, 42, 0.18);
+                min-width: 220px;
+                max-width: min(320px, calc(100vw - 48px));
+                border: 1px solid rgba(148, 163, 184, 0.25);
+        }
+
+        .slot-action-button {
+                flex: 1;
+                border-radius: 9999px;
+                font-weight: 600;
+                font-size: 0.875rem;
+                padding: 0.5rem 0.75rem;
+                transition: background-color 120ms ease, color 120ms ease, box-shadow 120ms ease;
+        }
+
+        .slot-action-button--secondary {
+                background: #ffffff;
+                color: #ea580c;
+                border: 1px solid rgba(234, 88, 12, 0.4);
+        }
+
+        .slot-action-button--secondary:hover {
+                background: rgba(234, 88, 12, 0.08);
+        }
+
+        .slot-action-button--primary {
+                background: #ea580c;
+                color: #ffffff;
+        }
+
+        .slot-action-button--primary:hover {
+                background: #f97316;
+        }
+
+        .booking-selection-dialog {
+                position: fixed;
+                z-index: 80;
+                margin: 0;
+                padding: 20px;
+                border: none;
+                border-radius: 18px;
+                background: #ffffff;
+                transform: translate(-50%, -100%) translateY(-12px);
+                box-shadow: 0 24px 50px rgba(15, 23, 42, 0.22);
+                min-width: 280px;
+                max-width: min(360px, calc(100vw - 48px));
+        }
+
+        .booking-selection-dialog::backdrop {
+                background: rgba(15, 23, 42, 0.2);
+        }
+
+        .booking-selection-option {
+                width: 100%;
+                text-align: left;
+                border-radius: 12px;
+                border: 1px solid rgba(148, 163, 184, 0.25);
+                padding: 12px 14px;
+                background: rgba(255, 255, 255, 0.95);
+                transition: border-color 120ms ease, box-shadow 120ms ease;
+        }
+
+        .booking-selection-option:hover,
+        .booking-selection-option:focus-visible {
+                border-color: rgba(234, 88, 12, 0.6);
+                box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.15);
+        }
 </style>
