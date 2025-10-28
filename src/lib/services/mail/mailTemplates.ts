@@ -21,19 +21,30 @@ const fallbackImages: EmailImage[] = [
 ];
 
 export function buildTakkeiEmail({
+	subject,
 	header,
 	subheader,
 	body,
 	image = null
 }: {
-	header: string;
-	subheader: string;
+	subject: string;
+	header?: string | null;
+	subheader?: string | null;
 	body: string;
 	image?: EmailImage | null;
 }) {
 	const index = image ? -1 : randomInt(fallbackImages.length);
 
 	const selected = image ?? fallbackImages[index];
+	const trimmedHeader = header?.trim() ?? '';
+	const trimmedSubheader = subheader?.trim() ?? '';
+	const documentTitle = trimmedHeader || subject;
+	const headerMarkup = trimmedHeader
+		? `<h1 style="font-family: Arial, sans-serif; font-size: 24px; margin: 0; color: #ffffff;">${trimmedHeader}</h1>`
+		: '';
+	const subheaderMarkup = trimmedSubheader
+		? `<p style="font-family: Arial, sans-serif; font-size: 16px; margin: 8px 0 0 0; color: #dddddd;">${trimmedSubheader}</p>`
+		: '';
 
 	return `
 	<!DOCTYPE html>
@@ -41,7 +52,7 @@ export function buildTakkeiEmail({
 	<head>
 		<meta charset="UTF-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-		<title>${header}</title>
+		<title>${documentTitle}</title>
 	</head>
 	<body style="margin:0; padding:0; background-color:#000000;" bgcolor="#000000">
 		<table width="100%" cellpadding="0" cellspacing="0" style="background-color:#000000;" bgcolor="#000000">
@@ -63,8 +74,8 @@ export function buildTakkeiEmail({
 						</tr>
 						<tr>
 							<td colspan="2" align="center" style="padding: 24px;">
-								<h1 style="font-family: Arial, sans-serif; font-size: 24px; margin: 0; color: #ffffff;">${header}</h1>
-								<p style="font-family: Arial, sans-serif; font-size: 16px; margin: 8px 0 0 0; color: #dddddd;">${subheader}</p>
+								${headerMarkup}
+								${subheaderMarkup}
 							</td>
 						</tr>
 						<tr>

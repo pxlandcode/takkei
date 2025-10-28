@@ -150,13 +150,24 @@ export async function sendStyledEmail({
 }: {
 	to: string | string[];
 	subject: string;
-	header: string;
-	subheader: string;
+	header?: string | null;
+	subheader?: string | null;
 	body: string;
 	from?: { name: string; email: string };
 }) {
-	const html = buildTakkeiEmail({ header, subheader, body });
-	const text = `${header}\n\n${subheader}\n\n${body}`;
+	const trimmedHeader = header?.trim() ? header.trim() : null;
+	const trimmedSubheader = subheader?.trim() ? subheader.trim() : null;
+
+	const html = buildTakkeiEmail({
+		subject,
+		header: trimmedHeader,
+		subheader: trimmedSubheader,
+		body
+	});
+	const textParts = [trimmedHeader, trimmedSubheader, body].filter(
+		(part): part is string => Boolean(part)
+	);
+	const text = textParts.join('\n\n');
 
 	await sendEmail({
 		to,

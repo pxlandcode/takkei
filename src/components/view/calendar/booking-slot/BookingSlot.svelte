@@ -8,7 +8,6 @@
 	import type { FullBooking } from '$lib/types/calendarTypes';
 	import { user } from '$lib/stores/userStore';
 	import IconMobility from '$icons/IconMobility.svelte';
-	import { on } from 'svelte/events';
 
 	type Props = {
 		booking: FullBooking;
@@ -17,7 +16,7 @@
 		toolTipText?: string;
 		columnIndex?: number;
 		columnCount?: number;
-		onbookingselected: () => void;
+		onbookingselected: (event: MouseEvent) => void;
 	};
 
 	let {

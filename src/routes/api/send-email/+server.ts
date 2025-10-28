@@ -1,13 +1,20 @@
 import { sendStyledEmail } from '$lib/services/mail/mailServerService';
 
 export const POST = async ({ request }) => {
-	const { to, subject, header, subheader, body, from } = await request.json();
+	const payload = await request.json();
+	const { to, subject, body, from } = payload;
+	const header =
+		typeof payload.header === 'string' && payload.header.trim().length
+			? payload.header
+			: null;
+	const subheader =
+		typeof payload.subheader === 'string' && payload.subheader.trim().length
+			? payload.subheader
+			: null;
 
 	if (
 		(!Array.isArray(to) && typeof to !== 'string') ||
 		!subject ||
-		!header ||
-		!subheader ||
 		!body
 	) {
 		return new Response('Missing or invalid fields', { status: 400 });
