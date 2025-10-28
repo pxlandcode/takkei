@@ -8,8 +8,8 @@ export async function sendMail({
 }: {
 	to: string | string[];
 	subject: string;
-	header: string;
-	subheader: string;
+	header?: string;
+	subheader?: string;
 	body: string;
 	from?: { name: string; email: string };
 }) {

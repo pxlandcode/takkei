@@ -123,13 +123,15 @@ import { closePopup } from '$lib/stores/popupStore';
 			...selectedUsers.map((u) => u.email),
 			...selectedClients.map((c) => c.email)
 		];
+		const trimmedHeader = header.trim();
+		const trimmedSubheader = subheader.trim();
 
 		try {
 			await sendMail({
 				to: recipients,
 				subject,
-				header,
-				subheader,
+				header: trimmedHeader || undefined,
+				subheader: trimmedSubheader || undefined,
 				body,
 				from: selectedFromOption.value
 			});
@@ -190,7 +192,9 @@ import { closePopup } from '$lib/stores/popupStore';
 				placeholder="Huvudrubrik som syns i mailet..."
 			/>
 		{:else}
-			<p><strong>Rubrik:</strong> {header}</p>
+			{#if header.trim()}
+				<p><strong>Rubrik:</strong> {header}</p>
+			{/if}
 		{/if}
 
 		{#if !lockedFields.includes('subheader')}
@@ -201,7 +205,9 @@ import { closePopup } from '$lib/stores/popupStore';
 				placeholder="Kort förklaring"
 			/>
 		{:else}
-			<p><strong>Underrubrik:</strong> {subheader}</p>
+			{#if subheader.trim()}
+				<p><strong>Underrubrik:</strong> {subheader}</p>
+			{/if}
 		{/if}
 	</div>
 
