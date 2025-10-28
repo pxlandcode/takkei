@@ -34,15 +34,21 @@ export async function createBooking(
 				booked_by_id: bookingObject.booked_by_id
 			};
 		} else {
-			const userIdForTraining =
+			const includeUserId = !!bookingObject.internalEducation || !!bookingObject.education;
+			const resolvedUserIdRaw =
 				bookingObject.user_id ??
-				(bookingObject.attendees?.length > 0 ? `{${bookingObject.attendees.join(',')}}` : null);
+				(Array.isArray(bookingObject.attendees) && bookingObject.attendees.length > 0
+					? bookingObject.attendees[0]
+					: null);
+			const resolvedUserId =
+				resolvedUserIdRaw !== null && resolvedUserIdRaw !== undefined
+					? Number(resolvedUserIdRaw)
+					: null;
 
 			requestData = {
 				client_id: bookingObject.clientId ?? null,
 				package_id: bookingObject.packageId ?? null,
 				trainer_id: bookingObject.trainerId ?? null,
-				user_id: userIdForTraining,
 				start_time: `${bookingObject.date}T${bookingObject.time}:00`,
 				location_id: bookingObject.locationId ?? null,
 				booking_content_id: capitalizeFirstLetter(bookingObject.bookingType?.value ?? 'Corporate'),
@@ -54,6 +60,11 @@ export async function createBooking(
 				created_by_id: bookingObject.booked_by_id,
 				repeat_index: bookingObject.repeat ? 1 : null
 			};
+
+			if (includeUserId) {
+				const canAssignUserId = typeof resolvedUserId === 'number' && Number.isFinite(resolvedUserId);
+				requestData.user_id = canAssignUserId ? resolvedUserId : null;
+			}
 		}
 
 		// Make API request
@@ -158,13 +169,12 @@ export async function fetchAvailableSlots({
 
 export async function updateStandardBooking(bookingObject: any) {
 	try {
-		const userIdValue = bookingObject.user_id ?? null;
+		const includeUserId = !!bookingObject.internalEducation || !!bookingObject.education;
 
-		const requestData = {
+		const requestData: Record<string, any> = {
 			booking_id: bookingObject.id,
 			client_id: bookingObject.clientId ?? null,
 			trainer_id: bookingObject.trainerId ?? null,
-			user_id: userIdValue,
 			start_time: `${bookingObject.date}T${bookingObject.time}:00`,
 			location_id: bookingObject.locationId ?? null,
 			booking_content_id: bookingObject.bookingType?.value ?? null,
@@ -175,6 +185,15 @@ export async function updateStandardBooking(bookingObject: any) {
 			internal: !!bookingObject.internal,
 			education: !!bookingObject.education
 		};
+
+		if (includeUserId) {
+			const rawUserId = bookingObject.user_id;
+			const normalizedUserId =
+				rawUserId !== null && rawUserId !== undefined ? Number(rawUserId) : null;
+			const canAssignUserId =
+				typeof normalizedUserId === 'number' && Number.isFinite(normalizedUserId);
+			requestData.user_id = canAssignUserId ? normalizedUserId : null;
+		}
 
 		const response = await fetch('/api/update-booking', {
 			method: 'POST',
