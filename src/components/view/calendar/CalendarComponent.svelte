@@ -204,6 +204,10 @@
 	$effect(() => {
 		const view = slotDialogView;
 		if (!view) return;
+		if (!isMobile && view.config.mode === 'select') {
+			slotDialogView = null;
+			return;
+		}
 		if (view.config.mode === 'actions') {
 			const bookingId = view.config.booking.booking.id;
 			if (!bookings.some((current) => current.booking.id === bookingId)) {
@@ -363,6 +367,11 @@
 	const slotBookings = findBookingsInSameSlot(booking, bookingLocationId);
 
 	if (slotBookings.length >= 2) {
+		if (!isMobile) {
+			openBookingDetails(booking);
+			return;
+		}
+
 		const opened = openSlotDialog(targetElement, {
 			mode: 'select',
 			bookings: slotBookings,
