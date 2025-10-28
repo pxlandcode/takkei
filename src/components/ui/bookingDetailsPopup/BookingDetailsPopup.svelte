@@ -20,8 +20,6 @@
 	import { user } from '$lib/stores/userStore';
 	import { users, fetchUsers } from '$lib/stores/usersStore';
 
-	declare function structuredClone<T>(value: T): T;
-
 	export let booking: FullBooking;
 
 	let currentBooking: FullBooking = booking;
@@ -117,9 +115,7 @@
 	}
 
 	function cloneBookingData(source: FullBooking): FullBooking {
-		return typeof structuredClone === 'function'
-			? structuredClone(source)
-			: JSON.parse(JSON.stringify(source));
+		return JSON.parse(JSON.stringify(source));
 	}
 
 	onMount(async () => {
@@ -230,11 +226,13 @@
 </script>
 
 {#if showEditor && editedBooking}
-	<BookingEditor
-		booking={editedBooking}
-		bookingContentOptions={$bookingContents.map((b) => ({ value: b.id, label: b.kind }))}
-		on:close={handleCloseEditor}
-	/>
+	<div class="w-full">
+		<BookingEditor
+			booking={editedBooking}
+			bookingContentOptions={$bookingContents.map((b) => ({ value: b.id, label: b.kind }))}
+			on:close={handleCloseEditor}
+		/>
+	</div>
 {:else if showEditor}
 	<p class="text-gray p-4 text-sm">Laddar redigeringsformulär...</p>
 {:else}
