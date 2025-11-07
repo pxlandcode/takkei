@@ -18,6 +18,7 @@ import PopupWrapper from '../components/ui/popupWrapper/PopupWrapper.svelte';
 import PopupContentHost from '../components/ui/popupWrapper/PopupContentHost.svelte';
 
 import { popupStore, closePopup, type PopupState } from '$lib/stores/popupStore';
+import { get } from 'svelte/store';
 	import { loadingStore } from '$lib/stores/loading';
 
 export let data;
@@ -68,18 +69,26 @@ function buildListeners(state: PopupState | null) {
 		const existing = listeners[eventName];
 		listeners[eventName] = (event) => {
 			existing?.(event);
-			closePopup();
+			if (get(popupStore) === state) {
+				closePopup();
+			}
 		};
 	}
+
+	// Always allow popup content to emit `close` to trigger wrapper cleanup.
+	listeners.close = (event) => handlePopupClose(event, state);
 
 	return listeners;
 }
 
-function handlePopupClose(event: CustomEvent<any>) {
-	if (popup?.listeners?.close) {
-		popup.listeners.close(event);
+function handlePopupClose(event: CustomEvent<any>, target?: PopupState | null) {
+	const snapshot = target ?? get(popupStore);
+	if (snapshot?.listeners?.close) {
+		snapshot.listeners.close(event);
 	}
-	closePopup();
+	if (get(popupStore) === snapshot) {
+		closePopup();
+	}
 }
 
 $: popup = $popupStore;
@@ -146,7 +155,7 @@ $: popupProps = popup?.props ? { ...popup.props } : {};
 		height={popup.height}
 		maxWidth={popup.maxWidth}
 		maxHeight={popup.maxHeight}
-		on:close={handlePopupClose}
+		on:close={(event) => handlePopupClose(event, popup)}
 	>
 		<PopupContentHost
 			component={popup.component}

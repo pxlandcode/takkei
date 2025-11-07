@@ -17,19 +17,23 @@
 		handleMeetingOrPersonalBooking,
 		handleTrainingBooking
 	} from '$lib/helpers/bookingHelpers/bookingHelpers';
-import { openPopup } from '$lib/stores/popupStore';
-import { handleBookingEmail } from '$lib/helpers/bookingHelpers/bookingHelpers';
-import MailComponent from '../mailComponent/MailComponent.svelte';
+	import { openPopup, popupStore, closePopup, type PopupState } from '$lib/stores/popupStore';
+	import { handleBookingEmail } from '$lib/helpers/bookingHelpers/bookingHelpers';
+	import MailComponent from '../mailComponent/MailComponent.svelte';
 
 	export let startTime: Date | null = null;
 	export let clientId: number | null = null;
 	export let trainerId: number | null = null;
 
 	const dispatch = createEventDispatcher();
+	const popupInstance: PopupState | null = get(popupStore);
 
 	function onClose() {
 		calendarStore.refresh(fetch);
 		dispatch('close');
+		if (get(popupStore) === popupInstance) {
+			closePopup();
+		}
 	}
 
 	let selectedBookingComponent:
@@ -350,7 +354,9 @@ import MailComponent from '../mailComponent/MailComponent.svelte';
 							Hej!<br><br>
 							Jag har bokat in dig följande tider:<br>
 							${bookedDates
-								.map((b) => `${b.date} kl. ${b.time}${b.locationName ? ` på ${b.locationName}` : ''}`)
+								.map(
+									(b) => `${b.date} kl. ${b.time}${b.locationName ? ` på ${b.locationName}` : ''}`
+								)
 								.join('<br>')}<br><br>
 							Du kan boka av eller om din träningstid senast klockan 12.00 dagen innan träning genom att kontakta någon i ditt tränarteam via sms, e‑post eller telefon.<br><br>
 							Hälsningar,<br>
@@ -365,7 +371,9 @@ import MailComponent from '../mailComponent/MailComponent.svelte';
 			}
 		}
 
+		console.log('success', success);
 		if (success) {
+			console.log('hello');
 			formErrors = {};
 			onClose();
 		}

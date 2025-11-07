@@ -19,6 +19,7 @@
 	import { get } from 'svelte/store';
 	import { user } from '$lib/stores/userStore';
 	import { users, fetchUsers } from '$lib/stores/usersStore';
+	import { popupStore, closePopup, type PopupState } from '$lib/stores/popupStore';
 
 	export let booking: FullBooking;
 
@@ -28,6 +29,7 @@
 	let endTime: Date;
 
 	const dispatch = createEventDispatcher();
+	const popupInstance: PopupState | null = get(popupStore);
 
 	$: if (booking !== lastPropBooking && booking) {
 		lastPropBooking = booking;
@@ -213,6 +215,9 @@
 
 	function onClose() {
 		dispatch('close');
+		if (get(popupStore) === popupInstance) {
+			closePopup();
+		}
 	}
 
 	function handleCloseEditor(event: CustomEvent<{ booking?: FullBooking }>) {
