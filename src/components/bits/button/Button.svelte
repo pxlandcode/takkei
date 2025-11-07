@@ -41,7 +41,7 @@
 	// Dynamic class setup
 	$: buttonClasses = `
 		flex items-center justify-center gap-2 rounded-md shadow-xs transition-all duration-200 cursor-pointer
-		${variant === 'primary' ? 'bg-primary text-white hover:bg-primary-hover' : ''}
+		${variant === 'primary' ? 'bg-primary text-white hover:bg-primary-hover border border-gray/30' : ''}
 		${variant === 'secondary' ? 'bg-white text-gray border border-gray hover:bg-white/80' : ''}
 		${variant === 'cancel' ? 'bg-error text-white hover:bg-error-hover' : ''}
 		${variant === 'danger-outline' ? 'bg-white text-error border border-gray hover:bg-error/10 hover:text-error-hover' : ''}
