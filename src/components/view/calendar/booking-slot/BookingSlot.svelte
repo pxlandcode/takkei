@@ -40,11 +40,15 @@ import { IconTraining, IconShiningStar, IconGraduationCap, IconPlane } from '$li
 	let bookingSlot: HTMLButtonElement | undefined = $state();
 	let trainerNameElement: HTMLParagraphElement | undefined = $state();
 	let clientNameElement: HTMLParagraphElement | undefined = $state();
+	let personalTextElement: HTMLParagraphElement | undefined = $state();
 	let trainerDisplayMode = $state<NameDisplayMode>('full');
 	let participantDisplayMode = $state<NameDisplayMode>('full');
+	let personalLineClamp = $state(1);
 	let debounceTimer: NodeJS.Timeout;
 	let showIcon = $state(true);
 	const ICON_SPACE = 32;
+	const PERSONAL_VERTICAL_PADDING = 8;
+	const DEFAULT_LINE_HEIGHT = 14;
 	const isBrowser = typeof window !== 'undefined';
 	let textMeasureCtx: CanvasRenderingContext2D | null = null;
 	let trainerFullWidth = $state(0);
@@ -85,6 +89,37 @@ import { IconTraining, IconShiningStar, IconGraduationCap, IconPlane } from '$li
 		if (booking.isPersonalBooking) return null;
 		return isTraineeParticipant() ? booking.trainee ?? null : booking.client ?? null;
 	}
+
+	function normalizeKind(kind?: string | null) {
+		if (!kind) return '';
+		return kind
+			.normalize('NFD')
+			.replace(/[\u0300-\u036f]/g, '')
+			.toLowerCase();
+	}
+
+	const isMeetingSlot = $derived(() => {
+		if (!booking.isPersonalBooking) return false;
+		const personalKind = normalizeKind(booking.personalBooking?.kind ?? null);
+		const contentKind = normalizeKind(booking.additionalInfo?.bookingContent?.kind ?? null);
+		return (
+			personalKind.includes('meeting') ||
+			personalKind.includes('mote') ||
+			contentKind.includes('meeting') ||
+			contentKind.includes('mote')
+		);
+	});
+
+	function getPersonalDisplayText() {
+		const name = booking.personalBooking?.name?.trim() ?? '';
+		const text = booking.personalBooking?.text?.trim() ?? '';
+		if (name && text) return `${name} - ${text}`;
+		if (name) return name;
+		if (text) return text;
+		return isMeetingSlot ? 'Möte' : 'Personlig bokning';
+	}
+
+	const personalDisplayText = $derived(getPersonalDisplayText());
 
 	function getTrainerLastName() {
 		const last = booking.trainer?.lastname?.trim();
@@ -184,6 +219,8 @@ import { IconTraining, IconShiningStar, IconGraduationCap, IconPlane } from '$li
 		};
 	}
 
+	const nameStrings = $derived(getNameStrings());
+
 	function selectDisplayMode(
 		fullWidth: number,
 		lastWidth: number,
@@ -195,7 +232,32 @@ import { IconTraining, IconShiningStar, IconGraduationCap, IconPlane } from '$li
 		return 'initials';
 	}
 
-	async function measureNameWidths(names: NameStrings = getNameStrings()) {
+	async function measurePersonalText(_displayText?: string) {
+		if (!isBrowser || !booking.isPersonalBooking) return;
+		void _displayText;
+		await tick();
+		requestAnimationFrame(() => {
+			if (!bookingSlot || !personalTextElement) return;
+
+			const slotHeight = bookingSlot.offsetHeight || Math.max(meetingHeight - 4, 0);
+			const availableHeight = Math.max(slotHeight - PERSONAL_VERTICAL_PADDING, DEFAULT_LINE_HEIGHT);
+			const style = getComputedStyle(personalTextElement);
+			const lineHeightValue = parseFloat(style.lineHeight);
+			const fontSizeValue = parseFloat(style.fontSize);
+			const fallbackLineHeight = Number.isFinite(lineHeightValue)
+				? lineHeightValue
+				: Number.isFinite(fontSizeValue)
+					? fontSizeValue * 1.2
+					: DEFAULT_LINE_HEIGHT;
+			const safeLineHeight = Math.max(fallbackLineHeight, 1);
+			const maxLines = isMeetingSlot
+				? 1
+				: Math.max(Math.floor(availableHeight / safeLineHeight), 1);
+			personalLineClamp = Math.max(isMeetingSlot ? 1 : maxLines, 1);
+		});
+	}
+
+	async function measureNameWidths(names: NameStrings = nameStrings) {
 		if (!isBrowser || booking.isPersonalBooking) return;
 		await tick();
 		requestAnimationFrame(() => {
@@ -251,13 +313,21 @@ import { IconTraining, IconShiningStar, IconGraduationCap, IconPlane } from '$li
 		await tick(); // Ensure DOM elements are rendered
 
 		isMounted = true;
-		measureNameWidths(getNameStrings());
+		if (booking.isPersonalBooking) {
+			void measurePersonalText(personalDisplayText);
+		} else {
+			measureNameWidths(nameStrings);
+		}
 
 		const resizeObserver = new ResizeObserver(() => {
 			if (debounceTimer) clearTimeout(debounceTimer);
 
 			debounceTimer = setTimeout(() => {
-				checkNameWidths();
+				if (booking.isPersonalBooking) {
+					void measurePersonalText(personalDisplayText);
+				} else {
+					checkNameWidths();
+				}
 			}, 100);
 		});
 
@@ -272,11 +342,13 @@ import { IconTraining, IconShiningStar, IconGraduationCap, IconPlane } from '$li
 	});
 
 	$effect(() => {
-		const names = getNameStrings();
-
-		if (isMounted && !booking.isPersonalBooking) {
-			measureNameWidths(names);
+		if (!isMounted) return;
+		if (booking.isPersonalBooking) {
+			void measurePersonalText(personalDisplayText);
+			return;
 		}
+		const names = nameStrings;
+		measureNameWidths(names);
 	});
 </script>
 
@@ -311,20 +383,43 @@ import { IconTraining, IconShiningStar, IconGraduationCap, IconPlane } from '$li
 				{/if}
 
 				<div class="flex flex-row text-xs">
-						<div class="flex flex-col gap-1 text-left whitespace-nowrap">
-							<p class="" bind:this={trainerNameElement}>
-								{resolveTrainerDisplay(trainerDisplayMode)}
-							</p>
-							<p bind:this={clientNameElement}>
-								{resolveParticipantDisplay(participantDisplayMode)}
-							</p>
-						</div>
+					<div class="flex flex-col gap-1 text-left whitespace-nowrap">
+						<p class="" bind:this={trainerNameElement}>
+							{resolveTrainerDisplay(trainerDisplayMode)}
+						</p>
+						<p bind:this={clientNameElement}>
+							{resolveParticipantDisplay(participantDisplayMode)}
+						</p>
 					</div>
 				</div>
+			</div>
 		</div>
 	{:else}
-		<div class="flex flex-row items-center text-xs">
-			<p>{booking.personalBooking.name}</p>
+		<div class="flex w-full flex-col text-xs">
+			<p
+				class={`personal-text ${isMeetingSlot ? 'personal-text--single' : ''}`}
+				bind:this={personalTextElement}
+				style={`-webkit-line-clamp: ${personalLineClamp}; line-clamp: ${personalLineClamp};`}
+			>
+				{personalDisplayText}
+			</p>
 		</div>
 	{/if}
 </button>
+
+<style>
+	.personal-text {
+		display: -webkit-box;
+		-webkit-box-orient: vertical;
+		overflow: hidden;
+		word-break: break-word;
+		text-overflow: ellipsis;
+	}
+
+	.personal-text--single {
+		display: block;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+</style>
