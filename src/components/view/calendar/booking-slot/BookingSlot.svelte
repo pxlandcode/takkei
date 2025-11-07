@@ -29,13 +29,31 @@ import { IconTraining, IconShiningStar, IconGraduationCap, IconPlane } from '$li
 		onbookingselected
 	}: Props = $props();
 
+	type NameDisplayMode = 'full' | 'last' | 'initials';
+	type NameStrings = {
+		trainerFull: string;
+		trainerLast: string;
+		participantFull: string;
+		participantLast: string;
+	};
+
 	let bookingSlot: HTMLButtonElement | undefined = $state();
-	let trainerNameElement: HTMLSpanElement | undefined = $state();
-	let clientNameElement: HTMLSpanElement | undefined = $state();
-	let width = $state(200);
-	let useInitials = $state(false);
+	let trainerNameElement: HTMLParagraphElement | undefined = $state();
+	let clientNameElement: HTMLParagraphElement | undefined = $state();
+	let trainerDisplayMode = $state<NameDisplayMode>('full');
+	let participantDisplayMode = $state<NameDisplayMode>('full');
 	let debounceTimer: NodeJS.Timeout;
 	let showIcon = $state(true);
+	const ICON_SPACE = 32;
+	const isBrowser = typeof window !== 'undefined';
+	let textMeasureCtx: CanvasRenderingContext2D | null = null;
+	let trainerFullWidth = $state(0);
+	let trainerLastWidth = $state(0);
+	let trainerInitialWidth = $state(0);
+	let participantFullWidth = $state(0);
+	let participantLastWidth = $state(0);
+	let participantInitialWidth = $state(0);
+	let isMounted = false;
 
 	const endTime = $derived(
 		booking.booking.endTime ??
@@ -68,6 +86,27 @@ import { IconTraining, IconShiningStar, IconGraduationCap, IconPlane } from '$li
 		return isTraineeParticipant() ? booking.trainee ?? null : booking.client ?? null;
 	}
 
+	function getTrainerLastName() {
+		const last = booking.trainer?.lastname?.trim();
+		if (last) return last;
+		const first = booking.trainer?.firstname?.trim();
+		return first ?? '';
+	}
+
+	function getTrainerDisplay() {
+		const first = booking.trainer?.firstname?.trim() ?? '';
+		const last = booking.trainer?.lastname?.trim() ?? '';
+		return `${first} ${last}`.trim();
+	}
+
+	function getParticipantLastName() {
+		const participant = getParticipant();
+		const last = participant?.lastname?.trim();
+		if (last) return last;
+		const first = participant?.firstname?.trim();
+		return first ?? '';
+	}
+
 	function getParticipantInitials() {
 		const participant = getParticipant();
 		if (participant?.firstname && participant?.lastname) {
@@ -98,46 +137,127 @@ import { IconTraining, IconShiningStar, IconGraduationCap, IconPlane } from '$li
 		return IconTraining;
 	});
 
-	let fullNameWidth = $state(0);
-	$inspect({ fullNameWidth });
-	$inspect({ useInitials });
+	function ensureMeasureContext() {
+		if (!isBrowser) return null;
+		if (!textMeasureCtx) {
+			const canvas = document.createElement('canvas');
+			textMeasureCtx = canvas.getContext('2d');
+		}
+		return textMeasureCtx;
+	}
 
-	async function measureFullNameWidth() {
+	function measureTextWidth(node: HTMLElement, text: string) {
+		const ctx = ensureMeasureContext();
+		if (!ctx) return text.length * 8;
+		const style = getComputedStyle(node);
+		const font =
+			style.font && style.font !== ''
+				? style.font
+				: `${style.fontStyle} ${style.fontVariant} ${style.fontWeight} ${style.fontSize}/${style.lineHeight} ${style.fontFamily}`;
+		ctx.font = font;
+		const letterSpacing = parseFloat(style.letterSpacing) || 0;
+		return ctx.measureText(text).width + Math.max(0, text.length - 1) * letterSpacing;
+	}
+
+	function resolveTrainerDisplay(mode: NameDisplayMode) {
+		const full = getTrainerDisplay() || trainerInitials;
+		const last = getTrainerLastName() || full;
+		if (mode === 'last') return last;
+		if (mode === 'initials') return trainerInitials;
+		return full;
+	}
+
+	function resolveParticipantDisplay(mode: NameDisplayMode) {
+		const full = getParticipantDisplay();
+		const last = getParticipantLastName() || full;
+		if (mode === 'last') return last;
+		if (mode === 'initials') return getParticipantInitials();
+		return full;
+	}
+
+	function getNameStrings(): NameStrings {
+		return {
+			trainerFull: getTrainerDisplay(),
+			trainerLast: getTrainerLastName(),
+			participantFull: getParticipantDisplay(),
+			participantLast: getParticipantLastName()
+		};
+	}
+
+	function selectDisplayMode(
+		fullWidth: number,
+		lastWidth: number,
+		initialsWidth: number,
+		availableWidth: number
+	): NameDisplayMode {
+		if (fullWidth <= availableWidth) return 'full';
+		if (lastWidth <= availableWidth) return 'last';
+		return 'initials';
+	}
+
+	async function measureNameWidths(names: NameStrings = getNameStrings()) {
+		if (!isBrowser || booking.isPersonalBooking) return;
 		await tick();
 		requestAnimationFrame(() => {
 			if (!trainerNameElement || !clientNameElement) return;
-			useInitials = false;
-			if (clientNameElement.offsetWidth > trainerNameElement.offsetWidth) {
-				fullNameWidth = clientNameElement.offsetWidth;
-			} else {
-				fullNameWidth = trainerNameElement.offsetWidth;
-			}
 
-			checkNameWidth();
+			const trainerFullText = names.trainerFull?.trim() || trainerInitials;
+			const trainerLastText = names.trainerLast?.trim() || trainerFullText;
+			const participantInitials = getParticipantInitials();
+			const participantFullText = names.participantFull?.trim() || participantInitials;
+			const participantLastText = names.participantLast?.trim() || participantFullText;
+
+			trainerFullWidth = measureTextWidth(trainerNameElement, trainerFullText);
+			trainerLastWidth = measureTextWidth(trainerNameElement, trainerLastText);
+			trainerInitialWidth = measureTextWidth(trainerNameElement, trainerInitials);
+
+			participantFullWidth = measureTextWidth(clientNameElement, participantFullText);
+			participantLastWidth = measureTextWidth(clientNameElement, participantLastText);
+			participantInitialWidth = measureTextWidth(clientNameElement, participantInitials);
+
+			checkNameWidths();
 		});
 	}
-	function checkNameWidth() {
-		if (!bookingSlot) return;
+
+	function checkNameWidths() {
+		if (!bookingSlot || booking.isPersonalBooking) return;
 
 		const containerWidth = bookingSlot.offsetWidth;
+		const availableWithIcon = Math.max(containerWidth - ICON_SPACE, 0);
+		const availableWithoutIcon = containerWidth;
 
-		const namePadding = 44;
-		useInitials = fullNameWidth > containerWidth - namePadding;
+		const shouldShowIcon =
+			trainerFullWidth <= availableWithIcon && participantFullWidth <= availableWithIcon;
 
-		showIcon = fullNameWidth < containerWidth;
+		showIcon = shouldShowIcon;
+
+		const effectiveWidth = shouldShowIcon ? availableWithIcon : availableWithoutIcon;
+
+		trainerDisplayMode = selectDisplayMode(
+			trainerFullWidth,
+			trainerLastWidth,
+			trainerInitialWidth,
+			effectiveWidth
+		);
+		participantDisplayMode = selectDisplayMode(
+			participantFullWidth,
+			participantLastWidth,
+			participantInitialWidth,
+			effectiveWidth
+		);
 	}
 
 	onMount(async () => {
 		await tick(); // Ensure DOM elements are rendered
 
-		measureFullNameWidth();
+		isMounted = true;
+		measureNameWidths(getNameStrings());
 
 		const resizeObserver = new ResizeObserver(() => {
 			if (debounceTimer) clearTimeout(debounceTimer);
 
 			debounceTimer = setTimeout(() => {
-				width = bookingSlot?.offsetWidth || 200;
-				checkNameWidth();
+				checkNameWidths();
 			}, 100);
 		});
 
@@ -149,6 +269,14 @@ import { IconTraining, IconShiningStar, IconGraduationCap, IconPlane } from '$li
 			resizeObserver.disconnect();
 			if (debounceTimer) clearTimeout(debounceTimer);
 		};
+	});
+
+	$effect(() => {
+		const names = getNameStrings();
+
+		if (isMounted && !booking.isPersonalBooking) {
+			measureNameWidths(names);
+		}
 	});
 </script>
 
@@ -183,18 +311,16 @@ import { IconTraining, IconShiningStar, IconGraduationCap, IconPlane } from '$li
 				{/if}
 
 				<div class="flex flex-row text-xs">
-					<div class="flex flex-col gap-1 text-left whitespace-nowrap">
-						<p class="" bind:this={trainerNameElement}>
-							{useInitials
-								? trainerInitials
-								: `${booking.trainer.firstname} ${booking.trainer.lastname}`}
-						</p>
-						<p bind:this={clientNameElement}>
-							{useInitials ? getParticipantInitials() : getParticipantDisplay()}
-						</p>
+						<div class="flex flex-col gap-1 text-left whitespace-nowrap">
+							<p class="" bind:this={trainerNameElement}>
+								{resolveTrainerDisplay(trainerDisplayMode)}
+							</p>
+							<p bind:this={clientNameElement}>
+								{resolveParticipantDisplay(participantDisplayMode)}
+							</p>
+						</div>
 					</div>
 				</div>
-			</div>
 		</div>
 	{:else}
 		<div class="flex flex-row items-center text-xs">
