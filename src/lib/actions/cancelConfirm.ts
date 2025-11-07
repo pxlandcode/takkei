@@ -13,7 +13,6 @@ export function cancelConfirm(node: HTMLElement, { onConfirm, startTimeISO }: Ca
 	let selectEl: HTMLSelectElement | null = null;
 	let removeReasonListeners: (() => void) | null = null;
 	let selectedReason = '';
-	const time = new Date().toISOString().slice(0, 16);
 
 	const cancelReasonOptions = [
 		{ value: 'Rebook', label: 'Flyttat träningen' },
@@ -55,6 +54,12 @@ export function cancelConfirm(node: HTMLElement, { onConfirm, startTimeISO }: Ca
 		return !withinCancellationWindow(start, cancel);
 	}
 
+	// Format using local timezone so the datetime-local input defaults to the correct Swedish time.
+	function toLocalDateTimeInputValue(date: Date): string {
+		const pad = (value: number) => value.toString().padStart(2, '0');
+		return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+	}
+
 	function onClick(event: MouseEvent) {
 		event.preventDefault();
 		event.stopPropagation();
@@ -74,6 +79,8 @@ export function cancelConfirm(node: HTMLElement, { onConfirm, startTimeISO }: Ca
 			.map(({ value, label }) => `<option value="${value}">${label}</option>`)
 			.join('');
 
+		const defaultCancelTime = toLocalDateTimeInputValue(new Date());
+
 		popover.innerHTML = `
       <p class="mb-2 font-semibold text-gray">Avbryt bokning</p>
       <label class="mb-2 block text-sm font-medium text-gray" for="cancel-reason-select">Orsak</label>
@@ -81,7 +88,7 @@ export function cancelConfirm(node: HTMLElement, { onConfirm, startTimeISO }: Ca
         <option value="" selected disabled>Välj orsak</option>
         ${reasonOptionsHTML}
       </select>
-      <input data-time type="datetime-local" class="w-full border px-2 py-1 text-sm" value="${time}" />
+      <input data-time type="datetime-local" class="w-full border px-2 py-1 text-sm" value="${defaultCancelTime}" />
       <p data-late-note class="mt-2 text-xs text-error hidden">Sen avbokning – debiteringsregler kan gälla.</p>
       <div class="mt-3 flex justify-end gap-4">
         <button data-cancel class="text-base text-error hover:text-error-hover hover:underline">Avbryt</button>
@@ -137,17 +144,13 @@ export function cancelConfirm(node: HTMLElement, { onConfirm, startTimeISO }: Ca
 			timeInput.addEventListener('input', toggleLateNote);
 			toggleLateNote();
 
-			popover
-				?.querySelector('[data-cancel]')
-				?.addEventListener('click', hide);
-			popover
-				?.querySelector('[data-confirm]')
-				?.addEventListener('click', () => {
-					if (!selectedReason) return;
-					const timeVal = timeInput.value;
-					onConfirm(selectedReason, timeVal);
-					hide();
-				});
+			popover?.querySelector('[data-cancel]')?.addEventListener('click', hide);
+			popover?.querySelector('[data-confirm]')?.addEventListener('click', () => {
+				if (!selectedReason) return;
+				const timeVal = timeInput.value;
+				onConfirm(selectedReason, timeVal);
+				hide();
+			});
 		});
 
 		visible = true;
@@ -171,7 +174,9 @@ export function cancelConfirm(node: HTMLElement, { onConfirm, startTimeISO }: Ca
 		if (!popover) return;
 		const trigger = node.getBoundingClientRect();
 		const boxRect = popover.getBoundingClientRect();
-		const hostRect = ((node.closest('dialog') as HTMLElement) ?? document.body).getBoundingClientRect();
+		const hostRect = (
+			(node.closest('dialog') as HTMLElement) ?? document.body
+		).getBoundingClientRect();
 		const spacing = 8;
 
 		let top = trigger.bottom + spacing;
