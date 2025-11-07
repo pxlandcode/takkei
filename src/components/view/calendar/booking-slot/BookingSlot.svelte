@@ -3,7 +3,7 @@
 	import { tooltip } from '$lib/actions/tooltip';
 	import { getMeetingHeight, getTopOffset } from '$lib/helpers/calendarHelpers/calendar-utils';
 
-	import { IconTraining, IconShiningStar, IconGraduationCap, IconPlane } from '$lib/icons';
+import { IconTraining, IconShiningStar, IconGraduationCap, IconPlane } from '$lib/icons';
 
 	import type { FullBooking } from '$lib/types/calendarTypes';
 	import { user } from '$lib/stores/userStore';
@@ -56,11 +56,36 @@
 				? 'P'
 				: 'T'
 	);
-	const clientInitials = $derived(
-		booking.client?.firstname && booking.client?.lastname
-			? `${booking.client.firstname[0]}${booking.client.lastname[0]}`
-			: 'C'
-	);
+	function isTraineeParticipant() {
+		return (
+			!booking.isPersonalBooking &&
+			(booking.booking.internalEducation || booking.additionalInfo?.education)
+		);
+	}
+
+	function getParticipant(): { firstname?: string | null; lastname?: string | null } | null {
+		if (booking.isPersonalBooking) return null;
+		return isTraineeParticipant() ? booking.trainee ?? null : booking.client ?? null;
+	}
+
+	function getParticipantInitials() {
+		const participant = getParticipant();
+		if (participant?.firstname && participant?.lastname) {
+			return `${participant.firstname[0]}${participant.lastname[0]}`;
+		}
+		return isTraineeParticipant() ? 'TR' : 'C';
+	}
+
+	function getParticipantDisplay() {
+		const participant = getParticipant();
+		if (!participant) {
+			return isTraineeParticipant() ? 'Trainee saknas' : 'Klient saknas';
+		}
+		const first = participant.firstname?.trim() ?? '';
+		const last = participant.lastname?.trim() ?? '';
+		const full = `${first} ${last}`.trim();
+		return full || (isTraineeParticipant() ? 'Trainee saknas' : 'Klient saknas');
+	}
 
 	// $: colWidth = 100 / columnCount;
 	// $: colLeft = columnIndex * colWidth;
@@ -165,9 +190,7 @@
 								: `${booking.trainer.firstname} ${booking.trainer.lastname}`}
 						</p>
 						<p bind:this={clientNameElement}>
-							{useInitials
-								? clientInitials
-								: `${booking.client?.firstname} ${booking.client?.lastname}`}
+							{useInitials ? getParticipantInitials() : getParticipantDisplay()}
 						</p>
 					</div>
 				</div>

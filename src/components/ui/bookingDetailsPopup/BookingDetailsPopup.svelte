@@ -58,6 +58,10 @@
 		action?: () => void;
 		actionLabel?: string;
 	} | null = null;
+	let showTraineeParticipant = false;
+	let participantLabel = 'Kund';
+	let participantEntry: { id?: number | null; firstname?: string | null; lastname?: string | null } | null =
+		null;
 
 	function normalizeKind(kind?: string | null) {
 		if (!kind) return '';
@@ -102,6 +106,13 @@
 		(currentBooking.booking.status &&
 			currentBooking.booking.status.toLowerCase() === 'cancelled') ||
 		!!currentBooking.booking.cancelTime;
+	$: showTraineeParticipant =
+		!currentBooking.isPersonalBooking &&
+		(currentBooking.booking.internalEducation || currentBooking.additionalInfo?.education);
+	$: participantLabel = showTraineeParticipant ? 'Trainee' : 'Kund';
+	$: participantEntry = showTraineeParticipant
+		? currentBooking.trainee
+		: (currentBooking.client ?? null);
 
 	function fmtDateTime(d?: string | Date | null) {
 		if (!d) return '';
@@ -314,11 +325,21 @@
 				</ul>
 			{:else}
 				<p class="text-gray-700">
-					<strong>Kund:</strong>
-					<a class="text-orange hover:underline" href={`/clients/${currentBooking.client?.id}`}>
-						{currentBooking.client?.firstname}
-						{currentBooking.client?.lastname}
-					</a>
+					<strong>{participantLabel}:</strong>
+					{#if participantEntry?.id}
+						{#if showTraineeParticipant}
+							<a class="text-orange hover:underline" href={`/users/${participantEntry.id}`}>
+								{participantEntry.firstname} {participantEntry.lastname}
+							</a>
+						{:else}
+							<a class="text-orange hover:underline" href={`/clients/${participantEntry.id}`}>
+								{participantEntry.firstname}
+								{participantEntry.lastname}
+							</a>
+						{/if}
+					{:else}
+						<span>{showTraineeParticipant ? 'Trainee saknas' : 'Kund saknas'}</span>
+					{/if}
 				</p>
 				<p class="text-gray-700">
 					<strong>Tränare:</strong>

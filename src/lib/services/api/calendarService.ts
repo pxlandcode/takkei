@@ -110,6 +110,15 @@ function transformBooking(raw: any): FullBooking {
 	const education = Boolean(raw.education);
 	const internal = Boolean(raw.internal);
 
+	const trainee =
+		raw.trainee_id != null
+			? {
+					id: raw.trainee_id,
+					firstname: raw.trainee_firstname ?? '',
+					lastname: raw.trainee_lastname ?? ''
+				}
+			: null;
+
 	return {
 		isPersonalBooking: false, // Standard booking
 		booking: {
@@ -148,6 +157,7 @@ function transformBooking(raw: any): FullBooking {
 			id: raw.room_id,
 			name: raw.room_name
 		},
+		trainee,
 		additionalInfo: {
 			packageId: raw.package_id ?? null,
 			education,

@@ -17,10 +17,17 @@
 	export let onSelect: (checked: boolean, booking: FullBooking) => void = () => {};
 	export let showSelect: boolean = false;
 
-	const dispatch = createEventDispatcher();
+const dispatch = createEventDispatcher();
+
+	let showTraineeAsClient = false;
+	let participant: { id?: number | null; firstname?: string | null; lastname?: string | null } | null =
+		null;
 
 	$: bookingColor = booking.location?.color ? booking.location.color : '#4B5563';
 	$: isPersonalBooking = booking.isPersonalBooking;
+	$: showTraineeAsClient =
+		!isPersonalBooking && (booking.booking.internalEducation || booking.additionalInfo?.education);
+	$: participant = showTraineeAsClient ? booking.trainee : booking.client;
 
 	// ✅ Compute end time
 	$: endTime =
@@ -134,15 +141,32 @@
 				<span class="font-medium text-gray-600">Okänd tränare</span>
 			{/if}
 		{:else}
-			{#if booking.client?.id}
-				<a
-					href="javascript:void(0);"
-					on:click|stopPropagation={() => goto(`/clients/${booking.client?.id}`)}
-					class="font-medium text-orange hover:underline"
-					>{`${booking.client?.firstname ?? ''} ${booking.client?.lastname ?? ''}`.trim() || 'Okänd klient'}</a
-				>
+			{#if showTraineeAsClient}
+				{#if participant?.id}
+					<a
+						href="javascript:void(0);"
+						on:click|stopPropagation={() => goto(`/users/${participant?.id}`)}
+						class="font-medium text-orange hover:underline"
+					>
+						{`${participant?.firstname ?? ''} ${participant?.lastname ?? ''}`.trim() ||
+							'Trainee saknas'}
+					</a>
+				{:else}
+					<span class="font-medium text-gray-600">Trainee saknas</span>
+				{/if}
 			{:else}
-				<span class="font-medium text-gray-600">Okänd klient</span>
+				{#if participant?.id}
+					<a
+						href="javascript:void(0);"
+						on:click|stopPropagation={() => goto(`/clients/${participant?.id}`)}
+						class="font-medium text-orange hover:underline"
+					>
+						{`${participant?.firstname ?? ''} ${participant?.lastname ?? ''}`.trim() ||
+							'Okänd klient'}
+					</a>
+				{:else}
+					<span class="font-medium text-gray-600">Okänd klient</span>
+				{/if}
 			{/if}
 		{/if}
 	</div>

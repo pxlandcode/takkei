@@ -67,6 +67,7 @@ export interface FullBooking {
 	booking: BookingDetails;
 	trainer?: Trainer | null;
 	client?: Client | null;
+	trainee?: Trainer | null;
 	room?: RoomDetails | null;
 	location?: Location | null;
 	additionalInfo?: AdditionalInfo | null;

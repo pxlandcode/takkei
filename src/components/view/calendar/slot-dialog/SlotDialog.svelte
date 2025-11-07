@@ -50,6 +50,25 @@
 		return `${start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - ${end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
 	}
 
+	function getParticipantName(booking: FullBooking): string {
+		if (booking.isPersonalBooking) {
+			return booking.personalBooking?.name ?? 'Bokning';
+		}
+
+		const useTrainee = booking.booking.internalEducation || booking.additionalInfo?.education;
+		if (useTrainee) {
+			const trainee = booking.trainee;
+			const traineeName = `${trainee?.firstname ?? ''} ${trainee?.lastname ?? ''}`.trim();
+			return traineeName || 'Trainee saknas';
+		}
+
+		if (booking.client) {
+			return `${booking.client.firstname} ${booking.client.lastname}`.trim() || 'Kund saknas';
+		}
+
+		return 'Bokning';
+	}
+
 	function teardown() {
 		destroyOutside?.();
 		destroyOutside = null;
@@ -187,11 +206,7 @@
 				on:click={() => dispatch('openBooking', { booking: config.booking })}
 			>
 				<div class="flex flex-col gap-0.5">
-					<span class="font-medium text-gray-800">
-						{config.booking.client
-							? `${config.booking.client.firstname} ${config.booking.client.lastname}`
-							: (config.booking.personalBooking?.name ?? 'Bokning')}
-					</span>
+					<span class="font-medium text-gray-800">{getParticipantName(config.booking)}</span>
 					<span class="text-xs text-gray-500">
 						{formatBookingTimeRange(config.booking)}
 					</span>
@@ -224,11 +239,7 @@
 						on:click={() => dispatch('openBooking', { booking: option })}
 					>
 						<div class="flex flex-col gap-0.5">
-							<span class="font-medium text-gray-800">
-								{option.client
-									? `${option.client.firstname} ${option.client.lastname}`
-									: (option.personalBooking?.name ?? 'Bokning')}
-							</span>
+							<span class="font-medium text-gray-800">{getParticipantName(option)}</span>
 							<span class="text-xs text-gray-500">
 								{formatBookingTimeRange(option)}
 							</span>
