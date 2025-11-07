@@ -105,6 +105,11 @@ export async function fetchBookings(
  * Convert API response into FullBooking format (for standard bookings).
  */
 function transformBooking(raw: any): FullBooking {
+	const tryOut = Boolean(raw.try_out);
+	const internalEducation = Boolean(raw.internal_education);
+	const education = Boolean(raw.education);
+	const internal = Boolean(raw.internal);
+
 	return {
 		isPersonalBooking: false, // Standard booking
 		booking: {
@@ -117,11 +122,11 @@ function transformBooking(raw: any): FullBooking {
 			cancelTime: raw.cancel_time ?? null,
 			actualCancelTime: raw.actual_cancel_time ?? null,
 			repeatIndex: raw.repeat_index ?? null,
-			tryOut: raw.try_out,
+			tryOut,
 			refundComment: raw.refund_comment ?? null,
 			cancelReason: raw.cancel_reason ?? null,
 			bookingWithoutRoom: raw.booking_without_room,
-			internalEducation: raw.internal_education,
+			internalEducation,
 			userId: raw.user_id ?? null
 		},
 		trainer: {
@@ -145,8 +150,8 @@ function transformBooking(raw: any): FullBooking {
 		},
 		additionalInfo: {
 			packageId: raw.package_id ?? null,
-			education: raw.education,
-			internal: raw.internal,
+			education,
+			internal,
 			bookingContent: {
 				id: raw.booking_content_id,
 				kind: raw.booking_content_kind

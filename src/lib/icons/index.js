@@ -68,6 +68,7 @@ import IconPlane from './IconPlane.svelte';
 import IconCalendarLocation from './IconCalendarLocation.svelte';
 import IconCalendarMy from './IconCalendarMy.svelte';
 import IconSwap from './IconSwap.svelte';
+import IconWrench from './IconWrench.svelte';
 
 export {
 	IconClose,
@@ -139,5 +140,6 @@ export {
 	IconPlane,
 	IconCalendarLocation,
 	IconCalendarMy,
-	IconSwap
+	IconSwap,
+	IconWrench
 };

@@ -3,11 +3,11 @@
 	import { tooltip } from '$lib/actions/tooltip';
 	import { getMeetingHeight, getTopOffset } from '$lib/helpers/calendarHelpers/calendar-utils';
 
-	import { IconClock, IconDumbbell, IconGymnastics } from '$lib/icons';
+	import { IconTraining, IconShiningStar, IconGraduationCap, IconPlane } from '$lib/icons';
 
 	import type { FullBooking } from '$lib/types/calendarTypes';
 	import { user } from '$lib/stores/userStore';
-	import IconMobility from '$icons/IconMobility.svelte';
+	import IconWrench from '$icons/IconWrench.svelte';
 
 	type Props = {
 		booking: FullBooking;
@@ -66,17 +66,11 @@
 	// $: colLeft = columnIndex * colWidth;
 
 	const bookingIcon = $derived.by(() => {
-		const kind = booking.additionalInfo?.bookingContent?.kind?.toLowerCase() ?? '';
-		switch (kind) {
-			case 'weightlifting':
-				return IconDumbbell;
-			case 'gymnastics':
-				return IconGymnastics;
-			case 'mobility':
-				return IconMobility;
-			default:
-				return IconClock;
-		}
+		if (booking.booking.tryOut) return IconShiningStar;
+		if (booking.booking.internalEducation) return IconWrench;
+		if (booking.additionalInfo?.education) return IconGraduationCap;
+		if (booking.additionalInfo?.internal) return IconPlane;
+		return IconTraining;
 	});
 
 	let fullNameWidth = $state(0);

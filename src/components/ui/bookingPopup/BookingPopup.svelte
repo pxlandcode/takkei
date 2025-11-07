@@ -391,7 +391,7 @@
 		options={[
 			{ label: 'Träning', icon: 'Training', value: 'training' },
 			{ label: 'Provträning', icon: 'ShiningStar', value: 'trial' },
-			{ label: 'Praktiktimme', icon: 'GraduationCap', value: 'practice' },
+			{ label: 'Praktiktimme', icon: 'Wrench', value: 'practice' },
 			{ label: 'Utbildning', icon: 'GraduationCap', value: 'education' },
 			{ label: 'Flygtimme', icon: 'Plane', value: 'flight' },
 			{ label: 'Möte', icon: 'Meeting', value: 'meeting' },

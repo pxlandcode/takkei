@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { formatTime } from '$lib/helpers/calendarHelpers/calendar-utils';
 
-	import { IconCancel, IconClock, IconDumbbell, IconGymnastics } from '$lib/icons';
-	import IconMobility from '$icons/IconMobility.svelte';
+	import { IconCancel, IconTraining, IconShiningStar, IconGraduationCap, IconPlane } from '$lib/icons';
+	import IconWrench from '$icons/IconWrench.svelte';
 
 	import type { FullBooking } from '$lib/types/calendarTypes';
 	import { goto } from '$app/navigation';
@@ -35,17 +35,11 @@
 		) {
 			return IconCancel;
 		}
-		const kind = booking.additionalInfo?.bookingContent?.kind?.toLowerCase() ?? '';
-		switch (kind) {
-			case 'weightlifting':
-				return IconDumbbell;
-			case 'gymnastics':
-				return IconGymnastics;
-			case 'mobility':
-				return IconMobility;
-			default:
-				return IconClock;
-		}
+		if (booking.booking.tryOut) return IconShiningStar;
+		if (booking.booking.internalEducation) return IconWrench;
+		if (booking.additionalInfo?.education) return IconGraduationCap;
+		if (booking.additionalInfo?.internal) return IconPlane;
+		return IconTraining;
 	})();
 
 	$: bookingHeadline = (() => {
