@@ -14,6 +14,7 @@ export type CalendarFilters = {
 	locationIds?: number[];
 	trainerIds?: number[] | null;
 	clientIds?: number[] | null;
+	userIds?: number[] | null;
 	personalBookings?: boolean;
 };
 
@@ -49,6 +50,7 @@ const createCalendarStore = () => {
 			locationIds: [],
 			trainerIds: null,
 			clientIds: null,
+			userIds: null,
 			personalBookings: false
 		},
 		bookings: [],
@@ -102,16 +104,20 @@ const createCalendarStore = () => {
 
 		try {
 			const bookingsPromise = fetchBookings(base, fetchFn);
-			const availabilityPromise: Promise<CalendarAvailability> = base.trainerIds?.length === 1 && base.from && base.to
-				? fetchUserAvailability(base.trainerIds[0], base.from, base.to, fetchFn)
-						.then((res) => res.availability ?? {})
-						.catch((err) => {
-							console.error('❌ Failed to fetch availability:', err);
-							return {} as CalendarAvailability;
-						})
-				: Promise.resolve({} as CalendarAvailability);
+			const availabilityPromise: Promise<CalendarAvailability> =
+				base.trainerIds?.length === 1 && base.from && base.to
+					? fetchUserAvailability(base.trainerIds[0], base.from, base.to, fetchFn)
+							.then((res) => res.availability ?? {})
+							.catch((err) => {
+								console.error('❌ Failed to fetch availability:', err);
+								return {} as CalendarAvailability;
+							})
+					: Promise.resolve({} as CalendarAvailability);
 
-			const [newBookings, newAvailability] = await Promise.all([bookingsPromise, availabilityPromise]);
+			const [newBookings, newAvailability] = await Promise.all([
+				bookingsPromise,
+				availabilityPromise
+			]);
 
 			if (requestId === latestRequestId) {
 				update((store) => ({
@@ -130,9 +136,24 @@ const createCalendarStore = () => {
 	}
 
 	function getCurrentFilters(): CalendarFilters {
-		let current: CalendarStoreState;
-		subscribe((s) => (current = s))();
-		return current.filters;
+		let snapshot: CalendarStoreState | undefined;
+		const unsubscribe = subscribe((state) => {
+			snapshot = state;
+		});
+		unsubscribe();
+		return (
+			snapshot?.filters ?? {
+				from: null,
+				to: null,
+				date: new Date().toISOString().slice(0, 10),
+				roomId: null,
+				locationIds: [],
+				trainerIds: null,
+				clientIds: null,
+				userIds: null,
+				personalBookings: false
+			}
+		);
 	}
 
 	function updateFilters(newFilters: Partial<CalendarFilters>, fetchFn: typeof fetch) {
@@ -155,6 +176,7 @@ const createCalendarStore = () => {
 			locationIds: [],
 			trainerIds: null,
 			clientIds: null,
+			userIds: null,
 			personalBookings: undefined
 		};
 
@@ -282,7 +304,11 @@ const createCalendarStore = () => {
 		const newDateStr = currentDate.toISOString().slice(0, 10);
 
 		const { weekStart, weekEnd } = getWeekStartAndEnd(currentDate);
-		const needsWeekUpdate = newDateStr < currentFilters.from || newDateStr > currentFilters.to;
+		const needsWeekUpdate =
+			!currentFilters.from ||
+			!currentFilters.to ||
+			newDateStr < currentFilters.from ||
+			newDateStr > currentFilters.to;
 
 		updateFilters(
 			{
@@ -302,7 +328,11 @@ const createCalendarStore = () => {
 		const newDateStr = currentDate.toISOString().slice(0, 10);
 
 		const { weekStart, weekEnd } = getWeekStartAndEnd(currentDate);
-		const needsWeekUpdate = newDateStr < currentFilters.from || newDateStr > currentFilters.to;
+		const needsWeekUpdate =
+			!currentFilters.from ||
+			!currentFilters.to ||
+			newDateStr < currentFilters.from ||
+			newDateStr > currentFilters.to;
 
 		updateFilters(
 			{
@@ -324,7 +354,8 @@ const createCalendarStore = () => {
 			const { weekStart, weekEnd } = getWeekStartAndEnd(date);
 
 			// Check if the new date is outside the current week range
-			needsWeekUpdate = newDateStr < store.filters.from || newDateStr > store.filters.to;
+			const { from, to } = store.filters;
+			needsWeekUpdate = !from || !to || newDateStr < from || newDateStr > to;
 
 			return {
 				...store,
