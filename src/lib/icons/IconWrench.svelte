@@ -13,13 +13,17 @@
 	height={size}
 	class={classString}
 	style={styleString}
-	fill="currentColor"
-	viewBox="0 0 40 40"
+	viewBox="0 0 24 24"
+	fill="none"
 	xmlns="http://www.w3.org/2000/svg"
+	stroke="currentColor"
+	stroke-width="1.8"
+	stroke-linecap="round"
+	stroke-linejoin="round"
 >
 	<path
-		d="M20 36.3636L7.27273 29.4545V18.5454L0 14.5454L20 3.63635L40 14.5454V29.0909H36.3636V16.5454L32.7273 18.5454V29.4545L20 36.3636ZM20 21.2727L32.4545 14.5454L20 7.81817L7.54545 14.5454L20 21.2727ZM20 32.2273L29.0909 27.3182V20.4545L20 25.4545L10.9091 20.4545V27.3182L20 32.2273Z"
 		fill="currentColor"
+		d="m22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9c-2-2-5-2.4-7.4-1.3L9 6L6 9L1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4"
 	/>
 </svg>
 

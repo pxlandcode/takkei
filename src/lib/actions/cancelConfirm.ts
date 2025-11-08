@@ -2,18 +2,24 @@ import { tick } from 'svelte';
 import { clickOutside } from '$lib/actions/clickOutside';
 
 interface CancelParams {
-	onConfirm: (reason: string, time: string) => void;
+	onConfirm: (reason: string, time: string, emailBehavior: 'send' | 'edit' | 'none') => void;
 	startTimeISO: string;
+	defaultEmailBehavior?: 'send' | 'edit' | 'none';
 }
 
-export function cancelConfirm(node: HTMLElement, { onConfirm, startTimeISO }: CancelParams) {
+export function cancelConfirm(
+	node: HTMLElement,
+	{ onConfirm, startTimeISO, defaultEmailBehavior = 'none' }: CancelParams
+) {
 	let popover: HTMLDivElement | null = null;
 	let visible = false;
 	let cleanupOutside: (() => void) | null = null;
 	let selectEl: HTMLSelectElement | null = null;
+	let emailSelectEl: HTMLSelectElement | null = null;
 	let removeReasonListeners: (() => void) | null = null;
+	let removeEmailBehaviorListeners: (() => void) | null = null;
 	let selectedReason = '';
-	const time = new Date().toISOString().slice(0, 16);
+	let selectedEmailBehavior: 'send' | 'edit' | 'none' = defaultEmailBehavior;
 
 	const cancelReasonOptions = [
 		{ value: 'Rebook', label: 'Flyttat träningen' },
@@ -55,6 +61,12 @@ export function cancelConfirm(node: HTMLElement, { onConfirm, startTimeISO }: Ca
 		return !withinCancellationWindow(start, cancel);
 	}
 
+	// Format using local timezone so the datetime-local input defaults to the correct Swedish time.
+	function toLocalDateTimeInputValue(date: Date): string {
+		const pad = (value: number) => value.toString().padStart(2, '0');
+		return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+	}
+
 	function onClick(event: MouseEvent) {
 		event.preventDefault();
 		event.stopPropagation();
@@ -69,10 +81,26 @@ export function cancelConfirm(node: HTMLElement, { onConfirm, startTimeISO }: Ca
 			'cancel-popover absolute z-2147483647 max-w-xs rounded-md border border-gray-bright bg-white p-4 shadow-xl';
 
 		selectedReason = '';
+		selectedEmailBehavior = defaultEmailBehavior;
 
 		const reasonOptionsHTML = cancelReasonOptions
 			.map(({ value, label }) => `<option value="${value}">${label}</option>`)
 			.join('');
+
+		const emailBehaviorOptions = [
+			{ value: 'none', label: 'Skicka inte' },
+			{ value: 'send', label: 'Skicka direkt' },
+			{ value: 'edit', label: 'Redigera innan' }
+		] as const;
+
+		const emailOptionsHTML = emailBehaviorOptions
+			.map(
+				({ value, label }) =>
+					`<option value="${value}" ${value === selectedEmailBehavior ? 'selected' : ''}>${label}</option>`
+			)
+			.join('');
+
+		const defaultCancelTime = toLocalDateTimeInputValue(new Date());
 
 		popover.innerHTML = `
       <p class="mb-2 font-semibold text-gray">Avbryt bokning</p>
@@ -81,7 +109,11 @@ export function cancelConfirm(node: HTMLElement, { onConfirm, startTimeISO }: Ca
         <option value="" selected disabled>Välj orsak</option>
         ${reasonOptionsHTML}
       </select>
-      <input data-time type="datetime-local" class="w-full border px-2 py-1 text-sm" value="${time}" />
+      <input data-time type="datetime-local" class="w-full border px-2 py-1 text-sm" value="${defaultCancelTime}" />
+      <label class="mt-3 mb-2 block text-sm font-medium text-gray" for="cancel-email-select">Bekräftelsemail</label>
+      <select id="cancel-email-select" data-email-behavior class="mb-2 w-full rounded-sm border border-gray px-2 py-2 text-sm">
+        ${emailOptionsHTML}
+      </select>
       <p data-late-note class="mt-2 text-xs text-error hidden">Sen avbokning – debiteringsregler kan gälla.</p>
       <div class="mt-3 flex justify-end gap-4">
         <button data-cancel class="text-base text-error hover:text-error-hover hover:underline">Avbryt</button>
@@ -106,6 +138,7 @@ export function cancelConfirm(node: HTMLElement, { onConfirm, startTimeISO }: Ca
 			const timeInput = popover!.querySelector<HTMLInputElement>('[data-time]')!;
 			const confirmBtn = popover!.querySelector<HTMLButtonElement>('[data-confirm]')!;
 			const lateNote = popover!.querySelector<HTMLParagraphElement>('[data-late-note]')!;
+			emailSelectEl = popover!.querySelector<HTMLSelectElement>('[data-email-behavior]');
 
 			const setConfirmState = (enabled: boolean) => {
 				confirmBtn.disabled = !enabled;
@@ -129,6 +162,19 @@ export function cancelConfirm(node: HTMLElement, { onConfirm, startTimeISO }: Ca
 
 			setConfirmState(false);
 
+			const onEmailBehaviorChange = () => {
+				const nextValue = emailSelectEl?.value as 'send' | 'edit' | 'none' | undefined;
+				if (nextValue) selectedEmailBehavior = nextValue;
+			};
+
+			emailSelectEl?.addEventListener('change', onEmailBehaviorChange);
+			emailSelectEl?.addEventListener('input', onEmailBehaviorChange);
+			removeEmailBehaviorListeners = () => {
+				emailSelectEl?.removeEventListener('change', onEmailBehaviorChange);
+				emailSelectEl?.removeEventListener('input', onEmailBehaviorChange);
+				removeEmailBehaviorListeners = null;
+			};
+
 			const toggleLateNote = () => {
 				const late = isLate(startTimeISO, timeInput.value);
 				lateNote.classList.toggle('hidden', !late);
@@ -137,17 +183,13 @@ export function cancelConfirm(node: HTMLElement, { onConfirm, startTimeISO }: Ca
 			timeInput.addEventListener('input', toggleLateNote);
 			toggleLateNote();
 
-			popover
-				?.querySelector('[data-cancel]')
-				?.addEventListener('click', hide);
-			popover
-				?.querySelector('[data-confirm]')
-				?.addEventListener('click', () => {
-					if (!selectedReason) return;
-					const timeVal = timeInput.value;
-					onConfirm(selectedReason, timeVal);
-					hide();
-				});
+			popover?.querySelector('[data-cancel]')?.addEventListener('click', hide);
+			popover?.querySelector('[data-confirm]')?.addEventListener('click', () => {
+				if (!selectedReason) return;
+				const timeVal = timeInput.value;
+				onConfirm(selectedReason, timeVal, selectedEmailBehavior);
+				hide();
+			});
 		});
 
 		visible = true;
@@ -159,8 +201,11 @@ export function cancelConfirm(node: HTMLElement, { onConfirm, startTimeISO }: Ca
 		cleanupOutside?.();
 		cleanupOutside = null;
 		removeReasonListeners?.();
+		removeEmailBehaviorListeners?.();
 		selectEl = null;
+		emailSelectEl = null;
 		selectedReason = '';
+		selectedEmailBehavior = defaultEmailBehavior;
 
 		popover.remove();
 		popover = null;
@@ -171,7 +216,9 @@ export function cancelConfirm(node: HTMLElement, { onConfirm, startTimeISO }: Ca
 		if (!popover) return;
 		const trigger = node.getBoundingClientRect();
 		const boxRect = popover.getBoundingClientRect();
-		const hostRect = ((node.closest('dialog') as HTMLElement) ?? document.body).getBoundingClientRect();
+		const hostRect = (
+			(node.closest('dialog') as HTMLElement) ?? document.body
+		).getBoundingClientRect();
 		const spacing = 8;
 
 		let top = trigger.bottom + spacing;

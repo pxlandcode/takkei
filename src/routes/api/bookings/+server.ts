@@ -31,12 +31,16 @@ export async function GET({ url }) {
                clients.firstname AS client_firstname,
                clients.lastname AS client_lastname,
                booking_contents.id AS booking_content_id,
-               booking_contents.kind AS booking_content_kind
+               booking_contents.kind AS booking_content_kind,
+               trainee.id AS trainee_id,
+               trainee.firstname AS trainee_firstname,
+               trainee.lastname AS trainee_lastname
         FROM bookings
         LEFT JOIN rooms ON bookings.room_id = rooms.id
         LEFT JOIN locations ON bookings.location_id = locations.id
         LEFT JOIN users ON bookings.trainer_id = users.id
         LEFT JOIN clients ON bookings.client_id = clients.id
+        LEFT JOIN users AS trainee ON bookings.user_id = trainee.id
         LEFT JOIN booking_contents ON bookings.booking_content_id = booking_contents.id
         WHERE 1=1
     `;

@@ -3,11 +3,11 @@
 	import { tooltip } from '$lib/actions/tooltip';
 	import { getMeetingHeight, getTopOffset } from '$lib/helpers/calendarHelpers/calendar-utils';
 
-	import { IconClock, IconDumbbell, IconGymnastics } from '$lib/icons';
+import { IconTraining, IconShiningStar, IconGraduationCap, IconPlane } from '$lib/icons';
 
 	import type { FullBooking } from '$lib/types/calendarTypes';
 	import { user } from '$lib/stores/userStore';
-	import IconMobility from '$icons/IconMobility.svelte';
+	import IconWrench from '$icons/IconWrench.svelte';
 
 	type Props = {
 		booking: FullBooking;
@@ -29,13 +29,35 @@
 		onbookingselected
 	}: Props = $props();
 
+	type NameDisplayMode = 'full' | 'last' | 'initials';
+	type NameStrings = {
+		trainerFull: string;
+		trainerLast: string;
+		participantFull: string;
+		participantLast: string;
+	};
+
 	let bookingSlot: HTMLButtonElement | undefined = $state();
-	let trainerNameElement: HTMLSpanElement | undefined = $state();
-	let clientNameElement: HTMLSpanElement | undefined = $state();
-	let width = $state(200);
-	let useInitials = $state(false);
+	let trainerNameElement: HTMLParagraphElement | undefined = $state();
+	let clientNameElement: HTMLParagraphElement | undefined = $state();
+	let personalTextElement: HTMLParagraphElement | undefined = $state();
+	let trainerDisplayMode = $state<NameDisplayMode>('full');
+	let participantDisplayMode = $state<NameDisplayMode>('full');
+	let personalLineClamp = $state(1);
 	let debounceTimer: NodeJS.Timeout;
 	let showIcon = $state(true);
+	const ICON_SPACE = 32;
+	const PERSONAL_VERTICAL_PADDING = 8;
+	const DEFAULT_LINE_HEIGHT = 14;
+	const isBrowser = typeof window !== 'undefined';
+	let textMeasureCtx: CanvasRenderingContext2D | null = null;
+	let trainerFullWidth = $state(0);
+	let trainerLastWidth = $state(0);
+	let trainerInitialWidth = $state(0);
+	let participantFullWidth = $state(0);
+	let participantLastWidth = $state(0);
+	let participantInitialWidth = $state(0);
+	let isMounted = false;
 
 	const endTime = $derived(
 		booking.booking.endTime ??
@@ -56,69 +78,256 @@
 				? 'P'
 				: 'T'
 	);
-	const clientInitials = $derived(
-		booking.client?.firstname && booking.client?.lastname
-			? `${booking.client.firstname[0]}${booking.client.lastname[0]}`
-			: 'C'
-	);
+	function isTraineeParticipant() {
+		return (
+			!booking.isPersonalBooking &&
+			(booking.booking.internalEducation || booking.additionalInfo?.education)
+		);
+	}
+
+	function getParticipant(): { firstname?: string | null; lastname?: string | null } | null {
+		if (booking.isPersonalBooking) return null;
+		return isTraineeParticipant() ? booking.trainee ?? null : booking.client ?? null;
+	}
+
+	function normalizeKind(kind?: string | null) {
+		if (!kind) return '';
+		return kind
+			.normalize('NFD')
+			.replace(/[\u0300-\u036f]/g, '')
+			.toLowerCase();
+	}
+
+	const isMeetingSlot = $derived(() => {
+		if (!booking.isPersonalBooking) return false;
+		const personalKind = normalizeKind(booking.personalBooking?.kind ?? null);
+		const contentKind = normalizeKind(booking.additionalInfo?.bookingContent?.kind ?? null);
+		return (
+			personalKind.includes('meeting') ||
+			personalKind.includes('mote') ||
+			contentKind.includes('meeting') ||
+			contentKind.includes('mote')
+		);
+	});
+
+	function getPersonalDisplayText() {
+		const name = booking.personalBooking?.name?.trim() ?? '';
+		const text = booking.personalBooking?.text?.trim() ?? '';
+		if (name && text) return `${name} - ${text}`;
+		if (name) return name;
+		if (text) return text;
+		return isMeetingSlot ? 'Möte' : 'Personlig bokning';
+	}
+
+	const personalDisplayText = $derived(getPersonalDisplayText());
+
+	function getTrainerLastName() {
+		const last = booking.trainer?.lastname?.trim();
+		if (last) return last;
+		const first = booking.trainer?.firstname?.trim();
+		return first ?? '';
+	}
+
+	function getTrainerDisplay() {
+		const first = booking.trainer?.firstname?.trim() ?? '';
+		const last = booking.trainer?.lastname?.trim() ?? '';
+		return `${first} ${last}`.trim();
+	}
+
+	function getParticipantLastName() {
+		const participant = getParticipant();
+		const last = participant?.lastname?.trim();
+		if (last) return last;
+		const first = participant?.firstname?.trim();
+		return first ?? '';
+	}
+
+	function getParticipantInitials() {
+		const participant = getParticipant();
+		if (participant?.firstname && participant?.lastname) {
+			return `${participant.firstname[0]}${participant.lastname[0]}`;
+		}
+		return isTraineeParticipant() ? 'TR' : 'C';
+	}
+
+	function getParticipantDisplay() {
+		const participant = getParticipant();
+		if (!participant) {
+			return isTraineeParticipant() ? 'Trainee saknas' : 'Klient saknas';
+		}
+		const first = participant.firstname?.trim() ?? '';
+		const last = participant.lastname?.trim() ?? '';
+		const full = `${first} ${last}`.trim();
+		return full || (isTraineeParticipant() ? 'Trainee saknas' : 'Klient saknas');
+	}
 
 	// $: colWidth = 100 / columnCount;
 	// $: colLeft = columnIndex * colWidth;
 
 	const bookingIcon = $derived.by(() => {
-		const kind = booking.additionalInfo?.bookingContent?.kind?.toLowerCase() ?? '';
-		switch (kind) {
-			case 'weightlifting':
-				return IconDumbbell;
-			case 'gymnastics':
-				return IconGymnastics;
-			case 'mobility':
-				return IconMobility;
-			default:
-				return IconClock;
-		}
+		if (booking.booking.tryOut) return IconShiningStar;
+		if (booking.booking.internalEducation) return IconWrench;
+		if (booking.additionalInfo?.education) return IconGraduationCap;
+		if (booking.additionalInfo?.internal) return IconPlane;
+		return IconTraining;
 	});
 
-	let fullNameWidth = $state(0);
-	$inspect({ fullNameWidth });
-	$inspect({ useInitials });
+	function ensureMeasureContext() {
+		if (!isBrowser) return null;
+		if (!textMeasureCtx) {
+			const canvas = document.createElement('canvas');
+			textMeasureCtx = canvas.getContext('2d');
+		}
+		return textMeasureCtx;
+	}
 
-	async function measureFullNameWidth() {
+	function measureTextWidth(node: HTMLElement, text: string) {
+		const ctx = ensureMeasureContext();
+		if (!ctx) return text.length * 8;
+		const style = getComputedStyle(node);
+		const font =
+			style.font && style.font !== ''
+				? style.font
+				: `${style.fontStyle} ${style.fontVariant} ${style.fontWeight} ${style.fontSize}/${style.lineHeight} ${style.fontFamily}`;
+		ctx.font = font;
+		const letterSpacing = parseFloat(style.letterSpacing) || 0;
+		return ctx.measureText(text).width + Math.max(0, text.length - 1) * letterSpacing;
+	}
+
+	function resolveTrainerDisplay(mode: NameDisplayMode) {
+		const full = getTrainerDisplay() || trainerInitials;
+		const last = getTrainerLastName() || full;
+		if (mode === 'last') return last;
+		if (mode === 'initials') return trainerInitials;
+		return full;
+	}
+
+	function resolveParticipantDisplay(mode: NameDisplayMode) {
+		const full = getParticipantDisplay();
+		const last = getParticipantLastName() || full;
+		if (mode === 'last') return last;
+		if (mode === 'initials') return getParticipantInitials();
+		return full;
+	}
+
+	function getNameStrings(): NameStrings {
+		return {
+			trainerFull: getTrainerDisplay(),
+			trainerLast: getTrainerLastName(),
+			participantFull: getParticipantDisplay(),
+			participantLast: getParticipantLastName()
+		};
+	}
+
+	const nameStrings = $derived(getNameStrings());
+
+	function selectDisplayMode(
+		fullWidth: number,
+		lastWidth: number,
+		initialsWidth: number,
+		availableWidth: number
+	): NameDisplayMode {
+		if (fullWidth <= availableWidth) return 'full';
+		if (lastWidth <= availableWidth) return 'last';
+		return 'initials';
+	}
+
+	async function measurePersonalText(_displayText?: string) {
+		if (!isBrowser || !booking.isPersonalBooking) return;
+		void _displayText;
+		await tick();
+		requestAnimationFrame(() => {
+			if (!bookingSlot || !personalTextElement) return;
+
+			const slotHeight = bookingSlot.offsetHeight || Math.max(meetingHeight - 4, 0);
+			const availableHeight = Math.max(slotHeight - PERSONAL_VERTICAL_PADDING, DEFAULT_LINE_HEIGHT);
+			const style = getComputedStyle(personalTextElement);
+			const lineHeightValue = parseFloat(style.lineHeight);
+			const fontSizeValue = parseFloat(style.fontSize);
+			const fallbackLineHeight = Number.isFinite(lineHeightValue)
+				? lineHeightValue
+				: Number.isFinite(fontSizeValue)
+					? fontSizeValue * 1.2
+					: DEFAULT_LINE_HEIGHT;
+			const safeLineHeight = Math.max(fallbackLineHeight, 1);
+			const maxLines = isMeetingSlot
+				? 1
+				: Math.max(Math.floor(availableHeight / safeLineHeight), 1);
+			personalLineClamp = Math.max(isMeetingSlot ? 1 : maxLines, 1);
+		});
+	}
+
+	async function measureNameWidths(names: NameStrings = nameStrings) {
+		if (!isBrowser || booking.isPersonalBooking) return;
 		await tick();
 		requestAnimationFrame(() => {
 			if (!trainerNameElement || !clientNameElement) return;
-			useInitials = false;
-			if (clientNameElement.offsetWidth > trainerNameElement.offsetWidth) {
-				fullNameWidth = clientNameElement.offsetWidth;
-			} else {
-				fullNameWidth = trainerNameElement.offsetWidth;
-			}
 
-			checkNameWidth();
+			const trainerFullText = names.trainerFull?.trim() || trainerInitials;
+			const trainerLastText = names.trainerLast?.trim() || trainerFullText;
+			const participantInitials = getParticipantInitials();
+			const participantFullText = names.participantFull?.trim() || participantInitials;
+			const participantLastText = names.participantLast?.trim() || participantFullText;
+
+			trainerFullWidth = measureTextWidth(trainerNameElement, trainerFullText);
+			trainerLastWidth = measureTextWidth(trainerNameElement, trainerLastText);
+			trainerInitialWidth = measureTextWidth(trainerNameElement, trainerInitials);
+
+			participantFullWidth = measureTextWidth(clientNameElement, participantFullText);
+			participantLastWidth = measureTextWidth(clientNameElement, participantLastText);
+			participantInitialWidth = measureTextWidth(clientNameElement, participantInitials);
+
+			checkNameWidths();
 		});
 	}
-	function checkNameWidth() {
-		if (!bookingSlot) return;
+
+	function checkNameWidths() {
+		if (!bookingSlot || booking.isPersonalBooking) return;
 
 		const containerWidth = bookingSlot.offsetWidth;
+		const availableWithIcon = Math.max(containerWidth - ICON_SPACE, 0);
+		const availableWithoutIcon = containerWidth;
 
-		const namePadding = 44;
-		useInitials = fullNameWidth > containerWidth - namePadding;
+		const shouldShowIcon =
+			trainerFullWidth <= availableWithIcon && participantFullWidth <= availableWithIcon;
 
-		showIcon = fullNameWidth < containerWidth;
+		showIcon = shouldShowIcon;
+
+		const effectiveWidth = shouldShowIcon ? availableWithIcon : availableWithoutIcon;
+
+		trainerDisplayMode = selectDisplayMode(
+			trainerFullWidth,
+			trainerLastWidth,
+			trainerInitialWidth,
+			effectiveWidth
+		);
+		participantDisplayMode = selectDisplayMode(
+			participantFullWidth,
+			participantLastWidth,
+			participantInitialWidth,
+			effectiveWidth
+		);
 	}
 
 	onMount(async () => {
 		await tick(); // Ensure DOM elements are rendered
 
-		measureFullNameWidth();
+		isMounted = true;
+		if (booking.isPersonalBooking) {
+			void measurePersonalText(personalDisplayText);
+		} else {
+			measureNameWidths(nameStrings);
+		}
 
 		const resizeObserver = new ResizeObserver(() => {
 			if (debounceTimer) clearTimeout(debounceTimer);
 
 			debounceTimer = setTimeout(() => {
-				width = bookingSlot?.offsetWidth || 200;
-				checkNameWidth();
+				if (booking.isPersonalBooking) {
+					void measurePersonalText(personalDisplayText);
+				} else {
+					checkNameWidths();
+				}
 			}, 100);
 		});
 
@@ -130,6 +339,16 @@
 			resizeObserver.disconnect();
 			if (debounceTimer) clearTimeout(debounceTimer);
 		};
+	});
+
+	$effect(() => {
+		if (!isMounted) return;
+		if (booking.isPersonalBooking) {
+			void measurePersonalText(personalDisplayText);
+			return;
+		}
+		const names = nameStrings;
+		measureNameWidths(names);
 	});
 </script>
 
@@ -166,22 +385,41 @@
 				<div class="flex flex-row text-xs">
 					<div class="flex flex-col gap-1 text-left whitespace-nowrap">
 						<p class="" bind:this={trainerNameElement}>
-							{useInitials
-								? trainerInitials
-								: `${booking.trainer.firstname} ${booking.trainer.lastname}`}
+							{resolveTrainerDisplay(trainerDisplayMode)}
 						</p>
 						<p bind:this={clientNameElement}>
-							{useInitials
-								? clientInitials
-								: `${booking.client?.firstname} ${booking.client?.lastname}`}
+							{resolveParticipantDisplay(participantDisplayMode)}
 						</p>
 					</div>
 				</div>
 			</div>
 		</div>
 	{:else}
-		<div class="flex flex-row items-center text-xs">
-			<p>{booking.personalBooking.name}</p>
+		<div class="flex w-full flex-col text-xs">
+			<p
+				class={`personal-text ${isMeetingSlot ? 'personal-text--single' : ''}`}
+				bind:this={personalTextElement}
+				style={`-webkit-line-clamp: ${personalLineClamp}; line-clamp: ${personalLineClamp};`}
+			>
+				{personalDisplayText}
+			</p>
 		</div>
 	{/if}
 </button>
+
+<style>
+	.personal-text {
+		display: -webkit-box;
+		-webkit-box-orient: vertical;
+		overflow: hidden;
+		word-break: break-word;
+		text-overflow: ellipsis;
+	}
+
+	.personal-text--single {
+		display: block;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+</style>

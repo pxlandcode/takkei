@@ -251,6 +251,7 @@
 			component: BookingDetailsPopup,
 			props: { booking: event.detail },
 			maxWidth: '650px',
+			height: '850px',
 			listeners: {
 				updated: () => {
 					loadMoreBookings(true);

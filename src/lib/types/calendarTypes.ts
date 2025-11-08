@@ -26,6 +26,8 @@ export interface Client {
 	id?: number | null;
 	firstname: string;
 	lastname: string;
+	email?: string | null;
+	phone?: string | null;
 }
 
 export interface RoomDetails {
@@ -67,6 +69,7 @@ export interface FullBooking {
 	booking: BookingDetails;
 	trainer?: Trainer | null;
 	client?: Client | null;
+	trainee?: Trainer | null;
 	room?: RoomDetails | null;
 	location?: Location | null;
 	additionalInfo?: AdditionalInfo | null;

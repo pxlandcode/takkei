@@ -8,6 +8,7 @@
 	import Button from '../../bits/button/Button.svelte';
 	import Dropdown from '../../bits/dropdown/Dropdown.svelte';
 	import { user } from '$lib/stores/userStore';
+	import { ROLE_OPTIONS } from '$lib/constants/roles';
 
 	onMount(fetchLocations);
 
@@ -31,12 +32,7 @@
 
 	let createdUserId: number | null = null;
 
-	const allRoles = [
-		{ name: 'Admin', value: 'Administrator' },
-		{ name: 'Lokaladmin', value: 'LocationAdmin' },
-		{ name: 'Ekonomi', value: 'Economy' },
-		{ name: 'Tränare', value: 'Trainer' }
-	];
+	const allRoles = ROLE_OPTIONS;
 	let selectedRoles: string[] = [];
 
 	function handleRolesSelection(event) {
