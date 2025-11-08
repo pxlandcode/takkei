@@ -8,6 +8,22 @@ import { getClientEmails } from '$lib/stores/clientsStore';
 import { addToast } from '$lib/stores/toastStore';
 import { AppToastType } from '$lib/types/toastTypes';
 
+type BookedDateLine = { date: string; time: string; locationName?: string };
+
+function timeStringToMinutes(value?: string | null): number | null {
+	if (!value) return null;
+	const [hours, minutes] = value.split(':').map(Number);
+	if (Number.isNaN(hours) || Number.isNaN(minutes)) return null;
+	return hours * 60 + minutes;
+}
+
+function minutesToTimeString(totalMinutes: number): string {
+	const normalized = ((totalMinutes % 1440) + 1440) % 1440;
+	const hours = Math.floor(normalized / 60);
+	const minutes = normalized % 60;
+	return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+}
+
 export async function handleTrainingBooking(
 	bookingObject,
 	currentUser,
@@ -74,8 +90,99 @@ export async function handleTrainingBooking(
 export async function handleMeetingOrPersonalBooking(
 	bookingObject: any,
 	currentUser: any,
-	type: 'meeting' | 'personal'
+	type: 'meeting' | 'personal',
+	repeatedBookings: any[] = []
 ): Promise<{ success: boolean; bookedDates?: BookedDateLine[] }> {
+	const startMinutes = timeStringToMinutes(bookingObject.time);
+	const endMinutes = timeStringToMinutes(bookingObject.endTime);
+	const durationMinutes =
+		startMinutes !== null && endMinutes !== null && endMinutes > startMinutes
+			? endMinutes - startMinutes
+			: null;
+
+	const fallbackEndTime = bookingObject.endTime ?? bookingObject.time;
+
+	const computeEndTime = (startTime: string | undefined): string => {
+		if (!startTime) return fallbackEndTime;
+		if (durationMinutes === null) return fallbackEndTime;
+		const start = timeStringToMinutes(startTime);
+		if (start === null) return fallbackEndTime;
+		return minutesToTimeString(start + durationMinutes);
+	};
+
+	const resolveEndTime = (startTime: string, candidate?: string | null): string => {
+		const start = timeStringToMinutes(startTime);
+		if (candidate) {
+			const candidateMinutes = timeStringToMinutes(candidate);
+			if (start !== null && candidateMinutes !== null && candidateMinutes > start) {
+				return candidate;
+			}
+		}
+
+		const computed = computeEndTime(startTime);
+		const computedMinutes = timeStringToMinutes(computed);
+		if (
+			computed &&
+			start !== null &&
+			computedMinutes !== null &&
+			computedMinutes > start
+		) {
+			return computed;
+		}
+
+		if (candidate) return candidate;
+		return fallbackEndTime;
+	};
+
+	if (bookingObject.repeat && repeatedBookings.length > 0) {
+		let successCount = 0;
+		const bookedDates: BookedDateLine[] = [];
+
+		for (const repeated of repeatedBookings) {
+			const chosenTime = repeated.selectedTime ?? repeated.time ?? bookingObject.time;
+			const chosenEndTime = resolveEndTime(
+				chosenTime,
+				repeated.selectedEndTime ?? repeated.endTime ?? null
+			);
+			const singleBooking = {
+				...bookingObject,
+				date: repeated.date,
+				time: chosenTime,
+				endTime: chosenEndTime
+			};
+
+			const result = await createBooking(singleBooking, type);
+
+			if (result.success) {
+				successCount++;
+				bookedDates.push({ date: repeated.date, time: chosenTime });
+			} else {
+				addToast({
+					type: AppToastType.CANCEL,
+					message: `Fel vid bokning`,
+					description: `Misslyckades: ${singleBooking.date} kl ${singleBooking.time}.`
+				});
+			}
+		}
+
+		if (successCount === repeatedBookings.length) {
+			addToast({
+				type: AppToastType.SUCCESS,
+				message: 'Alla bokningar klara!',
+				description: `${successCount} av ${repeatedBookings.length} lyckades.`
+			});
+
+			return { success: true, bookedDates };
+		}
+
+		addToast({
+			type: AppToastType.CANCEL,
+			message: 'Något gick fel',
+			description: `Endast ${successCount} av ${repeatedBookings.length} bokningar lyckades.`
+		});
+		return { success: false };
+	}
+
 	const result = await createBooking(bookingObject, type);
 
 	if (result.success) {

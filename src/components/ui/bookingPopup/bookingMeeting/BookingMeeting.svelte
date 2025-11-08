@@ -1,10 +1,9 @@
 <script lang="ts">
 	import { get } from 'svelte/store';
-	import { onMount } from 'svelte';
+	import { afterUpdate, onDestroy, onMount } from 'svelte';
 
 	import Button from '../../../bits/button/Button.svelte';
 	import DropdownCheckbox from '../../../bits/dropdown-checkbox/DropdownCheckbox.svelte';
-	import Dropdown from '../../../bits/dropdown/Dropdown.svelte';
 	import Input from '../../../bits/Input/Input.svelte';
 	import TextArea from '../../../bits/textarea/TextArea.svelte';
 	import { user } from '$lib/stores/userStore';
@@ -31,6 +30,93 @@
 	export let selectedIsUnavailable: boolean = false;
 	export let isEditing: boolean = false;
 	export let errors: Record<string, string> = {};
+	let endTimeLimit: string | null = null;
+	let endTimeLimitMessage: string | null = null;
+	let boundaryKey: string | null = null;
+	let boundaryAbortController: AbortController | null = null;
+	let isBoundaryLoading = false;
+
+function timeStringToMinutes(value?: string | null): number | null {
+	if (!value) return null;
+	const [hoursStr, minutesStr] = value.split(':');
+	const hours = Number(hoursStr);
+	const minutes = Number(minutesStr);
+	if (Number.isNaN(hours) || Number.isNaN(minutes)) return null;
+	return hours * 60 + minutes;
+}
+
+function minutesToTimeString(totalMinutes: number): string {
+	const normalized = ((totalMinutes % (24 * 60)) + 24 * 60) % (24 * 60);
+	const hours = Math.floor(normalized / 60)
+		.toString()
+		.padStart(2, '0');
+	const minutes = (normalized % 60).toString().padStart(2, '0');
+	return `${hours}:${minutes}`;
+}
+
+function getBaseDurationMinutes(): number | null {
+	const start = timeStringToMinutes(bookingObject.time);
+	const end = timeStringToMinutes(bookingObject.endTime);
+	if (start === null || end === null || end <= start) return null;
+	return end - start;
+}
+
+function clampWeekTimes(week: any) {
+	if (!week) return;
+	if (!week.selectedTime) {
+		week.selectedTime = week.time ?? bookingObject.time;
+	}
+
+	const duration = getBaseDurationMinutes();
+	let startMinutes = timeStringToMinutes(week.selectedTime);
+	if (startMinutes === null) {
+		week.selectedTime = bookingObject.time;
+		startMinutes = timeStringToMinutes(week.selectedTime);
+	}
+
+	let endCandidate = week.selectedEndTime ?? bookingObject.endTime;
+	let endMinutes = timeStringToMinutes(endCandidate);
+
+	if (startMinutes !== null && (endMinutes === null || endMinutes <= startMinutes)) {
+		if (duration !== null) {
+			endMinutes = startMinutes + duration;
+			endCandidate = minutesToTimeString(endMinutes);
+		} else if (bookingObject.endTime && bookingObject.endTime > week.selectedTime) {
+			endCandidate = bookingObject.endTime;
+			endMinutes = timeStringToMinutes(endCandidate);
+		} else if (startMinutes !== null) {
+			endMinutes = startMinutes + 30;
+			endCandidate = minutesToTimeString(endMinutes);
+		}
+	}
+
+	const boundaryMinutes = timeStringToMinutes(week.nextBoundary);
+	if (boundaryMinutes !== null && endMinutes !== null && endMinutes > boundaryMinutes) {
+		endMinutes = boundaryMinutes;
+		endCandidate = minutesToTimeString(endMinutes);
+	}
+
+	if (startMinutes !== null && endMinutes !== null && endMinutes <= startMinutes) {
+		if (boundaryMinutes !== null && boundaryMinutes > startMinutes) {
+			endMinutes = boundaryMinutes;
+			endCandidate = minutesToTimeString(endMinutes);
+		} else if (duration !== null) {
+			endMinutes = startMinutes + duration;
+			endCandidate = minutesToTimeString(endMinutes);
+		}
+	}
+
+	if (endCandidate && week.selectedEndTime !== endCandidate) {
+		week.selectedEndTime = endCandidate;
+	}
+
+	week.boundaryConflict =
+		boundaryMinutes !== null && startMinutes !== null && boundaryMinutes <= startMinutes;
+}
+
+function handleWeekTimeChange(week: any) {
+	clampWeekTimes(week);
+}
 
 	if (!bookingObject.repeatWeeks) {
 		bookingObject.repeatWeeks = 4;
@@ -103,11 +189,33 @@
 		const data = await res.json();
 
 		if (data.success && data.repeatedBookings) {
-			repeatedBookings = data.repeatedBookings.map((week) => ({
-				...week,
-				selectedTime:
-					week.conflict && week.suggestedTimes.length > 0 ? week.suggestedTimes[0] : week.time
-			}));
+			repeatedBookings = data.repeatedBookings.map((week) => {
+				const mapped = {
+					...week,
+					selectedTime: week.time ?? bookingObject.time,
+					selectedEndTime: bookingObject.endTime
+				};
+
+				clampWeekTimes(mapped);
+
+				if (mapped.boundaryConflict && week.suggestedTimes?.length) {
+					const alternative = week.suggestedTimes.find((candidate: string) => {
+						const candidateMinutes = timeStringToMinutes(candidate);
+						const boundaryMinutes = timeStringToMinutes(week.nextBoundary);
+						return (
+							candidateMinutes !== null &&
+							(boundaryMinutes === null || candidateMinutes < boundaryMinutes)
+						);
+					});
+
+					if (alternative) {
+						mapped.selectedTime = alternative;
+						clampWeekTimes(mapped);
+					}
+				}
+
+				return mapped;
+			});
 		} else {
 			repeatedBookings = [];
 		}
@@ -171,6 +279,115 @@
 			};
 		});
 	}
+
+	function collectRelevantUserIds(): number[] {
+		const uniqueIds = new Set<number>();
+		const addIfValid = (value: unknown) => {
+			const parsed = Number(value);
+			if (Number.isFinite(parsed)) uniqueIds.add(parsed);
+		};
+
+		if (isMeeting) {
+			(bookingObject.attendees ?? []).forEach(addIfValid);
+		} else {
+			(bookingObject.user_ids ?? []).forEach(addIfValid);
+			addIfValid(bookingObject.user_id);
+		}
+
+		return Array.from(uniqueIds).sort((a, b) => a - b);
+	}
+
+	async function updateEndTimeLimit(userIds: number[], keySnapshot: string) {
+		if (!bookingObject.date || !bookingObject.time) return;
+
+		boundaryAbortController?.abort();
+		const controller = new AbortController();
+		boundaryAbortController = controller;
+
+		isBoundaryLoading = true;
+		try {
+			const res = await fetch('/api/bookings/next-boundary', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					date: bookingObject.date,
+					time: bookingObject.time,
+					user_ids: userIds
+				}),
+				signal: controller.signal
+			});
+
+			if (!res.ok) {
+				throw new Error('Failed to fetch next boundary');
+			}
+
+			const data = await res.json();
+			if (controller.signal.aborted || boundaryKey !== keySnapshot) {
+				return;
+			}
+
+			endTimeLimit = data.nextBoundary ?? null;
+
+			if (endTimeLimit && bookingObject.endTime && bookingObject.endTime > endTimeLimit) {
+				bookingObject.endTime = endTimeLimit;
+			}
+
+			if (endTimeLimit && endTimeLimit > bookingObject.time) {
+				endTimeLimitMessage = `Nästa bokning startar ${endTimeLimit}. Sluttiden kan inte gå förbi detta.`;
+			} else if (endTimeLimit && endTimeLimit <= bookingObject.time) {
+				endTimeLimitMessage = `Vald starttid kolliderar med en annan bokning ${endTimeLimit}. Välj en annan starttid.`;
+			} else {
+				endTimeLimitMessage = null;
+			}
+		} catch (error) {
+			if (controller.signal.aborted) return;
+			console.error('❌ Failed to fetch meeting boundary', error);
+			endTimeLimit = null;
+			endTimeLimitMessage = null;
+		} finally {
+			if (!controller.signal.aborted && boundaryKey === keySnapshot) {
+				isBoundaryLoading = false;
+			}
+		}
+	}
+
+onDestroy(() => {
+	boundaryAbortController?.abort();
+});
+
+$: {
+	const userIds = collectRelevantUserIds();
+	const hasInputs = bookingObject.date && bookingObject.time && userIds.length > 0;
+	const nextKey = hasInputs
+		? JSON.stringify([bookingObject.date, bookingObject.time, userIds])
+		: null;
+
+	if (nextKey === boundaryKey) {
+		// no-op
+	} else {
+		boundaryKey = nextKey;
+		if (!nextKey) {
+			endTimeLimit = null;
+			endTimeLimitMessage = null;
+			boundaryAbortController?.abort();
+			boundaryAbortController = null;
+		} else {
+			updateEndTimeLimit(userIds, nextKey);
+		}
+	}
+}
+
+$: {
+	if (endTimeLimit && bookingObject.endTime && bookingObject.endTime > endTimeLimit) {
+		bookingObject.endTime = endTimeLimit;
+	}
+}
+
+afterUpdate(() => {
+	if (!bookingObject.repeat || repeatedBookings.length === 0) return;
+	repeatedBookings.forEach((week) => clampWeekTimes(week));
+});
+
 </script>
 
 <!-- Booking Meeting UI -->
@@ -258,135 +475,171 @@
 				type="time"
 				id="endTime"
 				bind:value={bookingObject.endTime}
+				max={endTimeLimit ?? undefined}
 				class={`w-full rounded-lg border p-2 text-gray ${errors.endTime ? 'border-red-500' : ''}`}
 			/>
 			{#if errors.endTime}
 				<p class="mt-1 text-sm text-red-500">{errors.endTime}</p>
+			{:else if endTimeLimitMessage}
+				<p class="mt-1 text-xs text-gray">
+					{#if isBoundaryLoading}
+						Kollar krockar...
+					{:else}
+						{endTimeLimitMessage}
+					{/if}
+				</p>
 			{/if}
 		</div>
 	</div>
 
-	<!-- Repeat Meeting (only if meeting) -->
-	{#if isMeeting}
-		<div class="flex flex-col gap-2">
-			<label class="flex items-center gap-2 text-sm font-medium text-gray">
-				<input type="checkbox" bind:checked={bookingObject.repeat} class="h-4 w-4" />
+	<!-- Repeat Booking -->
+	<div class="flex flex-col gap-2">
+		<label class="flex items-center gap-2 text-sm font-medium text-gray">
+			<input type="checkbox" bind:checked={bookingObject.repeat} class="h-4 w-4" />
+			{#if isMeeting}
 				Upprepa detta möte
-			</label>
+			{:else}
+				Upprepa denna bokning
+			{/if}
+		</label>
 
-			{#if bookingObject.repeat}
-				<Input
-					label="Antal veckor framåt"
-					name="repeatWeeks"
-					type="number"
-					bind:value={bookingObject.repeatWeeks}
-					placeholder="Ex: 4"
-					min="1"
-					max="52"
-					{errors}
-				/>
+		{#if bookingObject.repeat}
+			<Input
+				label="Antal veckor framåt"
+				name="repeatWeeks"
+				type="number"
+				bind:value={bookingObject.repeatWeeks}
+				placeholder="Ex: 4"
+				min="1"
+				max="52"
+				{errors}
+			/>
 
-				<Button
-					text="Kontrollera"
-					iconRight="MultiCheck"
-					iconRightSize="16"
-					variant="primary"
-					full
-					on:click={checkRepeatAvailability}
-					disabled={!bookingObject.repeatWeeks}
-				/>
+			<Button
+				text="Kontrollera"
+				iconRight="MultiCheck"
+				iconRightSize="16"
+				variant="primary"
+				full
+				on:click={checkRepeatAvailability}
+				disabled={!bookingObject.repeatWeeks}
+			/>
 
-				{#if repeatedBookings.length > 0}
-					<div class="flex flex-col gap-2 rounded-sm border border-gray-300 bg-gray-50 p-4">
-						{#if repeatedBookings.filter((b) => b.conflict).length > 0}
-							<h3 class="flex items-center justify-between text-lg font-semibold">
-								Konflikter
-								<span class="text-sm text-gray-600">
-									{repeatedBookings.filter((b) => b.conflict).length} konflikter /
-									{repeatedBookings.length} veckor
+			{#if repeatedBookings.length > 0}
+				<div class="flex flex-col gap-2 rounded-sm border border-gray-300 bg-gray-50 p-4">
+					{#if repeatedBookings.filter((b) => b.conflict).length > 0}
+						<h3 class="flex items-center justify-between text-lg font-semibold">
+							Konflikter
+							<span class="text-sm text-gray-600">
+								{repeatedBookings.filter((b) => b.conflict).length} konflikter /
+								{repeatedBookings.length} veckor
+							</span>
+						</h3>
+					{/if}
+
+					<!-- Conflicts -->
+					{#each repeatedBookings.filter((b) => b.conflict) as week}
+						<div class="mb-2 rounded-sm border border-red bg-red/10 p-3">
+							<div class="flex flex-col gap-1">
+								<span class="font-semibold">
+									{week.date}, kl {week.selectedTime}
 								</span>
-							</h3>
-						{/if}
 
-						<!-- Conflicts -->
-						{#each repeatedBookings.filter((b) => b.conflict) as week}
-							<div class="mb-2 rounded-sm border border-red bg-red/10 p-3">
-								<div class="flex flex-col gap-1">
-									<span class="font-semibold">
-										{week.date}, kl {week.selectedTime}
-									</span>
+								{#if week.conflictingUserIds?.length > 0}
+									<div class="mt-1 text-sm text-red-700">
+										Konflikt med:
+										<ul class="ml-4 list-disc">
+											{#each week.conflictingUserIds as userId}
+												<li class="flex items-center gap-2">
+													{getUserName(userId)}
+													<Button
+														icon="Check"
+														small
+														variant="secondary"
+														iconColor="success"
+														iconSize="16"
+														on:click={() => ignoreUserConflict(week.week, userId)}
+													/>
+													<Button
+														icon="Close"
+														small
+														variant="cancel"
+														iconColor="red"
+														iconSize="16"
+														on:click={() => removeUserFromWeekConflict(week.week, userId)}
+													/>
+												</li>
+											{/each}
+										</ul>
+									</div>
+								{/if}
 
-									{#if week.conflictingUserIds?.length > 0}
-										<div class="mt-1 text-sm text-red-700">
-											Konflikt med:
-											<ul class="ml-4 list-disc">
-												{#each week.conflictingUserIds as userId}
-													<li class="flex items-center gap-2">
-														{getUserName(userId)}
-														<Button
-															icon="Check"
-															small
-															variant="secondary"
-															iconColor="success"
-															iconSize="16"
-															on:click={() => ignoreUserConflict(week.week, userId)}
-														/>
-														<Button
-															icon="Close"
-															small
-															variant="cancel"
-															iconColor="red"
-															iconSize="16"
-															on:click={() => removeUserFromWeekConflict(week.week, userId)}
-														/>
-													</li>
-												{/each}
-											</ul>
-										</div>
-									{/if}
-
-									{#if week.suggestedTimes?.length > 0}
-										<div class="mt-2">
-											<Dropdown
-												label="Välj alternativ tid"
-												placeholder="Tillgängliga tider"
-												id={`week-${week.week}-time`}
-												options={week.suggestedTimes.map((t) => ({ label: t, value: t }))}
-												bind:selectedValue={week.selectedTime}
-											/>
-										</div>
-									{/if}
-
-									<div class="mt-2 flex gap-2">
-										<Button
-											text="Lös"
-											variant="primary"
-											small
-											on:click={() => resolveConflict(week.week)}
-										/>
-										<Button
-											text="Ta bort vecka"
-											variant="secondary"
-											small
-											on:click={() => ignoreConflict(week.week)}
+								<div class="mt-2 grid grid-cols-2 gap-2">
+									<div>
+										<label class="text-xs font-semibold text-gray">Starttid</label>
+										<input
+											type="time"
+											class="w-full rounded border p-2 text-gray"
+											bind:value={week.selectedTime}
+											on:change={() => handleWeekTimeChange(week)}
 										/>
 									</div>
+									<div>
+										<label class="text-xs font-semibold text-gray">Sluttid</label>
+										<input
+											type="time"
+											class="w-full rounded border p-2 text-gray"
+											min={week.selectedTime}
+											max={week.nextBoundary ?? undefined}
+											bind:value={week.selectedEndTime}
+											on:change={() => handleWeekTimeChange(week)}
+										/>
+										{#if week.nextBoundary}
+											<p class="mt-1 text-[11px] text-gray">Senast {week.nextBoundary}</p>
+										{/if}
+									</div>
+								</div>
+
+								{#if week.boundaryConflict}
+									<p class="text-xs text-red-600">
+										Starttid ligger efter nästa bokning {week.nextBoundary}. Välj en tidigare tid.
+									</p>
+								{/if}
+
+								<div class="mt-2 flex gap-2">
+									<Button
+										text="Lös"
+										variant="primary"
+										small
+										on:click={() => resolveConflict(week.week)}
+									/>
+									<Button
+										text="Ta bort vecka"
+										variant="secondary"
+										small
+										on:click={() => ignoreConflict(week.week)}
+									/>
 								</div>
 							</div>
-						{/each}
+						</div>
+					{/each}
 
-						<!-- Ready bookings -->
-						<h3 class="text-lg font-semibold">Bokningar klara att bokas:</h3>
-						{#each repeatedBookings.filter((b) => !b.conflict) as week}
-							<div class="mb-1 rounded-sm border border-green bg-green-bright/10 p-2">
-								{week.date}, kl {week.selectedTime}
-							</div>
-						{/each}
-					</div>
-				{/if}
+					<!-- Ready bookings -->
+					<h3 class="text-lg font-semibold">Bokningar klara att bokas:</h3>
+					{#each repeatedBookings.filter((b) => !b.conflict) as week}
+						<div class="mb-1 rounded-sm border border-green bg-green-bright/10 p-2">
+							{week.date}, kl {week.selectedTime}
+							{#if week.selectedEndTime}
+								&ndash; {week.selectedEndTime}
+							{/if}
+						</div>
+					{/each}
+				</div>
 			{/if}
-		</div>
+		{/if}
+	</div>
 
+	{#if isMeeting}
 		<OptionButton
 			label="Bekräftelsemail"
 			labelIcon="Mail"

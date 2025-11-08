@@ -10,8 +10,8 @@
 	import Dashboard from '../components/view/dashboard/Dashboard.svelte';
 	import ToastContainer from '../components/ui/toast-container/ToastContainer.svelte';
 
-	import { onMount } from 'svelte';
-	import { browser } from '$app/environment';
+import { onMount } from 'svelte';
+import { browser, dev } from '$app/environment';
 	import { goto } from '$app/navigation';
 import Button from '../components/bits/button/Button.svelte';
 import PopupWrapper from '../components/ui/popupWrapper/PopupWrapper.svelte';
@@ -37,10 +37,18 @@ $: navigating.to && loadingStore.loading(!!navigating.to);
 
 	// Detect mobile and route changes
 	onMount(() => {
-		if (browser) {
-			isMobile = window.innerWidth < 768;
-			showDrawer = isMobile && currentRoute !== '/';
+		if (!browser) {
+			return;
 		}
+
+		if ('serviceWorker' in navigator && !dev) {
+			navigator.serviceWorker
+				.register('/service-worker.js')
+				.catch((error) => console.error('Service worker registration failed', error));
+		}
+
+		isMobile = window.innerWidth < 768;
+		showDrawer = isMobile && currentRoute !== '/';
 	});
 
 	page.subscribe(($page) => {
