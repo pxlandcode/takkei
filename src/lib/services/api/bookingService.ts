@@ -139,18 +139,23 @@ export async function fetchAvailableSlots({
 	trainerId,
 	locationId,
 	checkUsersBusy,
-	userId
+	userId,
+	ignoreBookingId
 }: {
 	date: string;
 	trainerId: number;
 	locationId: number;
 	checkUsersBusy?: boolean;
 	userId?: number | null;
+	ignoreBookingId?: number | null;
 }) {
 	const body: any = { date, trainerId, locationId };
 	if (checkUsersBusy) {
 		body.checkUsersBusy = true;
 		body.userId = userId ?? null;
+	}
+	if (typeof ignoreBookingId === 'number' && Number.isFinite(ignoreBookingId)) {
+		body.ignoreBookingId = ignoreBookingId;
 	}
 	const res = await fetch('/api/available-slots', {
 		method: 'POST',

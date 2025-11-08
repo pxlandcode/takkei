@@ -60,6 +60,7 @@
 			component: BookingDetailsPopup,
 			props: { booking },
 			maxWidth: '650px',
+			height: '850px',
 			listeners: {
 				updated: () => {
 					calendarStore.refresh(fetch);

@@ -16,6 +16,8 @@
 
 	export let checkUsersBusy: boolean = false;
 	export let traineeUserId: number | null = null;
+	export let includeOutsideAvailability: boolean = true;
+	export let bookingIdToIgnore: number | null = null;
 
 	const dispatch = createEventDispatcher();
 
@@ -39,20 +41,23 @@
 			outsideAvailabilitySlots = [];
 			sortedOptions = [];
 			try {
-				const res = await fetchAvailableSlots({
-					date: selectedDate,
-					trainerId,
-					locationId,
-					checkUsersBusy,
-					userId: traineeUserId ?? undefined
-				});
+					const res = await fetchAvailableSlots({
+						date: selectedDate,
+						trainerId,
+						locationId,
+						checkUsersBusy,
+						userId: traineeUserId ?? undefined,
+						ignoreBookingId: bookingIdToIgnore ?? undefined
+					});
 
 				availableSlots = res.availableSlots ?? [];
 				outsideAvailabilitySlots = res.outsideAvailabilitySlots ?? [];
 
 				const merged = [
 					...availableSlots.map((t) => ({ label: t, value: t, unavailable: false })),
-					...outsideAvailabilitySlots.map((t) => ({ label: t, value: t, unavailable: true }))
+					...(includeOutsideAvailability
+						? outsideAvailabilitySlots.map((t) => ({ label: t, value: t, unavailable: true }))
+						: [])
 				];
 
 				sortedOptions = merged.sort((a, b) => timeToMinutes(a.value) - timeToMinutes(b.value));
@@ -70,7 +75,7 @@
 		}
 	}
 
-	$: selectedDate, trainerId, locationId, checkUsersBusy, traineeUserId, updateSlots();
+	$: selectedDate, trainerId, locationId, checkUsersBusy, traineeUserId, bookingIdToIgnore, updateSlots();
 
 	function missingFields(): string[] {
 		const missing: string[] = [];
@@ -108,6 +113,7 @@
 			on:change={() => {
 				const selected = sortedOptions.find((opt) => opt.value === selectedTime);
 				dispatch('unavailabilityChange', selected?.unavailable ?? false);
+				dispatch('timeSelect', selectedTime);
 			}}
 		/>
 	</div>

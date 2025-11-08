@@ -175,6 +175,7 @@ $: canViewAvailability = Boolean(
 		locationId={bookingObject.locationId}
 		checkUsersBusy={!!bookingObject.user_id}
 		traineeUserId={bookingObject.user_id}
+		bookingIdToIgnore={isEditing && bookingObject?.id ? Number(bookingObject.id) : null}
 		on:unavailabilityChange={(e) => (selectedIsUnavailable = e.detail)}
 		{errors}
 		dateField="date"

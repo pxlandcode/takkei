@@ -24,9 +24,20 @@ function overlaps(startA: number, endA: number, startB: number, endB: number): b
 
 export const POST: RequestHandler = async ({ request }) => {
 	const body = await request.json();
-	const { date, trainerId, locationId, checkUsersBusy = false, userId = null } = body;
+	const {
+		date,
+		trainerId,
+		locationId,
+		checkUsersBusy = false,
+		userId = null,
+		ignoreBookingId = null
+	} = body;
 	const trainerIdNumber = Number(trainerId);
 	const locationIdNumber = Number(locationId);
+	const bookingIdToIgnore =
+		ignoreBookingId !== undefined && ignoreBookingId !== null && ignoreBookingId !== ''
+			? Number(ignoreBookingId)
+			: null;
 
 	if (!date || Number.isNaN(trainerIdNumber) || Number.isNaN(locationIdNumber)) {
 		return new Response(JSON.stringify({ error: 'Missing parameters' }), { status: 400 });
@@ -103,19 +114,21 @@ export const POST: RequestHandler = async ({ request }) => {
 
 	// 5. Bookings in those rooms (same)
 	const bookings = await query(
-		`SELECT room_id, start_time FROM bookings
+		`SELECT id, room_id, start_time FROM bookings
      WHERE start_time BETWEEN $1 AND $2
        AND LOWER(status) NOT IN ('cancelled', 'late_cancelled')
-       AND room_id = ANY($3::int[])`,
-		[dayStart, dayEnd, roomIds]
+       AND room_id = ANY($3::int[])
+       AND ($4::int IS NULL OR id <> $4)`,
+		[dayStart, dayEnd, roomIds, bookingIdToIgnore]
 	);
 
 	const trainerBookings = await query(
-		`SELECT start_time, location_id FROM bookings
+		`SELECT id, start_time, location_id FROM bookings
      WHERE start_time BETWEEN $1 AND $2
        AND LOWER(status) NOT IN ('cancelled', 'late_cancelled')
-       AND trainer_id = $3`,
-		[dayStart, dayEnd, trainerIdNumber]
+       AND trainer_id = $3
+       AND ($4::int IS NULL OR id <> $4)`,
+		[dayStart, dayEnd, trainerIdNumber, bookingIdToIgnore]
 	);
 
 	// 6. Trainer personal bookings (same)

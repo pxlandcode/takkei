@@ -329,6 +329,7 @@
 		bind:selectedTime={bookingObject.time}
 		trainerId={bookingObject.trainerId}
 		locationId={bookingObject.locationId}
+		bookingIdToIgnore={isEditing && bookingObject?.id ? Number(bookingObject.id) : null}
 		on:unavailabilityChange={(e) => (selectedIsUnavailable = e.detail)}
 		{errors}
 		dateField="date"
