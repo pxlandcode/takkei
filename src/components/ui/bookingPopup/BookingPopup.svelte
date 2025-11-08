@@ -368,11 +368,16 @@ $: educationTrainerOptions = userOptions.filter((option) => educatorIds.has(opti
 			}
 		} else {
 			// meeting | personal
-			const res = await handleMeetingOrPersonalBooking(bookingObject, currentUser, type);
+			const res = await handleMeetingOrPersonalBooking(
+				bookingObject,
+				currentUser,
+				type,
+				repeatedBookings
+			);
 			success = res.success;
 
 			if (success) {
-				bookedDates = [{ date: bookingObject.date, time: bookingObject.time }];
+				bookedDates = res.bookedDates ?? [{ date: bookingObject.date, time: bookingObject.time }];
 			}
 		}
 
@@ -475,15 +480,18 @@ $: educationTrainerOptions = userOptions.filter((option) => educatorIds.has(opti
 	{:else if selectedBookingComponent === 'meeting'}
 		<BookingMeeting
 			bind:bookingObject
+			bind:repeatedBookings
 			users={meetingUserOptions}
-			locations={($locations || []).map((location) => ({
-				label: location.name,
-				value: location.id
-			}))}
 			errors={formErrors}
 		/>
 	{:else if selectedBookingComponent === 'personal'}
-		<BookingMeeting bind:bookingObject isMeeting={false} errors={formErrors} />
+		<BookingMeeting
+			bind:bookingObject
+			bind:repeatedBookings
+			users={meetingUserOptions}
+			isMeeting={false}
+			errors={formErrors}
+		/>
 	{/if}
 
 	<!-- Shared Booking Button -->
