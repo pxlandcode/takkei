@@ -3,7 +3,8 @@
 	import Button from '../../bits/button/Button.svelte';
 	import { formatTime } from '$lib/helpers/calendarHelpers/calendar-utils';
 	import { createEventDispatcher, onMount } from 'svelte';
-	import BookingEditor from '../bookingEditor/BookingEditor.svelte';
+import BookingEditor from '../bookingEditor/BookingEditor.svelte';
+import MailComponent from '../mailComponent/MailComponent.svelte';
 	import { bookingContents } from '$lib/stores/bookingContentStore';
 	import { calendarStore } from '$lib/stores/calendarStore';
 	import { addToast } from '$lib/stores/toastStore';
@@ -15,11 +16,11 @@
 	import { AppToastType } from '$lib/types/toastTypes';
 	import Icon from '../../bits/icon-component/Icon.svelte';
 	import { sendMail } from '$lib/services/mail/mailClientService';
-	import { getClientEmails } from '$lib/stores/clientsStore';
+import { fetchClients, getClientEmails } from '$lib/stores/clientsStore';
 	import { get } from 'svelte/store';
 	import { user } from '$lib/stores/userStore';
 	import { users, fetchUsers } from '$lib/stores/usersStore';
-	import { popupStore, closePopup, type PopupState } from '$lib/stores/popupStore';
+import { openPopup, popupStore, closePopup, type PopupState } from '$lib/stores/popupStore';
 
 	export let booking: FullBooking;
 
@@ -48,10 +49,11 @@
 	let editedBooking: FullBooking | null = null;
 	let participantNames: string[] = [];
 	let isCancelled = false;
-	let cancelOptions: {
-		onConfirm: (reason: string, time: string) => void;
-		startTimeISO: string;
-	} | null = null;
+let cancelOptions: {
+	onConfirm: (reason: string, time: string, emailBehavior: 'send' | 'edit' | 'none') => void;
+	startTimeISO: string;
+	defaultEmailBehavior?: 'send' | 'edit' | 'none';
+} | null = null;
 	let confirmDeleteOptions: {
 		title?: string;
 		description?: string;
@@ -83,14 +85,15 @@
 	}
 
 	$: requiresCancelReason = !currentBooking.isPersonalBooking && !isMeetingBooking(currentBooking);
-	$: cancelOptions = requiresCancelReason
-		? {
-				onConfirm: (reason: string, time: string) => {
-					void performCancellation({ reason, time });
-				},
-				startTimeISO: currentBooking.booking.startTime
-			}
-		: null;
+$: cancelOptions = requiresCancelReason
+	? {
+			onConfirm: (reason: string, time: string, emailBehavior: 'send' | 'edit' | 'none') => {
+				void performCancellation({ reason, time, emailBehavior });
+			},
+			startTimeISO: currentBooking.booking.startTime,
+			defaultEmailBehavior: 'none'
+		}
+	: null;
 	$: confirmDeleteOptions = requiresCancelReason
 		? null
 		: {
@@ -163,11 +166,109 @@
 		showEditor = true;
 	}
 
-	async function performCancellation({ reason, time }: { reason?: string; time?: string }) {
-		const personalBooking = currentBooking.isPersonalBooking;
-		const meetingBooking = isMeetingBooking(currentBooking);
+async function performCancellation({
+	reason,
+	time,
+	emailBehavior = 'none'
+}: {
+	reason?: string;
+	time?: string;
+	emailBehavior?: 'send' | 'edit' | 'none';
+}) {
+	const personalBooking = currentBooking.isPersonalBooking;
+	const meetingBooking = isMeetingBooking(currentBooking);
 
-		let res: { success: boolean; message?: string };
+	let res: { success: boolean; message?: string };
+
+	const handleCancellationEmail = async (behavior: 'send' | 'edit' | 'none') => {
+		if (behavior === 'none') return;
+		const clientId = currentBooking.client?.id;
+		if (!clientId) return;
+
+		const resolveRecipients = async () => {
+			let emails = getClientEmails(clientId);
+
+			if (!emails.length) {
+				const inlineEmail = currentBooking.client?.email;
+				if (inlineEmail) emails = [inlineEmail];
+			}
+
+			if (!emails.length) {
+				try {
+					await fetchClients();
+					emails = getClientEmails(clientId);
+				} catch (error) {
+					console.error('Failed to fetch clients for cancellation email', error);
+				}
+			}
+
+			return emails;
+		};
+
+		const recipients = await resolveRecipients();
+		if (!recipients.length) {
+			addToast({
+				type: AppToastType.CANCEL,
+				message: 'Ingen e-postadress',
+				description: 'Kunden saknar e-postadress, så inget mail skickades.'
+			});
+			return;
+		}
+
+		const currentUser = get(user);
+		const bookingDate = startTime.toLocaleDateString('sv-SE');
+		const bookingTime = formatTime(startTime.toISOString());
+		const emailBody = `Hej! Din bokning den ${bookingDate} kl ${bookingTime} har avbokats.<br><br>Tveka inte att kontakta oss om du har några frågor.`;
+
+		const mailConfig = {
+			to: recipients,
+			subject: 'Avbokningsbekräftelse',
+			header: 'Din bokning har avbokats',
+			subheader: 'Vi har noterat din avbokning',
+			body: emailBody,
+			from: {
+				name: `${currentUser.firstname} ${currentUser.lastname}`,
+				email: currentUser.email
+			}
+		};
+
+		if (behavior === 'send') {
+			try {
+				await sendMail(mailConfig);
+				addToast({
+					type: AppToastType.SUCCESS,
+					message: 'Bekräftelsemail skickat',
+					description: `Ett bekräftelsemail skickades till ${recipients.join(', ')}.`
+				});
+			} catch (error) {
+				console.error('Failed to send cancellation email', error);
+				addToast({
+					type: AppToastType.CANCEL,
+					message: 'Mail kunde inte skickas',
+					description: 'Avbokningsbekräftelsen kunde inte skickas automatiskt.'
+				});
+			}
+			return;
+		}
+
+		if (behavior === 'edit') {
+			openPopup({
+				header: `Maila avbokningsbekräftelse till ${recipients.join(', ')}`,
+				icon: 'Mail',
+				component: MailComponent,
+				width: '900px',
+				props: {
+					prefilledRecipients: recipients,
+					subject: mailConfig.subject,
+					header: mailConfig.header,
+					subheader: mailConfig.subheader,
+					body: emailBody,
+					lockedFields: ['recipients'],
+					autoFetchUsersAndClients: false
+				}
+			});
+		}
+	};
 
 		if (personalBooking) {
 			res = await deletePersonalBooking(currentBooking.booking.id);
@@ -186,29 +287,13 @@
 			res = await cancelBooking(currentBooking.booking.id, reason, time ?? fallbackTime);
 		}
 
-		if (res.success) {
-			const clientEmail = !personalBooking ? getClientEmails(currentBooking.client?.id) : null;
-			const currentUser = get(user);
+	if (res.success) {
+		if (!personalBooking && !meetingBooking) {
+			await handleCancellationEmail(emailBehavior);
+		}
 
-			if (clientEmail) {
-				await sendMail({
-					to: clientEmail,
-					subject: 'Avbokningsbekräftelse',
-					header: 'Din bokning har avbokats',
-					subheader: 'Vi har noterat din avbokning',
-					body: `
-				Hej! Din bokning den ${startTime.toLocaleDateString('sv-SE')} har avbokats.<br><br>
-				Tveka inte att kontakta oss om du har några frågor.
-			`,
-					from: {
-						name: `${currentUser.firstname} ${currentUser.lastname}`,
-						email: currentUser.email
-					}
-				});
-			}
-
-			addToast({
-				type: AppToastType.SUCCESS,
+		addToast({
+			type: AppToastType.SUCCESS,
 				message: personalBooking || meetingBooking ? 'Bokning borttagen' : 'Bokning avbruten',
 				description: res.message ?? 'Bokningen har uppdaterats.'
 			});

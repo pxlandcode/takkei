@@ -5,21 +5,23 @@
 	import { clients, fetchClients, getClientEmails } from '$lib/stores/clientsStore';
 	import { bookingContents, fetchBookingContents } from '$lib/stores/bookingContentStore';
 	import { capitalizeFirstLetter } from '$lib/helpers/generic/genericHelpers';
-	import Button from '../../bits/button/Button.svelte';
-	import BookingTraining from './bookingTraining/BookingTraining.svelte';
-	import BookingPractice from './bookingPractice/BookingPractice.svelte';
-	import BookingMeeting from './bookingMeeting/BookingMeeting.svelte';
-	import OptionsSelect from '../../bits/options-select/OptionsSelect.svelte';
-	import { user } from '$lib/stores/userStore';
-	import { calendarStore } from '$lib/stores/calendarStore';
-	import { get } from 'svelte/store';
-	import {
-		handleMeetingOrPersonalBooking,
-		handleTrainingBooking
-	} from '$lib/helpers/bookingHelpers/bookingHelpers';
-	import { openPopup, popupStore, closePopup, type PopupState } from '$lib/stores/popupStore';
-	import { handleBookingEmail } from '$lib/helpers/bookingHelpers/bookingHelpers';
-	import MailComponent from '../mailComponent/MailComponent.svelte';
+import Button from '../../bits/button/Button.svelte';
+import BookingTraining from './bookingTraining/BookingTraining.svelte';
+import BookingPractice from './bookingPractice/BookingPractice.svelte';
+import BookingMeeting from './bookingMeeting/BookingMeeting.svelte';
+import OptionsSelect from '../../bits/options-select/OptionsSelect.svelte';
+import { user } from '$lib/stores/userStore';
+import { calendarStore } from '$lib/stores/calendarStore';
+import { get } from 'svelte/store';
+import {
+	handleMeetingOrPersonalBooking,
+	handleTrainingBooking
+} from '$lib/helpers/bookingHelpers/bookingHelpers';
+import { openPopup, popupStore, closePopup, type PopupState } from '$lib/stores/popupStore';
+import { handleBookingEmail } from '$lib/helpers/bookingHelpers/bookingHelpers';
+import MailComponent from '../mailComponent/MailComponent.svelte';
+import { hasRole } from '$lib/helpers/userHelpers/roleHelper';
+import type { User } from '$lib/types/userTypes';
 
 	export let startTime: Date | null = null;
 	export let clientId: number | null = null;
@@ -36,20 +38,45 @@
 		}
 	}
 
-	let selectedBookingComponent:
+	type BookingComponent =
 		| 'training'
 		| 'meeting'
 		| 'personal'
 		| 'trial'
 		| 'practice'
 		| 'flight'
-		| 'education' = 'training';
+		| 'education';
+
+	type UserOption = { label: string; value: number };
+	type MeetingUserOption = { name: string; value: number };
+
+	const BOOKING_TYPE_OPTIONS: { label: string; icon: string; value: BookingComponent }[] = [
+		{ label: 'Träning', icon: 'Training', value: 'training' },
+		{ label: 'Provträning', icon: 'ShiningStar', value: 'trial' },
+		{ label: 'Praktiktimme', icon: 'Wrench', value: 'practice' },
+		{ label: 'Utbildning', icon: 'GraduationCap', value: 'education' },
+		{ label: 'Flygtimme', icon: 'Plane', value: 'flight' },
+		{ label: 'Möte', icon: 'Meeting', value: 'meeting' },
+		{ label: 'Personlig', icon: 'Person', value: 'personal' }
+	];
+
+	let selectedBookingComponent: BookingComponent = 'training';
 
 	let repeatedBookings = [];
 	let selectedIsUnavailable = false;
 	let currentUser = get(user);
 	let formErrors: Record<string, string> = {};
 	let previousComponent: typeof selectedBookingComponent | null = null;
+
+let allUsers: User[] = [];
+let userOptions: UserOption[] = [];
+let educationTrainerOptions: UserOption[] = [];
+let meetingUserOptions: MeetingUserOption[] = [];
+let visibleBookingTypeOptions = BOOKING_TYPE_OPTIONS;
+let canAccessEducation = false;
+let isAdminUser = false;
+let isEducatorUser = false;
+let educatorIds = new Set<number>();
 
 	let bookingObject = {
 		user_id: null,
@@ -148,6 +175,27 @@
 		}
 
 		return errors;
+	}
+
+	$: currentUser = $user;
+	$: isAdminUser = hasRole('Administrator', currentUser);
+	$: isEducatorUser = hasRole('Educator', currentUser);
+	$: canAccessEducation = isAdminUser || isEducatorUser;
+
+	$: allUsers = ($users as User[] | undefined) ?? [];
+	$: userOptions = allUsers.map((u) => ({ label: `${u.firstname} ${u.lastname}`, value: u.id }));
+	$: meetingUserOptions = allUsers.map((u) => ({ name: `${u.firstname} ${u.lastname}`, value: u.id }));
+	$: educatorIds = new Set(
+		allUsers.filter((candidate) => hasRole('Educator', candidate)).map((candidate) => candidate.id)
+	);
+$: educationTrainerOptions = userOptions.filter((option) => educatorIds.has(option.value));
+
+	$: visibleBookingTypeOptions = BOOKING_TYPE_OPTIONS.filter(
+		(option) => option.value !== 'education' || canAccessEducation
+	);
+
+	$: if (!canAccessEducation && selectedBookingComponent === 'education') {
+		selectedBookingComponent = 'training';
 	}
 
 	// Reactive booking type fallback
@@ -388,15 +436,7 @@
 
 	<OptionsSelect
 		bind:selectedValue={selectedBookingComponent}
-		options={[
-			{ label: 'Träning', icon: 'Training', value: 'training' },
-			{ label: 'Provträning', icon: 'ShiningStar', value: 'trial' },
-			{ label: 'Praktiktimme', icon: 'Wrench', value: 'practice' },
-			{ label: 'Utbildning', icon: 'GraduationCap', value: 'education' },
-			{ label: 'Flygtimme', icon: 'Plane', value: 'flight' },
-			{ label: 'Möte', icon: 'Meeting', value: 'meeting' },
-			{ label: 'Personlig', icon: 'Person', value: 'personal' }
-		]}
+		options={visibleBookingTypeOptions}
 	/>
 
 	<!-- Dynamic Booking Component -->
@@ -416,7 +456,7 @@
 	{:else if selectedBookingComponent === 'practice'}
 		<BookingPractice
 			bind:bookingObject
-			users={($users || []).map((u) => ({ label: `${u.firstname} ${u.lastname}`, value: u.id }))}
+			users={userOptions}
 			locations={($locations || []).map((l) => ({ label: l.name, value: l.id }))}
 			kind="practice"
 			bind:repeatedBookings
@@ -425,7 +465,8 @@
 	{:else if selectedBookingComponent === 'education'}
 		<BookingPractice
 			bind:bookingObject
-			users={($users || []).map((u) => ({ label: `${u.firstname} ${u.lastname}`, value: u.id }))}
+			users={userOptions}
+			trainerOptions={educationTrainerOptions}
 			locations={($locations || []).map((l) => ({ label: l.name, value: l.id }))}
 			kind="education"
 			bind:repeatedBookings
@@ -434,10 +475,7 @@
 	{:else if selectedBookingComponent === 'meeting'}
 		<BookingMeeting
 			bind:bookingObject
-			users={($users || []).map((user) => ({
-				name: `${user.firstname} ${user.lastname}`,
-				value: user.id
-			}))}
+			users={meetingUserOptions}
 			locations={($locations || []).map((location) => ({
 				label: location.name,
 				value: location.id

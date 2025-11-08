@@ -12,19 +12,19 @@
 			label: 'Klienter',
 			icon: 'Person',
 			component: ClientReport,
-			requiredRoles: ['Administrator', 'Economy Admin', 'Trainer']
+			requiredRoles: ['Administrator', 'Economy', 'Trainer']
 		},
 		{
 			label: 'Tillgodo',
 			icon: 'Charts',
 			component: CustomersCreditReport,
-			requiredRoles: ['Administrator', 'Economy Admin']
+			requiredRoles: ['Administrator', 'Economy']
 		},
 		{
 			label: 'Mål',
 			icon: 'Trophy',
 			component: TargetsReport,
-			requiredRoles: ['Administrator', 'Economy Admin', 'Trainer']
+			requiredRoles: ['Administrator', 'Economy', 'Trainer', 'LocationAdmin']
 		}
 	];
 

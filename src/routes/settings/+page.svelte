@@ -37,7 +37,7 @@
 			label: 'Notifikationer',
 			icon: 'Notification',
 			component: NotificationAdministration,
-			requiredRoles: ['Administrator']
+			requiredRoles: ['Administrator', 'LocationAdmin']
 		},
 		{
 			label: 'Mål',

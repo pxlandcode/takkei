@@ -28,6 +28,8 @@ import { openPopup } from '$lib/stores/popupStore';
 	import { capitalizeFirstLetter } from '$lib/helpers/generic/genericHelpers';
 import { addToast } from '$lib/stores/toastStore';
 import { AppToastType } from '$lib/types/toastTypes';
+import { hasRole } from '$lib/helpers/userHelpers/roleHelper';
+import type { User } from '$lib/types/userTypes';
 
 declare function structuredClone<T>(value: T): T;
 
@@ -56,9 +58,14 @@ type BookingComponentType =
 let typeOptions: BookingTypeOption[] = [];
 let currentUser = get(user);
 
-	let userOptions: { label: string; value: number }[] = [];
-	let meetingUserOptions: { name: string; value: number }[] = [];
-	let locationOptions: { label: string; value: number }[] = [];
+let allUsers: User[] = [];
+let educatorIds = new Set<number>();
+let userOptions: { label: string; value: number }[] = [];
+let meetingUserOptions: { name: string; value: number }[] = [];
+let educationTrainerOptions: { label: string; value: number }[] = [];
+let locationOptions: { label: string; value: number }[] = [];
+let isAdminUser = false;
+let isEducatorUser = false;
 
 	const componentLabels: Record<BookingComponentType, string> = {
 		training: 'Träning',
@@ -94,10 +101,18 @@ let currentUser = get(user);
 			label: capitalizeFirstLetter(content.kind)
 		}));
 
-	$: userOptions = ($users || []).map((u) => ({ label: `${u.firstname} ${u.lastname}`, value: u.id }));
-	$: meetingUserOptions = ($users || []).map((u) => ({ name: `${u.firstname} ${u.lastname}`, value: u.id }));
+	$: currentUser = $user;
+	$: isAdminUser = hasRole('Administrator', currentUser);
+	$: isEducatorUser = hasRole('Educator', currentUser);
+
+	$: allUsers = ($users as User[] | undefined) ?? [];
+	$: userOptions = allUsers.map((u) => ({ label: `${u.firstname} ${u.lastname}`, value: u.id }));
+	$: meetingUserOptions = allUsers.map((u) => ({ name: `${u.firstname} ${u.lastname}`, value: u.id }));
+	$: educatorIds = new Set(
+		allUsers.filter((candidate) => hasRole('Educator', candidate)).map((candidate) => candidate.id)
+	);
+$: educationTrainerOptions = userOptions.filter((option) => educatorIds.has(option.value));
 $: locationOptions = ($locations || []).map((loc) => ({ label: loc.name, value: loc.id }));
-$: currentUser = $user;
 
 	$: initializeIfReady();
 
@@ -568,17 +583,20 @@ function buildUpdatedFullBooking(
 				isEditing
 				on:unavailabilityChange={handleUnavailabilityChange}
 			/>
-		{:else if selectedBookingComponent === 'practice' || selectedBookingComponent === 'education'}
-			<BookingPractice
-				bind:bookingObject={editableBooking}
-				bind:repeatedBookings
-				bind:selectedIsUnavailable
-				kind={selectedBookingComponent === 'education' ? 'education' : 'practice'}
-				locations={locationOptions}
-				users={userOptions}
-				isEditing
-				on:unavailabilityChange={handleUnavailabilityChange}
-			/>
+			{:else if selectedBookingComponent === 'practice' || selectedBookingComponent === 'education'}
+				<BookingPractice
+					bind:bookingObject={editableBooking}
+					bind:repeatedBookings
+					bind:selectedIsUnavailable
+					kind={selectedBookingComponent === 'education' ? 'education' : 'practice'}
+					locations={locationOptions}
+					users={userOptions}
+					trainerOptions={
+						selectedBookingComponent === 'education' ? educationTrainerOptions : userOptions
+					}
+					isEditing
+					on:unavailabilityChange={handleUnavailabilityChange}
+				/>
 		{:else}
 			<BookingMeeting
 				bind:bookingObject={editableBooking}

@@ -18,7 +18,7 @@ export function getCurrentTimeOffset(startHour: number, hourHeight: number): num
 	const now = new Date();
 	const hours = now.getHours() - startHour;
 	const minutes = now.getMinutes();
-	return hours * hourHeight + ((minutes / 60) * hourHeight) / 2;
+	return hours * hourHeight + (minutes / 60) * hourHeight;
 }
 
 export function formatTime(isoString: string): string {

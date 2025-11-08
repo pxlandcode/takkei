@@ -26,10 +26,11 @@
 		action?: () => void;
 		actionLabel?: string;
 	} | null = null;
-	export let cancelConfirmOptions: {
-		onConfirm: (reason: string, time: string) => void;
-		startTimeISO: string;
-	} | null = null;
+export let cancelConfirmOptions: {
+	onConfirm: (reason: string, time: string, emailBehavior: 'send' | 'edit' | 'none') => void;
+	startTimeISO: string;
+	defaultEmailBehavior?: 'send' | 'edit' | 'none';
+} | null = null;
 
 	const dispatch = createEventDispatcher();
 
