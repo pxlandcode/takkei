@@ -454,7 +454,7 @@
 		</div>
 
 		<!-- Year -->
-		<div class="mb-4 rounded-lg border bg-gray-50 p-4">
+		<div class="mb-4 rounded-sm border bg-gray-50 p-4">
 			<div class="mb-3 flex flex-row items-center gap-4">
 				<h3 class=" text-lg font-semibold">Årsmål</h3>
 
@@ -492,7 +492,7 @@
 		</div>
 
 		{#if monthsView.length > 0}
-			<div class="rounded-lg border bg-white p-4">
+			<div class="rounded-sm border bg-white p-4">
 				<div class="mb-3 flex items-center justify-between">
 					<h3 class="text-lg font-semibold">Mål per månad</h3>
 				</div>
@@ -522,7 +522,7 @@
 
 		<!-- Weeks (read-only preview) -->
 		{#if showWeeksForMonth}
-			<div class="rounded-lg border bg-gray-50 p-4">
+			<div class="rounded-sm border bg-gray-50 p-4">
 				<div class="mb-2 flex items-center justify-between">
 					<h3 class="text-lg font-semibold">
 						Veckor – {year}-{String(showWeeksForMonth).padStart(2, '0')}

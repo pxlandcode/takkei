@@ -158,7 +158,7 @@
 
 <style>
 	.tab-button {
-		@apply flex items-center gap-2 rounded-md p-2 text-gray-600 hover:bg-gray-200;
+		@apply flex items-center gap-2 rounded-sm p-2 text-gray-600 hover:bg-gray-200;
 	}
 	.selected {
 		@apply bg-gray-200 font-semibold;

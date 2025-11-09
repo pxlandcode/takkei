@@ -61,7 +61,7 @@
 	</div>
 
 	{#if showColor}
-		<div class="h-12 w-full rounded-md border" style="background-color: {value};"></div>
+		<div class="h-12 w-full rounded-sm border" style="background-color: {value};"></div>
 	{/if}
 </div>
 

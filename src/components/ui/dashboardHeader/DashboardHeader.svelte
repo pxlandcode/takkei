@@ -43,7 +43,7 @@
 	};
 </script>
 
-<div class="glass flex h-[75px] w-full items-center justify-between rounded-lg px-4">
+<div class="glass flex h-[75px] w-full items-center justify-between rounded-sm px-4">
 	<div class="text-xl font-light text-white">
 		{greeting.message}
 		{greeting.icon ? greeting.icon : ''}

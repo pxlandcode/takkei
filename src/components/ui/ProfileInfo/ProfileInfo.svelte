@@ -106,7 +106,7 @@
 </script>
 
 <div class="flex flex-col gap-4">
-	<div class="rounded-lg bg-white p-6 shadow-md">
+	<div class="rounded-sm bg-white p-6 shadow-md">
 		<div class="mb-4 flex items-center justify-between">
 			<h4 class="text-xl font-semibold">{!isEditing ? 'Profil' : 'Redigera'}</h4>
 			<Button
@@ -165,7 +165,7 @@
 							<p class="text-xs font-semibold uppercase tracking-wide text-gray-400">
 								Roller & behörigheter
 							</p>
-							<div class="mt-2 rounded-lg border border-gray-100 bg-gray-50 p-4">
+							<div class="mt-2 rounded-sm border border-gray-100 bg-gray-50 p-4">
 								{#if hasRoles}
 									<div class="flex flex-wrap gap-2">
 										{#each roles as role (role.id ?? role.name)}

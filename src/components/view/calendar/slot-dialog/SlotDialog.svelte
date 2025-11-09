@@ -196,13 +196,13 @@
 
 <dialog
 	bind:this={dialogEl}
-	class="pointer-events-auto z-[2147483646] max-w-sm rounded-lg bg-transparent p-0"
+	class="pointer-events-auto z-[2147483646] max-w-sm rounded-sm bg-transparent p-0"
 >
 	{#if config?.mode === 'actions'}
 		<div class="flex max-w-sm min-w-[240px] flex-row gap-3">
 			<button
 				type="button"
-				class="rounded-md border border-gray-200 bg-white px-3 py-2 text-left text-sm transition hover:bg-gray-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-orange-500"
+				class="rounded-sm border border-gray-200 bg-white px-3 py-2 text-left text-sm transition hover:bg-gray-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-orange-500"
 				on:click={() => dispatch('openBooking', { booking: config.booking })}
 			>
 				<div class="flex flex-col gap-0.5">
@@ -235,7 +235,7 @@
 				{#each config.bookings as option (option.booking.id)}
 					<button
 						type="button"
-						class="rounded-md border border-gray-200 bg-white px-3 py-2 text-left text-sm transition hover:bg-gray-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-orange-500"
+						class="rounded-sm border border-gray-200 bg-white px-3 py-2 text-left text-sm transition hover:bg-gray-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-orange-500"
 						on:click={() => dispatch('openBooking', { booking: option })}
 					>
 						<div class="flex flex-col gap-0.5">

@@ -30,7 +30,7 @@ export function confirm(node: HTMLElement, params: ConfirmParams) {
 
 		popover = document.createElement('div');
 		popover.className =
-			'confirm-popover absolute z-2147483647 max-w-xs rounded-md border border-gray-bright bg-white p-4 shadow-xl';
+			'confirm-popover absolute z-2147483647 max-w-xs rounded-sm border border-gray-bright bg-white p-4 shadow-xl';
 
 		popover.innerHTML = `
 			<p class="mb-1 font-semibold text-gray">${title}</p>

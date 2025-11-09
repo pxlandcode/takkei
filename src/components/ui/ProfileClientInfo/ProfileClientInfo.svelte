@@ -17,7 +17,7 @@
 
 <div class="flex flex-col gap-4">
 	<!-- Profile Card -->
-	<div class="rounded-lg bg-white p-6 shadow-md">
+	<div class="rounded-sm bg-white p-6 shadow-md">
 		<div class="mb-4 flex items-center justify-between">
 			<h4 class="text-xl font-semibold">{!isEditing ? 'Profil' : 'Redigera'}</h4>
 			<Button

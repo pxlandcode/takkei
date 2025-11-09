@@ -345,7 +345,7 @@
 					type="text"
 					bind:value={searchQuery}
 					placeholder="Sök klient, kund, faktura, produkt…"
-					class="w-full rounded-lg border border-gray-300 p-2 focus:border-blue-500 focus:outline-hidden"
+					class="w-full rounded-sm border border-gray-300 p-2 focus:border-blue-500 focus:outline-hidden"
 				/>
 			</div>
 		</div>

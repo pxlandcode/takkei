@@ -18,7 +18,7 @@
 <div class="relative inline-block">
 	<button
 		on:click={navigate}
-		class="glass flex h-[96px] w-[96px] cursor-pointer flex-col items-center justify-center gap-3 rounded-lg transition duration-200 hover:bg-white/20 active:translate-y-1 active:scale-95"
+		class="glass flex h-[96px] w-[96px] cursor-pointer flex-col items-center justify-center gap-3 rounded-sm transition duration-200 hover:bg-white/20 active:translate-y-1 active:scale-95"
 		aria-label={label}
 	>
 		<Icon {icon} size="35px" color="white" />

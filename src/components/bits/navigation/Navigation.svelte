@@ -26,7 +26,7 @@
 		<ul class="space-y-2 text-gray-600">
 			{#each visibleMenuItems as item}
 				<li
-					class="flex cursor-pointer items-center gap-2 rounded-md p-2 underline-offset-4 hover:text-orange hover:underline {selectedTab.label ===
+					class="flex cursor-pointer items-center gap-2 rounded-sm p-2 underline-offset-4 hover:text-orange hover:underline {selectedTab.label ===
 						item.label && 'selected'}"
 					on:click={() => selectTab(item)}
 				>
@@ -61,7 +61,7 @@
 
 <style>
 	.tab-button {
-		@apply flex items-center gap-2 rounded-md p-2 text-gray-600 hover:text-orange;
+		@apply flex items-center gap-2 rounded-sm p-2 text-gray-600 hover:text-orange;
 	}
 	.selected {
 		@apply font-semibold text-orange;

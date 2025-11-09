@@ -78,7 +78,7 @@ const dispatch = createEventDispatcher();
 	on:click={() => {
 		dispatch('bookingClick', booking);
 	}}
-	class="relative flex w-full items-center justify-between rounded-lg border p-3 text-left text-sm transition-all
+	class="relative flex w-full items-center justify-between rounded-sm border p-3 text-left text-sm transition-all
 	{booking.booking.status === 'Cancelled' ? 'cancelled' : ''}
 		{booking.booking.status === 'Late_cancelled' ? 'late-cancelled' : ''}"
 	style="background-color: {bookingColor}20; border-color: {bookingColor};"

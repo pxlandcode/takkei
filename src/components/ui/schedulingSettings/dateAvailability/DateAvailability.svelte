@@ -43,7 +43,7 @@
 	}
 </script>
 
-<div class="rounded-lg border border-gray-200 bg-white p-4 shadow-md">
+<div class="rounded-sm border border-gray-200 bg-white p-4 shadow-md">
 	<div class="mb-3 flex items-center gap-2">
 		<div class="flex h-6 w-6 items-center justify-center rounded-full bg-text text-white">
 			<Icon icon="Day" size="14px" />

@@ -87,7 +87,7 @@ function openPackagePopup() {
 
 <div class="flex flex-col gap-4">
 	<!-- 👤 Customer Info -->
-	<div class="rounded-lg bg-white p-6 shadow-md">
+	<div class="rounded-sm bg-white p-6 shadow-md">
 		<div class="mb-4 flex items-center justify-between">
 			<h4 class="text-xl font-semibold">{!isEditing ? 'Profil' : 'Redigera kund'}</h4>
 			<Button
@@ -122,7 +122,7 @@ function openPackagePopup() {
 		on:clientsUpdated={handleClientsUpdated}
 	/>
 
-	<div class="rounded-lg bg-white p-6 shadow-md">
+	<div class="rounded-sm bg-white p-6 shadow-md">
 		<div class="mb-4 flex items-center justify-between">
 			<h4 class="text-xl font-semibold">Paket</h4>
 		<Button

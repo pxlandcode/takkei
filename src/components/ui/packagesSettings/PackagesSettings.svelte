@@ -151,7 +151,7 @@
 				bind:value={searchQuery}
 				on:input={debouncedSearch}
 				placeholder="Sök paket..."
-				class="w-full min-w-60 max-w-md rounded-lg border border-gray-300 p-2 focus:border-blue-500 focus:outline-hidden"
+				class="w-full min-w-60 max-w-md rounded-sm border border-gray-300 p-2 focus:border-blue-500 focus:outline-hidden"
 			/>
 		</div>
 	</div>

@@ -17,7 +17,7 @@
 	});
 </script>
 
-<div class="relative w-[320px] rounded-lg p-4 text-sm font-light glass">
+<div class="relative w-[320px] rounded-sm p-4 text-sm font-light glass">
 	<div class="mb-4 flex items-center justify-between">
 		<h2 class="text-xl text-white">Mål</h2>
 		<Button

@@ -247,7 +247,7 @@
 </script>
 
 <div
-	class="border-gray-bright bg-gray-bright/10 flex flex-col gap-6 rounded-lg border border-dashed p-6"
+	class="border-gray-bright bg-gray-bright/10 flex flex-col gap-6 rounded-sm border border-dashed p-6"
 >
 	<Dropdown
 		label="Tränare"

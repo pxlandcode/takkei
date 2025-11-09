@@ -400,7 +400,7 @@
 <div class="flex max-h-dvh min-h-[450px] w-full max-w-full flex-col bg-white p-4 sm:max-w-[600px]">
 	<div class="flex flex-col gap-4">
 		{#if singleFilterMode}
-			<div class="border-gray-200 bg-gray-50 text-gray flex flex-col gap-3 rounded-md border p-3 text-sm">
+			<div class="border-gray-200 bg-gray-50 text-gray flex flex-col gap-3 rounded-sm border p-3 text-sm">
 				<p>
 					Välj en filtertyp för att visa veckan. Endast en tränare, plats eller kund kan vara aktiv
 					åt gången på mobilens veckovy.

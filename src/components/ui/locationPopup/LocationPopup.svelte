@@ -99,7 +99,7 @@
 	<div>
 		<label class="mb-1 block text-sm">Förhandsvisning</label>
 		<div
-			class="w-full max-w-xs rounded-md border p-2 text-xs text-gray-700 shadow-xs"
+			class="w-full max-w-xs rounded-sm border p-2 text-xs text-gray-700 shadow-xs"
 			style="background-color: {color}20; border-color: {color}; color: {color};"
 		>
 			<div class="flex flex-row gap-2">

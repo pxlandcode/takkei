@@ -392,7 +392,7 @@ afterUpdate(() => {
 
 <!-- Booking Meeting UI -->
 <div
-	class="flex flex-col gap-4 rounded-lg border border-dashed border-gray-bright bg-gray-bright/10 p-6"
+	class="flex flex-col gap-4 rounded-sm border border-dashed border-gray-bright bg-gray-bright/10 p-6"
 >
 	<!-- Name Input -->
 	<Input
@@ -448,7 +448,7 @@ afterUpdate(() => {
 				type="date"
 				id="date"
 				bind:value={bookingObject.date}
-				class={`w-full rounded-lg border p-2 text-gray ${errors.date ? 'border-red-500' : ''}`}
+				class={`w-full rounded-sm border p-2 text-gray ${errors.date ? 'border-red-500' : ''}`}
 			/>
 			{#if errors.date}
 				<p class="mt-1 text-sm text-red-500">{errors.date}</p>
@@ -463,7 +463,7 @@ afterUpdate(() => {
 				type="time"
 				id="time"
 				bind:value={bookingObject.time}
-				class={`w-full rounded-lg border p-2 text-gray ${errors.time ? 'border-red-500' : ''}`}
+				class={`w-full rounded-sm border p-2 text-gray ${errors.time ? 'border-red-500' : ''}`}
 			/>
 			{#if errors.time}
 				<p class="mt-1 text-sm text-red-500">{errors.time}</p>
@@ -476,7 +476,7 @@ afterUpdate(() => {
 				id="endTime"
 				bind:value={bookingObject.endTime}
 				max={endTimeLimit ?? undefined}
-				class={`w-full rounded-lg border p-2 text-gray ${errors.endTime ? 'border-red-500' : ''}`}
+				class={`w-full rounded-sm border p-2 text-gray ${errors.endTime ? 'border-red-500' : ''}`}
 			/>
 			{#if errors.endTime}
 				<p class="mt-1 text-sm text-red-500">{errors.endTime}</p>

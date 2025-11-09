@@ -58,7 +58,7 @@
 	}
 </script>
 
-<div class="flex flex-col gap-4 rounded-lg bg-white p-6">
+<div class="flex flex-col gap-4 rounded-sm bg-white p-6">
 	<Input label="Förnamn" bind:value={client.firstname} name="firstname" {errors} />
 	<Input label="Efternamn" bind:value={client.lastname} name="lastname" {errors} />
 	<Input label="Personnummer" bind:value={client.person_number} name="person_number" {errors} />
