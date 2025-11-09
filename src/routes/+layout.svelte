@@ -219,6 +219,7 @@ $: popupProps = popup?.props ? { ...popup.props } : {};
 		icon={popup.icon}
 		noClose={popup.noClose}
 		dismissable={popup.dismissable ?? true}
+		variant={popup.variant ?? 'modal'}
 		width={popup.width}
 		height={popup.height}
 		maxWidth={popup.maxWidth}

@@ -8,6 +8,7 @@ export type PopupState = {
 	component: ComponentType;
 	header?: string;
 	icon?: string;
+	variant?: 'modal' | 'right' | 'left' | 'top' | 'bottom';
 	props?: Record<string, unknown>;
 	width?: string;
 	height?: string;
