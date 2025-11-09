@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { calendarStore } from '$lib/stores/calendarStore';
-	import { user } from '$lib/stores/userStore';
-	import type { User } from '$lib/types/userTypes';
+        import { calendarStore } from '$lib/stores/calendarStore';
+        import { user } from '$lib/stores/userStore';
+        import type { AuthenticatedUser } from '$lib/types/userTypes';
 	import Button from '../../bits/button/Button.svelte';
 
 	export let email = '';
@@ -24,17 +24,20 @@
 				throw new Error(data.message || 'Login failed');
 			}
 
-			user.set(data.user as User);
+                        const account = data.user as AuthenticatedUser;
+                        user.set(account);
 
-			const trainerIds = data.user?.id ? [data.user.id] : null;
-
-			calendarStore.updateFilters({ trainerIds }, fetch);
-
-			goto('/');
-		} catch (error) {
-			errorMessage = error.message;
-		}
-	}
+                        if (account.kind === 'trainer') {
+                                const trainerIds = account.id ? [account.id] : null;
+                                calendarStore.updateFilters({ trainerIds }, fetch);
+                                goto('/');
+                        } else {
+                                goto('/client');
+                        }
+                } catch (error) {
+                        errorMessage = error instanceof Error ? error.message : 'Login failed';
+                }
+        }
 </script>
 
 <div class="w-full max-w-96 p-8 text-white glass rounded-4xl">

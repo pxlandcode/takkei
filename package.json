@@ -43,9 +43,12 @@
 		"@sendgrid/mail": "^8.1.5",
 		"date-fns": "^4.1.0",
 		"dotenv": "^16.4.7",
-		"exceljs": "^4.4.0",
-		"pg": "^8.13.1",
-		"quill": "^2.0.3",
-		"sass-embedded": "^1.89.2"
-	}
+                "exceljs": "^4.4.0",
+                "lucia": "^3.0.0",
+                "oslo": "^1.2.0",
+                "pg": "^8.13.1",
+                "quill": "^2.0.3",
+                "sass-embedded": "^1.89.2",
+                "@lucia-auth/adapter-postgresql": "^3.0.0"
+        }
 }

@@ -22,7 +22,11 @@ import { get } from 'svelte/store';
 	import { loadingStore } from '$lib/stores/loading';
 
 export let data;
-	$user = data.user;
+        $user = data.user;
+
+$: currentAccount = $user;
+$: isTrainer = currentAccount?.kind === 'trainer';
+$: isClient = currentAccount?.kind === 'client';
 
 let isMobile = false;
 let showDrawer = false;
@@ -35,27 +39,35 @@ $: currentRoute = $page.url.pathname;
 
 $: navigating.to && loadingStore.loading(!!navigating.to);
 
+$: if (!isTrainer) {
+        showDrawer = false;
+}
+
 	// Detect mobile and route changes
-	onMount(() => {
-		if (!browser) {
-			return;
-		}
+        onMount(() => {
+                if (!browser) {
+                        return;
+                }
 
-		if ('serviceWorker' in navigator && !dev) {
-			navigator.serviceWorker
-				.register('/service-worker.js')
-				.catch((error) => console.error('Service worker registration failed', error));
-		}
+                if (get(user)?.kind !== 'trainer') {
+                        return;
+                }
 
-		isMobile = window.innerWidth < 768;
-		showDrawer = isMobile && currentRoute !== '/';
-	});
+                if ('serviceWorker' in navigator && !dev) {
+                        navigator.serviceWorker
+                                .register('/service-worker.js')
+                                .catch((error) => console.error('Service worker registration failed', error));
+                }
 
-	page.subscribe(($page) => {
-		if (browser && isMobile) {
-			showDrawer = $page.url.pathname !== '/';
-		}
-	});
+                isMobile = window.innerWidth < 768;
+                showDrawer = isMobile && currentRoute !== '/';
+        });
+
+        page.subscribe(($page) => {
+                if (browser && isMobile && isTrainer) {
+                        showDrawer = $page.url.pathname !== '/';
+                }
+        });
 
 function closeDrawer() {
 	showDrawer = false;
@@ -105,14 +117,22 @@ $: popupProps = popup?.props ? { ...popup.props } : {};
 </script>
 
 <ParaglideJS {i18n}>
-	{#if currentRoute === '/login'}
-		<slot />
-	{:else}
-		<main class="relative flex h-dvh w-full flex-row overflow-hidden bg-background-gradient">
-			<!-- ✅ DESKTOP -->
+        {#if currentRoute === '/login'}
+                <slot />
+        {:else if isClient}
+                <main class="client-shell flex min-h-dvh w-full justify-center bg-background-gradient">
+                        <div class="flex w-full max-w-4xl flex-col bg-white p-6">
+                                <slot />
+                        </div>
+                </main>
+                <LoadingOverlay />
+                <ToastContainer />
+        {:else}
+                <main class="relative flex h-dvh w-full flex-row overflow-hidden bg-background-gradient">
+                        <!-- ✅ DESKTOP -->
 
-			<div class="hidden w-full gap-4 md:flex">
-				<aside class="w-80 pl-4">
+                        <div class="hidden w-full gap-4 md:flex">
+                                <aside class="w-80 pl-4">
 					<Dashboard />
 				</aside>
 				<section class="flex flex-1 flex-col overflow-hidden p-4">
@@ -146,10 +166,10 @@ $: popupProps = popup?.props ? { ...popup.props } : {};
 					</div>
 				</div>
 			</div>
-		</main>
+                </main>
 
-		<LoadingOverlay />
-		<ToastContainer />
+                <LoadingOverlay />
+                <ToastContainer />
 {/if}
 </ParaglideJS>
 
@@ -186,8 +206,12 @@ $: popupProps = popup?.props ? { ...popup.props } : {};
 			border-top-right-radius: 1rem;
 		}
 
-		.mobile-drawer.visible {
-			transform: translateY(0%);
-		}
-	}
+        .mobile-drawer.visible {
+                transform: translateY(0%);
+        }
+
+        .client-shell {
+                padding: 2rem 1rem;
+        }
+}
 </style>
