@@ -4,7 +4,7 @@ import { redirect } from '@sveltejs/kit';
 import { i18n } from '$lib/i18n';
 import { lucia } from '$lib/server/auth';
 
-const PUBLIC_PATHS = new Set(['/login', '/api/login', '/api/signup']);
+const PUBLIC_PATHS = new Set(['/login', '/api/login', '/api/signup', '/logout']);
 
 const handleAuth: Handle = async ({ event, resolve }) => {
         const { pathname } = event.url;
@@ -79,7 +79,9 @@ const handleAuth: Handle = async ({ event, resolve }) => {
                 return resolve(event);
         }
 
-if (!event.locals.user) {
+	const authUser = event.locals.user;
+
+	if (!authUser) {
 		if (pathname.startsWith('/api/')) {
 			console.warn('[handleAuth] Unauthorized request', {
 				path: pathname,
@@ -93,12 +95,27 @@ if (!event.locals.user) {
 		throw redirect(302, '/login');
 	}
 
-        const kind = event.locals.user.kind;
+        const kind = authUser.kind;
+	const clientId = authUser.kind === 'client' ? authUser.clientId ?? authUser.client_id : null;
+
 	const isClientArea = pathname === '/client' || pathname.startsWith('/client/');
-	const isClientApi =
+	let isClientApi =
 		pathname === '/api/client' ||
 		pathname.startsWith('/api/client/') ||
 		pathname.startsWith('/api/client?');
+
+	if (!isClientApi && authUser.kind === 'client') {
+		if (
+			pathname === `/api/clients/${clientId}` ||
+			pathname.startsWith(`/api/clients/${clientId}/`)
+		) {
+			isClientApi = true;
+		} else if (pathname === '/api/bookings' || pathname.startsWith('/api/bookings/')) {
+			isClientApi = true;
+		} else if (pathname === '/api/logout' || pathname === '/logout') {
+			isClientApi = true;
+		}
+	}
 
 	if ((isClientArea || isClientApi) && kind !== 'client') {
 		if (pathname.startsWith('/api/')) {
