@@ -39,6 +39,16 @@ You can preview the production build with `npm run preview`.
 
 > To deploy your app, you may need to install an [adapter](https://svelte.dev/docs/kit/adapters) for your target environment.
 
+## Database migrations
+
+Certain features rely on SQL scripts that are not executed automatically. When new scripts are added under the `scripts/` directory, apply them manually against your PostgreSQL database, for example:
+
+```bash
+psql "$DATABASE_URL" -f scripts/20251201000000_add_mail_history.sql
+```
+
+Make sure to run the migration before starting the application so tables such as `mail_history` are available.
+
 ## Rapporter
 
 ### Klientrapport

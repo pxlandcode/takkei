@@ -6,11 +6,12 @@
 	import TargetsSettings from '../../components/ui/targetsSettings/TargetsSettings.svelte';
 	import SchedulingSettings from '../../components/ui/schedulingSettings/SchedulingSettings.svelte';
 	import MailComponent from '../../components/ui/mailComponent/MailComponent.svelte';
-	import Navigation from '../../components/bits/navigation/Navigation.svelte';
-	import UserForm from '../../components/ui/userForm/UserForm.svelte';
-	import Button from '../../components/bits/button/Button.svelte';
+        import Navigation from '../../components/bits/navigation/Navigation.svelte';
+        import UserForm from '../../components/ui/userForm/UserForm.svelte';
+        import Button from '../../components/bits/button/Button.svelte';
 
-	import NotificationAdministration from '../../components/ui/notificationAdministration/NotificationAdministration.svelte';
+        import NotificationAdministration from '../../components/ui/notificationAdministration/NotificationAdministration.svelte';
+        import MailHistory from '../../components/ui/mailHistory/MailHistory.svelte';
 
 	const menuItems = [
 		{ label: 'Allmänt', icon: 'Settings', component: Icon },
@@ -31,11 +32,12 @@
 			component: LocationSettings,
 			requiredRoles: ['Administrator']
 		},
-		{ label: 'Paket', icon: 'Package', component: PackagesSettings },
-		{ label: 'Mailutskick', icon: 'Mail', component: MailComponent },
-		{
-			label: 'Notifikationer',
-			icon: 'Notification',
+                { label: 'Paket', icon: 'Package', component: PackagesSettings },
+                { label: 'Mailutskick', icon: 'Mail', component: MailComponent },
+                { label: 'Mailhistorik', icon: 'History', component: MailHistory },
+                {
+                        label: 'Notifikationer',
+                        icon: 'Notification',
 			component: NotificationAdministration,
 			requiredRoles: ['Administrator', 'LocationAdmin']
 		},
