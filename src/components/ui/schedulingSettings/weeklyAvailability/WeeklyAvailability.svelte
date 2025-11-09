@@ -43,7 +43,7 @@
 	}
 </script>
 
-<div class="rounded-lg border border-gray-200 bg-white p-4 shadow-md">
+<div class="rounded-sm border border-gray-200 bg-white p-4 shadow-md">
 	<!-- Header -->
 	<div class="mb-3 flex items-center justify-between gap-2">
 		<div class="flex items-center gap-2">

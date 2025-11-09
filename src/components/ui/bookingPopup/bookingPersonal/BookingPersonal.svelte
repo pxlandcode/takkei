@@ -62,7 +62,7 @@
 </script>
 
 <div
-	class="flex flex-col gap-6 rounded-lg border border-dashed border-gray-bright bg-gray-bright/10 p-6"
+	class="flex flex-col gap-6 rounded-sm border border-dashed border-gray-bright bg-gray-bright/10 p-6"
 >
 	<!-- Name -->
 	<Input
@@ -100,7 +100,7 @@
 				type="date"
 				id="date"
 				bind:value={bookingObject.date}
-				class="text-gray0 w-full rounded-lg border p-2"
+				class="text-gray0 w-full rounded-sm border p-2"
 			/>
 		</div>
 		<div>
@@ -109,7 +109,7 @@
 				type="time"
 				id="time"
 				bind:value={bookingObject.time}
-				class="w-full rounded-lg border p-2 text-gray"
+				class="w-full rounded-sm border p-2 text-gray"
 			/>
 		</div>
 		<div>
@@ -118,7 +118,7 @@
 				type="time"
 				id="endTime"
 				bind:value={bookingObject.endTime}
-				class="w-full rounded-lg border p-2 text-gray"
+				class="w-full rounded-sm border p-2 text-gray"
 			/>
 		</div>
 	</div>

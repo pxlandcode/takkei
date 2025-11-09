@@ -271,7 +271,7 @@
 				type="date"
 				value={$selectedDate}
 				on:change={updateStartDate}
-				class="text-gray h-9 w-full rounded-lg border p-2"
+				class="text-gray h-9 w-full rounded-sm border p-2"
 			/>
 		</div>
 
@@ -292,7 +292,7 @@
 
 	{#if clientId}
 		<div
-			class="bg-orange/10 mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg px-4 py-3 shadow-xs"
+			class="bg-orange/10 mt-4 flex flex-wrap items-center justify-between gap-3 rounded-sm px-4 py-3 shadow-xs"
 		>
 			<div class="flex items-center gap-3">
 				<!-- ✅ Select-all (loaded) using your Checkbox component -->

@@ -43,7 +43,7 @@
 {#if $loadingStore.isSlowlyLoading}
 	<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
 		<div
-			class="flex h-96 w-[550px] flex-col items-center justify-center gap-2 rounded-xl bg-white/95 text-black shadow-xl"
+			class="flex h-96 w-[550px] flex-col items-center justify-center gap-2 rounded-sm bg-white/95 text-black shadow-xl"
 		>
 			<svg width="38" height="38" viewBox="0 0 38 38" stroke="black">
 				<g fill="none" fill-rule="evenodd">

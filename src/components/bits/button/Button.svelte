@@ -10,7 +10,8 @@
 	export let icon: string | null = null;
 	export let iconLeft: string | null = null;
 	export let iconRight: string | null = null;
-export let variant: 'primary' | 'secondary' | 'tertiary' | 'cancel' | 'danger-outline' = 'primary';
+	export let variant: 'primary' | 'secondary' | 'tertiary' | 'cancel' | 'danger-outline' =
+		'primary';
 	export let transparent: boolean = false;
 	export let small: boolean = false;
 	export let iconRightSize: string = '20px';
@@ -26,11 +27,11 @@ export let variant: 'primary' | 'secondary' | 'tertiary' | 'cancel' | 'danger-ou
 		action?: () => void;
 		actionLabel?: string;
 	} | null = null;
-export let cancelConfirmOptions: {
-	onConfirm: (reason: string, time: string, emailBehavior: 'send' | 'edit' | 'none') => void;
-	startTimeISO: string;
-	defaultEmailBehavior?: 'send' | 'edit' | 'none';
-} | null = null;
+	export let cancelConfirmOptions: {
+		onConfirm: (reason: string, time: string, emailBehavior: 'send' | 'edit' | 'none') => void;
+		startTimeISO: string;
+		defaultEmailBehavior?: 'send' | 'edit' | 'none';
+	} | null = null;
 
 	const dispatch = createEventDispatcher();
 
@@ -41,17 +42,9 @@ export let cancelConfirmOptions: {
 
 	// Dynamic class setup
 	$: buttonClasses = `
-		flex items-center justify-center gap-2 rounded-md shadow-xs transition-all duration-200 cursor-pointer
-		${
-			variant === 'primary'
-				? 'bg-primary text-white hover:bg-primary-hover border border-gray/30'
-				: ''
-		}
-		${
-			variant === 'secondary'
-				? 'bg-white text-gray border border-gray hover:bg-white/80'
-				: ''
-		}
+		flex items-center justify-center gap-2 rounded-sm  shadow-xs transition-all duration-200 cursor-pointer
+		${variant === 'primary' ? 'bg-primary text-white hover:bg-primary-hover border border-gray/30' : ''}
+		${variant === 'secondary' ? 'bg-white text-gray border border-gray hover:bg-white/80' : ''}
 		${
 			variant === 'tertiary'
 				? 'bg-transparent text-gray border border-transparent hover:opacity-70'

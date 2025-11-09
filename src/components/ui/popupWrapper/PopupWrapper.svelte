@@ -6,10 +6,10 @@
 	import { expoInOut } from 'svelte/easing';
 
 	export let header = 'Popup';
-export let width = 'fit-content';
-export let height = 'fit-content';
-export let maxWidth: string | undefined;
-export let maxHeight: string | undefined;
+	export let width = 'fit-content';
+	export let height = 'fit-content';
+	export let maxWidth: string | undefined;
+	export let maxHeight: string | undefined;
 	export let noClose = false;
 	export let icon: string | undefined;
 
@@ -50,15 +50,16 @@ export let maxHeight: string | undefined;
 	// Size classes for container
 	function containerClass() {
 		const base =
-			'bg-white shadow-lg flex flex-col overflow-hidden h-full md:h-auto max-h-full md:max-h-[80dvh] md:rounded-2xl w-full';
-		const modalSize = 'rounded-2xl w-full max-w-full sm:max-w-[min(90vw,900px)] md:max-w-[min(66vw,900px)] sm:mx-auto';
+			'bg-white shadow-lg flex flex-col overflow-hidden h-full md:h-auto max-h-full md:max-h-[80dvh] w-full rounded-sm ';
+		const modalSize =
+			'w-full max-w-full sm:max-w-[min(90vw,900px)] md:max-w-[min(66vw,900px)] sm:mx-auto';
 		const drawerBase = 'min-h-screen md:min-h-[unset]';
 		const byVar: Record<typeof variant, string> = {
 			modal: `${modalSize}`,
-			right: `${drawerBase} md:w-[32vw] md:rounded-l-2xl justify-self-end`,
-			left: `${drawerBase} md:w-[32vw] md:rounded-r-2xl justify-self-start`,
-			top: `w-full md:rounded-b-2xl self-start`,
-			bottom: `w-full md:rounded-t-2xl self-end`
+			right: `${drawerBase} md:w-[32vw] md:rounded-l-sm justify-self-end`,
+			left: `${drawerBase} md:w-[32vw] md:rounded-r-sm justify-self-start`,
+			top: `w-full md:rounded-b-sm self-start`,
+			bottom: `w-full md:rounded-t-sm self-end`
 		};
 		return `${base} ${byVar[variant]}`;
 	}
@@ -116,11 +117,11 @@ export let maxHeight: string | undefined;
 				<div class="flex items-center justify-between border-b-2 px-6 py-4">
 					<div class="ml-1 flex items-center gap-2">
 						{#if icon}
-							<div class="flex h-7 w-7 items-center justify-center rounded-full bg-text text-white">
+							<div class="bg-text flex h-7 w-7 items-center justify-center rounded-full text-white">
 								<Icon {icon} size="14px" />
 							</div>
 						{/if}
-						<h2 class="text-2xl font-semibold text-text md:text-3xl">{header}</h2>
+						<h2 class="text-text text-2xl font-semibold md:text-3xl">{header}</h2>
 					</div>
 					{#if !noClose}
 						<IconButton on:click={closeFromUser} size="18px" icon="Close" transparent />

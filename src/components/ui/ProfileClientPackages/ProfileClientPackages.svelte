@@ -116,7 +116,7 @@
 	}));
 </script>
 
-<div class="rounded-lg bg-white p-6 shadow-md">
+<div class="rounded-sm bg-white p-6 shadow-md">
 	<div class="mb-4 flex items-center justify-between">
 		<h4 class="text-xl font-semibold">Paket</h4>
 	</div>

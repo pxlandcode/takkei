@@ -201,7 +201,7 @@
 
 <div
 	bind:this={moduleRef}
-	class="glass relative h-auto w-[320px] rounded-lg p-4 text-sm font-light"
+	class="glass relative h-auto w-[320px] rounded-sm p-4 text-sm font-light"
 >
 	<!-- Header -->
 	<div class="mb-4 flex items-center justify-between">
@@ -231,7 +231,7 @@
 	{#if showLocationDropdown}
 		<div
 			use:clickOutside={closeLocationDropdown}
-			class="border-gray-bright text-gray absolute z-50 w-52 overflow-hidden rounded-md border bg-white text-sm shadow-xl"
+			class="border-gray-bright text-gray absolute z-50 w-52 overflow-hidden rounded-sm border bg-white text-sm shadow-xl"
 			style={`top: ${dropdownOffset.top}px; left: ${dropdownOffset.left}px;`}
 		>
 			{#if $locations.length === 0}

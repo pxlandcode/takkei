@@ -114,7 +114,7 @@
 	}
 </script>
 
-<div class="flex flex-col gap-4 rounded-lg bg-white p-6">
+<div class="flex flex-col gap-4 rounded-sm bg-white p-6">
 	<div class="grid grid-cols-1 gap-4 xl:grid-cols-2">
 		<Input label="Förnamn" bind:value={trainer.firstname} name="firstname" {errors} />
 		<Input label="Efternamn" bind:value={trainer.lastname} name="lastname" {errors} />

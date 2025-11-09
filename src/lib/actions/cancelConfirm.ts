@@ -78,7 +78,7 @@ export function cancelConfirm(
 
 		popover = document.createElement('div');
 		popover.className =
-			'cancel-popover absolute z-2147483647 max-w-xs rounded-md border border-gray-bright bg-white p-4 shadow-xl';
+			'cancel-popover absolute z-2147483647 max-w-xs rounded-sm border border-gray-bright bg-white p-4 shadow-xl';
 
 		selectedReason = '';
 		selectedEmailBehavior = defaultEmailBehavior;

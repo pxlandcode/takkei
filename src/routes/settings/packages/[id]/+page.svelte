@@ -213,19 +213,19 @@
 		<p class="mt-6 text-gray-600">Laddar paket…</p>
 	{:else}
 		{#if pkg?.frozen_from_date}
-			<div class="mt-4 rounded-md border border-yellow-300 bg-yellow-50 p-3 text-yellow-900">
+			<div class="mt-4 rounded-sm border border-yellow-300 bg-yellow-50 p-3 text-yellow-900">
 				<strong>Paketet är fryst från och med {pkg.frozen_from_date}.</strong>
 			</div>
 		{/if}
 
 		{#if pkg?.overbooked}
-			<div class="mt-3 rounded-md border border-red-300 bg-red-50 p-3 text-red-800">
+			<div class="mt-3 rounded-sm border border-red-300 bg-red-50 p-3 text-red-800">
 				<strong>OBS!</strong> Paketet har för många bokningar. Koppla bort bokningar eller uppgradera.
 			</div>
 		{/if}
 
 		{#if pkg?.valid_to && pkg.valid_to < todayISO && pkg.remaining_sessions > 0}
-			<div class="mt-3 rounded-md border border-yellow-300 bg-yellow-50 p-3 text-yellow-900">
+			<div class="mt-3 rounded-sm border border-yellow-300 bg-yellow-50 p-3 text-yellow-900">
 				<p>
 					<strong>Giltighetstiden har gått ut men {pkg.remaining_sessions} pass återstår.</strong>
 					Uppgradera paketet under <em>Ändra</em> för att kunna använda återstående pass.
@@ -234,7 +234,7 @@
 		{/if}
 
 		{#if pkg?.locked_installments > 0}
-			<div class="mt-2 rounded-md border border-red-200 bg-red-50 p-2 text-sm text-red-800">
+			<div class="mt-2 rounded-sm border border-red-200 bg-red-50 p-2 text-sm text-red-800">
 				<strong>OBS!</strong> Vissa faktureringstillfällen ligger i passerade månader och kan vara låsta.
 			</div>
 		{/if}
@@ -259,7 +259,7 @@
 <!-- Freeze modal -->
 {#if showFreeze}
 	<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-		<div class="w-full max-w-md rounded-lg bg-white p-5 shadow-xl">
+		<div class="w-full max-w-md rounded-sm bg-white p-5 shadow-xl">
 			<div class="mb-3 flex items-center gap-2">
 				<Icon icon="Snowflake" size="18px" />
 				<h3 class="text-lg font-semibold">Frys paket</h3>
@@ -288,7 +288,7 @@
 <!-- Add invoice number modal -->
 {#if showInvoice}
 	<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-		<div class="w-full max-w-md rounded-lg bg-white p-5 shadow-xl">
+		<div class="w-full max-w-md rounded-sm bg-white p-5 shadow-xl">
 			<div class="mb-3 flex items-center gap-2">
 				<Icon icon="FileText" size="18px" />
 				<h3 class="text-lg font-semibold">Lägg till fakturanummer</h3>
@@ -313,7 +313,7 @@
 <!-- Delete confirm modal -->
 {#if showDelete}
 	<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-		<div class="w-full max-w-md rounded-lg bg-white p-5 shadow-xl">
+		<div class="w-full max-w-md rounded-sm bg-white p-5 shadow-xl">
 			<div class="mb-3 flex items-center gap-2">
 				<Icon icon="Trash" size="18px" />
 				<h3 class="text-lg font-semibold">Ta bort paket</h3>

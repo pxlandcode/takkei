@@ -188,7 +188,7 @@
 	{#if showDropdown && options.length > 0}
 		<ul
 			bind:this={suggestionsListElement}
-			class={`absolute z-50 max-h-60 w-full overflow-auto rounded-md border border-gray-bright bg-white shadow-md
+			class={`absolute z-50 max-h-60 w-full overflow-auto rounded-sm border border-gray-bright bg-white shadow-md
 			${dropdownPosition === 'up' ? 'bottom-full mb-1' : 'top-full mt-1'}`}
 			role="listbox"
 			on:keydown={handleKeydown}
@@ -200,7 +200,7 @@
 				<li class="p-2">
 					<input
 						type="text"
-						class="w-full rounded-lg border p-2 focus:outline-blue"
+						class="w-full rounded-sm border p-2 focus:outline-blue"
 						placeholder="Sök..."
 						bind:value={searchQuery}
 						on:keydown={handleKeydown}

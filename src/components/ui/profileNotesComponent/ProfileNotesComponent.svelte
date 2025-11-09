@@ -154,7 +154,7 @@
 		<div class="mb-4 flex justify-between gap-2 pb-2 text-sm font-medium text-gray-600">
 			<!-- All notes tab -->
 			<button
-				class="flex items-center gap-2 rounded-md px-3 py-1 transition hover:bg-gray-100
+				class="flex items-center gap-2 rounded-sm px-3 py-1 transition hover:bg-gray-100
 		{$selectedKind.value === 'all' ? 'bg-gray-200 font-semibold text-black' : ''}"
 				on:click={() => setSelectedKind({ value: 'all', label: 'Alla anteckningar' })}
 			>
@@ -165,7 +165,7 @@
 			<!-- Note kinds from DB -->
 			{#each $noteKinds as kind}
 				<button
-					class="flex items-center gap-2 rounded-md px-3 py-1 transition hover:bg-gray-100
+					class="flex items-center gap-2 rounded-sm px-3 py-1 transition hover:bg-gray-100
 			{$selectedKind.value === kind.id ? 'bg-gray-200 font-semibold text-black' : ''}"
 					on:click={() => setSelectedKind({ value: kind.id, label: kind.title })}
 				>
@@ -178,7 +178,7 @@
 
 	<div class="flex h-full flex-col gap-4 pb-12">
 		{#each $notes as note (note.id)}
-			<div class="rounded-lg border border-gray-bright bg-white p-4 shadow-md">
+			<div class="rounded-sm border border-gray-bright bg-white p-4 shadow-md">
 				<div class="flex flex-row items-center gap-2">
 					{#if note.note_kind.id == 1}
 						<Icon icon="BasicInfo" size="20px" color="orange" />{:else if note.note_kind.id == 2}

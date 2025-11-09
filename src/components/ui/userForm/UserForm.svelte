@@ -89,7 +89,7 @@
 </script>
 
 {#if createdUserId}
-	<div class="mb-4 rounded-lg border border-success bg-green-50 p-6 text-success">
+	<div class="mb-4 rounded-sm border border-success bg-green-50 p-6 text-success">
 		<h2 class="text-xl font-semibold">Användare skapad!</h2>
 		<p class="mt-2">
 			Användaren har skapats. Du kan nu gå till

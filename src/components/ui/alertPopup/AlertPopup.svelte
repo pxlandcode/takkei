@@ -98,7 +98,7 @@
 {:else if alerts[currentIndex]}
 	<div class="flex w-full max-w-full flex-col gap-4 p-4 sm:w-[600px] sm:max-w-[600px]">
 		<!-- Alert Box -->
-		<div class="rounded-lg bg-red-50 p-4 shadow-xs">
+		<div class="rounded-sm bg-red-50 p-4 shadow-xs">
 			<div class="flex items-start gap-3">
 				<div class="color-error mt-1">
 					<Icon icon="CircleAlert" size="20px" />

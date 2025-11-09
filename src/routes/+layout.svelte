@@ -116,7 +116,7 @@ $: popupProps = popup?.props ? { ...popup.props } : {};
 					<Dashboard />
 				</aside>
 				<section class="flex flex-1 flex-col overflow-hidden p-4">
-					<div class="flex flex-1 flex-col overflow-hidden rounded-lg bg-white">
+					<div class="flex flex-1 flex-col overflow-hidden rounded-sm bg-white">
 						<slot />
 					</div>
 				</section>

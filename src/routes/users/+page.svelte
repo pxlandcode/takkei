@@ -183,7 +183,7 @@
 				type="text"
 				bind:value={searchQuery}
 				placeholder="Sök tränare..."
-				class="w-full max-w-md rounded-lg border border-gray-300 p-2 focus:border-blue-500 focus:outline-hidden"
+				class="w-full max-w-md rounded-sm border border-gray-300 p-2 focus:border-blue-500 focus:outline-hidden"
 			/>
 		</div>
 	</div>

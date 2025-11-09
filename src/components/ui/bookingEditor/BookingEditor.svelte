@@ -563,7 +563,7 @@ function buildUpdatedFullBooking(
 	}
 </script>
 
-<div class="flex w-[600px] flex-col gap-6 rounded-lg border border-dashed border-gray-bright bg-gray-bright/10 p-6">
+<div class="flex w-[600px] flex-col gap-6 rounded-sm border border-dashed border-gray-bright bg-gray-bright/10 p-6">
 	<div class="flex items-center justify-between">
 		<h2 class="text-xl font-semibold">Redigera bokning</h2>
 		<span class="rounded-sm bg-gray px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white">

@@ -182,7 +182,7 @@ $: if (gridReady) {
 </script>
 
 <div
-	class="max-w-[820px] rounded-lg bg-white {border ? 'border border-gray-200' : ''} p-6 shadow-md"
+	class="max-w-[820px] rounded-sm bg-white {border ? 'border border-gray-200' : ''} p-6 shadow-md"
 >
 	<div class="mb-4 flex flex-row items-center justify-between">
 		{#if trainerId}

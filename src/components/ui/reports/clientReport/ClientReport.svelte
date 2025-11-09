@@ -404,7 +404,7 @@
 						bind:value={searchQuery}
 						on:input={debouncedSearch}
 						placeholder="Sök namn, e-post, tränare, kund..."
-						class="w-full rounded-lg border border-gray-300 p-2 focus:border-blue-500 focus:outline-hidden"
+						class="w-full rounded-sm border border-gray-300 p-2 focus:border-blue-500 focus:outline-hidden"
 					/>
 				</label>
 			</div>
@@ -423,35 +423,35 @@
 
 	{#if filteredSummary}
 		<div class="mb-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-			<div class="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+			<div class="rounded-sm border border-gray-200 bg-white p-4 shadow-sm">
 				<p class="text-text/70 text-sm">Visade klienter</p>
 				<p class="text-text text-2xl font-semibold">{filteredSummary.total}</p>
 			</div>
-			<div class="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+			<div class="rounded-sm border border-gray-200 bg-white p-4 shadow-sm">
 				<p class="text-text/70 text-sm">Aktiva (visade)</p>
 				<p class="text-text text-2xl font-semibold">{filteredSummary.active}</p>
 			</div>
-			<div class="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+			<div class="rounded-sm border border-gray-200 bg-white p-4 shadow-sm">
 				<p class="text-text/70 text-sm">Inaktiva (visade)</p>
 				<p class="text-text text-2xl font-semibold">{filteredSummary.inactive}</p>
 			</div>
-			<div class="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+			<div class="rounded-sm border border-gray-200 bg-white p-4 shadow-sm">
 				<p class="text-text/70 text-sm">Aktiva med bokning (90 d)</p>
 				<p class="text-text text-2xl font-semibold">{filteredSummary.activeWithRecentBooking}</p>
 			</div>
-			<!-- <div class="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+			<!-- <div class="rounded-sm border border-gray-200 bg-white p-4 shadow-sm">
 				<p class="text-text/70 text-sm">Sent avbokade (90 d)</p>
 				<p class="text-text text-2xl font-semibold">{filteredSummary.lateCancelledLast90Days}</p>
 			</div>
-			<div class="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+			<div class="rounded-sm border border-gray-200 bg-white p-4 shadow-sm">
 				<p class="text-text/70 text-sm">Sent avbokade (30 d)</p>
 				<p class="text-text text-2xl font-semibold">{filteredSummary.lateCancelledLast30Days}</p>
 			</div>
-			<div class="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+			<div class="rounded-sm border border-gray-200 bg-white p-4 shadow-sm">
 				<p class="text-text/70 text-sm">Avbokade (90 d)</p>
 				<p class="text-text text-2xl font-semibold">{filteredSummary.cancelledLast90Days}</p>
 			</div>
-			<div class="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+			<div class="rounded-sm border border-gray-200 bg-white p-4 shadow-sm">
 				<p class="text-text/70 text-sm">Avbokade (30 d)</p>
 				<p class="text-text text-2xl font-semibold">{filteredSummary.cancelledLast30Days}</p>
 			</div> -->

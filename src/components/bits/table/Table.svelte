@@ -165,7 +165,7 @@
 </script>
 
 <!-- Desktop Table -->
-<div class="border-gray overflow-x-auto sm:rounded-md lg:border lg:shadow-md">
+<div class="border-gray overflow-x-auto sm:rounded-sm lg:border lg:shadow-md">
 	<table
 		class={`hidden w-full lg:table ${sideScrollable ? 'min-w-max table-auto' : 'table-fixed'}`}
 	>
@@ -258,7 +258,7 @@
 	<!-- Mobile View (Stacked Rows) -->
 	<div class="flex flex-col gap-4 p-4 lg:hidden">
 		{#each $sortedData as row}
-			<div class="border-gray rounded-lg border p-4 shadow-md">
+			<div class="border-gray rounded-sm border p-4 shadow-md">
 				<div class="flex items-center justify-between">
 					<h3 class="text-lg font-semibold">{formatCellDisplay(row[headers[0].key])}</h3>
 					{#if !noSelect}

@@ -11,7 +11,7 @@
 	let showAll = false;
 
 	const filterBoxBaseClass =
-		'relative flex flex-wrap items-center gap-2 rounded-lg border border-dashed border-gray-bright bg-gray-bright/10 p-3 transition-all duration-500';
+		'relative flex flex-wrap items-center gap-2 rounded-sm border border-dashed border-gray-bright bg-gray-bright/10 p-3 transition-all duration-500';
 	const pillBaseClass =
 		'flex items-center gap-2 rounded-full border border-dashed px-3 py-1 text-sm';
 	const pillAccentClass: Record<string, string> = {

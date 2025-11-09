@@ -106,12 +106,7 @@
 		}
 
 		try {
-			const payload = await getTargetGoals(
-				ownerType,
-				Number(activeOwnerId),
-				year,
-				targetKindId
-			);
+			const payload = await getTargetGoals(ownerType, Number(activeOwnerId), year, targetKindId);
 			persistedYearGoal = payload?.yearGoal == null ? null : Math.trunc(Number(payload.yearGoal));
 			yearDraft = persistedYearGoal == null ? '' : persistedYearGoal;
 
@@ -454,7 +449,7 @@
 		</div>
 
 		<!-- Year -->
-		<div class="mb-4 rounded-lg border bg-gray-50 p-4">
+		<div class="mb-4 rounded-sm border bg-gray-50 p-4">
 			<div class="mb-3 flex flex-row items-center gap-4">
 				<h3 class=" text-lg font-semibold">Årsmål</h3>
 
@@ -492,7 +487,7 @@
 		</div>
 
 		{#if monthsView.length > 0}
-			<div class="rounded-lg border bg-white p-4">
+			<div class="rounded-sm border bg-white p-4">
 				<div class="mb-3 flex items-center justify-between">
 					<h3 class="text-lg font-semibold">Mål per månad</h3>
 				</div>
@@ -522,7 +517,7 @@
 
 		<!-- Weeks (read-only preview) -->
 		{#if showWeeksForMonth}
-			<div class="rounded-lg border bg-gray-50 p-4">
+			<div class="rounded-sm border bg-gray-50 p-4">
 				<div class="mb-2 flex items-center justify-between">
 					<h3 class="text-lg font-semibold">
 						Veckor – {year}-{String(showWeeksForMonth).padStart(2, '0')}
@@ -538,7 +533,7 @@
 				</div>
 				<div class="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
 					{#each weeksView as w}
-						<div class="rounded-xl border p-3">
+						<div class="rounded-sm border p-3">
 							<div class="mb-1 text-sm font-medium">{w.week_start} – {w.week_end}</div>
 							{#if w.isAnchor}
 								<span

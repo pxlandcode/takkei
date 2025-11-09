@@ -828,7 +828,7 @@
 
 		<!-- Canceled banner -->
 		{#if isCancelled}
-			<div class="mx-1 rounded-md border border-rose-300 bg-rose-100 p-3 text-rose-900">
+			<div class="mx-1 rounded-sm border border-rose-300 bg-rose-100 p-3 text-rose-900">
 				<div class="flex items-center gap-2">
 					<Icon icon="CircleAlert" size="18px" color="error" />
 					<span class="font-semibold">Avbokad</span>
@@ -857,7 +857,7 @@
 
 		<div class={isCancelled ? 'pointer-events-none opacity-60 select-none' : ''}>
 			{#if currentBooking.isPersonalBooking}
-				<div class="space-y-5 rounded-lg border border-gray-100 bg-gray-50 p-5 text-gray-700">
+				<div class="space-y-5 rounded-sm border border-gray-100 bg-gray-50 p-5 text-gray-700">
 					<div>
 						<p class="text-xs font-semibold tracking-wide text-gray-500 uppercase">Namn</p>
 						<p class="mt-1 text-base font-semibold text-gray-900">
@@ -884,7 +884,7 @@
 					</div>
 				</div>
 			{:else}
-				<div class="space-y-5 rounded-lg border border-gray-100 bg-gray-50 p-5 text-gray-700">
+				<div class="space-y-5 rounded-sm border border-gray-100 bg-gray-50 p-5 text-gray-700">
 					<div>
 						<div
 							class="flex items-center gap-2 text-xs font-semibold tracking-wide text-gray-500 uppercase"
@@ -945,7 +945,7 @@
 							</div>
 						{/if}
 						{#if activeQuickEdit === 'trainer'}
-							<div class="mt-2 rounded-md border border-gray-200 bg-white p-3">
+							<div class="mt-2 rounded-sm border border-gray-200 bg-white p-3">
 								{#if quickEditOptionsLoading}
 									<div class="flex items-center gap-2 text-sm text-gray-500">
 										<svg class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
@@ -1027,7 +1027,7 @@
 							</div>
 						{/if}
 						{#if activeQuickEdit === 'location'}
-							<div class="mt-2 rounded-md border border-gray-200 bg-white p-3">
+							<div class="mt-2 rounded-sm border border-gray-200 bg-white p-3">
 								{#if quickEditOptionsLoading}
 									<div class="flex items-center gap-2 text-sm text-gray-500">
 										<svg class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
@@ -1088,7 +1088,7 @@
 			{/if}
 
 			<div
-				class={`mt-6 space-y-2 rounded-lg border border-gray-100 bg-gray-50 p-5 text-gray-700 ${isCancelled ? 'line-through' : ''}`}
+				class={`mt-6 space-y-2 rounded-sm border border-gray-100 bg-gray-50 p-5 text-gray-700 ${isCancelled ? 'line-through' : ''}`}
 			>
 				<div class="flex items-center gap-2">
 					<div
@@ -1114,7 +1114,7 @@
 				{/if}
 
 				{#if activeQuickEdit === 'time'}
-					<div class="rounded-md border border-gray-200 bg-white p-3">
+					<div class="rounded-sm border border-gray-200 bg-white p-3">
 						{#if currentTrainerId && currentLocationId}
 							<SlotTimePicker
 								bind:selectedDate={quickEditDate}

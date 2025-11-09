@@ -29,12 +29,12 @@
 					<span>{currentUser.firstname} {currentUser.lastname}</span>
 				</div>
 				<button
-					class="flex items-center space-x-2 rounded-md border border-white bg-transparent px-3 py-1 text-white hover:bg-gray-700"
+					class="flex items-center space-x-2 rounded-sm border border-white bg-transparent px-3 py-1 text-white hover:bg-gray-700"
 				>
 					<span class="material-icons">Kalender</span>
 				</button>
 				<button
-					class="rounded-md border border-white bg-transparent px-3 py-1 text-white hover:bg-gray-700"
+					class="rounded-sm border border-white bg-transparent px-3 py-1 text-white hover:bg-gray-700"
 					on:click={onLogout}
 				>
 					Logga ut
