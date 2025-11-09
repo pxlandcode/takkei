@@ -106,12 +106,7 @@
 		}
 
 		try {
-			const payload = await getTargetGoals(
-				ownerType,
-				Number(activeOwnerId),
-				year,
-				targetKindId
-			);
+			const payload = await getTargetGoals(ownerType, Number(activeOwnerId), year, targetKindId);
 			persistedYearGoal = payload?.yearGoal == null ? null : Math.trunc(Number(payload.yearGoal));
 			yearDraft = persistedYearGoal == null ? '' : persistedYearGoal;
 
@@ -538,7 +533,7 @@
 				</div>
 				<div class="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
 					{#each weeksView as w}
-						<div class="rounded-xl border p-3">
+						<div class="rounded-sm border p-3">
 							<div class="mb-1 text-sm font-medium">{w.week_start} – {w.week_end}</div>
 							{#if w.isAnchor}
 								<span

@@ -16,7 +16,7 @@
 	}
 </script>
 
-<div class="rounded-xl border p-3">
+<div class="rounded-sm border p-3">
 	<div class="mb-2 flex items-center justify-between">
 		<span class="text-sm font-medium capitalize">{name}</span>
 		{#if isAnchor}
