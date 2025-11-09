@@ -1,5 +1,6 @@
 import { query } from '$lib/db';
 import { addMonths, format, setDate } from 'date-fns';
+import { Argon2id } from 'oslo/password';
 
 export async function POST({ request }) {
 	try {
@@ -23,8 +24,9 @@ export async function POST({ request }) {
 			payerInvoiceCity,
 			selectedTrainingPackage,
 			selectedPaymentMethod,
-			installmentsCount = 1
-		} = data;
+                        installmentsCount = 1,
+                        password
+                } = data;
 
 		let extractedPackageName = '';
 		if (selectedTrainingPackage) {
@@ -60,7 +62,25 @@ export async function POST({ request }) {
 			[customerId, firstname, lastname, email, phone, personnummer]
 		);
 
-		const clientId = clientResult[0].id;
+                const clientId = clientResult[0].id;
+
+                if (password && typeof password === 'string' && password.trim().length > 0) {
+                        const normalizedEmail = email.toLowerCase();
+                        const existingAccount = await query(
+                                `SELECT kind FROM auth_accounts WHERE email = $1 LIMIT 1`,
+                                [normalizedEmail]
+                        );
+
+                        if (!existingAccount[0] || existingAccount[0].kind === 'client') {
+                                const hashedPassword = await new Argon2id().hash(password);
+                                await query(
+                                        `INSERT INTO auth_accounts (email, hashed_password, kind, client_id, metadata, created_at, updated_at)
+                                        VALUES ($1, $2, 'client', $3, '{}'::jsonb, NOW(), NOW())
+                                        ON CONFLICT (email) DO UPDATE SET hashed_password = EXCLUDED.hashed_password, client_id = EXCLUDED.client_id, kind = 'client', updated_at = NOW()` ,
+                                        [normalizedEmail, hashedPassword, clientId]
+                                );
+                        }
+                }
 
 		// 3. Link client & customer
 		await query(

@@ -27,9 +27,9 @@ if (useProdDb) {
 	console.log('✅ Using LOCAL database');
 }
 
-const pool = new Pool({
-	connectionString,
-	ssl: isProduction || useProdDb ? { rejectUnauthorized: false } : false
+export const pool = new Pool({
+        connectionString,
+        ssl: isProduction || useProdDb ? { rejectUnauthorized: false } : false
 });
 
 const APP_TZ = 'Europe/Stockholm';

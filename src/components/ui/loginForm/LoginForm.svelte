@@ -10,31 +10,34 @@
 	export let errorMessage = '';
 	export let rememberMe = false;
 
-	async function handleLogin() {
-		try {
-			const response = await fetch('/api/login', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ email, password, rememberMe })
-			});
+        async function handleLogin() {
+                try {
+                        const response = await fetch('/api/login', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ email, password, rememberMe })
+                        });
 
-			const data = await response.json();
+                        const data = await response.json();
 
 			if (!response.ok) {
 				throw new Error(data.message || 'Login failed');
 			}
 
-			user.set(data.user as User);
+                        const loggedInUser = data.user as User;
+                        user.set(loggedInUser);
 
-			const trainerIds = data.user?.id ? [data.user.id] : null;
-
-			calendarStore.updateFilters({ trainerIds }, fetch);
-
-			goto('/');
-		} catch (error) {
-			errorMessage = error.message;
-		}
-	}
+                        if (loggedInUser.kind === 'trainer') {
+                                const trainerIds = loggedInUser?.id ? [loggedInUser.id] : null;
+                                calendarStore.updateFilters({ trainerIds }, fetch);
+                                goto('/');
+                        } else {
+                                goto('/client');
+                        }
+                } catch (error) {
+                        errorMessage = error.message;
+                }
+        }
 </script>
 
 <div class="w-full max-w-96 p-8 text-white glass rounded-4xl">

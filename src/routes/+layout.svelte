@@ -22,7 +22,9 @@ import { get } from 'svelte/store';
 	import { loadingStore } from '$lib/stores/loading';
 
 export let data;
-	$user = data.user;
+        $user = data.user;
+
+$: isClient = $user?.kind === 'client';
 
 let isMobile = false;
 let showDrawer = false;
@@ -105,10 +107,12 @@ $: popupProps = popup?.props ? { ...popup.props } : {};
 </script>
 
 <ParaglideJS {i18n}>
-	{#if currentRoute === '/login'}
-		<slot />
-	{:else}
-		<main class="relative flex h-dvh w-full flex-row overflow-hidden bg-background-gradient">
+        {#if currentRoute === '/login'}
+                <slot />
+        {:else if isClient}
+                <slot />
+        {:else}
+                <main class="relative flex h-dvh w-full flex-row overflow-hidden bg-background-gradient">
 			<!-- ✅ DESKTOP -->
 
 			<div class="hidden w-full gap-4 md:flex">
@@ -148,8 +152,8 @@ $: popupProps = popup?.props ? { ...popup.props } : {};
 			</div>
 		</main>
 
-		<LoadingOverlay />
-		<ToastContainer />
+                <LoadingOverlay />
+                <ToastContainer />
 {/if}
 </ParaglideJS>
 

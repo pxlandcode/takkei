@@ -1,24 +1,16 @@
-import { query } from '$lib/db';
+import type { PageServerLoad } from './$types';
 import { redirect } from '@sveltejs/kit';
 
-export async function load({ cookies }) {
-	const userId = cookies.get('session');
+export const load: PageServerLoad = async ({ locals }) => {
+        const user = locals.user;
 
-	if (!userId) {
-		throw redirect(302, '/login');
-	}
+        if (!user) {
+                throw redirect(303, '/login');
+        }
 
-	// Fetch user details
-	const result = await query(
-		'SELECT id, firstname, lastname, email, role FROM users WHERE id = $1',
-		[userId]
-	);
-	const user = result[0];
+        if (user.kind !== 'trainer') {
+                throw redirect(303, '/client');
+        }
 
-	if (!user) {
-		throw redirect(302, '/login');
-	}
-
-	// Return the user data
-	return { user };
-}
+        return { user };
+};

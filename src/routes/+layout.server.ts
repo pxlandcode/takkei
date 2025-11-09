@@ -1,27 +1,81 @@
+import type { LayoutServerLoad } from './$types';
 import { query } from '$lib/db';
-import { redirect } from '@sveltejs/kit';
 
-export async function load({ cookies, url }) {
-	const userId = cookies.get('session');
-	const currentRoute = url.pathname;
+export const load: LayoutServerLoad = async ({ locals }) => {
+        const authUser = locals.user;
 
-	// Public routes that skip auth
-	const publicRoutes = ['/login', '/register'];
-	if (publicRoutes.includes(currentRoute)) return {};
+        if (!authUser) {
+                return { user: null };
+        }
 
-	// If not logged in, redirect
-	if (!userId) throw redirect(302, '/login');
+        if (authUser.kind === 'trainer' && authUser.trainerId) {
+                const trainerRows = await query(
+                        `SELECT id, firstname, lastname, email, mobile, default_location_id, active, role, comment, created_at, updated_at, initials, key
+                        FROM users
+                        WHERE id = $1`,
+                        [authUser.trainerId]
+                );
+                const trainer = trainerRows[0];
+                if (!trainer) {
+                        return { user: null };
+                }
 
-	// Full user query
-	const userResult = await query('SELECT * FROM users WHERE id = $1', [userId]);
-	const user = userResult[0];
+                const roles = await query(
+                        `SELECT id, user_id, name, created_at, updated_at
+                        FROM roles
+                        WHERE user_id = $1`,
+                        [trainer.id]
+                );
 
-	if (!user) throw redirect(302, '/login');
+                return {
+                        user: {
+                                kind: 'trainer' as const,
+                                id: trainer.id,
+                                firstname: trainer.firstname,
+                                lastname: trainer.lastname,
+                                email: trainer.email,
+                                mobile: trainer.mobile,
+                                default_location_id: trainer.default_location_id,
+                                active: trainer.active,
+                                role: trainer.role,
+                                comment: trainer.comment,
+                                created_at: trainer.created_at,
+                                updated_at: trainer.updated_at,
+                                initials: trainer.initials,
+                                key: trainer.key,
+                                roles,
+                                account_id: authUser.id
+                        }
+                };
+        }
 
-	// Fetch roles
-	const roles = await query('SELECT * FROM roles WHERE user_id = $1', [userId]);
-	user.roles = roles;
+        if (authUser.kind === 'client' && authUser.clientId) {
+                const clientRows = await query(
+                        `SELECT id, firstname, lastname, email, phone AS mobile, created_at, updated_at
+                        FROM clients
+                        WHERE id = $1`,
+                        [authUser.clientId]
+                );
+                const client = clientRows[0];
+                if (!client) {
+                        return { user: null };
+                }
 
-	// ✅ Return full user
-	return { user };
-}
+                return {
+                        user: {
+                                kind: 'client' as const,
+                                id: client.id,
+                                firstname: client.firstname,
+                                lastname: client.lastname,
+                                email: client.email,
+                                mobile: client.mobile,
+                                created_at: client.created_at,
+                                updated_at: client.updated_at,
+                                roles: [],
+                                account_id: authUser.id
+                        }
+                };
+        }
+
+        return { user: null };
+};
