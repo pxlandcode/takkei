@@ -183,8 +183,13 @@ async function verifyPassword(key: KeyRow | null, password: string) {
         return true;
 }
 
-async function createSessionResponse(authUser: AuthUserRow, cookies: Cookies, rememberMe: boolean, payload: any) {
-        const session = await lucia.createSession({ userId: authUser.id, attributes: {} });
+async function createSessionResponse(
+	authUser: AuthUserRow,
+	cookies: Cookies,
+	rememberMe: boolean,
+	payload: any
+) {
+	const session = await lucia.createSession(authUser.id, {});
         const sessionCookie = lucia.createSessionCookie(session.id);
         const cookieOptions = {
                 ...sessionCookie.attributes,

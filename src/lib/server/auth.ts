@@ -1,16 +1,18 @@
 import { Lucia, type Session, type User } from 'lucia';
-import { pg } from '@lucia-auth/adapter-postgresql';
+import { NodePostgresAdapter } from '@lucia-auth/adapter-postgresql';
 import { dev } from '$app/environment';
 import { pool } from '$lib/db.js';
 
 type LuciaKind = 'trainer' | 'client';
 
+const adapter = new NodePostgresAdapter(pool, {
+	user: 'auth_user',
+	session: 'auth_session',
+	key: 'auth_key'
+});
+
 export const lucia = new Lucia(
-        pg(pool, {
-                user: 'auth_user',
-                session: 'auth_session',
-                key: 'auth_key'
-        }),
+	adapter,
         {
                 sessionCookie: {
                         attributes: {

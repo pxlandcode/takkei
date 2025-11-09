@@ -17,6 +17,8 @@
 	let errors: Record<string, string> = {};
 	let selectedRoles: string[] = trainer?.roles?.map((role) => role.name) ?? [];
 	let lastTrainerId: number | null = trainer?.id ?? null;
+	let newPassword = '';
+	let confirmPassword = '';
 
 	onMount(fetchLocations);
 
@@ -45,6 +47,17 @@
 			if (!trainer.email) errors.email = 'E-post krävs';
 			if (selectedRoles.length === 0) errors.roles = 'Minst en roll måste väljas';
 
+			const trimmedPassword = newPassword.trim();
+			const trimmedConfirm = confirmPassword.trim();
+			if (trimmedPassword || trimmedConfirm) {
+				if (trimmedPassword.length < 8) {
+					errors.password = 'Lösenordet måste vara minst 8 tecken';
+				}
+				if (trimmedPassword !== trimmedConfirm) {
+					errors.password_confirm = 'Lösenorden matchar inte';
+				}
+			}
+
 			if (Object.keys(errors).length > 0) {
 				return;
 			}
@@ -60,7 +73,8 @@
 				default_location_id: trainer.default_location_id ?? null,
 				active: trainer.active,
 				comment: trainer.comment ?? '',
-				roles: selectedRoles
+				roles: selectedRoles,
+				password: trimmedPassword || undefined
 			};
 
 			let res = await fetch(`/api/users/${trainer.id}`, {
@@ -99,6 +113,9 @@
 				message: 'Profil uppdaterad',
 				description: `${trainer.firstname} ${trainer.lastname} har uppdaterats korrekt.`
 			});
+
+			newPassword = '';
+			confirmPassword = '';
 
 			if (onSave) onSave(result.user);
 		} catch (err) {
@@ -152,6 +169,27 @@
 	/>
 
 	<TextArea label="Intern anteckning" name="comment" bind:value={trainer.comment} />
+
+	<div class="rounded-sm border border-gray-200 p-4">
+		<p class="mb-2 text-sm font-semibold text-gray-700">Byt lösenord</p>
+		<p class="mb-4 text-xs text-gray-500">Lämna fälten tomma om du vill behålla nuvarande lösenord.</p>
+		<div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+			<Input
+				label="Nytt lösenord"
+				name="password"
+				type="password"
+				bind:value={newPassword}
+				{errors}
+			/>
+			<Input
+				label="Bekräfta nytt lösenord"
+				name="password_confirm"
+				type="password"
+				bind:value={confirmPassword}
+				{errors}
+			/>
+		</div>
+	</div>
 
 	{#if errors.general}
 		<p class="text-sm font-medium text-error">{errors.general}</p>
