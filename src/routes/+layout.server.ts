@@ -35,20 +35,20 @@ export async function load({ locals, url }) {
                 const clientId = authUser.clientId ?? authUser.client_id;
                 if (!clientId) throw redirect(302, '/login');
 
-                const clientResult = await query(
-                        'SELECT id, firstname, lastname, email, phone, mobile FROM clients WHERE id = $1',
-                        [clientId]
-                );
+		const clientResult = await query(
+			'SELECT id, firstname, lastname, email, phone FROM clients WHERE id = $1',
+			[clientId]
+		);
                 const client = clientResult[0];
                 if (!client) throw redirect(302, '/login');
 
                 return {
                         user: {
-                                id: client.id,
-                                firstname: client.firstname,
-                                lastname: client.lastname,
-                                email: client.email,
-                                phone: client.phone ?? client.mobile ?? null,
+				id: client.id,
+				firstname: client.firstname,
+				lastname: client.lastname,
+				email: client.email,
+				phone: client.phone ?? null,
                                 kind: 'client',
                                 lucia_user_id: authUser.id
                         }
