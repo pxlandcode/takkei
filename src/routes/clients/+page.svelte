@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { get } from 'svelte/store';
 	import { user } from '$lib/stores/userStore';
+	import { browser } from '$app/environment';
 	import type { TableType } from '$lib/types/componentTypes';
 	import Table from '../../components/bits/table/Table.svelte';
 	import { goto } from '$app/navigation';
@@ -142,6 +143,7 @@
 	}
 
 	async function fetchPaginatedClients(reset = false) {
+		if (!browser) return;
 		if (isLoading || (!hasMore && !reset)) return;
 
 		isLoading = true;
@@ -262,7 +264,11 @@
 	}
 
 	// Reload from server when filters change
-	$: selectedStatusOption, selectedOwnershipOption, fetchPaginatedClients(true);
+	$: if (browser) {
+		selectedStatusOption;
+		selectedOwnershipOption;
+		fetchPaginatedClients(true);
+	}
 </script>
 
 <div class="custom-scrollbar m-4 h-full overflow-x-scroll" on:scroll={handleScroll}>

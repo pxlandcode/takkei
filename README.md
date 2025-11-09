@@ -2,6 +2,8 @@
 
 Everything you need to build a Svelte project, powered by [`sv`](https://github.com/sveltejs/cli).
 
+> **Authentication**: The SvelteKit app now uses Lucia for login/session management. See [auth.md](./auth.md) for the full setup, database additions, and trainer/client login flows.
+
 ## Creating a project
 
 If you're seeing this, you've probably already done this step. Congrats!

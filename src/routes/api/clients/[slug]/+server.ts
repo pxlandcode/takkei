@@ -1,5 +1,32 @@
 import { json } from '@sveltejs/kit';
 import { query } from '$lib/db';
+import { Argon2id } from 'oslo/password';
+import { clientKeyId, clientUserId } from '$lib/server/auth';
+
+const argon = new Argon2id();
+const HASH_METADATA = { algo: 'argon2id', version: 1 };
+
+async function updateClientPassword(clientId: number, email: string, password: string) {
+	const luciaUserId = clientUserId(clientId);
+	await query(
+		`INSERT INTO auth_user (id, email, kind, trainer_id, client_id)
+		 VALUES ($1, $2, 'client', NULL, $3)
+		 ON CONFLICT (id)
+		 DO UPDATE SET email = EXCLUDED.email, updated_at = NOW()`,
+		[luciaUserId, email, clientId]
+	);
+
+	const hashed = await argon.hash(password);
+	const providerUserId = clientKeyId(email);
+	const keyId = `email:${providerUserId}`;
+	await query(
+		`INSERT INTO auth_key (id, user_id, hashed_password, provider_id, provider_user_id, metadata)
+		 VALUES ($1, $2, $3, 'email', $4, $5::jsonb)
+		 ON CONFLICT (provider_id, provider_user_id)
+		 DO UPDATE SET hashed_password = EXCLUDED.hashed_password, user_id = EXCLUDED.user_id, metadata = EXCLUDED.metadata`,
+		[keyId, luciaUserId, hashed, providerUserId, JSON.stringify(HASH_METADATA)]
+	);
+}
 
 /**
  * Fetch a client by ID with primary trainer details
@@ -68,6 +95,23 @@ export async function PUT({ request, params }) {
 
 		if (result.length === 0) {
 			return json({ error: 'Client not found or not updated' }, { status: 404 });
+		}
+
+		if (typeof body.password === 'string' && body.password.trim().length > 0) {
+			const trimmedPassword = body.password.trim();
+			if (!body.email) {
+				return json(
+					{ errors: { password: 'E-post krävs för att byta lösenord' } },
+					{ status: 400 }
+				);
+			}
+			if (trimmedPassword.length < 8) {
+				return json(
+					{ errors: { password: 'Lösenordet måste vara minst 8 tecken' } },
+					{ status: 400 }
+				);
+			}
+			await updateClientPassword(Number(clientId), body.email, trimmedPassword);
 		}
 
 		return json(result[0]);

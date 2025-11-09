@@ -27,9 +27,9 @@ if (useProdDb) {
 	console.log('✅ Using LOCAL database');
 }
 
-const pool = new Pool({
-	connectionString,
-	ssl: isProduction || useProdDb ? { rejectUnauthorized: false } : false
+export const pool = new Pool({
+        connectionString,
+        ssl: isProduction || useProdDb ? { rejectUnauthorized: false } : false
 });
 
 const APP_TZ = 'Europe/Stockholm';
@@ -149,7 +149,7 @@ function normalizeParam(p) {
 }
 
 export const query = async (text, params = []) => {
-	const client = await pool.connect();
+        const client = await pool.connect();
 	try {
 		const norm = Array.isArray(params) ? params.map(normalizeParam) : params;
 		const res = await client.query(text, norm);

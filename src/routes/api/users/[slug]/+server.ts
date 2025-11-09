@@ -1,5 +1,46 @@
 import { json } from '@sveltejs/kit';
 import { query } from '$lib/db';
+import crypto from 'crypto';
+import { Argon2id } from 'oslo/password';
+import { trainerKeyId, trainerUserId } from '$lib/server/auth';
+
+const argon = new Argon2id();
+const HASH_METADATA = { algo: 'argon2id', version: 1 };
+
+function encryptLegacyPassword(password: string, salt: string) {
+	const hashInput = `--${salt}--${password}--`;
+	return crypto.createHash('sha1').update(hashInput).digest('hex');
+}
+
+async function updateTrainerPassword(userId: number, email: string, password: string) {
+	const salt = crypto.randomBytes(16).toString('hex');
+	const legacyHash = encryptLegacyPassword(password, salt);
+	await query(`UPDATE users SET salt = $1, crypted_password = $2 WHERE id = $3`, [
+		salt,
+		legacyHash,
+		userId
+	]);
+
+	const luciaUserId = trainerUserId(userId);
+	await query(
+		`INSERT INTO auth_user (id, email, kind, trainer_id, client_id)
+		 VALUES ($1, $2, 'trainer', $3, NULL)
+		 ON CONFLICT (id)
+		 DO UPDATE SET email = EXCLUDED.email, updated_at = NOW()`,
+		[luciaUserId, email, userId]
+	);
+
+	const hashed = await argon.hash(password);
+	const providerUserId = trainerKeyId(email);
+	const keyId = `email:${providerUserId}`;
+	await query(
+		`INSERT INTO auth_key (id, user_id, hashed_password, provider_id, provider_user_id, metadata)
+		 VALUES ($1, $2, $3, 'email', $4, $5::jsonb)
+		 ON CONFLICT (provider_id, provider_user_id)
+		 DO UPDATE SET hashed_password = EXCLUDED.hashed_password, user_id = EXCLUDED.user_id, metadata = EXCLUDED.metadata`,
+		[keyId, luciaUserId, hashed, providerUserId, JSON.stringify(HASH_METADATA)]
+	);
+}
 
 /**
  * Fetch a user by ID with roles and default location
@@ -48,7 +89,8 @@ export async function PUT({ request, params }) {
 			active,
 			comment,
 			key,
-			roles
+			roles,
+			password
 		} = await request.json();
 
 		// Validate required fields
@@ -106,6 +148,17 @@ export async function PUT({ request, params }) {
 				userId
 			]
 		);
+
+		if (typeof password === 'string' && password.trim().length > 0) {
+			const trimmedPassword = password.trim();
+			if (trimmedPassword.length < 8) {
+				return json(
+					{ success: false, errors: { password: 'Lösenordet måste vara minst 8 tecken' } },
+					{ status: 400 }
+				);
+			}
+			await updateTrainerPassword(Number(userId), email, trimmedPassword);
+		}
 
 		await query(`DELETE FROM roles WHERE user_id = $1`, [userId]);
 
