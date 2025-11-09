@@ -107,7 +107,7 @@
 </script>
 
 <div class="flex flex-col gap-4">
-        <div class="rounded-sm bg-white p-6 shadow-md">
+        <div class="rounded-sm border border-gray-200 bg-white p-6 shadow-md">
                 <div class="mb-4 flex items-center justify-between">
                         <h4 class="text-xl font-semibold">{canEdit && isEditing ? 'Redigera' : 'Profil'}</h4>
                         {#if canEdit}

@@ -49,29 +49,43 @@ $: if (!isTrainer) {
                         return;
                 }
 
-                if (get(user)?.kind !== 'trainer') {
+                const current = get(user);
+                const allowDrawer = current?.kind === 'trainer' || current?.kind === 'client';
+                if (!allowDrawer) {
                         return;
                 }
 
-                if ('serviceWorker' in navigator && !dev) {
+                if (current?.kind === 'trainer' && 'serviceWorker' in navigator && !dev) {
                         navigator.serviceWorker
                                 .register('/service-worker.js')
                                 .catch((error) => console.error('Service worker registration failed', error));
                 }
 
                 isMobile = window.innerWidth < 768;
-                showDrawer = isMobile && currentRoute !== '/';
+		const defaultRoute = current?.kind === 'trainer' ? '/' : '/client';
+		if (current?.kind === 'client' && currentRoute === defaultRoute) {
+			showDrawer = true;
+		} else {
+                        showDrawer = isMobile && currentRoute !== defaultRoute;
+                }
         });
 
         page.subscribe(($page) => {
-                if (browser && isMobile && isTrainer) {
+                if (!browser || !isMobile) return;
+                if (isTrainer) {
                         showDrawer = $page.url.pathname !== '/';
+                } else if (isClient) {
+                        if ($page.url.pathname === '/client') {
+                                // allow manual toggle
+                        } else {
+                                showDrawer = true;
+                        }
                 }
         });
 
 function closeDrawer() {
 	showDrawer = false;
-	goto('/');
+	goto(isTrainer ? '/' : '/client');
 }
 
 function buildListeners(state: PopupState | null) {
@@ -119,15 +133,41 @@ $: popupProps = popup?.props ? { ...popup.props } : {};
 <ParaglideJS {i18n}>
         {#if currentRoute === '/login'}
                 <slot />
-        {:else if isClient}
-                <main class="client-shell flex min-h-dvh w-full justify-center bg-background-gradient">
-                        <div class="flex w-full max-w-4xl flex-col bg-white p-6">
-                                <slot />
-                        </div>
-                </main>
-                <LoadingOverlay />
-                <ToastContainer />
-        {:else}
+{:else if isClient}
+	<main class="relative flex h-dvh w-full overflow-hidden bg-background-gradient">
+		<div class="hidden w-full gap-4 md:flex">
+			<aside class="w-80 pl-4">
+				<Dashboard clientMode />
+			</aside>
+			<section class="flex flex-1 flex-col overflow-hidden p-4">
+				<div class="flex flex-1 flex-col overflow-hidden rounded-sm bg-white">
+					<div class="flex-1 overflow-y-auto">
+						<slot />
+					</div>
+				</div>
+			</section>
+		</div>
+		<div class="relative flex w-full items-start justify-center md:hidden">
+			<div class="z-0 h-full">
+				<Dashboard clientMode />
+			</div>
+			<div class="mobile-drawer z-10" class:visible={showDrawer}>
+				{#if showDrawer}
+					<div class="absolute right-4 top-4 z-20">
+						<Button icon="Close" variant="secondary" on:click={closeDrawer} />
+					</div>
+				{/if}
+				<div class="flex h-full flex-col overflow-hidden rounded-t-xl bg-white">
+					<div class="flex-1 overflow-y-auto p-4">
+						<slot />
+					</div>
+				</div>
+			</div>
+		</div>
+	</main>
+	<LoadingOverlay />
+	<ToastContainer />
+{:else}
                 <main class="relative flex h-dvh w-full flex-row overflow-hidden bg-background-gradient">
                         <!-- ✅ DESKTOP -->
 
