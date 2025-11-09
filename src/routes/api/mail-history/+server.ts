@@ -1,8 +1,8 @@
 import { query } from '$lib/db';
 
 function isAdministrator(user: any): boolean {
-        if (!user) return false;
-        const names: string[] = [];
+	if (!user) return false;
+	const names: string[] = [];
         if (Array.isArray(user.roles)) {
                 for (const role of user.roles) {
                         if (!role) continue;
@@ -19,50 +19,69 @@ function isAdministrator(user: any): boolean {
 }
 
 export const GET = async ({ url, locals }) => {
-        const authUser = locals.user;
-        if (!authUser) {
-                return new Response('Unauthorized', { status: 401 });
-        }
+	const authUser = locals.user;
+	if (!authUser) {
+		return new Response('Unauthorized', { status: 401 });
+	}
 
-        const searchParams = url.searchParams;
-        const limitParam = Number.parseInt(searchParams.get('limit') ?? '', 10);
-        const offsetParam = Number.parseInt(searchParams.get('offset') ?? '', 10);
+	const trainerId =
+		authUser.kind === 'trainer'
+			? authUser.trainerId ?? authUser.trainer_id ?? null
+			: null;
+
+	let resolvedRoles: Array<{ name?: string } | string> = [];
+	if (trainerId) {
+		try {
+			resolvedRoles = await query('SELECT name FROM roles WHERE user_id = $1', [trainerId]);
+		} catch (roleError) {
+			console.warn('Failed to resolve user roles for mail history', roleError);
+		}
+	}
+
+	const roleAwareUser = {
+		...authUser,
+		roles: resolvedRoles
+	};
+
+	const searchParams = url.searchParams;
+	const limitParam = Number.parseInt(searchParams.get('limit') ?? '', 10);
+	const offsetParam = Number.parseInt(searchParams.get('offset') ?? '', 10);
         const search = searchParams.get('search')?.trim() ?? '';
         const startDateParam = searchParams.get('startDate');
         const endDateParam = searchParams.get('endDate');
         const senderIdParam = searchParams.get('senderId');
         const mineOnlyParam = searchParams.get('mineOnly');
 
-        const isAdmin = isAdministrator(authUser);
+	const isAdmin = isAdministrator(roleAwareUser);
 
-        const limit = Number.isFinite(limitParam) && limitParam > 0 ? Math.min(limitParam, 100) : 20;
-        const offset = Number.isFinite(offsetParam) && offsetParam > 0 ? offsetParam : 0;
+	const limit = Number.isFinite(limitParam) && limitParam > 0 ? Math.min(limitParam, 100) : 20;
+	const offset = Number.isFinite(offsetParam) && offsetParam > 0 ? offsetParam : 0;
 
-        let mineOnly = !isAdmin;
+	let mineOnly = !isAdmin;
         if (mineOnlyParam === 'true') {
                 mineOnly = true;
         } else if (mineOnlyParam === 'false' && isAdmin) {
                 mineOnly = false;
         }
 
-        const filters: string[] = [];
-        const params: any[] = [];
-        let paramIndex = 1;
+	const filters: string[] = [];
+	const params: any[] = [];
+	let paramIndex = 1;
 
-        if (mineOnly || !isAdmin) {
-                if (typeof authUser.id !== 'number') {
-                        return new Response(JSON.stringify({ data: [], pagination: { total: 0, limit, offset } }), {
-                                status: 200,
-                                headers: { 'content-type': 'application/json' }
-                        });
-                }
-                filters.push(`sender_user_id = $${paramIndex++}`);
-                params.push(authUser.id);
-        } else if (senderIdParam) {
-                const senderId = Number.parseInt(senderIdParam, 10);
-                if (Number.isFinite(senderId)) {
-                        filters.push(`sender_user_id = $${paramIndex++}`);
-                        params.push(senderId);
+	if (mineOnly || !isAdmin) {
+		if (typeof trainerId !== 'number') {
+			return new Response(JSON.stringify({ data: [], pagination: { total: 0, limit, offset } }), {
+				status: 200,
+				headers: { 'content-type': 'application/json' }
+			});
+		}
+		filters.push(`sender_user_id = $${paramIndex++}`);
+		params.push(trainerId);
+	} else if (senderIdParam) {
+		const senderId = Number.parseInt(senderIdParam, 10);
+		if (Number.isFinite(senderId)) {
+			filters.push(`sender_user_id = $${paramIndex++}`);
+			params.push(senderId);
                 }
         }
 

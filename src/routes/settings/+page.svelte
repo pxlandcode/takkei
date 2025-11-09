@@ -6,12 +6,12 @@
 	import TargetsSettings from '../../components/ui/targetsSettings/TargetsSettings.svelte';
 	import SchedulingSettings from '../../components/ui/schedulingSettings/SchedulingSettings.svelte';
 	import MailComponent from '../../components/ui/mailComponent/MailComponent.svelte';
-        import Navigation from '../../components/bits/navigation/Navigation.svelte';
-        import UserForm from '../../components/ui/userForm/UserForm.svelte';
-        import Button from '../../components/bits/button/Button.svelte';
+	import Navigation from '../../components/bits/navigation/Navigation.svelte';
+	import UserForm from '../../components/ui/userForm/UserForm.svelte';
+	import Button from '../../components/bits/button/Button.svelte';
 
-        import NotificationAdministration from '../../components/ui/notificationAdministration/NotificationAdministration.svelte';
-        import MailHistory from '../../components/ui/mailHistory/MailHistory.svelte';
+	import NotificationAdministration from '../../components/ui/notificationAdministration/NotificationAdministration.svelte';
+	import MailHistory from '../../components/ui/mailHistory/MailHistory.svelte';
 
 	const menuItems = [
 		{ label: 'Allmänt', icon: 'Settings', component: Icon },
@@ -32,12 +32,12 @@
 			component: LocationSettings,
 			requiredRoles: ['Administrator']
 		},
-                { label: 'Paket', icon: 'Package', component: PackagesSettings },
-                { label: 'Mailutskick', icon: 'Mail', component: MailComponent },
-                { label: 'Mailhistorik', icon: 'History', component: MailHistory },
-                {
-                        label: 'Notifikationer',
-                        icon: 'Notification',
+		{ label: 'Paket', icon: 'Package', component: PackagesSettings },
+		{ label: 'Mailutskick', icon: 'Mail', component: MailComponent },
+		{ label: 'Mailhistorik', icon: 'HistoryList', component: MailHistory },
+		{
+			label: 'Notifikationer',
+			icon: 'Notification',
 			component: NotificationAdministration,
 			requiredRoles: ['Administrator', 'LocationAdmin']
 		},
@@ -65,10 +65,10 @@
 
 <div class="m-4 ml-3 flex flex-wrap items-center justify-between">
 	<div class="flex shrink-0 items-center gap-2">
-		<div class="flex h-7 w-7 items-center justify-center rounded-full bg-text text-white">
+		<div class="bg-text flex h-7 w-7 items-center justify-center rounded-full text-white">
 			<Icon icon="Settings" size="18px" />
 		</div>
-		<h2 class="text-3xl font-semibold text-text">Inställningar</h2>
+		<h2 class="text-text text-3xl font-semibold">Inställningar</h2>
 	</div>
 
 	<div class="mr-14 md:mr-0">

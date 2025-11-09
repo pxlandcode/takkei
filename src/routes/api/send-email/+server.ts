@@ -33,7 +33,10 @@ export const POST = async ({ request, locals }) => {
                 let historyId: number | null = null;
 
                 try {
-                        const senderUserId = authUser.kind === 'trainer' ? authUser.id : null;
+			const senderUserId =
+				authUser.kind === 'trainer'
+					? authUser.trainerId ?? authUser.trainer_id ?? null
+					: null;
                         const senderNameParts = [authUser.firstname, authUser.lastname].filter(Boolean);
                         const senderName = senderNameParts.length ? senderNameParts.join(' ') : null;
                         const senderEmail = authUser.email ?? null;
