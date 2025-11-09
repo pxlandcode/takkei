@@ -1,10 +1,10 @@
 <script lang="ts">
-	import Button from '../../bits/button/Button.svelte';
-	import BookingGrid from '../bookingGrid/BookingGrid.svelte';
-	import ProfileClientEdit from '../ProfileClientEdit/ProfileClientEdit.svelte';
-	import ProfileClientPackages from '../ProfileClientPackages/ProfileClientPackages.svelte';
-	import MailComponent from '../mailComponent/MailComponent.svelte';
-	import { openPopup } from '$lib/stores/popupStore';
+        import Button from '../../bits/button/Button.svelte';
+        import BookingGrid from '../bookingGrid/BookingGrid.svelte';
+        import ProfileClientEdit from '../ProfileClientEdit/ProfileClientEdit.svelte';
+        import ProfileClientPackages from '../ProfileClientPackages/ProfileClientPackages.svelte';
+        import MailComponent from '../mailComponent/MailComponent.svelte';
+        import { openPopup } from '$lib/stores/popupStore';
 
 	type ProfileField = {
 		label: string;
@@ -13,9 +13,14 @@
 		action?: () => void;
 	};
 
-	export let client;
+        export let client;
+        export let readOnly = false;
+        export let showPackages = true;
+        export let showBookingGrid = true;
+        export let allowEditing = true;
+        export let allowMailPopup = true;
 
-	let isEditing = false;
+        let isEditing = false;
 
 	const EMPTY_VALUE = 'Inte angivet';
 	const boolToLabel = (value?: boolean | null) => (value ? 'Ja' : 'Nej');
@@ -29,11 +34,11 @@
 		return value.toString();
 	}
 
-	function openMailPopup(email: string) {
-		if (!email) return;
-		const fullName = `${client?.firstname ?? ''} ${client?.lastname ?? ''}`.trim();
-		openPopup({
-			header: fullName ? `Maila ${fullName}` : `Maila ${email}`,
+        function openMailPopup(email: string) {
+                if (!email || !canUseMailPopup) return;
+                const fullName = `${client?.firstname ?? ''} ${client?.lastname ?? ''}`.trim();
+                openPopup({
+                        header: fullName ? `Maila ${fullName}` : `Maila ${email}`,
 			icon: 'Mail',
 			component: MailComponent,
 			width: '900px',
@@ -52,37 +57,49 @@
 		return 'Ingen';
 	}
 
-	let contactLeftFields: ProfileField[] = [];
-	let contactRightFields: ProfileField[] = [];
+        let contactLeftFields: ProfileField[] = [];
+        let contactRightFields: ProfileField[] = [];
 
-	$: contactLeftFields = [
-		{ label: 'Förnamn', value: client?.firstname },
-		{ label: 'Efternamn', value: client?.lastname },
-		{
-			label: 'E-post',
-			value: client?.email,
-			action: client?.email ? () => openMailPopup(client.email) : undefined
-		},
-		{
-			label: 'Alternativ e-post',
-			value: client?.alternative_email,
-			action: client?.alternative_email ? () => openMailPopup(client.alternative_email) : undefined
-		},
-		{
-			label: 'Telefon',
-			value: client?.phone,
-			href: client?.phone ? `tel:${client.phone.replace(/\s+/g, '')}` : undefined
-		}
-	];
+        $: canEdit = !readOnly && allowEditing;
+        $: canUseMailPopup = !readOnly && allowMailPopup;
+        $: canShowPackages = !readOnly && showPackages;
+        $: shouldShowBookingGrid = showBookingGrid && Boolean(client?.id);
 
-	$: contactRightFields = [
-		{ label: 'Personnummer', value: client?.person_number },
-		{ label: 'Primär tränare', value: primaryTrainerName() },
-		{ label: 'Aktiv', value: boolToLabel(client?.active) }
-	];
+        $: contactLeftFields = [
+                { label: 'Förnamn', value: client?.firstname },
+                { label: 'Efternamn', value: client?.lastname },
+                {
+                        label: 'E-post',
+                        value: client?.email,
+                        action: client?.email && canUseMailPopup ? () => openMailPopup(client.email) : undefined
+                },
+                {
+                        label: 'Alternativ e-post',
+                        value: client?.alternative_email,
+                        action:
+                                client?.alternative_email && canUseMailPopup
+                                        ? () => openMailPopup(client.alternative_email)
+                                        : undefined
+                },
+                {
+                        label: 'Telefon',
+                        value: client?.phone,
+                        href: client?.phone && !readOnly ? `tel:${client.phone.replace(/\s+/g, '')}` : undefined
+                }
+        ];
 
-	function handleClientSaved(updated?: typeof client) {
-		if (updated) {
+        $: contactRightFields = [
+                { label: 'Personnummer', value: client?.person_number },
+                { label: 'Primär tränare', value: primaryTrainerName() },
+                { label: 'Aktiv', value: boolToLabel(client?.active) }
+        ];
+
+        $: if (!canEdit && isEditing) {
+                isEditing = false;
+        }
+
+        function handleClientSaved(updated?: typeof client) {
+                if (updated) {
 			Object.assign(client, updated);
 		}
 		isEditing = false;
@@ -90,28 +107,30 @@
 </script>
 
 <div class="flex flex-col gap-4">
-	<div class="rounded-sm bg-white p-6 shadow-md">
-		<div class="mb-4 flex items-center justify-between">
-			<h4 class="text-xl font-semibold">{!isEditing ? 'Profil' : 'Redigera'}</h4>
-			<Button
-				text={isEditing ? 'Avbryt' : 'Redigera'}
-				on:click={() => (isEditing = !isEditing)}
-				variant="primary"
-			/>
-		</div>
+        <div class="rounded-sm bg-white p-6 shadow-md">
+                <div class="mb-4 flex items-center justify-between">
+                        <h4 class="text-xl font-semibold">{canEdit && isEditing ? 'Redigera' : 'Profil'}</h4>
+                        {#if canEdit}
+                                <Button
+                                        text={isEditing ? 'Avbryt' : 'Redigera'}
+                                        on:click={() => (isEditing = !isEditing)}
+                                        variant="primary"
+                                />
+                        {/if}
+                </div>
 
-		{#if !isEditing}
-			<div class="grid gap-6 md:grid-cols-2">
-				<dl class="space-y-4">
-					{#each contactLeftFields as field (field.label)}
+                {#if !(canEdit && isEditing)}
+                        <div class="grid gap-6 md:grid-cols-2">
+                                <dl class="space-y-4">
+                                        {#each contactLeftFields as field (field.label)}
 						<div>
 							<dt class="text-xs font-semibold uppercase tracking-wide text-gray-500">
 								{field.label}
 							</dt>
-							{#if field.action && field.value}
-								<dd>
-									<button
-										type="button"
+                                                        {#if field.action && field.value}
+                                                                <dd>
+                                                                        <button
+                                                                                type="button"
 										class="text-base font-medium text-primary hover:underline"
 										on:click={field.action}
 									>
@@ -145,14 +164,18 @@
 					{/each}
 				</dl>
 			</div>
-		{:else}
-			<ProfileClientEdit {client} onSave={handleClientSaved} />
-		{/if}
-	</div>
+                {:else}
+                        <ProfileClientEdit {client} onSave={handleClientSaved} />
+                {/if}
+        </div>
 
-	<ProfileClientPackages clientId={client.id} />
+        {#if canShowPackages && client?.id}
+                <ProfileClientPackages clientId={client.id} />
+        {/if}
 
-	<div class="pb-8">
-		<BookingGrid clientId={client.id} />
-	</div>
+        {#if shouldShowBookingGrid}
+                <div class="pb-8">
+                        <BookingGrid clientId={client.id} />
+                </div>
+        {/if}
 </div>
