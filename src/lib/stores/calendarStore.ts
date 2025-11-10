@@ -156,7 +156,10 @@ const createCalendarStore = () => {
 		);
 	}
 
-	async function updateFilters(newFilters: Partial<CalendarFilters>, fetchFn: typeof fetch): Promise<void> {
+	async function updateFilters(
+		newFilters: Partial<CalendarFilters>,
+		fetchFn: typeof fetch
+	): Promise<void> {
 		const merged = { ...getCurrentFilters(), ...newFilters };
 
 		if (newFilters.personalBookings === undefined) {
@@ -167,7 +170,10 @@ const createCalendarStore = () => {
 		await refresh(fetchFn, merged);
 	}
 
-	async function setNewFilters(newFilters: Partial<CalendarFilters>, fetchFn: typeof fetch): Promise<void> {
+	async function setNewFilters(
+		newFilters: Partial<CalendarFilters>,
+		fetchFn: typeof fetch
+	): Promise<void> {
 		const baseDefaults: CalendarFilters = {
 			from: null,
 			to: null,

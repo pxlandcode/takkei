@@ -37,7 +37,6 @@
 		columnCount: number;
 	};
 
-
 	let calendarContainer: HTMLDivElement | null = null;
 
 	// Access store data directly in derived values
@@ -360,37 +359,37 @@
 			return;
 		}
 
-	const slotBookings = findBookingsInSameSlot(booking, bookingLocationId);
+		const slotBookings = findBookingsInSameSlot(booking, bookingLocationId);
 
-	if (slotBookings.length >= 2) {
-		if (!isMobile) {
-			openBookingDetails(booking);
+		if (slotBookings.length >= 2) {
+			if (!isMobile) {
+				openBookingDetails(booking);
+				return;
+			}
+
+			const opened = openSlotDialog(targetElement, {
+				mode: 'select',
+				bookings: slotBookings,
+				startTime: new Date(booking.booking.startTime),
+				locationId: bookingLocationId
+			});
+			if (!opened) {
+				openBookingDetails(booking);
+			}
 			return;
 		}
 
 		const opened = openSlotDialog(targetElement, {
-			mode: 'select',
-			bookings: slotBookings,
+			mode: 'actions',
+			booking,
 			startTime: new Date(booking.booking.startTime),
 			locationId: bookingLocationId
 		});
+
 		if (!opened) {
 			openBookingDetails(booking);
 		}
-		return;
 	}
-
-	const opened = openSlotDialog(targetElement, {
-		mode: 'actions',
-		booking,
-		startTime: new Date(booking.booking.startTime),
-		locationId: bookingLocationId
-	});
-
-	if (!opened) {
-		openBookingDetails(booking);
-	}
-}
 
 	function partitionBookingsByDay(
 		allBookings: FullBooking[],
@@ -571,9 +570,9 @@
 		}
 	});
 
-onDestroy(() => {
-	slotDialogView = null;
-});
+	onDestroy(() => {
+		slotDialogView = null;
+	});
 </script>
 
 <div class="flex h-full flex-col overflow-x-auto rounded-tl-md rounded-tr-md md:gap-10">

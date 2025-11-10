@@ -13,41 +13,37 @@
 	import type { CalendarFilters } from '$lib/stores/calendarStore';
 
 	export let kind: 'practice' | 'education' = 'practice'; // NEW
-export let bookingObject: any;
-export let users: { label: string; value: number }[] = [];
-export let trainerOptions: { label: string; value: number }[] = [];
+	export let bookingObject: any;
+	export let users: { label: string; value: number }[] = [];
+	export let trainerOptions: { label: string; value: number }[] = [];
 	export let locations: { label: string; value: number }[] = [];
 	export let selectedIsUnavailable = false;
 	export let repeatedBookings: any[] = [];
 	export let isEditing: boolean = false;
 	export let errors: Record<string, string> = {};
 
-// Common defaults
-$: if (!bookingObject.trainerId) bookingObject.trainerId = get(user)?.id ?? null;
+	// Common defaults
+	$: if (!bookingObject.trainerId) bookingObject.trainerId = get(user)?.id ?? null;
 	$: bookingObject.clientId = null;
 	$: bookingObject.isTrial = false;
 	$: bookingObject.repeatWeeks ??= 4;
-$: effectiveTrainerOptions =
-	kind === 'education'
-		? trainerOptions
-		: trainerOptions.length > 0
-			? trainerOptions
-			: users;
+	$: effectiveTrainerOptions =
+		kind === 'education' ? trainerOptions : trainerOptions.length > 0 ? trainerOptions : users;
 
-$: {
-	if (
-		effectiveTrainerOptions.length > 0 &&
-		!effectiveTrainerOptions.some((option) => option.value === bookingObject.trainerId)
-	) {
-		bookingObject.trainerId = effectiveTrainerOptions[0].value;
-	} else if (kind === 'education' && effectiveTrainerOptions.length === 0) {
-		bookingObject.trainerId = null;
+	$: {
+		if (
+			effectiveTrainerOptions.length > 0 &&
+			!effectiveTrainerOptions.some((option) => option.value === bookingObject.trainerId)
+		) {
+			bookingObject.trainerId = effectiveTrainerOptions[0].value;
+		} else if (kind === 'education' && effectiveTrainerOptions.length === 0) {
+			bookingObject.trainerId = null;
+		}
 	}
-}
 
-$: canViewAvailability = Boolean(
-	bookingObject.trainerId && bookingObject.locationId && bookingObject.user_id
-);
+	$: canViewAvailability = Boolean(
+		bookingObject.trainerId && bookingObject.locationId && bookingObject.user_id
+	);
 
 	// Flags per kind
 	$: if (kind === 'practice') {
