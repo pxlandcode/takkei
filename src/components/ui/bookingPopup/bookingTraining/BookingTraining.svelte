@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { goto } from '$app/navigation';
 	import { browser } from '$app/environment';
 	import { capitalizeFirstLetter } from '$lib/helpers/generic/genericHelpers';
 	import { calendarStore, getWeekStartAndEnd } from '$lib/stores/calendarStore';
@@ -240,9 +239,9 @@
 			filters.to = weekEnd;
 		}
 
-		calendarStore.setNewFilters(filters, fetch);
+		// Update filters first, then close popup to avoid timing issues
+		await calendarStore.setNewFilters(filters, fetch);
 		closePopup();
-		await goto('/calendar');
 	}
 </script>
 

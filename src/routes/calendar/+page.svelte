@@ -94,6 +94,9 @@
 			}
 		};
 		window.addEventListener('resize', resizeHandler);
+
+		// Initial calendar load - ensure we have data on mount
+		calendarStore.refresh(fetch);
 	});
 
 	onDestroy(() => {

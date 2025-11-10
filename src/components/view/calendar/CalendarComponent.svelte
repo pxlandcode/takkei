@@ -40,17 +40,12 @@
 
 	let calendarContainer: HTMLDivElement | null = null;
 
-	let bookings = $state<FullBooking[]>([]);
-	let filters = $state<CalendarFilters | undefined>(undefined);
-	let availability = $state<AvailabilityMap>({});
-	let calendarIsLoading = $state(false);
-
-	const unsubscribe = calendarStore.subscribe((store) => {
-		bookings = store.bookings;
-		filters = store.filters;
-		availability = store.availability;
-		calendarIsLoading = store.isLoading;
-	});
+	// Access store data directly in derived values
+	const storeValue = $derived($calendarStore);
+	const bookings = $derived(storeValue.bookings);
+	const filters = $derived(storeValue.filters);
+	const availability = $derived(storeValue.availability);
+	const calendarIsLoading = $derived(storeValue.isLoading);
 
 	onMount(async () => {
 		try {
@@ -115,8 +110,9 @@
 			];
 		}
 
+		// Use filters.from directly - it's already set to Monday by the store
 		const startOfWeek = filters?.from
-			? getMondayOfWeek(parseLocalDateStr(filters.from))
+			? parseLocalDateStr(filters.from)
 			: getMondayOfWeek(new Date());
 
 		return Array.from({ length: 7 }, (_, i) => {
@@ -139,9 +135,9 @@
 
 	const dayDateStrings = $derived(weekDays.map(({ fullDate }) => ymdLocal(fullDate)));
 
-	const bookingsByDay = $derived.by(() =>
-		partitionBookingsByDay(bookings, dayDateStrings, filters, singleDayView)
-	);
+	const bookingsByDay = $derived.by(() => {
+		return partitionBookingsByDay(bookings, dayDateStrings, filters, singleDayView);
+	});
 
 	const layoutByDay = $derived(bookingsByDay.map((dayBookings) => layoutDayBookings(dayBookings)));
 
@@ -577,7 +573,6 @@
 
 onDestroy(() => {
 	slotDialogView = null;
-	unsubscribe();
 });
 </script>
 
@@ -699,7 +694,7 @@ onDestroy(() => {
 					>
 					</button>
 				{/each}
-				{#each layoutByDay[dayIndex] ?? [] as layoutItem, i}
+				{#each layoutByDay[dayIndex] ?? [] as layoutItem (layoutItem.booking.booking.id)}
 					<BookingSlot
 						booking={layoutItem.booking}
 						{startHour}

@@ -1,6 +1,5 @@
 <!-- src/lib/components/booking/bookingPractice/BookingPractice.svelte -->
 <script lang="ts">
-	import { goto } from '$app/navigation';
 	import { browser } from '$app/environment';
 	import { calendarStore, getWeekStartAndEnd } from '$lib/stores/calendarStore';
 	import { closePopup } from '$lib/stores/popupStore';
@@ -115,9 +114,9 @@ $: canViewAvailability = Boolean(
 			filters.to = weekEnd;
 		}
 
-		calendarStore.setNewFilters(filters, fetch);
+		// Update filters first, then close popup to avoid timing issues
+		await calendarStore.setNewFilters(filters, fetch);
 		closePopup();
-		await goto('/calendar');
 	}
 </script>
 

@@ -86,7 +86,7 @@ const createCalendarStore = () => {
 	 * Fetch & Update Bookings based on current filters
 	 */
 
-	async function refresh(fetchFn: typeof fetch, overrideFilters?: CalendarFilters) {
+	async function refresh(fetchFn: typeof fetch, overrideFilters?: CalendarFilters): Promise<void> {
 		const requestId = ++latestRequestId;
 		const base = { ...(overrideFilters ?? getCurrentFilters()) };
 
@@ -156,7 +156,7 @@ const createCalendarStore = () => {
 		);
 	}
 
-	function updateFilters(newFilters: Partial<CalendarFilters>, fetchFn: typeof fetch) {
+	async function updateFilters(newFilters: Partial<CalendarFilters>, fetchFn: typeof fetch): Promise<void> {
 		const merged = { ...getCurrentFilters(), ...newFilters };
 
 		if (newFilters.personalBookings === undefined) {
@@ -164,10 +164,10 @@ const createCalendarStore = () => {
 		}
 
 		update((store) => ({ ...store, filters: merged }));
-		refresh(fetchFn, merged);
+		await refresh(fetchFn, merged);
 	}
 
-	function setNewFilters(newFilters: Partial<CalendarFilters>, fetchFn: typeof fetch) {
+	async function setNewFilters(newFilters: Partial<CalendarFilters>, fetchFn: typeof fetch): Promise<void> {
 		const baseDefaults: CalendarFilters = {
 			from: null,
 			to: null,
@@ -186,12 +186,12 @@ const createCalendarStore = () => {
 		}
 
 		update((store) => ({ ...store, filters }));
-		refresh(fetchFn, filters);
+		await refresh(fetchFn, filters);
 	}
 	/**
 	 * Set Week (from Monday → Sunday)
 	 */
-	function goToWeek(date: Date, fetchFn: typeof fetch) {
+	async function goToWeek(date: Date, fetchFn: typeof fetch): Promise<void> {
 		const { weekStart, weekEnd } = getWeekStartAndEnd(new Date(date));
 		const from = weekStart;
 		const to = weekEnd;
@@ -199,7 +199,7 @@ const createCalendarStore = () => {
 
 		const currentFilters = getCurrentFilters();
 
-		updateFilters(
+		await updateFilters(
 			{
 				...currentFilters,
 				from,
@@ -210,7 +210,7 @@ const createCalendarStore = () => {
 		);
 	}
 
-	function goToNextMonth(fetchFn: typeof fetch) {
+	async function goToNextMonth(fetchFn: typeof fetch): Promise<void> {
 		const currentFilters = getCurrentFilters();
 		const baseDate = currentFilters.date ? new Date(currentFilters.date) : new Date();
 
@@ -224,7 +224,7 @@ const createCalendarStore = () => {
 
 		const { weekStart, weekEnd } = getWeekStartAndEnd(baseDate);
 
-		updateFilters(
+		await updateFilters(
 			{
 				...currentFilters,
 				from: weekStart,
@@ -235,7 +235,7 @@ const createCalendarStore = () => {
 		);
 	}
 
-	function goToPreviousMonth(fetchFn: typeof fetch) {
+	async function goToPreviousMonth(fetchFn: typeof fetch): Promise<void> {
 		const currentFilters = getCurrentFilters();
 		const baseDate = currentFilters.date ? new Date(currentFilters.date) : new Date();
 
@@ -249,7 +249,7 @@ const createCalendarStore = () => {
 
 		const { weekStart, weekEnd } = getWeekStartAndEnd(baseDate);
 
-		updateFilters(
+		await updateFilters(
 			{
 				...currentFilters,
 				from: weekStart,
@@ -260,14 +260,14 @@ const createCalendarStore = () => {
 		);
 	}
 
-	function goToNextWeek(fetchFn: typeof fetch) {
+	async function goToNextWeek(fetchFn: typeof fetch): Promise<void> {
 		const currentFilters = getCurrentFilters();
 		const currentDate = currentFilters.from ? new Date(currentFilters.from) : new Date();
 
 		currentDate.setDate(currentDate.getDate() + 7); // Move forward one week
 		const { weekStart, weekEnd } = getWeekStartAndEnd(currentDate);
 
-		updateFilters(
+		await updateFilters(
 			{
 				...currentFilters,
 				from: weekStart,
@@ -278,14 +278,14 @@ const createCalendarStore = () => {
 		);
 	}
 
-	function goToPreviousWeek(fetchFn: typeof fetch) {
+	async function goToPreviousWeek(fetchFn: typeof fetch): Promise<void> {
 		const currentFilters = getCurrentFilters();
 		const currentDate = currentFilters.from ? new Date(currentFilters.from) : new Date();
 
 		currentDate.setDate(currentDate.getDate() - 7); // Move back one week
 		const { weekStart, weekEnd } = getWeekStartAndEnd(currentDate);
 
-		updateFilters(
+		await updateFilters(
 			{
 				...currentFilters,
 				from: weekStart,
@@ -296,7 +296,7 @@ const createCalendarStore = () => {
 		);
 	}
 
-	function goToNextDay(fetchFn: typeof fetch) {
+	async function goToNextDay(fetchFn: typeof fetch): Promise<void> {
 		const currentFilters = getCurrentFilters();
 		const currentDate = currentFilters.date ? new Date(currentFilters.date) : new Date();
 
@@ -310,7 +310,7 @@ const createCalendarStore = () => {
 			newDateStr < currentFilters.from ||
 			newDateStr > currentFilters.to;
 
-		updateFilters(
+		await updateFilters(
 			{
 				...currentFilters,
 				date: newDateStr,
@@ -320,7 +320,7 @@ const createCalendarStore = () => {
 		);
 	}
 
-	function goToPreviousDay(fetchFn: typeof fetch) {
+	async function goToPreviousDay(fetchFn: typeof fetch): Promise<void> {
 		const currentFilters = getCurrentFilters();
 		const currentDate = currentFilters.date ? new Date(currentFilters.date) : new Date();
 
@@ -334,7 +334,7 @@ const createCalendarStore = () => {
 			newDateStr < currentFilters.from ||
 			newDateStr > currentFilters.to;
 
-		updateFilters(
+		await updateFilters(
 			{
 				...currentFilters,
 				date: newDateStr,
@@ -347,7 +347,7 @@ const createCalendarStore = () => {
 	/**
 	 * Set Specific Date (Single Day View)
 	 */
-	function goToDate(date: Date, fetchFn: typeof fetch) {
+	async function goToDate(date: Date, fetchFn: typeof fetch): Promise<void> {
 		let needsWeekUpdate: boolean = false;
 		update((store) => {
 			const newDateStr = date.toISOString().slice(0, 10);
@@ -368,7 +368,7 @@ const createCalendarStore = () => {
 		});
 
 		if (needsWeekUpdate) {
-			refresh(fetchFn);
+			await refresh(fetchFn);
 		}
 	}
 
@@ -391,22 +391,34 @@ const createCalendarStore = () => {
 export const calendarStore = createCalendarStore();
 
 export function getWeekStartAndEnd(date: Date) {
-	const givenDate = new Date(date);
+	// Work with local dates to avoid timezone issues
+	const year = date.getFullYear();
+	const month = date.getMonth();
+	const day = date.getDate();
+	const localDate = new Date(year, month, day, 12, 0, 0);
 
 	// Get the day of the week (0 = Sunday, 6 = Saturday)
-	const dayOfWeek = givenDate.getDay();
+	const dayOfWeek = localDate.getDay();
 
 	// Adjust to start the week on Monday
 	const diffToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-	const weekStart = new Date(givenDate);
-	weekStart.setDate(givenDate.getDate() + diffToMonday);
+	const weekStart = new Date(localDate);
+	weekStart.setDate(localDate.getDate() + diffToMonday);
 
-	// Calculate week end (Sunday)
+	// Calculate week end (next Monday, exclusive)
 	const weekEnd = new Date(weekStart);
 	weekEnd.setDate(weekStart.getDate() + 7);
 
+	// Format as YYYY-MM-DD using local date
+	const formatDate = (d: Date) => {
+		const y = d.getFullYear();
+		const m = String(d.getMonth() + 1).padStart(2, '0');
+		const day = String(d.getDate()).padStart(2, '0');
+		return `${y}-${m}-${day}`;
+	};
+
 	return {
-		weekStart: weekStart.toISOString().split('T')[0],
-		weekEnd: weekEnd.toISOString().split('T')[0]
+		weekStart: formatDate(weekStart),
+		weekEnd: formatDate(weekEnd)
 	};
 }
