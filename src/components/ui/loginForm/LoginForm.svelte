@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-        import { calendarStore } from '$lib/stores/calendarStore';
-        import { user } from '$lib/stores/userStore';
-        import type { AuthenticatedUser } from '$lib/types/userTypes';
+	import { calendarStore } from '$lib/stores/calendarStore';
+	import { user } from '$lib/stores/userStore';
+	import type { AuthenticatedUser } from '$lib/types/userTypes';
 	import Button from '../../bits/button/Button.svelte';
 
 	export let email = '';
@@ -24,23 +24,23 @@
 				throw new Error(data.message || 'Login failed');
 			}
 
-                        const account = data.user as AuthenticatedUser;
-                        user.set(account);
+			const account = data.user as AuthenticatedUser;
+			user.set(account);
 
-                        if (account.kind === 'trainer') {
-                                const trainerIds = account.id ? [account.id] : null;
-                                calendarStore.updateFilters({ trainerIds }, fetch);
-                                goto('/');
-                        } else {
-                                goto('/client');
-                        }
-                } catch (error) {
-                        errorMessage = error instanceof Error ? error.message : 'Login failed';
-                }
-        }
+			if (account.kind === 'trainer') {
+				const trainerIds = account.id ? [account.id] : null;
+				calendarStore.updateFilters({ trainerIds }, fetch);
+				goto('/');
+			} else {
+				goto('/client');
+			}
+		} catch (error) {
+			errorMessage = error instanceof Error ? error.message : 'Login failed';
+		}
+	}
 </script>
 
-<div class="w-full max-w-96 p-8 text-white glass rounded-4xl">
+<div class="glass w-full max-w-96 rounded-sm p-8 text-white">
 	<form on:submit|preventDefault={handleLogin} class="space-y-4">
 		<div>
 			<label for="email" class="block text-white">Email</label>
@@ -48,7 +48,7 @@
 				id="email"
 				type="email"
 				bind:value={email}
-				class="w-full rounded-sm border border-gray-medium bg-transparent px-4 py-2 text-white placeholder-gray-bright focus:outline-hidden focus:ring-2 focus:ring-primary"
+				class="border-gray-medium placeholder-gray-bright focus:ring-primary w-full rounded-sm border bg-transparent px-4 py-2 text-white focus:ring-2 focus:outline-hidden"
 				placeholder="email@takkei.se"
 				required
 			/>
@@ -59,7 +59,7 @@
 				id="password"
 				type="password"
 				bind:value={password}
-				class="w-full rounded-sm border border-gray-medium bg-transparent px-4 py-2 text-white placeholder-gray-bright focus:outline-hidden focus:ring-2 focus:ring-primary"
+				class="border-gray-medium placeholder-gray-bright focus:ring-primary w-full rounded-sm border bg-transparent px-4 py-2 text-white focus:ring-2 focus:outline-hidden"
 				placeholder="Lösenord"
 				required
 			/>
