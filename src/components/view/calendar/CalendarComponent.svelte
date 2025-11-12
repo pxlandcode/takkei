@@ -7,12 +7,14 @@
 	import CurrentTimePill from './current-time-pill/CurrentTimePill.svelte';
 	import BookingSlot from './booking-slot/BookingSlot.svelte';
 	import CurrentTimeIndicator from './current-time-indicator/current-time-indicator.svelte';
-	import { calendarStore } from '$lib/stores/calendarStore';
-	import ClockIcon from '../../bits/clock-icon/ClockIcon.svelte';
-	import { createEventDispatcher } from 'svelte';
-	import { tooltip } from '$lib/actions/tooltip';
-	import { locations, fetchLocations } from '$lib/stores/locationsStore';
-	import SlotDialog from './slot-dialog/SlotDialog.svelte';
+import { calendarStore } from '$lib/stores/calendarStore';
+import ClockIcon from '../../bits/clock-icon/ClockIcon.svelte';
+import { createEventDispatcher } from 'svelte';
+import { tooltip } from '$lib/actions/tooltip';
+import { locations, fetchLocations } from '$lib/stores/locationsStore';
+import SlotDialog from './slot-dialog/SlotDialog.svelte';
+import { selectedSlot, clearSelectedSlot } from '$lib/stores/selectedSlotStore';
+import type { SelectedSlot } from '$lib/stores/selectedSlotStore';
 
 	let {
 		startHour = 4,
@@ -41,6 +43,7 @@
 
 	// Access store data directly in derived values
 	const storeValue = $derived($calendarStore);
+	const pinnedSlot = $derived($selectedSlot);
 	const bookings = $derived(storeValue.bookings);
 	const filters = $derived(storeValue.filters);
 	const availability = $derived(storeValue.availability);
@@ -124,6 +127,140 @@
 				fullDate: d
 			};
 		});
+	});
+
+	function splitName(full?: string | null) {
+		if (!full) return { first: '', last: '' };
+		const parts = full
+			.trim()
+			.split(/\s+/)
+			.filter(Boolean);
+		if (parts.length === 0) return { first: '', last: '' };
+		if (parts.length === 1) return { first: parts[0], last: '' };
+		return { first: parts[0], last: parts.slice(1).join(' ') };
+	}
+
+	function resolveNameParts(first?: string | null, last?: string | null, fallback?: string | null) {
+		if (first || last) {
+			return {
+				first: first ?? '',
+				last: last ?? ''
+			};
+		}
+		return splitName(fallback);
+	}
+
+	function defaultKindFromSource(source: SelectedSlot['source']): string {
+		switch (source) {
+			case 'practice':
+				return 'Praktiktimme';
+			case 'education':
+				return 'Utbildning';
+			case 'trial':
+				return 'Provträning';
+			case 'flight':
+				return 'Flygtimme';
+			default:
+				return 'Träning';
+		}
+	}
+
+	function buildSelectedBooking(slot: SelectedSlot): FullBooking | null {
+		if (!slot?.date || !slot?.time) return null;
+		const start = new Date(`${slot.date}T${slot.time}`);
+		if (Number.isNaN(start.getTime())) return null;
+		const trainerId = slot.trainerId != null ? Number(slot.trainerId) : null;
+		const locationId = slot.locationId != null ? Number(slot.locationId) : null;
+		const clientId = slot.clientId != null ? Number(slot.clientId) : null;
+		const traineeId = slot.traineeId != null ? Number(slot.traineeId) : null;
+		const end = new Date(start.getTime() + 60 * 60 * 1000);
+		const created = new Date(slot.createdAt ?? Date.now()).toISOString();
+		const trainerParts = resolveNameParts(slot.trainerFirstName, slot.trainerLastName, slot.trainerName);
+		const clientParts = resolveNameParts(slot.clientFirstName, slot.clientLastName, slot.clientName);
+		const traineeParts = resolveNameParts(slot.traineeFirstName, slot.traineeLastName, slot.traineeName);
+		const fallbackKind = defaultKindFromSource(slot.source);
+		const bookingContentKind = slot.bookingType?.label ?? fallbackKind;
+		const bookingContentId =
+			typeof slot.bookingType?.value === 'number' ? slot.bookingType.value : 0;
+		const syntheticId =
+			typeof slot.createdAt === 'number' ? -Math.abs(slot.createdAt) : -Date.now();
+
+		return {
+			isPersonalBooking: false,
+			booking: {
+				id: syntheticId,
+				status: 'selected',
+				createdAt: created,
+				updatedAt: created,
+				startTime: start.toISOString(),
+				endTime: end.toISOString(),
+				cancelTime: null,
+				actualCancelTime: null,
+				repeatIndex: null,
+				tryOut: slot.source === 'trial',
+				refundComment: null,
+				cancelReason: null,
+				bookingWithoutRoom: true,
+				internalEducation: slot.source === 'practice' || slot.source === 'education',
+				userId: clientId ?? traineeId ?? null
+			},
+			trainer: trainerId
+				? {
+						id: trainerId,
+						firstname: trainerParts.first,
+						lastname: trainerParts.last
+					}
+				: undefined,
+			client:
+				slot.source === 'practice' || slot.source === 'education'
+					? null
+					: clientId
+						? {
+								id: clientId,
+								firstname: clientParts.first,
+								lastname: clientParts.last
+							}
+						: {
+								id: -1,
+								firstname: clientParts.first,
+								lastname: clientParts.last
+							},
+				trainee:
+				slot.source === 'practice' || slot.source === 'education'
+					? {
+							id: traineeId ?? -1,
+							firstname: traineeParts.first,
+							lastname: traineeParts.last
+						}
+					: null,
+			room: null,
+			location: locationId
+				? {
+						id: locationId,
+						name: slot.locationName ?? 'Okänd plats',
+						color: slot.locationColor ?? '#fb923c'
+					}
+				: null,
+			additionalInfo: {
+				education: slot.source === 'education',
+				internal: slot.source === 'flight',
+				bookingContent: {
+					id: bookingContentId,
+					kind: bookingContentKind
+				}
+			},
+			personalBooking: null
+		};
+	}
+
+	const pinnedSlotView = $derived.by(() => {
+		const slot = pinnedSlot;
+		if (!slot?.date || !slot?.time) return null;
+		const dayIndex = weekDays.findIndex(({ fullDate }) => ymdLocal(fullDate) === slot.date);
+		if (dayIndex === -1) return null;
+		const booking = buildSelectedBooking(slot);
+		if (!booking) return null;
+		return { slot, dayIndex, booking };
 	});
 
 	const gridTemplateColumns = $derived(
@@ -288,6 +425,15 @@
 	function openBookingCreation(startTime: Date) {
 		slotDialogView = null;
 		dispatch('onTimeSlotClick', { startTime });
+	}
+
+	function handlePinnedSlotResume(slot: SelectedSlot | null) {
+		if (!slot) return;
+		dispatch('onPinnedSlotClick', { slot });
+	}
+
+	function handlePinnedSlotClear() {
+		clearSelectedSlot();
 	}
 
 	function findBookingsInSameSlot(target: FullBooking, locationId: number): FullBooking[] {
@@ -675,6 +821,24 @@
 				class="border-gray-bright relative flex flex-col gap-1 border-l"
 				class:gap-0.5={isCompactWeek}
 			>
+				{#if pinnedSlotView && pinnedSlotView.dayIndex === dayIndex}
+					<BookingSlot
+						booking={pinnedSlotView.booking}
+						{startHour}
+						{hourHeight}
+						columnIndex={0}
+						columnCount={1}
+						variant="selected"
+						toolTipText={`Vald tid ${pinnedSlotView.slot.time ?? ''}`}
+						clearLabel="Rensa vald tid"
+						onclear={handlePinnedSlotClear}
+						onbookingselected={(event) => {
+							event.preventDefault();
+							event.stopPropagation();
+							handlePinnedSlotResume(pinnedSlotView.slot);
+						}}
+					/>
+				{/if}
 				{#each unavailableBlocksByDay[dayIndex] ?? [] as block}
 					<div
 						class="unavailable-striped absolute right-0 left-0"
@@ -737,4 +901,5 @@
 		);
 		pointer-events: none;
 	}
+
 </style>

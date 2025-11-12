@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { createEventDispatcher, onMount } from 'svelte';
+	import { createEventDispatcher, onMount, tick } from 'svelte';
 	import { users, fetchUsers } from '$lib/stores/usersStore';
 	import { locations, fetchLocations } from '$lib/stores/locationsStore';
 	import { clients, fetchClients, getClientEmails } from '$lib/stores/clientsStore';
@@ -22,10 +22,13 @@ import { handleBookingEmail } from '$lib/helpers/bookingHelpers/bookingHelpers';
 import MailComponent from '../mailComponent/MailComponent.svelte';
 import { hasRole } from '$lib/helpers/userHelpers/roleHelper';
 import type { User } from '$lib/types/userTypes';
+import type { SelectedSlot } from '$lib/stores/selectedSlotStore';
+import { clearSelectedSlot } from '$lib/stores/selectedSlotStore';
 
-	export let startTime: Date | null = null;
-	export let clientId: number | null = null;
-	export let trainerId: number | null = null;
+export let startTime: Date | null = null;
+export let clientId: number | null = null;
+export let trainerId: number | null = null;
+export let resumeSlot: SelectedSlot | null = null;
 
 	const dispatch = createEventDispatcher();
 	const popupInstance: PopupState | null = get(popupStore);
@@ -62,11 +65,13 @@ import type { User } from '$lib/types/userTypes';
 
 	let selectedBookingComponent: BookingComponent = 'training';
 
-	let repeatedBookings = [];
-	let selectedIsUnavailable = false;
-	let currentUser = get(user);
-	let formErrors: Record<string, string> = {};
-	let previousComponent: typeof selectedBookingComponent | null = null;
+let repeatedBookings = [];
+let selectedIsUnavailable = false;
+let currentUser = get(user);
+let formErrors: Record<string, string> = {};
+let previousComponent: typeof selectedBookingComponent | null = null;
+let resumeSlotApplied = false;
+let isApplyingResumeSlot = false;
 
 let allUsers: User[] = [];
 let userOptions: UserOption[] = [];
@@ -198,8 +203,12 @@ $: educationTrainerOptions = userOptions.filter((option) => educatorIds.has(opti
 		selectedBookingComponent = 'training';
 	}
 
+	$: if (resumeSlot && !resumeSlotApplied) {
+		applyResumeSlot(resumeSlot);
+	}
+
 	// Reactive booking type fallback
-	$: {
+	$: if (!isApplyingResumeSlot) {
 		if (selectedBookingComponent === 'personal') {
 			bookingObject.bookingType = { label: 'Privat', value: 'Private' };
 			bookingObject.isTrial = false;
@@ -330,6 +339,45 @@ $: educationTrainerOptions = userOptions.filter((option) => educatorIds.has(opti
 		return (loc?.address && loc.address.trim()) || loc?.name || 'Okänd plats';
 	}
 
+async function applyResumeSlot(slot: SelectedSlot) {
+	const componentMap: Record<SelectedSlot['source'], BookingComponent> = {
+		training: 'training',
+		trial: 'trial',
+		flight: 'flight',
+		practice: 'practice',
+		education: 'education'
+	};
+
+	isApplyingResumeSlot = true;
+	try {
+		selectedBookingComponent = componentMap[slot.source] ?? 'training';
+		await tick();
+
+		if (slot.date) bookingObject.date = slot.date;
+		if (slot.time) bookingObject.time = slot.time;
+		bookingObject.trainerId = slot.trainerId ?? null;
+		if (bookingObject.trainerId != null) {
+			bookingObject.trainerId = Number(bookingObject.trainerId);
+		}
+		bookingObject.locationId = slot.locationId ?? null;
+		if (bookingObject.locationId != null) {
+			bookingObject.locationId = Number(bookingObject.locationId);
+		}
+		if ('clientId' in slot) {
+			const clientId = slot.clientId ?? null;
+			bookingObject.clientId = clientId != null ? Number(clientId) : null;
+		}
+		if ('traineeId' in slot) {
+			const traineeId = slot.traineeId ?? null;
+			bookingObject.user_id = traineeId != null ? Number(traineeId) : null;
+		}
+		if (slot.bookingType) bookingObject.bookingType = slot.bookingType;
+		resumeSlotApplied = true;
+	} finally {
+		isApplyingResumeSlot = false;
+	}
+}
+
 	async function submitBooking() {
 		const type = selectedBookingComponent;
 		bookingObject.currentUser = currentUser;
@@ -428,6 +476,7 @@ $: educationTrainerOptions = userOptions.filter((option) => educatorIds.has(opti
 		if (success) {
 			console.log('hello');
 			formErrors = {};
+			clearSelectedSlot();
 			onClose();
 		}
 	}

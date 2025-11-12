@@ -1,12 +1,12 @@
 <script lang="ts">
 	import { browser } from '$app/environment';
 	import { capitalizeFirstLetter } from '$lib/helpers/generic/genericHelpers';
-	import { calendarStore, getWeekStartAndEnd } from '$lib/stores/calendarStore';
-	import { closePopup } from '$lib/stores/popupStore';
-	import OptionButton from '../../../bits/optionButton/OptionButton.svelte';
-	import Dropdown from '../../../bits/dropdown/Dropdown.svelte';
-	import { user } from '$lib/stores/userStore';
-	import { locations, fetchLocations } from '$lib/stores/locationsStore';
+import { calendarStore, getWeekStartAndEnd } from '$lib/stores/calendarStore';
+import { closePopup } from '$lib/stores/popupStore';
+import OptionButton from '../../../bits/optionButton/OptionButton.svelte';
+import Dropdown from '../../../bits/dropdown/Dropdown.svelte';
+import { user } from '$lib/stores/userStore';
+import { locations, fetchLocations } from '$lib/stores/locationsStore';
 	import { clients, fetchClients, fetchTrialEligibleClients } from '$lib/stores/clientsStore';
 	import { users, fetchUsers } from '$lib/stores/usersStore';
 	import { onMount } from 'svelte';
@@ -15,7 +15,8 @@
 	import Checkbox from '../../../bits/checkbox/Checkbox.svelte';
 	import Input from '../../../bits/Input/Input.svelte';
 	import Button from '../../../bits/button/Button.svelte';
-	import type { CalendarFilters } from '$lib/stores/calendarStore';
+import type { CalendarFilters } from '$lib/stores/calendarStore';
+import { setSelectedSlot } from '$lib/stores/selectedSlotStore';
 
 	export let bookingObject: any;
 	export let bookingContents: { value: string; label: string }[] = [];
@@ -221,6 +222,34 @@
 
 	async function viewAvailability() {
 		if (!browser || !canViewAvailability) return;
+
+		const trainer = $users.find((u) => u.id === bookingObject?.trainerId);
+		const allClients = isTrial ? eligibleTrialClients : $clients;
+		const clientRecord = allClients.find((c) => c.id === bookingObject?.clientId);
+		const client = filteredClients.find((c) => c.value === bookingObject?.clientId);
+		const location = $locations.find((loc) => loc.id === bookingObject?.locationId);
+
+		const trainerId = bookingObject?.trainerId ?? null;
+		const locationId = bookingObject?.locationId ?? null;
+		const clientId = bookingObject?.clientId ?? null;
+
+		setSelectedSlot({
+			source: isFlight ? 'flight' : isTrial ? 'trial' : 'training',
+			date: bookingObject?.date ?? null,
+			time: bookingObject?.time ?? null,
+			trainerId: trainerId != null ? Number(trainerId) : null,
+			locationId: locationId != null ? Number(locationId) : null,
+			clientId: clientId != null ? Number(clientId) : null,
+			bookingType: bookingObject?.bookingType ?? null,
+			trainerName: trainer ? `${trainer.firstname} ${trainer.lastname}` : null,
+			trainerFirstName: trainer?.firstname ?? null,
+			trainerLastName: trainer?.lastname ?? null,
+			clientName: client?.label ?? null,
+			clientFirstName: clientRecord?.firstname ?? null,
+			clientLastName: clientRecord?.lastname ?? null,
+			locationName: location?.name ?? null,
+			locationColor: location?.color ?? null
+		});
 
 		const filters: Partial<CalendarFilters> = {
 			trainerIds: bookingObject.trainerId ? [bookingObject.trainerId] : [],

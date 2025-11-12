@@ -12,7 +12,8 @@
 	import { openPopup } from '$lib/stores/popupStore';
 	import { addToast } from '$lib/stores/toastStore';
 	import { AppToastType } from '$lib/types/toastTypes';
-	import { user } from '$lib/stores/userStore';
+import { user } from '$lib/stores/userStore';
+import type { SelectedSlot } from '$lib/stores/selectedSlotStore';
 
 	export let data;
 
@@ -140,6 +141,12 @@
 	function handleTimeSlotClick(event) {
 		const timeSlot = event.detail.startTime;
 		openBookingPopup(timeSlot);
+	}
+
+	function handlePinnedSlotClick(event) {
+		const slot: SelectedSlot | null = event.detail?.slot ?? null;
+		if (!slot) return;
+		openBookingPopup(null, slot);
 	}
 
 	function handleMobileDaySelect(event) {
@@ -328,12 +335,15 @@
 		});
 	}
 
-	function openBookingPopup(initialStartTime: Date | null = null) {
+	function openBookingPopup(
+		initialStartTime: Date | null = null,
+		resumeSlot: SelectedSlot | null = null
+	) {
 		openPopup({
 			header: 'Bokning',
 			icon: 'Plus',
 			component: BookingPopup,
-			props: { startTime: initialStartTime },
+			props: { startTime: initialStartTime, resumeSlot },
 			maxWidth: '650px'
 		});
 	}
@@ -389,6 +399,7 @@
 			{isMobile}
 			mobileWeekMode={mobileWeekActive}
 			on:onTimeSlotClick={handleTimeSlotClick}
+			on:onPinnedSlotClick={handlePinnedSlotClick}
 			on:onBookingClick={(e) => {
 				handleBookingClick(e.detail.booking);
 			}}
