@@ -1,13 +1,16 @@
 <script lang="ts">
+	import { browser } from '$app/environment';
 	import type { FullBooking } from '$lib/types/calendarTypes';
 	import OptionButton from '../../bits/optionButton/OptionButton.svelte';
 	import { formatTime } from '$lib/helpers/calendarHelpers/calendar-utils';
+	import { downloadBookingsAsICS } from '$lib/helpers/calendarHelpers/booking-ics';
 	import {
 		IconCancel,
 		IconTraining,
 		IconShiningStar,
 		IconGraduationCap,
-		IconPlane
+		IconPlane,
+		IconDownload
 	} from '$lib/icons';
 	import IconWrench from '$icons/IconWrench.svelte';
 
@@ -88,22 +91,44 @@
 			new Date(new Date(booking.booking.startTime).getTime() + 60 * 60 * 1000).toISOString()
 		);
 	}
+
+	function getDownloadFileName() {
+		return 'Takkei - Träning';
+	}
+
+	function handleDownloadAll() {
+		if (!browser || visibleBookings.length === 0) return;
+		downloadBookingsAsICS(visibleBookings, getDownloadFileName());
+	}
 </script>
 
 <div class="space-y-3">
-	<div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-		<div class="date-filter w-full md:max-w-xs">
-			<label class="text-xs font-semibold uppercase tracking-wide text-gray-500">Från datum</label>
-			<input type="date" bind:value={selectedDate} class="date-input" />
+	<div class="controls">
+		<div class="filters">
+			<div class="date-filter w-full md:max-w-xs">
+				<label class="text-xs font-semibold uppercase tracking-wide text-gray-500"
+					>Från datum</label
+				>
+				<input type="date" bind:value={selectedDate} class="date-input" />
+			</div>
+			<div class="filter-toggle">
+				<OptionButton
+					options={filterOptions}
+					bind:selectedOption={selectedFilter}
+					size="medium"
+					full
+				/>
+			</div>
 		</div>
-		<div class="filter-toggle">
-			<OptionButton
-				options={filterOptions}
-				bind:selectedOption={selectedFilter}
-				size="medium"
-				full
-			/>
-		</div>
+		<button
+			type="button"
+			class="download-button"
+			on:click={handleDownloadAll}
+			disabled={visibleBookings.length === 0}
+		>
+			<IconDownload size="16px" />
+			<span>Lägg till i kalender</span>
+		</button>
 	</div>
 	{#if visibleBookings.length === 0}
 		<p class="text-sm text-gray-500">Inga bokningar hittades.</p>
@@ -142,6 +167,35 @@
 </div>
 
 <style>
+	.controls {
+		display: flex;
+		flex-direction: column;
+		gap: 0.75rem;
+	}
+
+	@media (min-width: 768px) {
+		.controls {
+			flex-direction: row;
+			align-items: center;
+			justify-content: space-between;
+		}
+	}
+
+	.filters {
+		display: flex;
+		flex-direction: column;
+		gap: 0.75rem;
+		width: 100%;
+	}
+
+	@media (min-width: 768px) {
+		.filters {
+			flex-direction: row;
+			align-items: center;
+			gap: 1rem;
+		}
+	}
+
 	.filter-toggle {
 		width: 100%;
 		max-width: 420px;
@@ -194,6 +248,40 @@
 
 	.booking-slot.late-cancelled {
 		opacity: 0.85;
+	}
+
+	.download-button {
+		width: 100%;
+		border: 1px solid #0284c7;
+		border-radius: 0.5rem;
+		background: #e0f2fe;
+		color: #0f172a;
+		font-weight: 600;
+		font-size: 0.95rem;
+		padding: 0.55rem 0.9rem;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 0.4rem;
+		box-shadow: 0 4px 10px rgba(15, 23, 42, 0.08);
+		transition: background-color 0.2s ease, transform 0.2s ease, opacity 0.2s ease;
+	}
+
+	.download-button:hover:not(:disabled) {
+		background-color: #bae6fd;
+		transform: translateY(-1px);
+	}
+
+	.download-button:disabled {
+		cursor: not-allowed;
+		opacity: 0.6;
+		box-shadow: none;
+	}
+
+	@media (min-width: 768px) {
+		.download-button {
+			width: auto;
+		}
 	}
 
 	.cancelled-overlay,

@@ -1,16 +1,19 @@
 <!-- src/lib/components/booking/bookingPractice/BookingPractice.svelte -->
 <script lang="ts">
 	import { browser } from '$app/environment';
-	import { calendarStore, getWeekStartAndEnd } from '$lib/stores/calendarStore';
-	import { closePopup } from '$lib/stores/popupStore';
-	import Dropdown from '../../../bits/dropdown/Dropdown.svelte';
-	import SlotTimePicker from '../../../bits/slotTimePicker/SlotTimePicker.svelte';
-	import Checkbox from '../../../bits/checkbox/Checkbox.svelte';
-	import Input from '../../../bits/Input/Input.svelte';
-	import Button from '../../../bits/button/Button.svelte';
-	import { user } from '$lib/stores/userStore';
-	import { get } from 'svelte/store';
-	import type { CalendarFilters } from '$lib/stores/calendarStore';
+import { calendarStore, getWeekStartAndEnd } from '$lib/stores/calendarStore';
+import { closePopup } from '$lib/stores/popupStore';
+import Dropdown from '../../../bits/dropdown/Dropdown.svelte';
+import SlotTimePicker from '../../../bits/slotTimePicker/SlotTimePicker.svelte';
+import Checkbox from '../../../bits/checkbox/Checkbox.svelte';
+import Input from '../../../bits/Input/Input.svelte';
+import Button from '../../../bits/button/Button.svelte';
+import { user } from '$lib/stores/userStore';
+import { get } from 'svelte/store';
+import type { CalendarFilters } from '$lib/stores/calendarStore';
+import { locations as locationsStore } from '$lib/stores/locationsStore';
+import { users as usersStore } from '$lib/stores/usersStore';
+import { setSelectedSlot } from '$lib/stores/selectedSlotStore';
 
 	export let kind: 'practice' | 'education' = 'practice'; // NEW
 	export let bookingObject: any;
@@ -95,6 +98,39 @@
 
 	async function viewAvailability() {
 		if (!browser || !canViewAvailability) return;
+
+		const trainerOption = effectiveTrainerOptions.find((option) => option.value === bookingObject.trainerId);
+		const traineeOption = users.find((option) => option.value === bookingObject.user_id);
+		const locationOption = locations.find((option) => option.value === bookingObject.locationId);
+		const trainerRecord = $usersStore?.find((candidate) => candidate.id === bookingObject.trainerId);
+		const traineeRecord = $usersStore?.find((candidate) => candidate.id === bookingObject.user_id);
+		const locationRecord = $locationsStore?.find((loc) => loc.id === bookingObject.locationId);
+
+		const trainerId = bookingObject?.trainerId ?? null;
+		const locationId = bookingObject?.locationId ?? null;
+		const traineeId = bookingObject?.user_id ?? null;
+
+		setSelectedSlot({
+			source: kind === 'education' ? 'education' : 'practice',
+			date: bookingObject?.date ?? null,
+			time: bookingObject?.time ?? null,
+			trainerId: trainerId != null ? Number(trainerId) : null,
+			locationId: locationId != null ? Number(locationId) : null,
+			traineeId: traineeId != null ? Number(traineeId) : null,
+			bookingType: bookingObject?.bookingType ?? null,
+			trainerName: trainerRecord
+				? `${trainerRecord.firstname} ${trainerRecord.lastname}`.trim()
+				: trainerOption?.label ?? null,
+			trainerFirstName: trainerRecord?.firstname ?? null,
+			trainerLastName: trainerRecord?.lastname ?? null,
+			traineeName: traineeRecord
+				? `${traineeRecord.firstname} ${traineeRecord.lastname}`.trim()
+				: traineeOption?.label ?? null,
+			traineeFirstName: traineeRecord?.firstname ?? null,
+			traineeLastName: traineeRecord?.lastname ?? null,
+			locationName: locationRecord?.name ?? locationOption?.label ?? null,
+			locationColor: locationRecord?.color ?? null
+		});
 
 		const filters: Partial<CalendarFilters> = {
 			trainerIds: bookingObject.trainerId ? [bookingObject.trainerId] : [],

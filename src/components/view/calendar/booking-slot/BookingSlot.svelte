@@ -9,6 +9,8 @@ import { IconTraining, IconShiningStar, IconGraduationCap, IconPlane } from '$li
 	import { user } from '$lib/stores/userStore';
 	import IconWrench from '$icons/IconWrench.svelte';
 
+	type SlotVariant = 'default' | 'selected';
+
 	type Props = {
 		booking: FullBooking;
 		startHour: number;
@@ -17,6 +19,9 @@ import { IconTraining, IconShiningStar, IconGraduationCap, IconPlane } from '$li
 		columnIndex?: number;
 		columnCount?: number;
 		onbookingselected: (event: MouseEvent) => void;
+		variant?: SlotVariant;
+		onclear?: (() => void) | null;
+		clearLabel?: string;
 	};
 
 	let {
@@ -26,8 +31,15 @@ import { IconTraining, IconShiningStar, IconGraduationCap, IconPlane } from '$li
 		toolTipText,
 		columnIndex = 0,
 		columnCount = 1,
-		onbookingselected
+		onbookingselected,
+		variant = 'default',
+		onclear = null,
+		clearLabel = 'Rensa vald tid'
 	}: Props = $props();
+
+	const SELECTED_BORDER_COLOR = '#fb923c';
+	const SELECTED_BG_COLOR = '#fff7ed';
+	const SELECTED_TEXT_COLOR = '#7c2d12';
 
 	type NameDisplayMode = 'full' | 'last' | 'initials';
 	type NameStrings = {
@@ -67,6 +79,7 @@ import { IconTraining, IconShiningStar, IconGraduationCap, IconPlane } from '$li
 	const topOffset = $derived(getTopOffset(booking.booking.startTime, startHour, hourHeight));
 	const meetingHeight = $derived(getMeetingHeight(booking.booking.startTime, endTime, hourHeight));
 	const bookingColor = $derived(booking.location?.color ?? '#000000');
+	const isSelectedVariant = $derived(variant === 'selected');
 
 	const colWidth = $derived(100 / columnCount);
 	const colLeft = $derived(columnIndex * colWidth);
@@ -353,6 +366,7 @@ import { IconTraining, IconShiningStar, IconGraduationCap, IconPlane } from '$li
 </script>
 
 <button
+	type="button"
 	bind:this={bookingSlot}
 	on:click={onbookingselected}
 	class="text-gray absolute z-20 flex cursor-pointer flex-col gap-[2px] p-1 text-xs shadow-xs {showIcon
@@ -364,14 +378,41 @@ import { IconTraining, IconShiningStar, IconGraduationCap, IconPlane } from '$li
 			? 'bg-gray-400/20'
 			: 'bg-gray-600/20'
 		: ''}"
+	class:selected-slot={isSelectedVariant}
 	style:top={`${topOffset}px`}
 	style:height={`${meetingHeight - 4}px`}
 	style:left={`calc(${colLeft}% + 2px)`}
 	style:width={`calc(${colWidth}% - 4px)`}
-	style:background-color={!booking.isPersonalBooking ? `${bookingColor}20` : null}
-	style:border-color={!booking.isPersonalBooking ? bookingColor : null}
+	style:background-color={!booking.isPersonalBooking
+		? isSelectedVariant
+			? SELECTED_BG_COLOR
+			: `${bookingColor}20`
+		: null}
+	style:border-color={!booking.isPersonalBooking
+		? isSelectedVariant
+			? SELECTED_BORDER_COLOR
+			: bookingColor
+		: null}
+	style:color={isSelectedVariant ? SELECTED_TEXT_COLOR : null}
 	use:tooltip={{ content: toolTipText }}
 >
+	{#if isSelectedVariant && typeof onclear === 'function'}
+		<span
+			class="selected-slot__clear"
+			role="button"
+			tabindex="0"
+			aria-label={clearLabel}
+			on:click|stopPropagation={() => onclear?.()}
+			on:keydown|stopPropagation={(event) => {
+				if (event.key === 'Enter' || event.key === ' ') {
+					event.preventDefault();
+					onclear?.();
+				}
+			}}
+		>
+			×
+		</span>
+	{/if}
 	{#if !booking.isPersonalBooking}
 		<div class="flex flex-row">
 			<div
@@ -421,5 +462,26 @@ import { IconTraining, IconShiningStar, IconGraduationCap, IconPlane } from '$li
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
+	}
+
+	button.selected-slot {
+		border-width: 2px;
+		border-style: dashed;
+		box-shadow: 0 4px 12px rgba(249, 115, 22, 0.2);
+	}
+
+	.selected-slot__clear {
+		position: absolute;
+		top: 4px;
+		right: 6px;
+		font-size: 14px;
+		font-weight: 600;
+		color: #c2410c;
+		cursor: pointer;
+	}
+
+	.selected-slot__clear:hover,
+	.selected-slot__clear:focus-visible {
+		color: #9a3412;
 	}
 </style>
