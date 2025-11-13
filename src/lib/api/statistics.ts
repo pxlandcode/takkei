@@ -63,121 +63,38 @@ export interface TrainerStatisticsResponse {
         avbokningar: AvbokningarStats;
         table: StatisticsTable;
 }
-const timeframeBase = {
-        currentWeek: {
-                label: 'Denna vecka',
-                totalBookings: 12,
-                obBookings: 3,
-                bookingsDelta: '+2 vs föregående vecka',
-                cancellations: {
-                        total: 3,
-                        late: 1,
-                        deltaLabel: '-1 vs föregående vecka'
-                }
-        },
-        nextWeek: {
-                label: 'Kommande vecka',
-                totalBookings: 9,
-                obBookings: 1,
-                bookingsDelta: '-1 vs föregående vecka'
-        },
-        currentMonth: {
-                label: 'Denna månad',
-                totalBookings: 38,
-                obBookings: 6,
-                bookingsDelta: '+6 vs föregående månad',
-                cancellations: {
-                        total: 8,
-                        late: 3,
-                        deltaLabel: '+2 vs föregående månad'
-                }
-        }
-} as const;
 
-const debiteradePassPeriods: Record<PeriodKey, DebiteradePassPeriodStats> = {
-        week: {
-                label: 'Denna vecka',
-                hours: 26,
-                deltaLabel: '+4 h vs förra veckan'
-        },
-        month: {
-                label: 'Denna månad',
-                hours: 112,
-                deltaLabel: '+8 h jämfört med förra månaden'
-        }
-};
+type FetchLike = (input: RequestInfo | URL, init?: RequestInit | undefined) => Promise<Response>;
 
-const mockResponse: TrainerStatisticsResponse = {
-        debiterbaraBokningar: {
-                currentWeek: {
-                        label: timeframeBase.currentWeek.label,
-                        totalBookings: timeframeBase.currentWeek.totalBookings,
-                        obBookings: timeframeBase.currentWeek.obBookings,
-                        deltaLabel: timeframeBase.currentWeek.bookingsDelta
-                },
-                nextWeek: {
-                        label: timeframeBase.nextWeek.label,
-                        totalBookings: timeframeBase.nextWeek.totalBookings,
-                        obBookings: timeframeBase.nextWeek.obBookings,
-                        deltaLabel: timeframeBase.nextWeek.bookingsDelta
-                },
-                currentMonth: {
-                        label: timeframeBase.currentMonth.label,
-                        totalBookings: timeframeBase.currentMonth.totalBookings,
-                        obBookings: timeframeBase.currentMonth.obBookings,
-                        deltaLabel: timeframeBase.currentMonth.bookingsDelta
-                }
-        },
-        debiteradePass: {
-                monthHours: debiteradePassPeriods.month.hours,
-                deltaLabel: debiteradePassPeriods.month.deltaLabel,
-                periods: debiteradePassPeriods
-        },
-        demotraningar: {
-                monthCount: 5,
-                deltaLabel: '+1 vs föregående månad'
-        },
-        debiterbaraTimmar: {
-                weekHours: 24,
-                monthHours: 118,
-                deltaLabel: '+6 h vs förra månaden'
-        },
-        avbokningar: {
-                week: {
-                        label: timeframeBase.currentWeek.label,
-                        total: timeframeBase.currentWeek.cancellations.total,
-                        late: timeframeBase.currentWeek.cancellations.late,
-                        deltaLabel: timeframeBase.currentWeek.cancellations.deltaLabel
-                },
-                month: {
-                        label: timeframeBase.currentMonth.label,
-                        total: timeframeBase.currentMonth.cancellations.total,
-                        late: timeframeBase.currentMonth.cancellations.late,
-                        deltaLabel: timeframeBase.currentMonth.cancellations.deltaLabel
-                }
-        },
-        table: {
-                rows: [
-                        { type: 'Vardagar', hours: 82, lateCancellations: 2, obTotal: 4 },
-                        { type: 'Helger och helgdagar', hours: 18, lateCancellations: 0, obTotal: 6 },
-                        { type: 'OB-tillägg', hours: 0, lateCancellations: 0, obTotal: 12 },
-                        { type: 'Demoträningar', hours: 6, lateCancellations: 1, obTotal: 0 },
-                        { type: 'Flygtimmar', hours: 4, lateCancellations: 0, obTotal: 0 },
-                        { type: 'Utbildningstimmar', hours: 12, lateCancellations: 0, obTotal: 0 },
-                        { type: 'Praktiktimmar', hours: 8, lateCancellations: 0, obTotal: 0 }
-                ],
-                total: { type: 'Totalt', hours: 130, lateCancellations: 3, obTotal: 22 }
+export async function getTrainerStatistics(
+        trainerId: number,
+        range?: { from?: string; to?: string },
+        fetchFn: FetchLike = fetch
+): Promise<TrainerStatisticsResponse> {
+        if (!Number.isFinite(trainerId) || trainerId <= 0) {
+                throw new Error('trainerId is required');
         }
-};
 
-/**
- * Temporary helper that mocks the statistics endpoint for "Mina sidor".
- * Swap this function out with the real API call once the backend endpoint is ready.
- */
-export async function getMockTrainerStatistics(): Promise<TrainerStatisticsResponse> {
-        // The timeout keeps the function async to mirror a real network call.
-        await new Promise((resolve) => setTimeout(resolve, 50));
-        return JSON.parse(JSON.stringify(mockResponse)) as TrainerStatisticsResponse;
+        const params = new URLSearchParams({ trainerId: String(trainerId) });
+        if (range?.from) params.set('from', range.from);
+        if (range?.to) params.set('to', range.to);
+
+        const response = await fetchFn(`/api/statistics?${params.toString()}`);
+        if (!response.ok) {
+                let message = `Failed to fetch trainer statistics (${response.status})`;
+                try {
+                        const data = await response.json();
+                        if (data && typeof data === 'object' && 'error' in data && data.error) {
+                                message = String(data.error);
+                        }
+                } catch (error) {
+                        // Swallow JSON parsing errors to preserve the original message
+                        console.error('Failed to parse statistics error response', error);
+                }
+                throw new Error(message);
+        }
+
+        return (await response.json()) as TrainerStatisticsResponse;
 }
 
 export type StatisticsPreset = 'currentWeek' | 'currentMonth' | 'previousMonth';
