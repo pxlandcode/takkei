@@ -1,7 +1,7 @@
 import { query } from '$lib/db';
 import { extractStockholmMinutes, extractStockholmTimeParts } from '$lib/server/stockholm-time';
 
-const CANCELLED_STATUSES = ['Cancelled', 'Late_cancelled'];
+export const CANCELLED_STATUSES = ['Cancelled', 'Late_cancelled'];
 const FALLBACK_SESSION_MINUTES = 60; // Default duration when bookings lack explicit end_time
 
 export type SalaryReportParams = {
@@ -178,7 +178,7 @@ type TrainerAccumulator = {
 
 type BookingCategory = 'weekday' | 'weekend' | 'holiday' | 'education' | 'tryOut' | 'internal';
 
-function minutesToHours(minutes: number) {
+export function minutesToHours(minutes: number) {
         if (!minutes) return 0;
         const hours = minutes / 60;
         return Math.round((hours + Number.EPSILON) * 100) / 100;

@@ -1,38 +1,82 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
-	import Icon from '../../icon-component/Icon.svelte';
+        import { get } from 'svelte/store';
+        import { onMount } from 'svelte';
+        import Icon from '../../icon-component/Icon.svelte';
         import Button from '../../button/Button.svelte';
-	import StatisticCard from './StatisticCard.svelte';
-import {
-	getMockTrainerStatistics,
-	type TrainerStatisticsResponse,
-	type CancellationPeriodKey,
-	type CancellationPeriodStats,
-	type DebiteradePassPeriodStats
-} from '$lib/api/statistics';
-import { openPopup } from '$lib/stores/popupStore';
-import StatisticsDetailsPopup from './StatisticsDetailsPopup.svelte';
+        import StatisticCard from './StatisticCard.svelte';
+        import {
+                getTrainerStatistics,
+                type TrainerStatisticsResponse,
+                type CancellationPeriodKey,
+                type CancellationPeriodStats,
+                type DebiteradePassPeriodStats
+        } from '$lib/api/statistics';
+        import { openPopup } from '$lib/stores/popupStore';
+        import { user as userStore } from '$lib/stores/userStore';
+        import StatisticsDetailsPopup from './StatisticsDetailsPopup.svelte';
 
-let statistics: TrainerStatisticsResponse | null = null;
-let loading = true;
+        let statistics: TrainerStatisticsResponse | null = null;
+        let loading = true;
+        let error: string | null = null;
+        let trainerId: number | null = null;
 
-onMount(async () => {
-	statistics = await getMockTrainerStatistics();
-	loading = false;
-});
+        async function loadStatistics() {
+                if (!trainerId) {
+                        statistics = null;
+                        loading = false;
+                        return;
+                }
 
-function openStatisticsPopup() {
-	if (!statistics) return;
-	openPopup({
-		header: 'Detaljerad statistik',
-		icon: 'Charts',
-		component: StatisticsDetailsPopup,
-		maxWidth: '900px',
-		props: { statistics }
-	});
-}
+                loading = true;
+                error = null;
 
-	const cancellationOrder: CancellationPeriodKey[] = ['week', 'month'];
+                try {
+                        statistics = await getTrainerStatistics(trainerId);
+                } catch (err) {
+                        console.error('Failed to load trainer statistics', err);
+                        statistics = null;
+                        error = 'Kunde inte läsa in statistik just nu.';
+                } finally {
+                        loading = false;
+                }
+        }
+
+        onMount(() => {
+                const currentUser = get(userStore);
+                trainerId = currentUser?.id ?? null;
+
+                if (trainerId) {
+                        loadStatistics();
+                } else {
+                        loading = false;
+                }
+
+                const unsubscribe = userStore.subscribe((value) => {
+                        const nextId = value?.id ?? null;
+                        if (nextId && nextId !== trainerId) {
+                                trainerId = nextId;
+                                loadStatistics();
+                        } else if (!nextId) {
+                                trainerId = null;
+                                statistics = null;
+                        }
+                });
+
+                return unsubscribe;
+        });
+
+        function openStatisticsPopup() {
+                if (!statistics || !trainerId) return;
+                openPopup({
+                        header: 'Detaljerad statistik',
+                        icon: 'Charts',
+                        component: StatisticsDetailsPopup,
+                        maxWidth: '900px',
+                        props: { statistics, trainerId, fetchFn: fetch }
+                });
+        }
+
+        const cancellationOrder: CancellationPeriodKey[] = ['week', 'month'];
 
 	$: debiteradePassCards = statistics?.debiteradePass?.periods
 		? cancellationOrder
@@ -82,9 +126,11 @@ function openStatisticsPopup() {
 	<div class="flex flex-1 flex-col gap-4 text-sm">
 		{#if loading}
 			<p class="text-gray-medium">Laddar statistik…</p>
-		{:else if !statistics}
-			<p class="text-gray-medium">Kunde inte läsa in statistik just nu.</p>
-		{:else}
+                {:else if error}
+                        <p class="text-gray-medium">{error}</p>
+                {:else if !statistics}
+                        <p class="text-gray-medium">Ingen statistik att visa just nu.</p>
+                {:else}
 			<section class="flex flex-col gap-3">
 				<h4 class="text-gray-medium text-sm font-semibold tracking-wide uppercase">
 					Debiterbara bokningar

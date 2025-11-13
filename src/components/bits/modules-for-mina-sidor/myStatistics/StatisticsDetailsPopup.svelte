@@ -1,39 +1,77 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
-	import Icon from '../../icon-component/Icon.svelte';
-	import {
-		formatDateInputValue,
-		getPresetRange,
-		type StatisticsPreset,
-		type TrainerStatisticsResponse
-	} from '$lib/api/statistics';
-	import { closePopup } from '$lib/stores/popupStore';
+        import { onMount } from 'svelte';
+        import {
+                formatDateInputValue,
+                getPresetRange,
+                getTrainerStatistics,
+                type StatisticsPreset,
+                type TrainerStatisticsResponse
+        } from '$lib/api/statistics';
 
-	export let statistics: TrainerStatisticsResponse | null = null;
+        export let statistics: TrainerStatisticsResponse | null = null;
+        export let trainerId: number | null = null;
+        export let fetchFn: typeof fetch = fetch;
 
-	let startDate = '';
-	let endDate = '';
-	let activePreset: StatisticsPreset | null = 'currentMonth';
+        let startDate = '';
+        let endDate = '';
+        let activePreset: StatisticsPreset | null = 'currentMonth';
+        let loading = false;
+        let error: string | null = null;
+        let currentStatistics: TrainerStatisticsResponse | null = null;
+        let externalStatistics: TrainerStatisticsResponse | null = null;
 
-	onMount(() => {
-		const initialRange = getPresetRange('currentMonth');
-		startDate = formatDateInputValue(initialRange.start);
-		endDate = formatDateInputValue(initialRange.end);
-	});
+        const fetcher = (input: RequestInfo | URL, init?: RequestInit) => fetchFn(input, init);
 
-	function setPreset(preset: StatisticsPreset) {
-		activePreset = preset;
-		const range = getPresetRange(preset);
-		startDate = formatDateInputValue(range.start);
-		endDate = formatDateInputValue(range.end);
-	}
+        onMount(() => {
+                const initialRange = getPresetRange('currentMonth');
+                startDate = formatDateInputValue(initialRange.start);
+                endDate = formatDateInputValue(initialRange.end);
+                externalStatistics = statistics;
+                currentStatistics = statistics;
+        });
 
-	function handleManualDateChange() {
-		activePreset = null;
-	}
+        $: if (statistics !== externalStatistics) {
+                externalStatistics = statistics ?? null;
+                if (!loading) {
+                        currentStatistics = statistics ?? null;
+                }
+        }
 
-	$: tableRows = statistics?.table.rows ?? [];
-	$: tableTotal = statistics?.table.total;
+        async function refreshStatistics() {
+                if (!trainerId || !startDate || !endDate) return;
+                loading = true;
+                error = null;
+                try {
+                        currentStatistics = await getTrainerStatistics(
+                                trainerId,
+                                { from: startDate, to: endDate },
+                                fetcher
+                        );
+                } catch (err) {
+                        console.error('Failed to reload statistics', err);
+                        error = 'Kunde inte läsa in statistik.';
+                } finally {
+                        loading = false;
+                }
+        }
+
+        function setPreset(preset: StatisticsPreset) {
+                activePreset = preset;
+                const range = getPresetRange(preset);
+                startDate = formatDateInputValue(range.start);
+                endDate = formatDateInputValue(range.end);
+                refreshStatistics();
+        }
+
+        function handleManualDateChange() {
+                activePreset = null;
+                if (startDate && endDate) {
+                        refreshStatistics();
+                }
+        }
+
+        $: tableRows = currentStatistics?.table.rows ?? [];
+        $: tableTotal = currentStatistics?.table.total;
 </script>
 
 <div class="flex max-h-[90vh] flex-col gap-4 overflow-y-auto">
@@ -81,14 +119,18 @@
 		</div>
 	</section>
 
-	<section class="overflow-x-auto">
-		{#if !statistics}
-			<p class="text-gray-medium px-1 text-sm">Ingen statistik att visa just nu.</p>
-		{:else}
-			<table class="min-w-full divide-y divide-gray-200 text-sm">
-				<thead class="text-gray-medium bg-gray-50 text-left text-xs tracking-wide uppercase">
-					<tr>
-						<th scope="col" class="px-3 py-3">Typ</th>
+        <section class="overflow-x-auto">
+                {#if loading}
+                        <p class="text-gray-medium px-1 text-sm">Hämtar statistik…</p>
+                {:else if error}
+                        <p class="text-gray-medium px-1 text-sm">{error}</p>
+                {:else if !currentStatistics}
+                        <p class="text-gray-medium px-1 text-sm">Ingen statistik att visa just nu.</p>
+                {:else}
+                        <table class="min-w-full divide-y divide-gray-200 text-sm">
+                                <thead class="text-gray-medium bg-gray-50 text-left text-xs tracking-wide uppercase">
+                                        <tr>
+                                                <th scope="col" class="px-3 py-3">Typ</th>
 						<th scope="col" class="px-3 py-3">Timmar</th>
 						<th scope="col" class="px-3 py-3">Sena avbokningar</th>
 						<th scope="col" class="px-3 py-3">Summa OB-tillägg</th>
@@ -103,10 +145,10 @@
 							<td class="px-3 py-3">{row.obTotal}</td>
 						</tr>
 					{/each}
-					{#if tableTotal}
-						<tr class="bg-gray-50 font-semibold">
-							<td class="px-3 py-3">{tableTotal.type}</td>
-							<td class="px-3 py-3">{tableTotal.hours}</td>
+                                        {#if tableTotal}
+                                                <tr class="bg-gray-50 font-semibold">
+                                                        <td class="px-3 py-3">{tableTotal.type}</td>
+                                                        <td class="px-3 py-3">{tableTotal.hours}</td>
 							<td class="px-3 py-3">{tableTotal.lateCancellations}</td>
 							<td class="px-3 py-3">{tableTotal.obTotal}</td>
 						</tr>
