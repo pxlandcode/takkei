@@ -7,14 +7,14 @@
 	import CurrentTimePill from './current-time-pill/CurrentTimePill.svelte';
 	import BookingSlot from './booking-slot/BookingSlot.svelte';
 	import CurrentTimeIndicator from './current-time-indicator/current-time-indicator.svelte';
-import { calendarStore } from '$lib/stores/calendarStore';
-import ClockIcon from '../../bits/clock-icon/ClockIcon.svelte';
-import { createEventDispatcher } from 'svelte';
-import { tooltip } from '$lib/actions/tooltip';
-import { locations, fetchLocations } from '$lib/stores/locationsStore';
-import SlotDialog from './slot-dialog/SlotDialog.svelte';
-import { selectedSlot, clearSelectedSlot } from '$lib/stores/selectedSlotStore';
-import type { SelectedSlot } from '$lib/stores/selectedSlotStore';
+        import { calendarStore } from '$lib/stores/calendarStore';
+        import ClockIcon from '../../bits/clock-icon/ClockIcon.svelte';
+        import { createEventDispatcher } from 'svelte';
+        import { tooltip } from '$lib/actions/tooltip';
+        import { locations, fetchLocations } from '$lib/stores/locationsStore';
+        import SlotDialog from './slot-dialog/SlotDialog.svelte';
+        import { selectedSlot, clearSelectedSlot } from '$lib/stores/selectedSlotStore';
+        import type { SelectedSlot } from '$lib/stores/selectedSlotStore';
 
 	let {
 		startHour = 4,
@@ -44,10 +44,22 @@ import type { SelectedSlot } from '$lib/stores/selectedSlotStore';
 	// Access store data directly in derived values
 	const storeValue = $derived($calendarStore);
 	const pinnedSlot = $derived($selectedSlot);
-	const bookings = $derived(storeValue.bookings);
-	const filters = $derived(storeValue.filters);
-	const availability = $derived(storeValue.availability);
-	const calendarIsLoading = $derived(storeValue.isLoading);
+        const bookings = $derived(storeValue.bookings);
+        const filters = $derived(storeValue.filters);
+        const availability = $derived(storeValue.availability);
+        const calendarIsLoading = $derived(storeValue.isLoading);
+        const holidays = $derived(storeValue.holidays ?? []);
+        const holidayLookup = $derived.by(() => {
+                const map = new Map<string, { name: string; description: string | null }>();
+                for (const holiday of holidays) {
+                        if (!holiday?.date) continue;
+                        map.set(holiday.date, {
+                                name: holiday.name,
+                                description: holiday.description ?? null
+                        });
+                }
+                return map;
+        });
 
 	onMount(async () => {
 		try {
@@ -88,46 +100,68 @@ import type { SelectedSlot } from '$lib/stores/selectedSlotStore';
 		return monday;
 	}
 
-	type WeekDayInfo = {
-		dayLabel: string;
-		dayShortLabel: string;
-		dateLabel: string;
-		fullDate: Date;
-	};
+        type WeekDayInfo = {
+                dayLabel: string;
+                dayShortLabel: string;
+                dateLabel: string;
+                fullDate: Date;
+                dateKey: string;
+                isWeekend: boolean;
+                isHoliday: boolean;
+                holidayName: string;
+                holidayDescription: string | null;
+        };
 
 	const isCompactWeek = $derived(isMobile && mobileWeekMode && !singleDayView);
 	const timeColumnWidth = $derived(isMobile ? 'minmax(48px, 12vw)' : 'minmax(60px, 8%)');
 	const dayColumnWidth = $derived(isCompactWeek ? 'minmax(0, 1fr)' : 'minmax(100px, 1fr)');
 
-	const weekDays = $derived.by<WeekDayInfo[]>(() => {
-		if (singleDayView) {
-			const selected = parseLocalDateStr(filters?.date);
-			return [
-				{
-					dayLabel: selected.toLocaleDateString('sv-SE', { weekday: 'long' }),
-					dayShortLabel: selected.toLocaleDateString('sv-SE', { weekday: 'short' }),
-					dateLabel: selected.getDate().toString(),
-					fullDate: selected
-				}
-			];
-		}
+        const weekDays = $derived.by<WeekDayInfo[]>(() => {
+                const lookup = holidayLookup;
+                if (singleDayView) {
+                        const selected = parseLocalDateStr(filters?.date);
+                        const key = ymdLocal(selected);
+                        const holiday = lookup.get(key);
+                        const isWeekend = [0, 6].includes(selected.getDay());
+                        return [
+                                {
+                                        dayLabel: selected.toLocaleDateString('sv-SE', { weekday: 'long' }),
+                                        dayShortLabel: selected.toLocaleDateString('sv-SE', { weekday: 'short' }),
+                                        dateLabel: selected.getDate().toString(),
+                                        fullDate: selected,
+                                        dateKey: key,
+                                        isWeekend,
+                                        isHoliday: Boolean(holiday),
+                                        holidayName: holiday?.name ?? '',
+                                        holidayDescription: holiday?.description ?? null
+                                }
+                        ];
+                }
 
-		// Use filters.from directly - it's already set to Monday by the store
-		const startOfWeek = filters?.from
-			? parseLocalDateStr(filters.from)
-			: getMondayOfWeek(new Date());
+                // Use filters.from directly - it's already set to Monday by the store
+                const startOfWeek = filters?.from
+                        ? parseLocalDateStr(filters.from)
+                        : getMondayOfWeek(new Date());
 
-		return Array.from({ length: 7 }, (_, i) => {
-			const d = new Date(startOfWeek);
-			d.setDate(d.getDate() + i);
-			return {
-				dayLabel: d.toLocaleDateString('sv-SE', { weekday: 'long' }),
-				dayShortLabel: d.toLocaleDateString('sv-SE', { weekday: 'short' }),
-				dateLabel: d.getDate().toString(),
-				fullDate: d
-			};
-		});
-	});
+                return Array.from({ length: 7 }, (_, i) => {
+                        const d = new Date(startOfWeek);
+                        d.setDate(d.getDate() + i);
+                        const dateKey = ymdLocal(d);
+                        const holiday = lookup.get(dateKey);
+                        const isWeekend = [0, 6].includes(d.getDay());
+                        return {
+                                dayLabel: d.toLocaleDateString('sv-SE', { weekday: 'long' }),
+                                dayShortLabel: d.toLocaleDateString('sv-SE', { weekday: 'short' }),
+                                dateLabel: d.getDate().toString(),
+                                fullDate: d,
+                                dateKey,
+                                isWeekend,
+                                isHoliday: Boolean(holiday),
+                                holidayName: holiday?.name ?? '',
+                                holidayDescription: holiday?.description ?? null
+                        };
+                });
+        });
 
 	function splitName(full?: string | null) {
 		if (!full) return { first: '', last: '' };
@@ -762,41 +796,53 @@ import type { SelectedSlot } from '$lib/stores/selectedSlotStore';
 				<span>Laddar kalender...</span>
 			</div>
 		{/if}
-		{#each weekDays as { dayLabel, dayShortLabel, dateLabel, fullDate }, index (dateLabel)}
-			<div
-				class="bg-gray flex flex-col items-center text-white transition-colors focus:outline-none"
-				class:mx-1={!isMobile}
-				class:mx-0={isMobile}
-				class:py-2={!isMobile}
-				class:py-1={isMobile}
-				class:rounded-sm={!isMobile}
-				class:rounded-none={isMobile}
-				class:border-r={isCompactWeek}
-				class:border-white={isCompactWeek}
-				class:border-opacity-40={isCompactWeek}
-				class:border-r-0={isCompactWeek && index === weekDays.length - 1}
-				class:cursor-pointer={isCompactWeek}
-				class:bg-orange={isSameLocalDay(fullDate, new Date())}
-				on:click={() => handleCompactDaySelection(fullDate)}
-			>
-				<p
-					class="capitalize"
-					class:text-lg={!isMobile}
-					class:text-xs={isMobile}
-					class:tracking-wide={isMobile}
-				>
-					{isCompactWeek ? dayShortLabel : dayLabel}
-				</p>
-				<p
-					class="leading-tight font-semibold"
-					class:text-4xl={!isMobile}
-					class:text-base={isMobile}
-				>
-					{dateLabel}
-				</p>
-			</div>
-		{/each}
-	</div>
+                {#each weekDays as dayInfo, index (dayInfo.dateKey)}
+                        {@const isToday = isSameLocalDay(dayInfo.fullDate, new Date())}
+                        {@const tooltipContent = dayInfo.isHoliday
+                                ? [dayInfo.holidayName, dayInfo.holidayDescription]
+                                          .filter(Boolean)
+                                          .join('\n')
+                                : ''}
+                        <div
+                                class="flex flex-col items-center text-white transition-colors focus:outline-none"
+                                class:mx-1={!isMobile}
+                                class:mx-0={isMobile}
+                                class:py-2={!isMobile}
+                                class:py-1={isMobile}
+                                class:rounded-sm={!isMobile}
+                                class:rounded-none={isMobile}
+                                class:border-r={isCompactWeek}
+                                class:border-white={isCompactWeek}
+                                class:border-opacity-40={isCompactWeek}
+                                class:border-r-0={isCompactWeek && index === weekDays.length - 1}
+                                class:cursor-pointer={isCompactWeek}
+                                class:bg-orange={isToday}
+                                class:bg-rose-600={!isToday && dayInfo.isHoliday}
+                                class:bg-gray-dark={!dayInfo.isHoliday && dayInfo.isWeekend && !isToday}
+                                class:bg-gray={!dayInfo.isHoliday && !dayInfo.isWeekend && !isToday}
+                                use:tooltip={dayInfo.isHoliday && tooltipContent
+                                        ? { content: tooltipContent }
+                                        : undefined}
+                                on:click={() => handleCompactDaySelection(dayInfo.fullDate)}
+                        >
+                                <p
+                                        class="capitalize"
+                                        class:text-lg={!isMobile}
+                                        class:text-xs={isMobile}
+                                        class:tracking-wide={isMobile}
+                                >
+                                        {isCompactWeek ? dayInfo.dayShortLabel : dayInfo.dayLabel}
+                                </p>
+                                <p
+                                        class="leading-tight font-semibold"
+                                        class:text-4xl={!isMobile}
+                                        class:text-base={isMobile}
+                                >
+                                        {dayInfo.dateLabel}
+                                </p>
+                        </div>
+                {/each}
+        </div>
 
 	<!-- CALENDAR GRID -->
 	<div
@@ -816,14 +862,22 @@ import type { SelectedSlot } from '$lib/stores/selectedSlotStore';
 		</div>
 
 		<!-- DAYS & BOOKINGS -->
-		{#each weekDays as _, dayIndex}
-			<div
-				class="border-gray-bright relative flex flex-col gap-1 border-l"
-				class:gap-0.5={isCompactWeek}
-			>
-				{#if pinnedSlotView && pinnedSlotView.dayIndex === dayIndex}
-					<BookingSlot
-						booking={pinnedSlotView.booking}
+                {#each weekDays as dayInfo, dayIndex}
+                        <div
+                                class="border-gray-bright relative flex flex-col gap-1 border-l"
+                                class:gap-0.5={isCompactWeek}
+                                class:pt-8={dayInfo.isHoliday}
+                        >
+                                {#if dayInfo.isHoliday}
+                                        <div class="pointer-events-none absolute left-1/2 top-2 z-20 flex -translate-x-1/2">
+                                                <span class="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700 shadow-sm">
+                                                        Helgdag{#if dayInfo.holidayName} · {dayInfo.holidayName}{/if}
+                                                </span>
+                                        </div>
+                                {/if}
+                                {#if pinnedSlotView && pinnedSlotView.dayIndex === dayIndex}
+                                        <BookingSlot
+                                                booking={pinnedSlotView.booking}
 						{startHour}
 						{hourHeight}
 						columnIndex={0}

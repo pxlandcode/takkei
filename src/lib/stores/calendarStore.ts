@@ -1,6 +1,8 @@
 import { writable } from 'svelte/store';
 import { fetchBookings, fetchUserAvailability } from '$lib/services/api/calendarService';
+import { fetchHolidays as fetchHolidayRange } from '$lib/services/api/holidayService';
 import type { FullBooking } from '$lib/types/calendarTypes';
+import type { Holiday } from '$lib/types/holiday';
 import { loadingStore } from './loading';
 
 /**
@@ -32,19 +34,21 @@ function computePersonalBookingsFlag(f: CalendarFilters): boolean {
 type CalendarAvailability = Record<string, { from: string; to: string }[] | null>;
 
 type CalendarStoreState = {
-	filters: CalendarFilters;
-	bookings: FullBooking[];
-	availability: CalendarAvailability;
-	isLoading: boolean;
+        filters: CalendarFilters;
+        bookings: FullBooking[];
+        availability: CalendarAvailability;
+        holidays: Holiday[];
+        holidaySet: Set<string>;
+        isLoading: boolean;
 };
 
 const isBrowser = typeof window !== 'undefined';
 
 const createCalendarStore = () => {
-	const { subscribe, update } = writable<CalendarStoreState>({
-		filters: {
-			from: null,
-			to: null,
+        const { subscribe, update } = writable<CalendarStoreState>({
+                filters: {
+                        from: null,
+                        to: null,
 			date: new Date().toISOString().slice(0, 10),
 			roomId: null,
 			locationIds: [],
@@ -52,11 +56,13 @@ const createCalendarStore = () => {
 			clientIds: null,
 			userIds: null,
 			personalBookings: false
-		},
-		bookings: [],
-		availability: {},
-		isLoading: false
-	});
+                },
+                bookings: [],
+                availability: {},
+                holidays: [],
+                holidaySet: new Set(),
+                isLoading: false
+        });
 
 	let pendingRequests = 0;
 	let latestRequestId = 0;
@@ -86,54 +92,69 @@ const createCalendarStore = () => {
 	 * Fetch & Update Bookings based on current filters
 	 */
 
-	async function refresh(fetchFn: typeof fetch, overrideFilters?: CalendarFilters): Promise<void> {
-		const requestId = ++latestRequestId;
-		const base = { ...(overrideFilters ?? getCurrentFilters()) };
+        async function refresh(fetchFn: typeof fetch, overrideFilters?: CalendarFilters): Promise<void> {
+                const requestId = ++latestRequestId;
+                const base = { ...(overrideFilters ?? getCurrentFilters()) };
 
-		if (!base.from && !base.to) {
-			const { weekStart, weekEnd } = getWeekStartAndEnd(new Date());
-			base.from = weekStart;
-			base.to = weekEnd;
-		}
+                if (!base.from && !base.to) {
+                        const { weekStart, weekEnd } = getWeekStartAndEnd(new Date());
+                        base.from = weekStart;
+                        base.to = weekEnd;
+                }
 
-		if (base.personalBookings === undefined) {
-			base.personalBookings = computePersonalBookingsFlag(base);
-		}
+                if (base.personalBookings === undefined) {
+                        base.personalBookings = computePersonalBookingsFlag(base);
+                }
 
-		startLoading();
+                update((store) => ({ ...store, holidays: [], holidaySet: new Set() }));
+                startLoading();
 
-		try {
-			const bookingsPromise = fetchBookings(base, fetchFn);
-			const availabilityPromise: Promise<CalendarAvailability> =
-				base.trainerIds?.length === 1 && base.from && base.to
-					? fetchUserAvailability(base.trainerIds[0], base.from, base.to, fetchFn)
-							.then((res) => res.availability ?? {})
-							.catch((err) => {
-								console.error('❌ Failed to fetch availability:', err);
-								return {} as CalendarAvailability;
-							})
-					: Promise.resolve({} as CalendarAvailability);
+                try {
+                        const bookingsPromise = fetchBookings(base, fetchFn);
+                        const availabilityPromise: Promise<CalendarAvailability> =
+                                base.trainerIds?.length === 1 && base.from && base.to
+                                        ? fetchUserAvailability(base.trainerIds[0], base.from, base.to, fetchFn)
+                                                        .then((res) => res.availability ?? {})
+                                                        .catch((err) => {
+                                                                console.error('❌ Failed to fetch availability:', err);
+                                                                return {} as CalendarAvailability;
+                                                        })
+                                        : Promise.resolve({} as CalendarAvailability);
 
-			const [newBookings, newAvailability] = await Promise.all([
-				bookingsPromise,
-				availabilityPromise
-			]);
+                        const rangeFrom = base.from ?? base.date ?? new Date().toISOString().slice(0, 10);
+                        const rangeTo = base.to ?? base.date ?? rangeFrom;
+                        const holidaysPromise: Promise<Holiday[]> = fetchHolidayRange(
+                                { from: rangeFrom, to: rangeTo },
+                                fetchFn
+                        ).catch((err) => {
+                                console.error('❌ Failed to fetch holidays:', err);
+                                return [];
+                        });
 
-			if (requestId === latestRequestId) {
-				update((store) => ({
-					...store,
-					bookings: newBookings,
-					availability: newAvailability
-				}));
-			}
-		} catch (err) {
-			if (requestId === latestRequestId) {
-				console.error('❌ Failed to refresh calendar data:', err);
-			}
-		} finally {
-			stopLoading();
-		}
-	}
+                        const [newBookings, newAvailability, newHolidays] = await Promise.all([
+                                bookingsPromise,
+                                availabilityPromise,
+                                holidaysPromise
+                        ]);
+
+                        if (requestId === latestRequestId) {
+                                update((store) => ({
+                                        ...store,
+                                        bookings: newBookings,
+                                        availability: newAvailability,
+                                        holidays: newHolidays,
+                                        holidaySet: new Set(newHolidays.map((holiday) => holiday.date))
+                                }));
+                        }
+                } catch (err) {
+                        if (requestId === latestRequestId) {
+                                console.error('❌ Failed to refresh calendar data:', err);
+                                update((store) => ({ ...store, holidays: [], holidaySet: new Set() }));
+                        }
+                } finally {
+                        stopLoading();
+                }
+        }
 
 	function getCurrentFilters(): CalendarFilters {
 		let snapshot: CalendarStoreState | undefined;
