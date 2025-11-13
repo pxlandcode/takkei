@@ -27,9 +27,12 @@ if (useProdDb) {
 	console.log('✅ Using LOCAL database');
 }
 
+const defaultPoolSize = isProduction || useProdDb ? 5 : 10;
+
 export const pool = new Pool({
         connectionString,
-        ssl: isProduction || useProdDb ? { rejectUnauthorized: false } : false
+        ssl: isProduction || useProdDb ? { rejectUnauthorized: false } : false,
+        max: Number(process.env.DATABASE_POOL_MAX ?? defaultPoolSize)
 });
 
 const APP_TZ = 'Europe/Stockholm';
