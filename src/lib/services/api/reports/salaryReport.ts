@@ -2,6 +2,7 @@ import { query } from '$lib/db';
 import { extractStockholmMinutes, extractStockholmTimeParts } from '$lib/server/stockholm-time';
 
 const CANCELLED_STATUSES = ['Cancelled', 'Late_cancelled'];
+const FALLBACK_SESSION_MINUTES = 60; // Default duration when bookings lack explicit end_time
 
 export type SalaryReportParams = {
         month: number;
@@ -95,7 +96,7 @@ export function parseSalaryReportMonth(params: { month?: string | null; year?: s
 type BookingRow = {
         id: number;
         start_time: string;
-        end_time: string | null;
+        end_time?: string | null;
         trainer_id: number;
         trainer_firstname: string | null;
         trainer_lastname: string | null;
@@ -324,11 +325,33 @@ async function loadHolidays(startDate: string, endDate: string) {
 }
 
 async function loadBookings(start: string, endExclusive: string) {
-        const rows = await query<BookingRow>(
-                `SELECT
+        const params: [string, string, string[]] = [start, endExclusive, CANCELLED_STATUSES];
+
+        if (bookingsSupportsEndTime === false) {
+                return query<BookingRow>(buildBookingsQuery(false), params);
+        }
+
+        try {
+                const rows = await query<BookingRow>(buildBookingsQuery(true), params);
+                bookingsSupportsEndTime = true;
+                return rows;
+        } catch (error) {
+                if (isMissingColumnError(error)) {
+                        bookingsSupportsEndTime = false;
+                        return query<BookingRow>(buildBookingsQuery(false), params);
+                }
+                throw error;
+        }
+}
+
+let bookingsSupportsEndTime: boolean | null = null;
+
+function buildBookingsQuery(includeEndTime: boolean) {
+        const endTimeColumn = includeEndTime ? 'b.end_time,' : '';
+        return `SELECT
                         b.id,
                         b.start_time,
-                        b.end_time,
+                        ${endTimeColumn}
                         b.trainer_id,
                         u.firstname AS trainer_firstname,
                         u.lastname AS trainer_lastname,
@@ -355,10 +378,36 @@ async function loadBookings(start: string, endExclusive: string) {
                  WHERE b.status <> ALL($3::text[])
                    AND b.start_time >= $1::timestamp
                    AND b.start_time < $2::timestamp
-                 ORDER BY b.start_time ASC`,
-                [start, endExclusive, CANCELLED_STATUSES]
-        );
-        return rows;
+                 ORDER BY b.start_time ASC`;
+}
+
+function isMissingColumnError(error: unknown) {
+        if (!error || typeof error !== 'object') return false;
+        return (error as { code?: string }).code === '42703';
+}
+
+function resolveBookingTiming(startTime: Date, rawEndTime?: string | null) {
+        let resolvedEnd: Date | null = null;
+
+        if (rawEndTime) {
+                const parsed = new Date(rawEndTime);
+                if (!Number.isNaN(parsed.getTime()) && parsed > startTime) {
+                        resolvedEnd = parsed;
+                }
+        }
+
+        if (!resolvedEnd) {
+                const fallbackEnd = new Date(startTime.getTime() + FALLBACK_SESSION_MINUTES * 60000);
+                return { endTime: fallbackEnd, durationMinutes: FALLBACK_SESSION_MINUTES };
+        }
+
+        const durationMinutes = Math.round((resolvedEnd.getTime() - startTime.getTime()) / 60000);
+        if (!Number.isFinite(durationMinutes) || durationMinutes <= 0) {
+                const fallbackEnd = new Date(startTime.getTime() + FALLBACK_SESSION_MINUTES * 60000);
+                return { endTime: fallbackEnd, durationMinutes: FALLBACK_SESSION_MINUTES };
+        }
+
+        return { endTime: resolvedEnd, durationMinutes };
 }
 
 async function loadExtraDuties(rangeStart: string, nextMonthStart: string) {
@@ -441,12 +490,10 @@ export async function getSalaryReport(params: SalaryReportParams): Promise<Salar
                 if (!trainer) continue;
 
                 const startTime = new Date(row.start_time);
-                const endTime = row.end_time ? new Date(row.end_time) : null;
                 if (!startTime || Number.isNaN(startTime.getTime())) continue;
-                if (!endTime || Number.isNaN(endTime.getTime()) || endTime <= startTime) continue;
 
-                const durationMinutes = Math.round((endTime.getTime() - startTime.getTime()) / 60000);
-                if (!Number.isFinite(durationMinutes) || durationMinutes <= 0) continue;
+                const { endTime, durationMinutes } = resolveBookingTiming(startTime, row.end_time);
+                if (!endTime || durationMinutes <= 0) continue;
 
                 const timeParts = extractStockholmTimeParts(row.start_time);
                 if (!timeParts) continue;
@@ -477,7 +524,7 @@ export async function getSalaryReport(params: SalaryReportParams): Promise<Salar
                 }
 
                 const startMinutes = extractStockholmMinutes(row.start_time);
-                const endMinutes = extractStockholmMinutes(row.end_time ?? row.start_time);
+                const endMinutes = extractStockholmMinutes(endTime);
                 const weekdayMaskIndex = weekdayIndexFromUtcDay(weekdayUtc);
 
                 let obMinutes = 0;

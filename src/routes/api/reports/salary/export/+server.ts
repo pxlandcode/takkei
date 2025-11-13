@@ -2,6 +2,7 @@ import type { RequestHandler } from '@sveltejs/kit';
 
 import { hasRole } from '$lib/helpers/userHelpers/roleHelper';
 import { buildSalaryWorkbook, parseSalaryReportMonth } from '$lib/services/api/reports/salaryReport';
+import { resolveRoleAwareUser } from '$lib/server/roleAwareUser';
 
 function parseParams(url: URL) {
         const monthParam = url.searchParams.get('month');
@@ -10,12 +11,12 @@ function parseParams(url: URL) {
 }
 
 export const GET: RequestHandler = async ({ url, locals }) => {
-        const user = locals.user;
-        if (!user) {
+        const roleAwareUser = await resolveRoleAwareUser(locals.user ?? null);
+        if (!roleAwareUser) {
                 return new Response('Unauthorized', { status: 401 });
         }
 
-        if (!hasRole(['Administrator', 'Economy'], user as any)) {
+        if (!hasRole(['Administrator', 'Economy'], roleAwareUser as any)) {
                 return new Response('Forbidden', { status: 403 });
         }
 

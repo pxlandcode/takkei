@@ -1,6 +1,7 @@
 import { json, type RequestHandler } from '@sveltejs/kit';
 
 import { hasRole } from '$lib/helpers/userHelpers/roleHelper';
+import { resolveRoleAwareUser } from '$lib/server/roleAwareUser';
 import { getSalaryReport, parseSalaryReportMonth } from '$lib/services/api/reports/salaryReport';
 
 function parseParams(url: URL) {
@@ -10,12 +11,12 @@ function parseParams(url: URL) {
 }
 
 export const GET: RequestHandler = async ({ url, locals }) => {
-        const user = locals.user;
-        if (!user) {
+        const roleAwareUser = await resolveRoleAwareUser(locals.user ?? null);
+        if (!roleAwareUser) {
                 return json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        if (!hasRole(['Administrator', 'Economy'], user as any)) {
+        if (!hasRole(['Administrator', 'Economy'], roleAwareUser as any)) {
                 return json({ error: 'Forbidden' }, { status: 403 });
         }
 

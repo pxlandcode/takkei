@@ -1,6 +1,7 @@
 <script lang="ts">
         import { onMount } from 'svelte';
         import { Datepicker } from '@pixelcode_/blocks/components';
+        import { goto } from '$app/navigation';
 
         import Table from '../../../bits/table/Table.svelte';
         import Button from '../../../bits/button/Button.svelte';
@@ -161,8 +162,6 @@
 
         const headers = [
                 { label: 'Tränare', key: 'trainer', sort: true, isSearchable: true },
-                { label: 'E-post', key: 'email', isSearchable: true },
-                { label: 'Plats', key: 'location', isSearchable: true },
                 { label: 'Totala timmar', key: 'totalHours', sort: true },
                 { label: 'Vardagstimmar', key: 'weekdayHours', sort: true },
                 { label: 'OB-timmar', key: 'obHours', sort: true },
@@ -181,13 +180,10 @@
                 filtersReady = true;
         });
 
-        $: normalizedInput = normalizeMonth(monthInput);
-        $: if (monthInput !== normalizedInput) {
-                monthInput = normalizedInput;
-        }
-        $: if (selectedMonth !== monthInput) {
-                selectedMonth = monthInput;
-        }
+$: normalizedInput = normalizeMonth(monthInput);
+$: if (selectedMonth !== normalizedInput) {
+        selectedMonth = normalizedInput;
+}
 
         $: filterSignature = filtersReady ? selectedMonth : '';
         $: if (filtersReady && filterSignature) {
@@ -221,12 +217,20 @@
                 summary.trainerCount = trainers.length;
         }
 
+        function onGoToTrainer(id: number) {
+                goto(`/users/${id}`);
+        }
+
         function mapTrainerToRow(trainer: SalaryReportTrainer) {
                 return {
                         id: trainer.id,
-                        trainer: trainer.name,
-                        email: trainer.email ?? '—',
-                        location: trainer.locationName ?? '—',
+                        trainer: [
+                                {
+                                        type: 'link',
+                                        label: trainer.name || 'Visa tränare',
+                                        action: () => onGoToTrainer(trainer.id)
+                                }
+                        ],
                         totalHours: trainer.totalHours,
                         weekdayHours: trainer.weekdayHours,
                         obHours: trainer.obHours,
@@ -257,12 +261,19 @@
                         return;
                 }
 
+                const searchableKeys = ['trainer'];
+
                 filteredRows = tableRows.filter((row) => {
-                        const searchableKeys = ['trainer', 'email', 'location'];
                         return searchableKeys.some((key) => {
                                 const value = row[key];
                                 if (typeof value === 'string') {
                                         return value.toLowerCase().includes(query);
+                                }
+                                if (Array.isArray(value)) {
+                                        return value.some((item) => {
+                                                const text = item?.label ?? item?.content ?? '';
+                                                return typeof text === 'string' && text.toLowerCase().includes(query);
+                                        });
                                 }
                                 if (typeof value === 'number') {
                                         return value.toString().includes(query);
