@@ -7,9 +7,18 @@ export interface BookingCount {
         deltaLabel?: string;
 }
 
+export type PeriodKey = 'week' | 'month';
+
+export interface DebiteradePassPeriodStats {
+        label: string;
+        hours: number;
+        deltaLabel?: string;
+}
+
 export interface DebiteradePass {
         monthHours: number;
         deltaLabel?: string;
+        periods: Record<PeriodKey, DebiteradePassPeriodStats>;
 }
 
 export interface DemoTrainingCount {
@@ -22,6 +31,17 @@ export interface DebiterbaraTimmar {
         monthHours: number;
         deltaLabel?: string;
 }
+
+export type CancellationPeriodKey = PeriodKey;
+
+export interface CancellationPeriodStats {
+        label: string;
+        total: number;
+        late: number;
+        deltaLabel?: string;
+}
+
+export type AvbokningarStats = Record<CancellationPeriodKey, CancellationPeriodStats>;
 
 export interface StatisticsTableRow {
         type: string;
@@ -40,33 +60,78 @@ export interface TrainerStatisticsResponse {
         debiteradePass: DebiteradePass;
         demotraningar: DemoTrainingCount;
         debiterbaraTimmar: DebiterbaraTimmar;
+        avbokningar: AvbokningarStats;
         table: StatisticsTable;
 }
+const timeframeBase = {
+        currentWeek: {
+                label: 'Denna vecka',
+                totalBookings: 12,
+                obBookings: 3,
+                bookingsDelta: '+2 vs föregående vecka',
+                cancellations: {
+                        total: 3,
+                        late: 1,
+                        deltaLabel: '-1 vs föregående vecka'
+                }
+        },
+        nextWeek: {
+                label: 'Kommande vecka',
+                totalBookings: 9,
+                obBookings: 1,
+                bookingsDelta: '-1 vs föregående vecka'
+        },
+        currentMonth: {
+                label: 'Denna månad',
+                totalBookings: 38,
+                obBookings: 6,
+                bookingsDelta: '+6 vs föregående månad',
+                cancellations: {
+                        total: 8,
+                        late: 3,
+                        deltaLabel: '+2 vs föregående månad'
+                }
+        }
+} as const;
+
+const debiteradePassPeriods: Record<PeriodKey, DebiteradePassPeriodStats> = {
+        week: {
+                label: 'Denna vecka',
+                hours: 26,
+                deltaLabel: '+4 h vs förra veckan'
+        },
+        month: {
+                label: 'Denna månad',
+                hours: 112,
+                deltaLabel: '+8 h jämfört med förra månaden'
+        }
+};
 
 const mockResponse: TrainerStatisticsResponse = {
         debiterbaraBokningar: {
                 currentWeek: {
-                        label: 'Denna vecka',
-                        totalBookings: 12,
-                        obBookings: 3,
-                        deltaLabel: '+2 vs föregående vecka'
+                        label: timeframeBase.currentWeek.label,
+                        totalBookings: timeframeBase.currentWeek.totalBookings,
+                        obBookings: timeframeBase.currentWeek.obBookings,
+                        deltaLabel: timeframeBase.currentWeek.bookingsDelta
                 },
                 nextWeek: {
-                        label: 'Kommande vecka',
-                        totalBookings: 9,
-                        obBookings: 1,
-                        deltaLabel: '-1 vs föregående vecka'
+                        label: timeframeBase.nextWeek.label,
+                        totalBookings: timeframeBase.nextWeek.totalBookings,
+                        obBookings: timeframeBase.nextWeek.obBookings,
+                        deltaLabel: timeframeBase.nextWeek.bookingsDelta
                 },
                 currentMonth: {
-                        label: 'Denna månad',
-                        totalBookings: 38,
-                        obBookings: 6,
-                        deltaLabel: '+6 vs föregående månad'
+                        label: timeframeBase.currentMonth.label,
+                        totalBookings: timeframeBase.currentMonth.totalBookings,
+                        obBookings: timeframeBase.currentMonth.obBookings,
+                        deltaLabel: timeframeBase.currentMonth.bookingsDelta
                 }
         },
         debiteradePass: {
-                monthHours: 112,
-                deltaLabel: '+8 h jämfört med förra månaden'
+                monthHours: debiteradePassPeriods.month.hours,
+                deltaLabel: debiteradePassPeriods.month.deltaLabel,
+                periods: debiteradePassPeriods
         },
         demotraningar: {
                 monthCount: 5,
@@ -76,6 +141,20 @@ const mockResponse: TrainerStatisticsResponse = {
                 weekHours: 24,
                 monthHours: 118,
                 deltaLabel: '+6 h vs förra månaden'
+        },
+        avbokningar: {
+                week: {
+                        label: timeframeBase.currentWeek.label,
+                        total: timeframeBase.currentWeek.cancellations.total,
+                        late: timeframeBase.currentWeek.cancellations.late,
+                        deltaLabel: timeframeBase.currentWeek.cancellations.deltaLabel
+                },
+                month: {
+                        label: timeframeBase.currentMonth.label,
+                        total: timeframeBase.currentMonth.cancellations.total,
+                        late: timeframeBase.currentMonth.cancellations.late,
+                        deltaLabel: timeframeBase.currentMonth.cancellations.deltaLabel
+                }
         },
         table: {
                 rows: [
