@@ -4,7 +4,8 @@
 	import LocationSettings from '../../components/ui/locationSettings/LocationSettings.svelte';
 	import PackagesSettings from '../../components/ui/packagesSettings/PackagesSettings.svelte';
 	import TargetsSettings from '../../components/ui/targetsSettings/TargetsSettings.svelte';
-	import SchedulingSettings from '../../components/ui/schedulingSettings/SchedulingSettings.svelte';
+        import SchedulingSettings from '../../components/ui/schedulingSettings/SchedulingSettings.svelte';
+        import ObSettings from '../../components/ui/obSettings/ObSettings.svelte';
 	import MailComponent from '../../components/ui/mailComponent/MailComponent.svelte';
 	import Navigation from '../../components/bits/navigation/Navigation.svelte';
 	import UserForm from '../../components/ui/userForm/UserForm.svelte';
@@ -47,13 +48,19 @@
 			component: TargetsSettings,
 			requiredRoles: ['Administrator']
 		},
-		{
-			label: 'Schema',
-			icon: 'Calendar',
-			component: SchedulingSettings,
-			requiredRoles: ['Administrator']
-		}
-	];
+                {
+                        label: 'Schema',
+                        icon: 'Calendar',
+                        component: SchedulingSettings,
+                        requiredRoles: ['Administrator']
+                },
+                {
+                        label: 'OB-fönster',
+                        icon: 'Clock',
+                        component: ObSettings,
+                        requiredRoles: ['Administrator']
+                }
+        ];
 
 	let selectedTab = menuItems[0];
 
