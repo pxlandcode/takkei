@@ -18,6 +18,7 @@
         let loading = false;
         let error: string | null = null;
         let currentStatistics: TrainerStatisticsResponse | null = null;
+        let externalStatistics: TrainerStatisticsResponse | null = null;
 
         const fetcher = (input: RequestInfo | URL, init?: RequestInit) => fetchFn(input, init);
 
@@ -25,11 +26,15 @@
                 const initialRange = getPresetRange('currentMonth');
                 startDate = formatDateInputValue(initialRange.start);
                 endDate = formatDateInputValue(initialRange.end);
+                externalStatistics = statistics;
                 currentStatistics = statistics;
         });
 
-        $: if (statistics && !loading) {
-                currentStatistics = statistics;
+        $: if (statistics !== externalStatistics) {
+                externalStatistics = statistics ?? null;
+                if (!loading) {
+                        currentStatistics = statistics ?? null;
+                }
         }
 
         async function refreshStatistics() {

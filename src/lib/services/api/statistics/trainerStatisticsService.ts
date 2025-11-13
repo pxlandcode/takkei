@@ -60,10 +60,13 @@ type TableCategory =
         | 'flight'
         | 'education'
         | 'practice';
+type DeltaContext = 'prevWeek' | 'prevMonth' | 'currentWeek';
 
 const STOCKHOLM_DAY_LABELS = {
+        previousWeek: 'Föregående vecka',
         currentWeek: 'Denna vecka',
         nextWeek: 'Kommande vecka',
+        previousMonth: 'Föregående månad',
         currentMonth: 'Denna månad'
 } as const;
 
@@ -96,7 +99,14 @@ export async function getTrainerStatisticsService(
         const ranges = buildDefaultRanges(stockholmtParts);
         const customRange = buildCustomRange(params.from, params.to, ranges.currentMonth);
 
-        const allRanges = [ranges.currentWeek, ranges.nextWeek, ranges.currentMonth, customRange];
+        const allRanges = [
+                ranges.previousWeek,
+                ranges.currentWeek,
+                ranges.nextWeek,
+                ranges.previousMonth,
+                ranges.currentMonth,
+                customRange
+        ];
         const earliestStart = allRanges.reduce((min, range) =>
                 !min || range.start < min ? range.start : min,
                 ''
@@ -118,34 +128,99 @@ export async function getTrainerStatisticsService(
         const processedActive = processBookings(activeBookings, obWindows, holidaySet);
         const processedCancelled = processBookings(cancelledBookings, obWindows, holidaySet);
 
-        const debiterbaraBokningar = {
-                currentWeek: summarizeBookings(processedActive, ranges.currentWeek),
-                nextWeek: summarizeBookings(processedActive, ranges.nextWeek),
-                currentMonth: summarizeBookings(processedActive, ranges.currentMonth)
-        } as TrainerStatisticsResponse['debiterbaraBokningar'];
+        const previousWeekSummary = summarizeBookings(processedActive, ranges.previousWeek);
+        const currentWeekSummary = summarizeBookings(processedActive, ranges.currentWeek);
+        const nextWeekSummary = summarizeBookings(processedActive, ranges.nextWeek);
+        const currentMonthSummary = summarizeBookings(processedActive, ranges.currentMonth);
+        const previousMonthSummary = summarizeBookings(processedActive, ranges.previousMonth);
+
+        const debiterbaraBokningar: TrainerStatisticsResponse['debiterbaraBokningar'] = {
+                currentWeek: {
+                        ...currentWeekSummary,
+                        deltaLabel: formatDeltaLabel(
+                                currentWeekSummary.totalBookings - previousWeekSummary.totalBookings,
+                                'prevWeek'
+                        )
+                },
+                nextWeek: {
+                        ...nextWeekSummary,
+                        deltaLabel: formatDeltaLabel(
+                                nextWeekSummary.totalBookings - currentWeekSummary.totalBookings,
+                                'currentWeek'
+                        )
+                },
+                currentMonth: {
+                        ...currentMonthSummary,
+                        deltaLabel: formatDeltaLabel(
+                                currentMonthSummary.totalBookings - previousMonthSummary.totalBookings,
+                                'prevMonth'
+                        )
+                }
+        };
 
         const weekMinutes = sumMinutes(processedActive, ranges.currentWeek);
         const monthMinutes = sumMinutes(processedActive, ranges.currentMonth);
+        const previousWeekMinutes = sumMinutes(processedActive, ranges.previousWeek);
+        const previousMonthMinutes = sumMinutes(processedActive, ranges.previousMonth);
+        const weekHours = minutesToHours(weekMinutes);
+        const monthHours = minutesToHours(monthMinutes);
+        const previousWeekHours = minutesToHours(previousWeekMinutes);
+        const previousMonthHours = minutesToHours(previousMonthMinutes);
 
         const debiteradePass: TrainerStatisticsResponse['debiteradePass'] = {
-                monthHours: minutesToHours(monthMinutes),
+                monthHours,
+                deltaLabel: formatDeltaLabel(monthHours - previousMonthHours, 'prevMonth', 'h'),
                 periods: {
                         week: {
                                 label: STOCKHOLM_DAY_LABELS.currentWeek,
-                                hours: minutesToHours(weekMinutes)
+                                hours: weekHours,
+                                deltaLabel: formatDeltaLabel(
+                                        weekHours - previousWeekHours,
+                                        'prevWeek',
+                                        'h'
+                                )
                         },
                         month: {
                                 label: STOCKHOLM_DAY_LABELS.currentMonth,
-                                hours: minutesToHours(monthMinutes)
+                                hours: monthHours,
+                                deltaLabel: formatDeltaLabel(
+                                        monthHours - previousMonthHours,
+                                        'prevMonth',
+                                        'h'
+                                )
                         }
                 }
         };
 
         const monthTryOutCount = countTryOut(processedActive, ranges.currentMonth);
+        const previousMonthTryOutCount = countTryOut(processedActive, ranges.previousMonth);
+
+        const weekCancellations = summarizeCancellations(processedCancelled, ranges.currentWeek);
+        const previousWeekCancellations = summarizeCancellations(
+                processedCancelled,
+                ranges.previousWeek
+        );
+        const monthCancellations = summarizeCancellations(processedCancelled, ranges.currentMonth);
+        const previousMonthCancellations = summarizeCancellations(
+                processedCancelled,
+                ranges.previousMonth
+        );
 
         const avbokningar: TrainerStatisticsResponse['avbokningar'] = {
-                week: summarizeCancellations(processedCancelled, ranges.currentWeek),
-                month: summarizeCancellations(processedCancelled, ranges.currentMonth)
+                week: {
+                        ...weekCancellations,
+                        deltaLabel: formatDeltaLabel(
+                                weekCancellations.total - previousWeekCancellations.total,
+                                'prevWeek'
+                        )
+                },
+                month: {
+                        ...monthCancellations,
+                        deltaLabel: formatDeltaLabel(
+                                monthCancellations.total - previousMonthCancellations.total,
+                                'prevMonth'
+                        )
+                }
         };
 
         const table = buildTable(processedActive, processedCancelled, customRange);
@@ -153,10 +228,17 @@ export async function getTrainerStatisticsService(
         return {
                 debiterbaraBokningar,
                 debiteradePass,
-                demotraningar: { monthCount: monthTryOutCount },
+                demotraningar: {
+                        monthCount: monthTryOutCount,
+                        deltaLabel: formatDeltaLabel(
+                                monthTryOutCount - previousMonthTryOutCount,
+                                'prevMonth'
+                        )
+                },
                 debiterbaraTimmar: {
-                        weekHours: minutesToHours(weekMinutes),
-                        monthHours: minutesToHours(monthMinutes)
+                        weekHours,
+                        monthHours,
+                        deltaLabel: formatDeltaLabel(monthHours - previousMonthHours, 'prevMonth', 'h')
                 },
                 avbokningar,
                 table
@@ -170,15 +252,22 @@ function buildDefaultRanges(parts: ReturnType<typeof extractStockholmTimeParts>)
         const currentMonday = shiftDays(parts, -diffToMonday);
         const nextMonday = shiftDays(currentMonday, 7);
         const followingMonday = shiftDays(currentMonday, 14);
+        const previousMonday = shiftDays(currentMonday, -7);
 
         const monthStart = { year: parts.year, month: parts.month, day: 1 };
         const nextMonthStart = shiftMonths(monthStart, 1);
+        const previousMonthStart = shiftMonths(monthStart, -1);
 
         return {
+                previousWeek: makeRange(STOCKHOLM_DAY_LABELS.previousWeek, previousMonday, currentMonday),
                 currentWeek: makeRange(STOCKHOLM_DAY_LABELS.currentWeek, currentMonday, nextMonday),
                 nextWeek: makeRange(STOCKHOLM_DAY_LABELS.nextWeek, nextMonday, followingMonday),
+                previousMonth: makeRange(STOCKHOLM_DAY_LABELS.previousMonth, previousMonthStart, monthStart),
                 currentMonth: makeRange(STOCKHOLM_DAY_LABELS.currentMonth, monthStart, nextMonthStart)
-        } satisfies Record<'currentWeek' | 'nextWeek' | 'currentMonth', RangeDescriptor>;
+        } satisfies Record<
+                'previousWeek' | 'currentWeek' | 'nextWeek' | 'previousMonth' | 'currentMonth',
+                RangeDescriptor
+        >;
 }
 
 function buildCustomRange(
@@ -264,6 +353,8 @@ function formatDate(parts: DateParts) {
         return `${parts.year}-${pad(parts.month)}-${pad(parts.day)}`;
 }
 
+let trainerBookingsSupportsEndTime: boolean | null = null;
+
 async function loadTrainerBookings(
         trainerId: number,
         start: string,
@@ -274,10 +365,36 @@ async function loadTrainerBookings(
                 ? 'b.status = ANY($4::text[])'
                 : 'b.status <> ALL($4::text[])';
 
-        const rows = await query<BookingRow>(
-                `SELECT b.id,
+        const params = [trainerId, start, endExclusive, CANCELLED_STATUSES] as const;
+
+        if (trainerBookingsSupportsEndTime === false) {
+                return query<BookingRow>(buildTrainerBookingsQuery(false, statusPredicate), params);
+        }
+
+        try {
+                const rows = await query<BookingRow>(
+                        buildTrainerBookingsQuery(true, statusPredicate),
+                        params
+                );
+                trainerBookingsSupportsEndTime = true;
+                return rows;
+        } catch (error) {
+                if (isMissingColumnError(error)) {
+                        trainerBookingsSupportsEndTime = false;
+                        return query<BookingRow>(
+                                buildTrainerBookingsQuery(false, statusPredicate),
+                                params
+                        );
+                }
+                throw error;
+        }
+}
+
+function buildTrainerBookingsQuery(includeEndTime: boolean, statusPredicate: string) {
+        const endTimeColumn = includeEndTime ? 'b.end_time,' : '';
+        return `SELECT b.id,
                         b.start_time,
-                        b.end_time,
+                        ${endTimeColumn}
                         b.status,
                         b.try_out,
                         b.internal,
@@ -290,11 +407,12 @@ async function loadTrainerBookings(
                    AND b.start_time >= $2::timestamp
                    AND b.start_time < $3::timestamp
                    AND ${statusPredicate}
-                 ORDER BY b.start_time ASC`,
-                [trainerId, start, endExclusive, CANCELLED_STATUSES]
-        );
+                 ORDER BY b.start_time ASC`;
+}
 
-        return rows;
+function isMissingColumnError(error: unknown) {
+        if (!error || typeof error !== 'object') return false;
+        return (error as { code?: string }).code === '42703';
 }
 
 async function loadObWindows() {
@@ -439,6 +557,21 @@ function summarizeCancellations(bookings: ProcessedBooking[], range: RangeDescri
                 total,
                 late
         };
+}
+
+function formatDeltaLabel(value: number, context: DeltaContext, unit?: string) {
+        if (!Number.isFinite(value)) return undefined;
+        const roundedAbs = Math.round(Math.abs(value) * 10) / 10;
+        const formattedValue = Number.isInteger(roundedAbs) ? roundedAbs.toString() : roundedAbs.toFixed(1);
+        const sign = value > 0 ? '+' : value < 0 ? '-' : '+';
+        const unitSuffix = unit ? ` ${unit}` : '';
+        return `${sign}${formattedValue}${unitSuffix} jämfört med ${describeDeltaContext(context)}`;
+}
+
+function describeDeltaContext(context: DeltaContext) {
+        if (context === 'prevWeek') return 'förra veckan';
+        if (context === 'prevMonth') return 'förra månaden';
+        return 'denna vecka';
 }
 
 function buildTable(
