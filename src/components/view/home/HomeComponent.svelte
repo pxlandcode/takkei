@@ -3,6 +3,7 @@
 	import NotificationsModule from '../../bits/modules-for-mina-sidor/notificationsModule/NotificationsModule.svelte';
 	import NoBookingsClientModule from '../../bits/modules-for-mina-sidor/noBookingsClientModule/NoNookingsClientModule.svelte';
 	import TodaysBookingsModule from '../../bits/modules-for-mina-sidor/todaysBookingsModule/TodaysBookingsModule.svelte';
+	import MinStatisticsModule from '../../bits/modules-for-mina-sidor/minStatistics/MinStatisticsModule.svelte';
 	import GoalsAndAchievementsModule from '../../bits/modules-for-mina-sidor/goalsAndAchievementsModule/GoalsAndAchievementsModule.svelte';
 	import BookingGrid from '../../ui/bookingGrid/BookingGrid.svelte';
 	import { user } from '../../../lib/stores/userStore';
@@ -44,6 +45,7 @@
 		<NotificationsModule />
 		<NoBookingsClientModule />
 		<TodaysBookingsModule />
+		<MinStatisticsModule />
 
 		<GoalsAndAchievementsModule />
 
