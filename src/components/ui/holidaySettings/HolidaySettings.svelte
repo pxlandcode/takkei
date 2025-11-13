@@ -325,6 +325,5 @@
                                 </div>
                         </form>
                 {/if}
-        </div>
 </div>
-</script>
+</div>

@@ -25,6 +25,7 @@ const takkeiBlack = '#000';
 const takkeiWhite = '#fff';
 const takkeiGray = '#3E3E3E';
 const takkeiBrightGray = '#BEC0C1';
+const takkeiDarkGray = '#2B2B2B';
 
 const mediumGray = '#808080';
 
@@ -59,12 +60,14 @@ module.exports = {
 				gray: {
 					DEFAULT: takkeiGray,
 					bright: takkeiBrightGray,
-					medium: mediumGray
+					medium: mediumGray,
+					dark: takkeiDarkGray
 				},
 				red: {
 					DEFAULT: red,
 					dark: darkRed,
-					background: lightRed
+					background: lightRed,
+					bright: brightRed
 				},
 				blue: {
 					DEFAULT: blue,
