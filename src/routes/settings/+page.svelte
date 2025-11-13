@@ -6,6 +6,7 @@
 	import TargetsSettings from '../../components/ui/targetsSettings/TargetsSettings.svelte';
         import SchedulingSettings from '../../components/ui/schedulingSettings/SchedulingSettings.svelte';
         import ObSettings from '../../components/ui/obSettings/ObSettings.svelte';
+        import HolidaySettings from '../../components/ui/holidaySettings/HolidaySettings.svelte';
 	import MailComponent from '../../components/ui/mailComponent/MailComponent.svelte';
 	import Navigation from '../../components/bits/navigation/Navigation.svelte';
 	import UserForm from '../../components/ui/userForm/UserForm.svelte';
@@ -58,6 +59,12 @@
                         label: 'OB-fönster',
                         icon: 'Clock',
                         component: ObSettings,
+                        requiredRoles: ['Administrator']
+                },
+                {
+                        label: 'Helgdagar',
+                        icon: 'CalendarSun',
+                        component: HolidaySettings,
                         requiredRoles: ['Administrator']
                 }
         ];

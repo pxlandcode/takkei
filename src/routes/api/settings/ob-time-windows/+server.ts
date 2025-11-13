@@ -1,6 +1,7 @@
 import type { RequestHandler } from '@sveltejs/kit';
 import { query } from '$lib/db';
-import { isAdministrator, json, normalizePayload, resolveUserWithRoles } from './helpers';
+import { isAdministrator, json, resolveUserWithRoles } from '../helpers';
+import { normalizePayload } from './helpers';
 
 export const GET: RequestHandler = async ({ locals }) => {
         const { authUser, roleAwareUser } = await resolveUserWithRoles(locals);

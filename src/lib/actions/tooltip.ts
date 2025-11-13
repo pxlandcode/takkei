@@ -8,19 +8,22 @@ export interface TooltipParams {
 	clickable?: boolean;
 }
 
-export function tooltip(node: HTMLElement, params: TooltipParams) {
+export function tooltip(node: HTMLElement, params: TooltipParams | null = null) {
 	let tooltipEl: HTMLDivElement | null = null;
 	let arrowEl: HTMLDivElement | null = null;
 
 	let visible = false;
 	let showTimer: ReturnType<typeof setTimeout> | null = null;
-	let content = params.content ?? '';
-	let preferred = params.preferred ?? 'bottom';
-	let delay = params.delay ?? 0;
-	let clickable = params.clickable ?? false;
+	let content = '';
+	let preferred: TooltipParams['preferred'] = 'bottom';
+	let delay = 0;
+	let clickable = false;
+	let enabled = false;
 
 	// Event Handlers
 	function onMouseEnter() {
+		if (!enabled) return;
+
 		// Show tooltip on hover if not already visible
 		if (!visible) {
 			showTimer = setTimeout(() => {
@@ -30,6 +33,11 @@ export function tooltip(node: HTMLElement, params: TooltipParams) {
 	}
 
 	function onMouseLeave() {
+		if (showTimer) {
+			clearTimeout(showTimer);
+			showTimer = null;
+		}
+
 		// Always hide on mouseleave if tooltip is visible
 		if (visible) {
 			hide();
@@ -37,6 +45,8 @@ export function tooltip(node: HTMLElement, params: TooltipParams) {
 	}
 
 	function onClick(event: Event) {
+		if (!enabled) return;
+
 		event.stopPropagation();
 		// Toggle tooltip on click
 		visible ? hide() : show();
@@ -51,6 +61,8 @@ export function tooltip(node: HTMLElement, params: TooltipParams) {
 
 	// Show Tooltip
 	function show() {
+		if (!enabled) return;
+
 		visible = true;
 		createTooltip();
 		// If tooltip is meant to be clickable, listen for outside clicks
@@ -61,6 +73,11 @@ export function tooltip(node: HTMLElement, params: TooltipParams) {
 
 	// Hide Tooltip
 	function hide() {
+		if (showTimer) {
+			clearTimeout(showTimer);
+			showTimer = null;
+		}
+
 		visible = false;
 		removeTooltip();
 		document.removeEventListener('click', onOutsideClick);
@@ -228,16 +245,27 @@ export function tooltip(node: HTMLElement, params: TooltipParams) {
 		}
 	}
 
+	function applyParams(newParams?: TooltipParams | null) {
+		content = newParams?.content ?? '';
+		preferred = newParams?.preferred ?? 'bottom';
+		delay = newParams?.delay ?? 0;
+		clickable = newParams?.clickable ?? false;
+		enabled = Boolean(content && content.trim().length > 0);
+
+		if (!enabled) {
+			hide();
+		}
+	}
+
+	applyParams(params);
+
 	// Attach Events
 	node.addEventListener('mouseenter', onMouseEnter);
 	node.addEventListener('mouseleave', onMouseLeave);
 	node.addEventListener('click', onClick);
 
-	function update(newParams: TooltipParams) {
-		content = newParams.content;
-		preferred = newParams.preferred ?? 'bottom';
-		delay = newParams.delay ?? 0;
-		clickable = newParams.clickable ?? false;
+	function update(newParams?: TooltipParams | null) {
+		applyParams(newParams);
 	}
 
 	function destroy() {

@@ -7,14 +7,14 @@
 	import CurrentTimePill from './current-time-pill/CurrentTimePill.svelte';
 	import BookingSlot from './booking-slot/BookingSlot.svelte';
 	import CurrentTimeIndicator from './current-time-indicator/current-time-indicator.svelte';
-import { calendarStore } from '$lib/stores/calendarStore';
-import ClockIcon from '../../bits/clock-icon/ClockIcon.svelte';
-import { createEventDispatcher } from 'svelte';
-import { tooltip } from '$lib/actions/tooltip';
-import { locations, fetchLocations } from '$lib/stores/locationsStore';
-import SlotDialog from './slot-dialog/SlotDialog.svelte';
-import { selectedSlot, clearSelectedSlot } from '$lib/stores/selectedSlotStore';
-import type { SelectedSlot } from '$lib/stores/selectedSlotStore';
+	import { calendarStore } from '$lib/stores/calendarStore';
+	import ClockIcon from '../../bits/clock-icon/ClockIcon.svelte';
+	import { createEventDispatcher } from 'svelte';
+	import { tooltip } from '$lib/actions/tooltip';
+	import { locations, fetchLocations } from '$lib/stores/locationsStore';
+	import SlotDialog from './slot-dialog/SlotDialog.svelte';
+	import { selectedSlot, clearSelectedSlot } from '$lib/stores/selectedSlotStore';
+	import type { SelectedSlot } from '$lib/stores/selectedSlotStore';
 
 	let {
 		startHour = 4,
@@ -48,6 +48,18 @@ import type { SelectedSlot } from '$lib/stores/selectedSlotStore';
 	const filters = $derived(storeValue.filters);
 	const availability = $derived(storeValue.availability);
 	const calendarIsLoading = $derived(storeValue.isLoading);
+	const holidays = $derived(storeValue.holidays ?? []);
+	const holidayLookup = $derived.by(() => {
+		const map = new Map<string, { name: string; description: string | null }>();
+		for (const holiday of holidays) {
+			if (!holiday?.date) continue;
+			map.set(holiday.date, {
+				name: holiday.name,
+				description: holiday.description ?? null
+			});
+		}
+		return map;
+	});
 
 	onMount(async () => {
 		try {
@@ -93,6 +105,11 @@ import type { SelectedSlot } from '$lib/stores/selectedSlotStore';
 		dayShortLabel: string;
 		dateLabel: string;
 		fullDate: Date;
+		dateKey: string;
+		isWeekend: boolean;
+		isHoliday: boolean;
+		holidayName: string;
+		holidayDescription: string | null;
 	};
 
 	const isCompactWeek = $derived(isMobile && mobileWeekMode && !singleDayView);
@@ -100,14 +117,23 @@ import type { SelectedSlot } from '$lib/stores/selectedSlotStore';
 	const dayColumnWidth = $derived(isCompactWeek ? 'minmax(0, 1fr)' : 'minmax(100px, 1fr)');
 
 	const weekDays = $derived.by<WeekDayInfo[]>(() => {
+		const lookup = holidayLookup;
 		if (singleDayView) {
 			const selected = parseLocalDateStr(filters?.date);
+			const key = ymdLocal(selected);
+			const holiday = lookup.get(key);
+			const isWeekend = [0, 6].includes(selected.getDay());
 			return [
 				{
 					dayLabel: selected.toLocaleDateString('sv-SE', { weekday: 'long' }),
 					dayShortLabel: selected.toLocaleDateString('sv-SE', { weekday: 'short' }),
 					dateLabel: selected.getDate().toString(),
-					fullDate: selected
+					fullDate: selected,
+					dateKey: key,
+					isWeekend,
+					isHoliday: Boolean(holiday),
+					holidayName: holiday?.name ?? '',
+					holidayDescription: holiday?.description ?? null
 				}
 			];
 		}
@@ -120,21 +146,26 @@ import type { SelectedSlot } from '$lib/stores/selectedSlotStore';
 		return Array.from({ length: 7 }, (_, i) => {
 			const d = new Date(startOfWeek);
 			d.setDate(d.getDate() + i);
+			const dateKey = ymdLocal(d);
+			const holiday = lookup.get(dateKey);
+			const isWeekend = [0, 6].includes(d.getDay());
 			return {
 				dayLabel: d.toLocaleDateString('sv-SE', { weekday: 'long' }),
 				dayShortLabel: d.toLocaleDateString('sv-SE', { weekday: 'short' }),
 				dateLabel: d.getDate().toString(),
-				fullDate: d
+				fullDate: d,
+				dateKey,
+				isWeekend,
+				isHoliday: Boolean(holiday),
+				holidayName: holiday?.name ?? '',
+				holidayDescription: holiday?.description ?? null
 			};
 		});
 	});
 
 	function splitName(full?: string | null) {
 		if (!full) return { first: '', last: '' };
-		const parts = full
-			.trim()
-			.split(/\s+/)
-			.filter(Boolean);
+		const parts = full.trim().split(/\s+/).filter(Boolean);
 		if (parts.length === 0) return { first: '', last: '' };
 		if (parts.length === 1) return { first: parts[0], last: '' };
 		return { first: parts[0], last: parts.slice(1).join(' ') };
@@ -175,9 +206,21 @@ import type { SelectedSlot } from '$lib/stores/selectedSlotStore';
 		const traineeId = slot.traineeId != null ? Number(slot.traineeId) : null;
 		const end = new Date(start.getTime() + 60 * 60 * 1000);
 		const created = new Date(slot.createdAt ?? Date.now()).toISOString();
-		const trainerParts = resolveNameParts(slot.trainerFirstName, slot.trainerLastName, slot.trainerName);
-		const clientParts = resolveNameParts(slot.clientFirstName, slot.clientLastName, slot.clientName);
-		const traineeParts = resolveNameParts(slot.traineeFirstName, slot.traineeLastName, slot.traineeName);
+		const trainerParts = resolveNameParts(
+			slot.trainerFirstName,
+			slot.trainerLastName,
+			slot.trainerName
+		);
+		const clientParts = resolveNameParts(
+			slot.clientFirstName,
+			slot.clientLastName,
+			slot.clientName
+		);
+		const traineeParts = resolveNameParts(
+			slot.traineeFirstName,
+			slot.traineeLastName,
+			slot.traineeName
+		);
 		const fallbackKind = defaultKindFromSource(slot.source);
 		const bookingContentKind = slot.bookingType?.label ?? fallbackKind;
 		const bookingContentId =
@@ -225,7 +268,7 @@ import type { SelectedSlot } from '$lib/stores/selectedSlotStore';
 								firstname: clientParts.first,
 								lastname: clientParts.last
 							},
-				trainee:
+			trainee:
 				slot.source === 'practice' || slot.source === 'education'
 					? {
 							id: traineeId ?? -1,
@@ -762,9 +805,13 @@ import type { SelectedSlot } from '$lib/stores/selectedSlotStore';
 				<span>Laddar kalender...</span>
 			</div>
 		{/if}
-		{#each weekDays as { dayLabel, dayShortLabel, dateLabel, fullDate }, index (dateLabel)}
+		{#each weekDays as dayInfo, index (dayInfo.dateKey)}
+			{@const isToday = isSameLocalDay(dayInfo.fullDate, new Date())}
+			{@const tooltipContent = dayInfo.isHoliday
+				? [dayInfo.holidayName].filter(Boolean).join('\n')
+				: ''}
 			<div
-				class="bg-gray flex flex-col items-center text-white transition-colors focus:outline-none"
+				class="flex flex-col items-center text-white transition-colors focus:outline-none"
 				class:mx-1={!isMobile}
 				class:mx-0={isMobile}
 				class:py-2={!isMobile}
@@ -776,8 +823,13 @@ import type { SelectedSlot } from '$lib/stores/selectedSlotStore';
 				class:border-opacity-40={isCompactWeek}
 				class:border-r-0={isCompactWeek && index === weekDays.length - 1}
 				class:cursor-pointer={isCompactWeek}
-				class:bg-orange={isSameLocalDay(fullDate, new Date())}
-				on:click={() => handleCompactDaySelection(fullDate)}
+				class:bg-orange={isToday}
+				class:bg-red-bright={!isToday && dayInfo.isHoliday}
+				class:text-red-bright={isToday && dayInfo.isHoliday}
+				class:bg-gray-dark={!dayInfo.isHoliday && dayInfo.isWeekend && !isToday}
+				class:bg-gray={!dayInfo.isHoliday && !dayInfo.isWeekend && !isToday}
+				use:tooltip={dayInfo.isHoliday && tooltipContent ? { content: tooltipContent } : undefined}
+				on:click={() => handleCompactDaySelection(dayInfo.fullDate)}
 			>
 				<p
 					class="capitalize"
@@ -785,14 +837,14 @@ import type { SelectedSlot } from '$lib/stores/selectedSlotStore';
 					class:text-xs={isMobile}
 					class:tracking-wide={isMobile}
 				>
-					{isCompactWeek ? dayShortLabel : dayLabel}
+					{isCompactWeek ? dayInfo.dayShortLabel : dayInfo.dayLabel}
 				</p>
 				<p
 					class="leading-tight font-semibold"
 					class:text-4xl={!isMobile}
 					class:text-base={isMobile}
 				>
-					{dateLabel}
+					{dayInfo.dateLabel}
 				</p>
 			</div>
 		{/each}
@@ -816,10 +868,11 @@ import type { SelectedSlot } from '$lib/stores/selectedSlotStore';
 		</div>
 
 		<!-- DAYS & BOOKINGS -->
-		{#each weekDays as _, dayIndex}
+		{#each weekDays as dayInfo, dayIndex}
 			<div
 				class="border-gray-bright relative flex flex-col gap-1 border-l"
 				class:gap-0.5={isCompactWeek}
+				class:pt-8={dayInfo.isHoliday}
 			>
 				{#if pinnedSlotView && pinnedSlotView.dayIndex === dayIndex}
 					<BookingSlot
@@ -901,5 +954,4 @@ import type { SelectedSlot } from '$lib/stores/selectedSlotStore';
 		);
 		pointer-events: none;
 	}
-
 </style>

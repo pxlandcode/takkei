@@ -126,6 +126,8 @@ type ObWindowRow = {
 
 type HolidayRow = {
         date: string;
+        holiday_name: string | null;
+        holiday_description: string | null;
 };
 
 type ExtraDutyRow = {
@@ -316,7 +318,10 @@ async function loadObWindows() {
 async function loadHolidays(startDate: string, endDate: string) {
         if (startDate > endDate) return [] as HolidayRow[];
         const rows = await query<HolidayRow>(
-                `SELECT date::date AS date
+                `SELECT
+                        date::date AS date,
+                        name AS holiday_name,
+                        description AS holiday_description
                  FROM holidays
                  WHERE date::date BETWEEN $1::date AND $2::date`,
                 [startDate, endDate]
