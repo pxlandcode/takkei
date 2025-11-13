@@ -3,6 +3,7 @@
 	import NotificationsModule from '../../bits/modules-for-mina-sidor/notificationsModule/NotificationsModule.svelte';
 	import NoBookingsClientModule from '../../bits/modules-for-mina-sidor/noBookingsClientModule/NoNookingsClientModule.svelte';
 	import TodaysBookingsModule from '../../bits/modules-for-mina-sidor/todaysBookingsModule/TodaysBookingsModule.svelte';
+	import MyStatisticsModule from '../../bits/modules-for-mina-sidor/myStatistics/myStatistics.svelte';
 	import GoalsAndAchievementsModule from '../../bits/modules-for-mina-sidor/goalsAndAchievementsModule/GoalsAndAchievementsModule.svelte';
 	import BookingGrid from '../../ui/bookingGrid/BookingGrid.svelte';
 	import { user } from '../../../lib/stores/userStore';
@@ -46,6 +47,9 @@
 		<TodaysBookingsModule />
 
 		<GoalsAndAchievementsModule />
+		<div class="w-full xl:col-span-2">
+			<MyStatisticsModule />
+		</div>
 
 		<div class="w-full md:col-span-2">
 			<BookingGrid border trainerId={$user?.id} />
