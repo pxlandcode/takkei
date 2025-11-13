@@ -3,9 +3,10 @@
 	import Icon from '../../components/bits/icon-component/Icon.svelte';
 	import Navigation from '../../components/bits/navigation/Navigation.svelte';
 	import Button from '../../components/bits/button/Button.svelte';
-	import CustomersCreditReport from '../../components/ui/reports/customersCreditReport/CustomersCreditReport.svelte';
-	import ClientReport from '../../components/ui/reports/clientReport/ClientReport.svelte';
-	import TargetsReport from '../../components/ui/reports/targets/TargetsReport.svelte';
+        import CustomersCreditReport from '../../components/ui/reports/customersCreditReport/CustomersCreditReport.svelte';
+        import ClientReport from '../../components/ui/reports/clientReport/ClientReport.svelte';
+        import TargetsReport from '../../components/ui/reports/targets/TargetsReport.svelte';
+        import SalaryReport from '../../components/ui/reports/salaryReport/SalaryReport.svelte';
 
 	const menuItems = [
 		{
@@ -14,14 +15,20 @@
 			component: ClientReport,
 			requiredRoles: ['Administrator', 'Economy', 'Trainer']
 		},
-		{
-			label: 'Tillgodo',
-			icon: 'Charts',
-			component: CustomersCreditReport,
-			requiredRoles: ['Administrator', 'Economy']
-		},
-		{
-			label: 'Mål',
+                {
+                        label: 'Tillgodo',
+                        icon: 'Charts',
+                        component: CustomersCreditReport,
+                        requiredRoles: ['Administrator', 'Economy']
+                },
+                {
+                        label: 'Löneunderlag',
+                        icon: 'Money',
+                        component: SalaryReport,
+                        requiredRoles: ['Administrator', 'Economy']
+                },
+                {
+                        label: 'Mål',
 			icon: 'Trophy',
 			component: TargetsReport,
 			requiredRoles: ['Administrator', 'Economy', 'Trainer', 'LocationAdmin']
