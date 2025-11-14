@@ -40,6 +40,19 @@ import type { SelectedSlot } from '$lib/stores/selectedSlotStore';
 		return new Date(year, month - 1, day, 12, 0, 0, 0);
 	}
 
+	function formatLocalDate(date: Date) {
+		const year = date.getFullYear();
+		const month = String(date.getMonth() + 1).padStart(2, '0');
+		const day = String(date.getDate()).padStart(2, '0');
+		return `${year}-${month}-${day}`;
+	}
+
+	function formatLocalTime(date: Date) {
+		const hours = String(date.getHours()).padStart(2, '0');
+		const minutes = String(date.getMinutes()).padStart(2, '0');
+		return `${hours}:${minutes}`;
+	}
+
 	$: selectedDate = parseLocalDateForCalendar(filters.date);
 
 	$: formattedMonthYear = capitalizeFirstLetter(
@@ -140,7 +153,8 @@ import type { SelectedSlot } from '$lib/stores/selectedSlotStore';
 
 	function handleTimeSlotClick(event) {
 		const timeSlot = event.detail.startTime;
-		openBookingPopup(timeSlot);
+		const locationId = event.detail.locationId ?? null;
+		openBookingPopup(timeSlot, null, locationId);
 	}
 
 	function handlePinnedSlotClick(event) {
@@ -337,13 +351,32 @@ import type { SelectedSlot } from '$lib/stores/selectedSlotStore';
 
 	function openBookingPopup(
 		initialStartTime: Date | null = null,
-		resumeSlot: SelectedSlot | null = null
+		resumeSlot: SelectedSlot | null = null,
+		preselectedLocationId: number | null = null
 	) {
+		let nextResumeSlot = resumeSlot;
+
+		if (!nextResumeSlot && preselectedLocationId != null) {
+			const derivedDate = initialStartTime
+				? formatLocalDate(initialStartTime)
+				: filters.date ?? null;
+			const derivedTime = initialStartTime ? formatLocalTime(initialStartTime) : null;
+
+			nextResumeSlot = {
+				source: 'training',
+				date: derivedDate,
+				time: derivedTime,
+				trainerId: null,
+				locationId: preselectedLocationId,
+				createdAt: Date.now()
+			};
+		}
+
 		openPopup({
 			header: 'Bokning',
 			icon: 'Plus',
 			component: BookingPopup,
-			props: { startTime: initialStartTime, resumeSlot },
+			props: { startTime: initialStartTime, resumeSlot: nextResumeSlot },
 			maxWidth: '650px'
 		});
 	}
