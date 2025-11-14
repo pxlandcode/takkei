@@ -320,6 +320,115 @@
 
 	const layoutByDay = $derived(bookingsByDay.map((dayBookings) => layoutDayBookings(dayBookings)));
 
+	type LocationSummary = {
+		id: number;
+		name: string;
+		color: string | null;
+	};
+
+	const selectedLocationIds = $derived(
+		Array.isArray(filters?.locationIds)
+			? filters.locationIds.filter((id): id is number => typeof id === 'number')
+			: []
+	);
+
+	function getLocationShortLabel(name?: string | null) {
+		if (!name) return 'Plats';
+		const trimmed = name.trim();
+		if (!trimmed) return 'Plats';
+		const letterMatch = trimmed.match(/[A-Za-zÅÄÖåäö]/);
+		const firstLetter = (letterMatch ? letterMatch[0] : trimmed[0]).toUpperCase();
+		const numberMatch = trimmed.match(/(\d+)/);
+		const suffix = numberMatch ? numberMatch[1] : '';
+		const label = `${firstLetter}${suffix}`;
+		return label || firstLetter || 'Plats';
+	}
+
+	const selectedLocationSummaries = $derived.by<LocationSummary[]>(() => {
+		const ids = selectedLocationIds;
+		if (!ids.length) return [];
+		const list = $locations ?? [];
+		const lookup = new Map(list.map((loc) => [loc.id, loc]));
+		const summaries: LocationSummary[] = [];
+		const seen = new Set<number>();
+
+		for (const id of ids) {
+			if (seen.has(id)) continue;
+			const match = lookup.get(id);
+			if (match) {
+				summaries.push({
+					id: match.id,
+					name: match.name,
+					color: match.color
+				});
+			} else {
+				summaries.push({
+					id,
+					name: `Plats ${id}`,
+					color: null
+				});
+			}
+			seen.add(id);
+		}
+
+		return summaries;
+	});
+
+	const selectedLocationIdSet = $derived.by(() => new Set(selectedLocationIds));
+
+	const shouldSplitByLocation = $derived(
+		singleDayView && selectedLocationSummaries.length > 1
+	);
+
+	type LocationColumnView = {
+		locationId: number | null;
+		locationName: string;
+		locationColor: string | null;
+		layout: LayoutInfo[];
+		emptySlots: { top: number; start: Date }[];
+	};
+
+	const locationColumnsByDay = $derived.by<LocationColumnView[][]>(() => {
+		if (!shouldSplitByLocation) return [];
+		return weekDays.map(({ fullDate }, dayIndex) => {
+			const dayBookings = bookingsByDay[dayIndex] ?? [];
+			const columns = selectedLocationSummaries.map((location) => {
+				const locationBookings = dayBookings.filter(
+					(booking) => (booking.location?.id ?? null) === location.id
+				);
+				return {
+					locationId: location.id,
+					locationName: location.name,
+					locationColor: location.color,
+					layout: layoutDayBookings(locationBookings),
+					emptySlots: computeEmptySlotBlocks(
+						fullDate,
+						locationBookings,
+						filters,
+						availability
+					)
+				};
+			});
+
+			const leftoverBookings = dayBookings.filter((booking) => {
+				const id = booking.location?.id ?? null;
+				return !(id != null && selectedLocationIdSet.has(id));
+			});
+
+			if (leftoverBookings.length) {
+				columns.push({
+					locationId: null,
+					locationName: 'Övriga',
+					locationColor: '#94a3b8',
+					layout: layoutDayBookings(leftoverBookings),
+					emptySlots: []
+				});
+			}
+
+			return columns;
+		});
+	});
+
 	const emptySlotBlocksByDay = $derived.by(() =>
 		weekDays.map(({ fullDate }, idx) =>
 			computeEmptySlotBlocks(fullDate, bookingsByDay[idx] ?? [], filters, availability)
@@ -363,7 +472,16 @@
 		const view = slotDialogView;
 		if (!view) return;
 		const locationIds = Array.isArray(filters?.locationIds) ? filters.locationIds : [];
-		if (locationIds.length !== 1 || locationIds[0] !== view.config.locationId) {
+		const targetedLocation = view.config.locationId;
+		const singleLocationMatch =
+			targetedLocation != null &&
+			locationIds.length === 1 &&
+			locationIds[0] === targetedLocation;
+		const splitViewMatch =
+			targetedLocation != null &&
+			shouldSplitByLocation &&
+			selectedLocationIdSet.has(targetedLocation);
+		if (!singleLocationMatch && !splitViewMatch) {
 			slotDialogView = null;
 		}
 	});
@@ -535,7 +653,15 @@
 		}
 
 		const locationIds = Array.isArray(filters?.locationIds) ? filters.locationIds : [];
-		if (locationIds.length !== 1 || locationIds[0] !== bookingLocationId) {
+		const hasSingleLocationFilter =
+			bookingLocationId != null &&
+			locationIds.length === 1 &&
+			locationIds[0] === bookingLocationId;
+		const hasSplitLocationMatch =
+			bookingLocationId != null &&
+			shouldSplitByLocation &&
+			selectedLocationIdSet.has(bookingLocationId);
+		if (!hasSingleLocationFilter && !hasSplitLocationMatch) {
 			openBookingDetails(booking);
 			return;
 		}
@@ -737,12 +863,12 @@
 		return blocks;
 	}
 
-	function openBookingPopup(startTime: Date) {
-		dispatch('onTimeSlotClick', { startTime });
+	function openBookingPopup(startTime: Date, locationId?: number | null) {
+		dispatch('onTimeSlotClick', { startTime, locationId: locationId ?? null });
 	}
 
-	function handleCompactDaySelection(fullDate: Date) {
-		if (!isCompactWeek) return;
+	function handleDaySelection(fullDate: Date) {
+		if (!fullDate) return;
 		dispatch('daySelected', { date: ymdLocal(fullDate) });
 	}
 
@@ -822,14 +948,14 @@
 				class:border-white={isCompactWeek}
 				class:border-opacity-40={isCompactWeek}
 				class:border-r-0={isCompactWeek && index === weekDays.length - 1}
-				class:cursor-pointer={isCompactWeek}
+				class:cursor-pointer={!singleDayView}
 				class:bg-orange={isToday}
 				class:bg-red-bright={!isToday && dayInfo.isHoliday}
 				class:text-red-bright={isToday && dayInfo.isHoliday}
 				class:bg-gray-dark={!dayInfo.isHoliday && dayInfo.isWeekend && !isToday}
 				class:bg-gray={!dayInfo.isHoliday && !dayInfo.isWeekend && !isToday}
 				use:tooltip={dayInfo.isHoliday && tooltipContent ? { content: tooltipContent } : undefined}
-				on:click={() => handleCompactDaySelection(dayInfo.fullDate)}
+				on:click={() => handleDaySelection(dayInfo.fullDate)}
 			>
 				<p
 					class="capitalize"
@@ -899,30 +1025,79 @@
 					/>
 				{/each}
 
-				{#each emptySlotBlocksByDay[dayIndex] ?? [] as slot}
-					<button
-						class="hover:bg-orange/20 absolute right-0 left-0 cursor-pointer"
-						style="top: {slot.top}px; height: {hourHeight}px; z-index: 0;"
-						on:click={() => openBookingPopup(slot.start)}
-						use:tooltip={{
-							content: `${slot.start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - ${new Date(slot.start.getTime() + 60 * 60 * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
-						}}
-					>
-					</button>
-				{/each}
-				{#each layoutByDay[dayIndex] ?? [] as layoutItem (layoutItem.booking.booking.id)}
-					<BookingSlot
-						booking={layoutItem.booking}
-						{startHour}
-						{hourHeight}
-						columnIndex={layoutItem.columnIndex}
-						columnCount={layoutItem.columnCount}
-						toolTipText={layoutItem.booking.booking.startTime
-							? `${new Date(layoutItem.booking.booking.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} ${layoutItem.booking.booking.endTime ? ` - ${new Date(layoutItem.booking.booking.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''}`
-							: ''}
-						onbookingselected={(event) => handleBookingSlotClick(event, layoutItem.booking)}
-					/>
-				{/each}
+				{#if shouldSplitByLocation}
+					<div class="flex h-full gap-1">
+						{#each locationColumnsByDay[dayIndex] ?? [] as column, columnIndex (column.locationId ?? `unknown-${columnIndex}`)}
+							{@const locationHeaderLabel = isMobile
+								? getLocationShortLabel(column.locationName)
+								: column.locationName ?? 'Plats'}
+							<div class="flex basis-0 flex-1 flex-col gap-1">
+								<div
+									class="calendar-location-header text-gray-dark flex items-center justify-center rounded border border-gray-bright/70 bg-white/80 px-2 py-1 text-xs font-semibold"
+									style="border-color: {column.locationColor ?? '#e2e8f0'};"
+								>
+									<span
+										class="truncate tracking-wide"
+										class:uppercase={isMobile}
+									>
+										{locationHeaderLabel}
+									</span>
+								</div>
+								<div class="relative flex-1">
+									{#each column.emptySlots as slot}
+										<button
+											class="hover:bg-orange/20 absolute right-0 left-0 cursor-pointer"
+											style="top: {slot.top}px; height: {hourHeight}px; z-index: 0;"
+											on:click={() => openBookingPopup(slot.start, column.locationId)}
+											use:tooltip={{
+												content: `${slot.start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - ${new Date(slot.start.getTime() + 60 * 60 * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+											}}
+										>
+										</button>
+									{/each}
+									{#each column.layout ?? [] as layoutItem (layoutItem.booking.booking.id)}
+										<BookingSlot
+											booking={layoutItem.booking}
+											{startHour}
+											{hourHeight}
+											columnIndex={layoutItem.columnIndex}
+											columnCount={layoutItem.columnCount}
+											toolTipText={layoutItem.booking.booking.startTime
+												? `${new Date(layoutItem.booking.booking.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} ${layoutItem.booking.booking.endTime ? ` - ${new Date(layoutItem.booking.booking.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''}`
+												: ''}
+											onbookingselected={(event) => handleBookingSlotClick(event, layoutItem.booking)}
+										/>
+									{/each}
+								</div>
+							</div>
+						{/each}
+					</div>
+				{:else}
+					{#each emptySlotBlocksByDay[dayIndex] ?? [] as slot}
+						<button
+							class="hover:bg-orange/20 absolute right-0 left-0 cursor-pointer"
+							style="top: {slot.top}px; height: {hourHeight}px; z-index: 0;"
+							on:click={() => openBookingPopup(slot.start)}
+							use:tooltip={{
+								content: `${slot.start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - ${new Date(slot.start.getTime() + 60 * 60 * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+							}}
+						>
+						</button>
+					{/each}
+					{#each layoutByDay[dayIndex] ?? [] as layoutItem (layoutItem.booking.booking.id)}
+						<BookingSlot
+							booking={layoutItem.booking}
+							{startHour}
+							{hourHeight}
+							columnIndex={layoutItem.columnIndex}
+							columnCount={layoutItem.columnCount}
+							toolTipText={layoutItem.booking.booking.startTime
+								? `${new Date(layoutItem.booking.booking.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} ${layoutItem.booking.booking.endTime ? ` - ${new Date(layoutItem.booking.booking.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''}`
+								: ''}
+							onbookingselected={(event) => handleBookingSlotClick(event, layoutItem.booking)}
+						/>
+					{/each}
+				{/if}
 			</div>
 		{/each}
 	</div>
@@ -953,5 +1128,12 @@
 			transparent 10px
 		);
 		pointer-events: none;
+	}
+
+	.calendar-location-header {
+		position: sticky;
+		top: 0;
+		z-index: 5;
+		backdrop-filter: blur(2px);
 	}
 </style>

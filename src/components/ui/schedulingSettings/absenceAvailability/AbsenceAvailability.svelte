@@ -4,16 +4,35 @@
 	import { createEventDispatcher } from 'svelte';
 	import Input from '../../../bits/Input/Input.svelte';
 
-	export let absences = [];
-	export let canEdit: () => boolean;
-	export let canApprove: () => boolean;
+	type Absence = {
+		id?: number;
+		description?: string;
+		start_time?: string;
+		end_time?: string | null;
+		status?: string;
+		approved_by_id?: number;
+	};
 
-	const dispatch = createEventDispatcher();
-	let description = '';
+	let {
+		absences = [],
+		canEdit = false,
+		canApprove = false
+	} = $props<{
+		absences?: Absence[];
+		canEdit?: boolean;
+		canApprove?: boolean;
+	}>();
+
+	const dispatch = createEventDispatcher<{
+		save: Absence;
+		close: Absence;
+		approve: Absence;
+	}>();
+	let description = $state('');
 
 	function addAbsence() {
 		if (description.trim()) {
-			const absence = {
+			const absence: Absence = {
 				start_time: new Date().toISOString(),
 				end_time: null,
 				status: 'Open',
@@ -24,11 +43,11 @@
 		}
 	}
 
-	function closeAbsence(absence) {
+	function closeAbsence(absence: Absence) {
 		dispatch('close', absence);
 	}
 
-	function approveAbsence(absence) {
+	function approveAbsence(absence: Absence) {
 		dispatch('approve', absence);
 	}
 </script>
@@ -41,21 +60,23 @@
 		<h3 class="text-lg font-semibold text-text">Frånvaro</h3>
 	</div>
 
-	{#if canEdit()}
-		<div class="mb-4 flex w-full flex-col gap-2 md:flex-row md:items-end">
-			<div class="grow">
-				<Input bind:value={description} label="Kort beskrivning" maxlength={50} />
+		{#if canEdit}
+			<div class="mb-4 flex w-full flex-col gap-2 md:flex-row md:items-end">
+				<div class="grow">
+					<Input bind:value={description} label="Kort beskrivning" maxlength={50} />
+				</div>
+				<div class="mb-4 w-full md:ml-2 md:mb-0 md:w-auto">
+					<Button text="Starta frånvaro" full on:click={addAbsence} />
+				</div>
 			</div>
-			<div class="mb-4 md:ml-2">
-				<Button text="Starta frånvaro" on:click={addAbsence} />
-			</div>
-		</div>
-	{/if}
+		{/if}
 
 	{#if absences.length > 0}
 		<ul class="space-y-3">
 			{#each absences as a (`${a.id ?? a.start_time}-${a.description ?? ''}`)}
-				<li class="flex items-start justify-between gap-4 rounded-sm border px-4 py-3 text-sm">
+				<li
+					class="flex flex-col gap-4 rounded-sm border px-4 py-3 text-sm md:flex-row md:items-start md:justify-between"
+				>
 					<div class="flex grow flex-col gap-1">
 						<div class="flex items-center gap-2">
 							<strong class={a.status === 'Open' ? 'text-error' : 'text-success'}>
@@ -75,12 +96,24 @@
 					</div>
 
 					{#if a.status === 'Open'}
-						<div class="flex flex-col gap-2 md:flex-row md:items-center">
-							{#if canEdit()}
-								<Button small variant="secondary" text="Avsluta" on:click={() => closeAbsence(a)} />
+						<div class="flex w-full flex-col gap-2 md:w-auto md:flex-row md:items-center md:justify-end">
+							{#if canEdit}
+								<Button
+									small
+									variant="secondary"
+									text="Avsluta"
+									full
+									on:click={() => closeAbsence(a)}
+								/>
 							{/if}
-							{#if canApprove() && !a.approved_by_id}
-								<Button small variant="primary" text="Godkänn" on:click={() => approveAbsence(a)} />
+							{#if canApprove && !a.approved_by_id}
+								<Button
+									small
+									variant="primary"
+									text="Godkänn"
+									full
+									on:click={() => approveAbsence(a)}
+								/>
 							{/if}
 						</div>
 					{/if}

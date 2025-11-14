@@ -47,7 +47,9 @@ export function tooltip(node: HTMLElement, params: TooltipParams | null = null) 
 	function onClick(event: Event) {
 		if (!enabled) return;
 
-		event.stopPropagation();
+		if (clickable) {
+			event.stopPropagation();
+		}
 		// Toggle tooltip on click
 		visible ? hide() : show();
 	}

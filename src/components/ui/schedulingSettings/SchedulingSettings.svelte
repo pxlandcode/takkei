@@ -21,71 +21,106 @@
 	} from '$lib/services/api/availabilityService';
 	import AbsenceAvailability from './absenceAvailability/AbsenceAvailability.svelte';
 
-	let selectedUserId: number | null = null;
-	let isAdmin = false;
-	let currentUserId: number;
+	type WeeklyEntry = {
+		id: number | null;
+		userId: number | null;
+		weekday: number;
+		start_time: string;
+		end_time: string;
+	};
 
-	let weeklyAvailability = [];
-	let dateAvailabilities = [];
-	let vacations = [];
-	let absences = [];
+	type DateAvailabilityEntry = {
+		id?: number;
+		date: string;
+		start_time: string;
+		end_time: string;
+	};
+
+	type VacationEntry = {
+		id?: number;
+		start_date: string;
+		end_date: string;
+	};
+
+	type AbsenceEntry = {
+		id?: number;
+		description?: string;
+		start_time?: string;
+		end_time?: string | null;
+		status?: string;
+		approved_by_id?: number;
+	};
+
+	let selectedUserId = $state<number | null>(null);
+	let isAdmin = $state(false);
+	let currentUserId = $state<number | null>(null);
+
+	let weeklyAvailability = $state<WeeklyEntry[]>([]);
+	let dateAvailabilities = $state<DateAvailabilityEntry[]>([]);
+	let vacations = $state<VacationEntry[]>([]);
+	let absences = $state<AbsenceEntry[]>([]);
+
+	let loadToken = 0;
+
+	const canEdit = $derived(
+		isAdmin || (!!selectedUserId && !!currentUserId && selectedUserId === currentUserId)
+	);
+	const canApprove = $derived(isAdmin);
 
 	onMount(async () => {
 		await fetchUsers();
 		const me = get(currentUser);
-		currentUserId = me?.id;
+		currentUserId = me?.id ?? null;
 		selectedUserId = currentUserId;
 		isAdmin = hasRole('Administrator', me);
-
-		await loadAvailabilityData();
 	});
 
-	$: if (selectedUserId !== null) {
-		loadAvailabilityData();
-	}
-
-	async function loadAvailabilityData() {
-		if (!selectedUserId) return;
+	async function loadAvailabilityData(userId: number) {
+		const token = ++loadToken;
 
 		try {
-			const result = await fetchAvailability(selectedUserId);
+			const result = await fetchAvailability(userId);
+			if (token !== loadToken) return;
 
-			weeklyAvailability = result.weekly || [];
-			dateAvailabilities = result.dates || [];
-			vacations = result.vacations || [];
-			absences = result.absences || [];
+			weeklyAvailability = result.weekly ?? [];
+			dateAvailabilities = result.dates ?? [];
+			vacations = result.vacations ?? [];
+			absences = result.absences ?? [];
 		} catch (err) {
+			if (token !== loadToken) return;
 			console.error('Kunde inte ladda tillgänglighet:', err);
 		}
 	}
 
-	function canEdit() {
-		return isAdmin || selectedUserId === currentUserId;
-	}
+	$effect(() => {
+		if (!selectedUserId) {
+			return;
+		}
 
-	function canApprove() {
-		return isAdmin;
-	}
+		loadAvailabilityData(selectedUserId);
+	});
 
-	async function saveWeekly(data) {
+	async function handleWeeklySave(data: WeeklyEntry[]) {
 		if (!selectedUserId) return;
 		try {
 			await saveWeeklyAvailability(selectedUserId, data);
+			weeklyAvailability = data;
 		} catch (err) {
 			console.error('❌ Weekly save failed', err);
 		}
 	}
 
-	async function saveDates(data) {
+	async function handleDateSave(entry: DateAvailabilityEntry) {
 		if (!selectedUserId) return;
 		try {
-			await saveDateAvailability(selectedUserId, data);
+			await saveDateAvailability(selectedUserId, [entry]);
+			await loadAvailabilityData(selectedUserId);
 		} catch (err) {
 			console.error('❌ Date save failed', err);
 		}
 	}
 
-	async function removeDate(id: number) {
+	async function handleDateRemove(id: number) {
 		try {
 			await removeDateAvailability(id);
 			dateAvailabilities = dateAvailabilities.filter((d) => d.id !== id);
@@ -94,17 +129,17 @@
 		}
 	}
 
-	async function saveVacation(data) {
+	async function handleVacationSave(entry: VacationEntry) {
 		if (!selectedUserId) return;
 		try {
-			await saveVacations(selectedUserId, data);
-			vacations = [...vacations, data];
+			await saveVacations(selectedUserId, [entry]);
+			await loadAvailabilityData(selectedUserId);
 		} catch (err) {
 			console.error('❌ Vacation save failed', err);
 		}
 	}
 
-	async function removeVacationEntry(id: number) {
+	async function handleVacationRemove(id: number) {
 		try {
 			await removeVacation(id);
 			vacations = vacations.filter((v) => v.id !== id);
@@ -113,26 +148,29 @@
 		}
 	}
 
-	async function saveAbsence(data) {
+	async function handleAbsenceSave(absence: AbsenceEntry) {
 		if (!selectedUserId) return;
 		try {
-			const saved = await saveOrUpdateAbsences(selectedUserId, data);
+			const saved = await saveOrUpdateAbsences(selectedUserId, [absence]);
+			if (!saved.length) return;
 
-			for (const a of saved) {
-				const index = absences.findIndex((x) => x.id === a.id);
+			const next = [...absences];
+			for (const item of saved) {
+				const index = next.findIndex((x) => x.id === item.id);
 				if (index !== -1) {
-					absences[index] = a;
+					next[index] = item;
 				} else {
-					absences = [a, ...absences];
+					next.unshift(item);
 				}
 			}
+			absences = next;
 		} catch (err) {
 			console.error('❌ Failed to save absence(s):', err);
 		}
 	}
 
-	async function approveAbsence(absence) {
-		if (!currentUserId) return;
+	async function approveAbsence(absence: AbsenceEntry) {
+		if (!currentUserId || !absence.id) return;
 		try {
 			await saveOrUpdateAbsences(currentUserId, [
 				{
@@ -140,6 +178,7 @@
 					approverId: currentUserId
 				}
 			]);
+
 			absences = absences.map((a) =>
 				a.id === absence.id ? { ...a, approved_by_id: currentUserId } : a
 			);
@@ -148,7 +187,7 @@
 		}
 	}
 
-	async function closeAbsence(absence) {
+	async function closeAbsence(absence: AbsenceEntry) {
 		if (!currentUserId || !absence.id) return;
 
 		try {
@@ -161,6 +200,8 @@
 					status: 'Closed'
 				}
 			]);
+
+			if (!updated.length) return;
 
 			absences = absences.map((a) => (a.id === absence.id ? updated[0] : a));
 		} catch (err) {
@@ -196,50 +237,31 @@
 		userId={selectedUserId}
 		{weeklyAvailability}
 		{canEdit}
-		on:save={(e) => {
-			weeklyAvailability = e.detail;
-			saveWeekly(e.detail);
-		}}
+		on:save={(e) => handleWeeklySave(e.detail)}
 	/>
 
 	<DateAvailability
 		{dateAvailabilities}
 		{canEdit}
-		on:save={(e) => {
-			dateAvailabilities = [...dateAvailabilities, e.detail];
-			saveDates([e.detail]);
-		}}
-		on:remove={(e) => {
-			removeDate(e.detail);
-		}}
+		on:save={(e) => handleDateSave(e.detail)}
+		on:remove={(e) => handleDateRemove(e.detail)}
 	/>
 
 	<VacationAvailability
 		{vacations}
 		{canEdit}
-		on:save={(e) => {
-			vacations = [...vacations, e.detail];
-			saveVacation([e.detail]);
-		}}
-		on:remove={(e) => {
-			removeVacationEntry(e.detail);
-		}}
+		on:save={(e) => handleVacationSave(e.detail)}
+		on:remove={(e) => handleVacationRemove(e.detail)}
 	/>
 
-	{#if isAdmin || selectedUserId === currentUserId}
+	{#if canEdit}
 		<AbsenceAvailability
 			{absences}
 			{canEdit}
 			{canApprove}
-			on:save={(e) => {
-				saveAbsence([e.detail]);
-			}}
-			on:close={(e) => {
-				closeAbsence(e.detail);
-			}}
-			on:approve={(e) => {
-				approveAbsence(e.detail);
-			}}
+			on:save={(e) => handleAbsenceSave(e.detail)}
+			on:close={(e) => closeAbsence(e.detail)}
+			on:approve={(e) => approveAbsence(e.detail)}
 		/>
 	{/if}
 </div>
