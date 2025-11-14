@@ -332,6 +332,18 @@
 			: []
 	);
 
+	function getLocationShortLabel(name?: string | null) {
+		if (!name) return 'Plats';
+		const trimmed = name.trim();
+		if (!trimmed) return 'Plats';
+		const letterMatch = trimmed.match(/[A-Za-zÅÄÖåäö]/);
+		const firstLetter = (letterMatch ? letterMatch[0] : trimmed[0]).toUpperCase();
+		const numberMatch = trimmed.match(/(\d+)/);
+		const suffix = numberMatch ? numberMatch[1] : '';
+		const label = `${firstLetter}${suffix}`;
+		return label || firstLetter || 'Plats';
+	}
+
 	const selectedLocationSummaries = $derived.by<LocationSummary[]>(() => {
 		const ids = selectedLocationIds;
 		if (!ids.length) return [];
@@ -855,8 +867,8 @@
 		dispatch('onTimeSlotClick', { startTime, locationId: locationId ?? null });
 	}
 
-	function handleCompactDaySelection(fullDate: Date) {
-		if (!isCompactWeek) return;
+	function handleDaySelection(fullDate: Date) {
+		if (!fullDate) return;
 		dispatch('daySelected', { date: ymdLocal(fullDate) });
 	}
 
@@ -936,14 +948,14 @@
 				class:border-white={isCompactWeek}
 				class:border-opacity-40={isCompactWeek}
 				class:border-r-0={isCompactWeek && index === weekDays.length - 1}
-				class:cursor-pointer={isCompactWeek}
+				class:cursor-pointer={!singleDayView}
 				class:bg-orange={isToday}
 				class:bg-red-bright={!isToday && dayInfo.isHoliday}
 				class:text-red-bright={isToday && dayInfo.isHoliday}
 				class:bg-gray-dark={!dayInfo.isHoliday && dayInfo.isWeekend && !isToday}
 				class:bg-gray={!dayInfo.isHoliday && !dayInfo.isWeekend && !isToday}
 				use:tooltip={dayInfo.isHoliday && tooltipContent ? { content: tooltipContent } : undefined}
-				on:click={() => handleCompactDaySelection(dayInfo.fullDate)}
+				on:click={() => handleDaySelection(dayInfo.fullDate)}
 			>
 				<p
 					class="capitalize"
@@ -1016,15 +1028,20 @@
 				{#if shouldSplitByLocation}
 					<div class="flex h-full gap-1">
 						{#each locationColumnsByDay[dayIndex] ?? [] as column, columnIndex (column.locationId ?? `unknown-${columnIndex}`)}
+							{@const locationHeaderLabel = isMobile
+								? getLocationShortLabel(column.locationName)
+								: column.locationName ?? 'Plats'}
 							<div class="flex basis-0 flex-1 flex-col gap-1">
 								<div
-									class="calendar-location-header text-gray-dark flex items-center gap-2 rounded border border-gray-bright/70 bg-white/80 px-2 py-1 text-xs font-semibold"
+									class="calendar-location-header text-gray-dark flex items-center justify-center rounded border border-gray-bright/70 bg-white/80 px-2 py-1 text-xs font-semibold"
+									style="border-color: {column.locationColor ?? '#e2e8f0'};"
 								>
 									<span
-										class="h-2 w-2 rounded-full"
-										style="background-color: {column.locationColor ?? '#94a3b8'};"
-									/>
-									<span class="truncate">{column.locationName}</span>
+										class="truncate tracking-wide"
+										class:uppercase={isMobile}
+									>
+										{locationHeaderLabel}
+									</span>
 								</div>
 								<div class="relative flex-1">
 									{#each column.emptySlots as slot}

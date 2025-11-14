@@ -5,19 +5,27 @@
 	import { confirm } from '$lib/actions/confirm';
 	import Icon from '../../../bits/icon-component/Icon.svelte';
 
-	export let canEdit: () => boolean;
-	export let dateAvailabilities = [];
+	type DateEntry = {
+		id?: number;
+		date: string;
+		start_time: string;
+		end_time: string;
+	};
 
-	let newDate = '';
-	let newStart = '';
-	let newEnd = '';
+	let { canEdit = false, dateAvailabilities = [] } = $props<{
+		canEdit?: boolean;
+		dateAvailabilities?: DateEntry[];
+	}>();
 
-	const dispatch = createEventDispatcher();
+	let newDate = $state('');
+	let newStart = $state('');
+	let newEnd = $state('');
+
+	const dispatch = createEventDispatcher<{ save: DateEntry; remove: number }>();
 
 	function addDateAvailability() {
 		if (newDate && newStart && newEnd) {
-			const newEntry = { date: newDate, start_time: newStart, end_time: newEnd };
-			dateAvailabilities = [...dateAvailabilities, newEntry];
+			const newEntry: DateEntry = { date: newDate, start_time: newStart, end_time: newEnd };
 			dispatch('save', newEntry);
 			newDate = '';
 			newStart = '';
@@ -25,8 +33,8 @@
 		}
 	}
 
-	function removeDateAvailability(id) {
-		dateAvailabilities = dateAvailabilities.filter((item) => item.id !== id);
+	function removeDateAvailability(id?: number) {
+		if (typeof id !== 'number') return;
 		dispatch('remove', id);
 	}
 
@@ -51,13 +59,13 @@
 		<h3 class="text-lg font-semibold text-text">Datumtillgänglighet</h3>
 	</div>
 
-	{#if canEdit()}
-		<div class="grid w-full grid-cols-1 gap-2 md:grid-cols-4">
+	{#if canEdit}
+		<div class="grid w-full grid-cols-1 gap-2 md:grid-cols-4 md:items-end">
 			<Input type="date" bind:value={newDate} label="Datum" />
 			<Input type="time" step="900" bind:value={newStart} label="Från" />
 			<Input type="time" step="900" bind:value={newEnd} label="Till" />
-			<div class="ml-auto mt-8">
-				<Button text="Lägg till" on:click={addDateAvailability} />
+			<div class="mt-4 w-full md:ml-auto md:mt-8 md:w-auto">
+				<Button text="Lägg till" full on:click={addDateAvailability} />
 			</div>
 		</div>
 	{/if}
@@ -68,13 +76,15 @@
 				<span>{h}</span>
 			{/each}
 		</div>
-		<ul class="overflow-hidden">
-			{#each dateAvailabilities as item (item.date)}
-				<li class="grid grid-cols-[290px_auto] items-center gap-4 py-3 transition">
-					<div class=" flex items-center gap-2 text-sm">
-						<button
-							use:confirm={{
-								title: 'Ta bort?',
+			<ul class="overflow-hidden">
+				{#each dateAvailabilities as item (item.date)}
+					<li
+						class="flex flex-col gap-3 border-b border-gray-100 py-3 text-sm transition md:grid md:grid-cols-[290px_auto] md:items-center md:gap-4 md:border-none"
+					>
+						<div class="flex flex-wrap items-center gap-2 text-sm">
+							<button
+								use:confirm={{
+									title: 'Ta bort?',
 								description: `Vill du ta bort tillgängligheten för ${formatDate(item.date)}?`,
 								action: () => removeDateAvailability(item.id)
 							}}
@@ -92,7 +102,7 @@
 						>
 					</div>
 
-					<div class="flex items-center gap-4">
+						<div class="flex w-full items-center gap-4">
 						{#if item.start_time && item.end_time}
 							<div class="relative h-4 w-full overflow-hidden rounded-sm bg-error/20">
 								<div

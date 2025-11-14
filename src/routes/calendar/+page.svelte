@@ -163,12 +163,16 @@ import type { SelectedSlot } from '$lib/stores/selectedSlotStore';
 		openBookingPopup(null, slot);
 	}
 
-	function handleMobileDaySelect(event) {
-		const mobileDate = event.detail?.date;
-		if (!mobileDate) return;
-		const parsedDate = parseLocalDateForCalendar(mobileDate);
+	function handleDaySelect(event) {
+		const selectedDate = event.detail?.date;
+		if (!selectedDate) return;
+		const parsedDate = parseLocalDateForCalendar(selectedDate);
 		calendarView = dayOption;
-		mobileWeekExpanded = true;
+		if (isMobile) {
+			mobileWeekExpanded = true;
+		} else {
+			mobileWeekExpanded = false;
+		}
 		calendarStore.goToDate(parsedDate, fetch);
 	}
 
@@ -436,7 +440,7 @@ import type { SelectedSlot } from '$lib/stores/selectedSlotStore';
 			on:onBookingClick={(e) => {
 				handleBookingClick(e.detail.booking);
 			}}
-			on:daySelected={handleMobileDaySelect}
+			on:daySelected={handleDaySelect}
 		/>
 	{/key}
 </div>

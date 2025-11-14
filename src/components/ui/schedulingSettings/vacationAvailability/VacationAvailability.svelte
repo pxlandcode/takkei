@@ -2,46 +2,55 @@
 	import Icon from '../../../bits/icon-component/Icon.svelte';
 	import Input from '../../../bits/Input/Input.svelte';
 	import { confirm } from '$lib/actions/confirm';
-	import { createEventDispatcher, onMount } from 'svelte';
+	import { createEventDispatcher } from 'svelte';
 	import Button from '../../../bits/button/Button.svelte';
 
-	export let canEdit: () => boolean;
-	export let vacations = [];
+	type VacationEntry = {
+		id?: number;
+		start_date: string;
+		end_date: string;
+	};
 
-	const dispatch = createEventDispatcher();
+	let { canEdit = false, vacations = [] } = $props<{
+		canEdit?: boolean;
+		vacations?: VacationEntry[];
+	}>();
 
-	let newFrom = '';
-	let newTo = '';
-	let squareContainer;
-	let squareLimit = 20;
+	const dispatch = createEventDispatcher<{ save: VacationEntry; remove: number }>();
+
+	let newFrom = $state('');
+	let newTo = $state('');
+	let squareContainer: HTMLDivElement | null = null;
+	let squareLimit = $state(20);
 
 	const SQUARE_SIZE = 12;
 	const GAP = 2;
 
-	$: if (squareContainer) {
+	$effect(() => {
+		if (!squareContainer) return;
 		const width = squareContainer.offsetWidth;
-		squareLimit = Math.floor(width / (SQUARE_SIZE + GAP)) - 1;
-	}
+		const calculated = Math.floor(width / (SQUARE_SIZE + GAP)) - 1;
+		squareLimit = Math.max(1, calculated);
+	});
 
 	function addVacation() {
 		if (newFrom && newTo) {
-			const vacation = { start_date: newFrom, end_date: newTo };
-			vacations = [...vacations, vacation];
+			const vacation: VacationEntry = { start_date: newFrom, end_date: newTo };
 			dispatch('save', vacation);
 			newFrom = '';
 			newTo = '';
 		}
 	}
 
-	function removeVacation(vacationToRemove) {
-		vacations = vacations.filter((v) => v !== vacationToRemove);
-		dispatch('remove', vacationToRemove);
+	function removeVacation(id?: number) {
+		if (typeof id !== 'number') return;
+		dispatch('remove', id);
 	}
 
 	function getDaysBetween(from: string, to: string): Date[] {
 		const start = new Date(from);
 		const end = new Date(to);
-		const days = [];
+		const days: Date[] = [];
 
 		while (start <= end) {
 			days.push(new Date(start));
@@ -64,27 +73,29 @@
 		<h3 class="text-lg font-semibold text-text">Semester</h3>
 	</div>
 
-	{#if canEdit()}
-		<div class="grid grid-cols-1 gap-2 md:grid-cols-3">
-			<Input type="date" bind:value={newFrom} label="Från" />
-			<Input type="date" bind:value={newTo} label="Till" />
-			<div class="ml-auto mt-8">
-				<Button text="Lägg till" on:click={addVacation} />
+		{#if canEdit}
+			<div class="grid grid-cols-1 gap-2 md:grid-cols-3 md:items-end">
+				<Input type="date" bind:value={newFrom} label="Från" />
+				<Input type="date" bind:value={newTo} label="Till" />
+				<div class="mt-4 w-full md:ml-auto md:mt-8 md:w-auto">
+					<Button text="Lägg till" full on:click={addVacation} />
+				</div>
 			</div>
-		</div>
-	{/if}
+		{/if}
 
 	{#if vacations.length > 0}
 		<ul class="overflow-hidden rounded-sm border border-gray-300">
-			{#each vacations as v (v.start_date + v.end_date)}
-				<li class="grid grid-cols-[auto_1fr_auto] items-center gap-4 px-4 py-3 text-sm">
+				{#each vacations as v (v.start_date + v.end_date)}
+					<li
+						class="flex flex-col gap-3 px-4 py-3 text-sm md:grid md:grid-cols-[auto_1fr_auto] md:items-center md:gap-4"
+					>
 					<!-- Left: remove + from -->
 					<div class="flex items-center gap-2">
 						<button
 							use:confirm={{
 								title: 'Ta bort semester?',
 								description: `Vill du ta bort perioden ${v.start_date} till ${v.end_date}?`,
-								action: () => removeVacation(v)
+								action: () => removeVacation(v.id)
 							}}
 							class="cursor-pointer text-red-600 transition hover:scale-110"
 						>
