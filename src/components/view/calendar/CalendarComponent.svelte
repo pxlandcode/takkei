@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount, onDestroy } from 'svelte';
+	import { onMount, onDestroy, tick } from 'svelte';
 	import { get } from 'svelte/store';
 	import type { FullBooking } from '$lib/types/calendarTypes';
 	import type { CalendarFilters } from '$lib/stores/calendarStore';
@@ -15,6 +15,7 @@
 	import SlotDialog from './slot-dialog/SlotDialog.svelte';
 	import { selectedSlot, clearSelectedSlot } from '$lib/stores/selectedSlotStore';
 	import type { SelectedSlot } from '$lib/stores/selectedSlotStore';
+	import { getMeetingHeight, getTopOffset } from '$lib/helpers/calendarHelpers/calendar-utils';
 
 	let {
 		startHour = 4,
@@ -303,7 +304,13 @@
 		if (dayIndex === -1) return null;
 		const booking = buildSelectedBooking(slot);
 		if (!booking) return null;
-		return { slot, dayIndex, booking };
+		const startISO = booking.booking.startTime;
+		const computedEnd =
+			booking.booking.endTime ??
+			new Date(new Date(startISO).getTime() + 60 * 60 * 1000).toISOString();
+		const top = getTopOffset(startISO, startHour, hourHeight);
+		const height = getMeetingHeight(startISO, computedEnd, hourHeight);
+		return { slot, dayIndex, booking, top, height };
 	});
 
 	const gridTemplateColumns = $derived(
@@ -453,14 +460,23 @@
 		locationId: number;
 	};
 
-	type SlotDialogConfig = SlotDialogActionsConfig | SlotDialogSelectConfig;
+	type SlotDialogPinnedConfig = {
+		mode: 'selected-slot';
+		slot: SelectedSlot;
+	};
+
+	type SlotDialogConfig =
+		| SlotDialogActionsConfig
+		| SlotDialogSelectConfig
+		| SlotDialogPinnedConfig;
 
 	type SlotDialogView = {
 		anchor: HTMLElement;
 		config: SlotDialogConfig;
 	};
 
-	let slotDialogView = $state<SlotDialogView | null>(null);
+let slotDialogView = $state<SlotDialogView | null>(null);
+let suppressPinnedSlotRender = $state(false);
 
 	function openSlotDialog(anchor: HTMLElement, config: SlotDialogConfig): boolean {
 		if (!anchor || !anchor.isConnected) return false;
@@ -471,6 +487,7 @@
 	$effect(() => {
 		const view = slotDialogView;
 		if (!view) return;
+		if (view.config.mode === 'selected-slot') return;
 		const locationIds = Array.isArray(filters?.locationIds) ? filters.locationIds : [];
 		const targetedLocation = view.config.locationId;
 		const singleLocationMatch =
@@ -497,6 +514,7 @@
 	$effect(() => {
 		const view = slotDialogView;
 		if (!view) return;
+		if (view.config.mode === 'selected-slot') return;
 		if (!isMobile && view.config.mode === 'select') {
 			slotDialogView = null;
 			return;
@@ -590,12 +608,21 @@
 
 	function handlePinnedSlotResume(slot: SelectedSlot | null) {
 		if (!slot) return;
+		slotDialogView = null;
 		dispatch('onPinnedSlotClick', { slot });
 	}
 
-	function handlePinnedSlotClear() {
+	async function handlePinnedSlotClear() {
+		suppressPinnedSlotRender = true;
+		slotDialogView = null;
+		await tick();
 		clearSelectedSlot();
 	}
+$effect(() => {
+	if (!pinnedSlotView) {
+		suppressPinnedSlotRender = false;
+	}
+});
 
 	function findBookingsInSameSlot(target: FullBooking, locationId: number): FullBooking[] {
 		if (!target?.booking?.startTime) {
@@ -995,28 +1022,37 @@
 
 		<!-- DAYS & BOOKINGS -->
 		{#each weekDays as dayInfo, dayIndex}
+			{@const pinnedSlotForDay =
+				pinnedSlotView && pinnedSlotView.dayIndex === dayIndex ? pinnedSlotView : null}
+			{@const pinnedSlotBooking = pinnedSlotForDay?.booking}
 			<div
 				class="border-gray-bright relative flex flex-col gap-1 border-l"
 				class:gap-0.5={isCompactWeek}
 				class:pt-8={dayInfo.isHoliday}
 			>
-				{#if pinnedSlotView && pinnedSlotView.dayIndex === dayIndex}
+				{#if pinnedSlotForDay && pinnedSlotBooking && !suppressPinnedSlotRender}
 					<BookingSlot
-						booking={pinnedSlotView.booking}
+						booking={pinnedSlotBooking}
 						{startHour}
 						{hourHeight}
 						columnIndex={0}
 						columnCount={1}
 						variant="selected"
-						toolTipText={`Vald tid ${pinnedSlotView.slot.time ?? ''}`}
+						toolTipText={`Vald tid ${pinnedSlotForDay.slot.time ?? ''}`}
 						clearLabel="Rensa vald tid"
 						onclear={handlePinnedSlotClear}
 						onbookingselected={(event) => {
 							event.preventDefault();
 							event.stopPropagation();
-							handlePinnedSlotResume(pinnedSlotView.slot);
-						}}
-					/>
+								const anchor = event.currentTarget as HTMLElement | null;
+								const opened = anchor
+									? openSlotDialog(anchor, { mode: 'selected-slot', slot: pinnedSlotForDay.slot })
+									: false;
+								if (!opened) {
+									handlePinnedSlotResume(pinnedSlotForDay.slot);
+								}
+							}}
+						/>
 				{/if}
 				{#each unavailableBlocksByDay[dayIndex] ?? [] as block}
 					<div
@@ -1113,6 +1149,14 @@
 			on:createBooking={(event) => {
 				slotDialogView = null;
 				openBookingCreation(event.detail.startTime);
+			}}
+			on:pinnedSlotClear={() => {
+				slotDialogView = null;
+				handlePinnedSlotClear();
+			}}
+			on:pinnedSlotBook={(event) => {
+				slotDialogView = null;
+				handlePinnedSlotResume(event.detail.slot);
 			}}
 		/>
 	{/if}

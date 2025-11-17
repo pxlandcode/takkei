@@ -4,6 +4,7 @@
 	import { clickOutside } from '$lib/actions/clickOutside';
 	import Button from '../../../bits/button/Button.svelte';
 	import type { FullBooking } from '$lib/types/calendarTypes';
+	import type { SelectedSlot } from '$lib/stores/selectedSlotStore';
 
 	type ActionsConfig = {
 		mode: 'actions';
@@ -19,7 +20,12 @@
 		locationId: number;
 	};
 
-	type SlotDialogConfig = ActionsConfig | SelectConfig;
+	type SelectedSlotConfig = {
+		mode: 'selected-slot';
+		slot: SelectedSlot;
+	};
+
+	type SlotDialogConfig = ActionsConfig | SelectConfig | SelectedSlotConfig;
 
 	let {
 		anchor = null,
@@ -33,6 +39,8 @@
 		close: void;
 		openBooking: { booking: FullBooking };
 		createBooking: { startTime: Date };
+		pinnedSlotBook: { slot: SelectedSlot };
+		pinnedSlotClear: void;
 	}>();
 
 	let dialogEl: HTMLDialogElement | null = null;
@@ -253,6 +261,24 @@
 					</button>
 				{/each}
 			</div>
+		</div>
+	{:else if config?.mode === 'selected-slot'}
+		<div class="flex gap-2 rounded-sm bg-transparent p-0">
+			<Button
+				text="Rensa"
+				variant="cancel"
+				small
+				iconLeft="Trash"
+				on:click={() => dispatch('pinnedSlotClear')}
+			/>
+			<Button
+				text="Boka"
+				variant="primary"
+				small
+				iconLeftSize="12px"
+				iconLeft="Plus"
+				on:click={() => dispatch('pinnedSlotBook', { slot: config.slot })}
+			/>
 		</div>
 	{/if}
 </dialog>

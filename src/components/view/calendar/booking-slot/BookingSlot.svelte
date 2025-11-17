@@ -336,6 +336,7 @@ import { IconTraining, IconShiningStar, IconGraduationCap, IconPlane } from '$li
 			if (debounceTimer) clearTimeout(debounceTimer);
 
 			debounceTimer = setTimeout(() => {
+				if (!booking) return;
 				if (booking.isPersonalBooking) {
 					void measurePersonalText(personalDisplayText);
 				} else {
@@ -355,7 +356,7 @@ import { IconTraining, IconShiningStar, IconGraduationCap, IconPlane } from '$li
 	});
 
 	$effect(() => {
-		if (!isMounted) return;
+		if (!isMounted || !booking) return;
 		if (booking.isPersonalBooking) {
 			void measurePersonalText(personalDisplayText);
 			return;
@@ -396,23 +397,6 @@ import { IconTraining, IconShiningStar, IconGraduationCap, IconPlane } from '$li
 	style:color={isSelectedVariant ? SELECTED_TEXT_COLOR : null}
 	use:tooltip={{ content: toolTipText }}
 >
-	{#if isSelectedVariant && typeof onclear === 'function'}
-		<span
-			class="selected-slot__clear"
-			role="button"
-			tabindex="0"
-			aria-label={clearLabel}
-			on:click|stopPropagation={() => onclear?.()}
-			on:keydown|stopPropagation={(event) => {
-				if (event.key === 'Enter' || event.key === ' ') {
-					event.preventDefault();
-					onclear?.();
-				}
-			}}
-		>
-			×
-		</span>
-	{/if}
 	{#if !booking.isPersonalBooking}
 		<div class="flex flex-row">
 			<div
@@ -470,18 +454,4 @@ import { IconTraining, IconShiningStar, IconGraduationCap, IconPlane } from '$li
 		box-shadow: 0 4px 12px rgba(249, 115, 22, 0.2);
 	}
 
-	.selected-slot__clear {
-		position: absolute;
-		top: 4px;
-		right: 6px;
-		font-size: 14px;
-		font-weight: 600;
-		color: #c2410c;
-		cursor: pointer;
-	}
-
-	.selected-slot__clear:hover,
-	.selected-slot__clear:focus-visible {
-		color: #9a3412;
-	}
 </style>

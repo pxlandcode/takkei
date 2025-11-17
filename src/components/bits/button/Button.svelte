@@ -14,9 +14,9 @@
 		'primary';
 	export let transparent: boolean = false;
 	export let small: boolean = false;
-	export let iconRightSize: string = '20px';
-	export let iconLeftSize: string = '24px';
-	export let iconSize: string = '20px';
+export let iconRightSize: string | null = null;
+export let iconLeftSize: string | null = null;
+export let iconSize: string = '20px';
 	export let full: boolean = false;
 	export let iconColor: string = 'currentColor';
 	export let notificationCount: number = 0;
@@ -33,7 +33,17 @@
 		defaultEmailBehavior?: 'send' | 'edit' | 'none';
 	} | null = null;
 
-	const dispatch = createEventDispatcher();
+const dispatch = createEventDispatcher();
+
+const DEFAULT_ICON_LEFT_SIZE = '24px';
+const DEFAULT_ICON_LEFT_SIZE_SMALL = '15px';
+const DEFAULT_ICON_RIGHT_SIZE = '20px';
+const DEFAULT_ICON_RIGHT_SIZE_SMALL = '15px';
+
+$: resolvedIconLeftSize =
+	iconLeftSize ?? (small ? DEFAULT_ICON_LEFT_SIZE_SMALL : DEFAULT_ICON_LEFT_SIZE);
+$: resolvedIconRightSize =
+	iconRightSize ?? (small ? DEFAULT_ICON_RIGHT_SIZE_SMALL : DEFAULT_ICON_RIGHT_SIZE);
 
 	// Handle click event
 	function handleClick() {
@@ -75,11 +85,11 @@
 				<Icon {icon} size={iconSize} color={iconColor} />
 			{:else}
 				{#if iconLeft}
-					<Icon icon={iconLeft} size={small ? '15px' : iconLeftSize} color={iconColor} />
+					<Icon icon={iconLeft} size={resolvedIconLeftSize} color={iconColor} />
 				{/if}
 				{text}
 				{#if iconRight}
-					<Icon icon={iconRight} size={small ? '15px' : iconRightSize} color={iconColor} />
+					<Icon icon={iconRight} size={resolvedIconRightSize} color={iconColor} />
 				{/if}
 			{/if}
 		</button>
@@ -95,11 +105,11 @@
 				<Icon {icon} size={iconSize} color={iconColor} />
 			{:else}
 				{#if iconLeft}
-					<Icon icon={iconLeft} size={small ? '15px' : iconLeftSize} color={iconColor} />
+					<Icon icon={iconLeft} size={resolvedIconLeftSize} color={iconColor} />
 				{/if}
 				{text}
 				{#if iconRight}
-					<Icon icon={iconRight} size={small ? '15px' : iconRightSize} color={iconColor} />
+					<Icon icon={iconRight} size={resolvedIconRightSize} color={iconColor} />
 				{/if}
 			{/if}
 		</button>
@@ -109,11 +119,11 @@
 				<Icon {icon} size={iconSize} color={iconColor} />
 			{:else}
 				{#if iconLeft}
-					<Icon icon={iconLeft} size={small ? '15px' : iconLeftSize} color={iconColor} />
+					<Icon icon={iconLeft} size={resolvedIconLeftSize} color={iconColor} />
 				{/if}
 				{text}
 				{#if iconRight}
-					<Icon icon={iconRight} size={small ? '15px' : iconRightSize} color={iconColor} />
+					<Icon icon={iconRight} size={resolvedIconRightSize} color={iconColor} />
 				{/if}
 			{/if}
 		</button>
