@@ -66,6 +66,34 @@
 		fullWeekAvailability = [...fullWeekAvailability];
 	}
 
+	function markUnavailableWholeDayByIndex(i: number) {
+		fullWeekAvailability[i] = {
+			...fullWeekAvailability[i],
+			start_time: '00:00',
+			end_time: '00:00'
+		};
+
+		fullWeekAvailability = [...fullWeekAvailability];
+	}
+
+	function timeValue(time?: string) {
+		if (!time) return '';
+		const trimmed = time.trim();
+		if (!trimmed) return '';
+		const [hour = '00', minute = '00'] = trimmed.split(':');
+		return `${hour.padStart(2, '0')}:${minute.padStart(2, '0')}`;
+	}
+
+	function isAvailableAllDay(slot: EditableSlot) {
+		const start = slot.start_time?.trim();
+		const end = slot.end_time?.trim();
+		return !start && !end;
+	}
+
+	function isUnavailableAllDay(slot: EditableSlot) {
+		return timeValue(slot.start_time) === '00:00' && timeValue(slot.end_time) === '00:00';
+	}
+
 	function timelineLeft(time?: string) {
 		if (!time) return 0;
 		const [hour = '0'] = time.split(':');
@@ -115,18 +143,37 @@
 				<div class="flex items-center justify-between">
 					<div class="text-sm font-semibold text-gray-700">{weekdayLabel(day.weekday)}</div>
 					{#if editing && canEdit}
-						<button
-							use:confirm={{
-								title: 'Tillgänglig hela dagen',
-								description: `Vill du markera ${weekdayLabel(day.weekday)}ar som tillgänglig hela dagen?`,
-								action: () => checkAvailableWholeDayByIndex(i)
-							}}
-							class="flex items-center gap-1 text-xs font-semibold text-success"
-							aria-label="Tillgänglig hela dagen"
-						>
-							<Icon icon="CalendarCheck" size="14" />
-							<span>Hela dagen</span>
-						</button>
+						<div class="flex items-center gap-3">
+							{#if isAvailableAllDay(day)}
+								<button
+									use:confirm={{
+										title: 'Ej tillgänglig hela dagen',
+										description: `Vill du markera ${weekdayLabel(
+											day.weekday
+										)}ar som ej tillgänglig hela dagen?`,
+										action: () => markUnavailableWholeDayByIndex(i)
+									}}
+									class="flex items-center gap-1 text-xs font-semibold text-error hover:text-error-hover"
+									aria-label="Ej tillgänglig hela dagen"
+								>
+									<Icon icon="CalendarCross" size="14" />
+									<span>Ej tillgänglig</span>
+								</button>
+							{:else}
+								<button
+									use:confirm={{
+										title: 'Tillgänglig hela dagen',
+										description: `Vill du markera ${weekdayLabel(day.weekday)}ar som tillgänglig hela dagen?`,
+										action: () => checkAvailableWholeDayByIndex(i)
+									}}
+									class="flex items-center gap-1 text-xs font-semibold text-success hover:text-success-hover"
+									aria-label="Tillgänglig hela dagen"
+								>
+									<Icon icon="CalendarCheck" size="14" />
+									<span>Hela dagen</span>
+								</button>
+							{/if}
+						</div>
 					{/if}
 				</div>
 
@@ -156,7 +203,11 @@
 				{:else}
 					<div class="mt-2 text-sm text-gray-600">
 						{#if day.start_time && day.end_time}
-							{day.start_time} – {day.end_time}
+							{#if isUnavailableAllDay(day)}
+								Ej tillgänglig
+							{:else}
+								{timeValue(day.start_time)} – {timeValue(day.end_time)}
+							{/if}
 						{:else}
 							Ej tillgänglig
 						{/if}
@@ -195,17 +246,35 @@
 			>
 				{#each fullWeekAvailability as day, i}
 					{#if editing}
-						<button
-							use:confirm={{
-								title: 'Tillgänglig hela dagen',
-								description: `Vill du markera ${weekdayLabel(day.weekday)}ar som tillgänglig hela dagen?`,
-								action: () => checkAvailableWholeDayByIndex(i)
-							}}
-							class="cursor-pointer text-success transition hover:scale-110"
-							aria-label="Tillgänglig hela dagen"
-						>
-							<Icon icon="CalendarCheck" size="18" />
-						</button>
+						<div class="flex items-center gap-2">
+							{#if isAvailableAllDay(day)}
+								<button
+									use:confirm={{
+										title: 'Ej tillgänglig hela dagen',
+										description: `Vill du markera ${weekdayLabel(
+											day.weekday
+										)}ar som ej tillgänglig hela dagen?`,
+										action: () => markUnavailableWholeDayByIndex(i)
+									}}
+									class="cursor-pointer text-error transition hover:text-error-hover"
+									aria-label="Ej tillgänglig hela dagen"
+								>
+									<Icon icon="CalendarCross" size="18" />
+								</button>
+							{:else}
+								<button
+									use:confirm={{
+										title: 'Tillgänglig hela dagen',
+										description: `Vill du markera ${weekdayLabel(day.weekday)}ar som tillgänglig hela dagen?`,
+										action: () => checkAvailableWholeDayByIndex(i)
+									}}
+									class="cursor-pointer text-success transition hover:text-success-hover"
+									aria-label="Tillgänglig hela dagen"
+								>
+									<Icon icon="CalendarCheck" size="18" />
+								</button>
+							{/if}
+						</div>
 					{:else}
 						<span></span>
 					{/if}
@@ -233,7 +302,11 @@
 					{:else}
 						<div class="col-span-3 flex items-center text-sm text-gray-500">
 							{#if day.start_time && day.end_time}
-								{day.start_time} – {day.end_time}
+								{#if isUnavailableAllDay(day)}
+									Ej tillgänglig
+								{:else}
+									{timeValue(day.start_time)} – {timeValue(day.end_time)}
+								{/if}
 							{:else}
 								Ej tillgänglig
 							{/if}

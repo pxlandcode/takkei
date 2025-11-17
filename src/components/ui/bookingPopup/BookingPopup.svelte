@@ -265,7 +265,6 @@ $: educationTrainerOptions = userOptions.filter((option) => educatorIds.has(opti
 			bookingObject.attendees = [];
 			bookingObject.user_ids = [];
 		} else {
-			bookingObject.bookingType = null;
 			bookingObject.isTrial = false;
 			bookingObject.internalEducation = false;
 			bookingObject.education = false;
@@ -306,9 +305,6 @@ $: educationTrainerOptions = userOptions.filter((option) => educatorIds.has(opti
 
 		if (clientId) {
 			bookingObject.clientId = clientId;
-		} else {
-			// fallback: show all clients (or none)
-			bookingObject.clientId = null;
 		}
 
 		if (trainerId) {

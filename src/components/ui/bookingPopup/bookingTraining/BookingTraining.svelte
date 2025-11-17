@@ -116,11 +116,11 @@ import { setSelectedSlot } from '$lib/stores/selectedSlotStore';
 		if (get(locations).length === 0) await fetchLocations();
 		if (get(clients).length === 0 && !isTrial) await fetchClients();
 		if (get(users).length === 0) await fetchUsers();
-
-		if (!bookingObject.bookingType && bookingContents.length > 0) {
-			bookingObject.bookingType = bookingContents[0];
-		}
 	});
+
+	$: if (!bookingObject.bookingType && bookingContents.length > 0) {
+		bookingObject.bookingType = bookingContents[0];
+	}
 
 	function formatClient(c) {
 		const fullName = `${c.firstname} ${c.lastname}`;
@@ -151,13 +151,13 @@ import { setSelectedSlot } from '$lib/stores/selectedSlotStore';
 			bookingObject.clientId !== null &&
 			!newFiltered.some((c) => c.value === bookingObject.clientId)
 		) {
-			clientScope = clientScopeOptions.find((opt) => opt.value === 'all')!;
+			if (clientScope?.value !== 'all') {
+				clientScope = clientScopeOptions.find((opt) => opt.value === 'all')!;
+			}
 			newFiltered = base.map(formatClient);
 		}
 
 		filteredClients = newFiltered;
-
-		console.log(filteredClients);
 	}
 
 	let previousLocationId: number | null = null;

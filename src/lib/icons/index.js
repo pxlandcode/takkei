@@ -71,6 +71,7 @@ import IconSwap from './IconSwap.svelte';
 import IconWrench from './IconWrench.svelte';
 import IconHistoryList from './IconHistoryList.svelte';
 import IconMoney from './IconMoney.svelte';
+import IconCalendarCross from './IconCalendarCross.svelte';
 
 export {
 	IconClose,
@@ -145,5 +146,6 @@ export {
 	IconSwap,
 	IconWrench,
 	IconHistoryList,
-	IconMoney
+	IconMoney,
+	IconCalendarCross
 };
