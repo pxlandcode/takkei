@@ -11,6 +11,8 @@
 	import MailComponent from '../../../components/ui/mailComponent/MailComponent.svelte';
 	import { goto } from '$app/navigation';
 	import { calendarStore } from '$lib/stores/calendarStore';
+	import type { CalendarFilters } from '$lib/stores/calendarStore';
+	import { getCalendarUrl } from '$lib/helpers/calendarHelpers/calendarNavigation';
 	import BookingPopup from '../../../components/ui/bookingPopup/BookingPopup.svelte';
 	import { openPopup } from '$lib/stores/popupStore';
 
@@ -88,8 +90,9 @@
 	}
 
 	function goToCalendar() {
-		calendarStore.setNewFilters({ clientIds: [clientId] }, fetch);
-		goto(`/calendar?clientId=${clientId}`);
+		const filters: Partial<CalendarFilters> = { clientIds: [clientId] };
+		calendarStore.setNewFilters(filters, fetch);
+		goto(getCalendarUrl(filters));
 	}
 
 	function openMailPopup() {

@@ -3,6 +3,7 @@ import CalendarModule from '../../ui/calendarModule/CalendarModule.svelte';
 import DashboardHeader from '../../ui/dashboardHeader/DashboardHeader.svelte';
 import ClientDashboardHeader from '../../ui/dashboardHeader/ClientDashboardHeader.svelte';
 	import { calendarStore, getWeekStartAndEnd } from '$lib/stores/calendarStore';
+	import type { CalendarFilters } from '$lib/stores/calendarStore';
 	import { goto } from '$app/navigation';
 	import TargetModule from '../../ui/targetModule/TargetModule.svelte';
 	import DashboardButton from '../../bits/dashboardButton/DashboardButton.svelte';
@@ -13,6 +14,7 @@ import { notificationStore } from '$lib/stores/notificationStore';
 import { popupStore, openPopup, closePopup } from '$lib/stores/popupStore';
 import AlertPopup from '../../ui/alertPopup/AlertPopup.svelte';
 import { get } from 'svelte/store';
+import { getCalendarUrl } from '$lib/helpers/calendarHelpers/calendarNavigation';
 
 export let clientMode = false;
 
@@ -29,8 +31,12 @@ onMount(() => {
 		calendarStore.goToWeek(date, fetch);
 
 const { weekStart, weekEnd } = getWeekStartAndEnd(date);
-
-		goto(`/calendar?from=${weekStart}&to=${weekEnd}`);
+		const filters: Partial<CalendarFilters> = {
+			from: weekStart,
+			to: weekEnd,
+			date: weekStart
+		};
+		goto(getCalendarUrl(filters));
 	}
 
 $: clientNotifications = clientMode ? 0 : $notificationStore.byType.client ?? 0;

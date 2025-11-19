@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { browser } from '$app/environment';
+	import { goto } from '$app/navigation';
+	import { page } from '$app/stores';
 	import { capitalizeFirstLetter } from '$lib/helpers/generic/genericHelpers';
 import { calendarStore, getWeekStartAndEnd } from '$lib/stores/calendarStore';
 import { closePopup } from '$lib/stores/popupStore';
@@ -17,6 +19,7 @@ import { locations, fetchLocations } from '$lib/stores/locationsStore';
 	import Button from '../../../bits/button/Button.svelte';
 import type { CalendarFilters } from '$lib/stores/calendarStore';
 import { setSelectedSlot } from '$lib/stores/selectedSlotStore';
+import { getCalendarUrl } from '$lib/helpers/calendarHelpers/calendarNavigation';
 
 	export let bookingObject: any;
 	export let bookingContents: { value: string; label: string }[] = [];
@@ -271,6 +274,12 @@ import { setSelectedSlot } from '$lib/stores/selectedSlotStore';
 		// Update filters first, then close popup to avoid timing issues
 		await calendarStore.setNewFilters(filters, fetch);
 		closePopup();
+
+		const currentPath = get(page).url.pathname;
+		if (currentPath !== '/calendar') {
+			const targetUrl = getCalendarUrl(filters);
+			goto(targetUrl);
+		}
 	}
 </script>
 

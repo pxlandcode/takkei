@@ -11,6 +11,8 @@
 	import BookingPopup from '../../components/ui/bookingPopup/BookingPopup.svelte';
 	import MailComponent from '../../components/ui/mailComponent/MailComponent.svelte';
 	import { calendarStore } from '$lib/stores/calendarStore';
+	import type { CalendarFilters } from '$lib/stores/calendarStore';
+	import { getCalendarUrl } from '$lib/helpers/calendarHelpers/calendarNavigation';
 	import { openPopup } from '$lib/stores/popupStore';
 
 	// Headers Configuration with isSearchable
@@ -51,8 +53,9 @@
 	}
 
 	function onGoToTrainerCalendar(trainerId: number) {
-		calendarStore.setNewFilters({ trainerIds: [trainerId] }, fetch);
-		goto(`/calendar?trainerId=${trainerId}`);
+		const filters: Partial<CalendarFilters> = { trainerIds: [trainerId] };
+		calendarStore.setNewFilters(filters, fetch);
+		goto(getCalendarUrl(filters));
 	}
 
 	function onBookTrainer(trainerId: number) {

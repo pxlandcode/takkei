@@ -347,6 +347,92 @@
 		color: string | null;
 	};
 
+	type TrainerSummary = {
+		id: number;
+		name: string;
+		initials: string;
+		color: string;
+	};
+
+	const trainerColorPalette = [
+		'#fb7185',
+		'#f87171',
+		'#fbbf24',
+		'#34d399',
+		'#60a5fa',
+		'#a78bfa',
+		'#fb923c',
+		'#38bdf8',
+		'#f472b6',
+		'#22d3ee'
+	];
+
+	function getTrainerColor(id: number): string {
+		if (!Number.isFinite(id)) return '#94a3b8';
+		const index = Math.abs(Math.trunc(id)) % trainerColorPalette.length;
+		return trainerColorPalette[index] ?? '#94a3b8';
+	}
+
+	const selectedTrainerIds = $derived(
+		Array.isArray(filters?.trainerIds)
+			? filters.trainerIds.filter((id): id is number => typeof id === 'number')
+			: []
+	);
+
+	function buildTrainerSummaryName(first?: string | null, last?: string | null, id?: number) {
+		const firstName = first?.trim() ?? '';
+		const lastName = last?.trim() ?? '';
+		const combined = `${firstName} ${lastName}`.trim();
+		if (combined) return combined;
+		if (firstName || lastName) return firstName || lastName;
+		return id != null ? `Tränare ${id}` : 'Tränare';
+	}
+
+	function buildTrainerInitials(first?: string | null, last?: string | null, id?: number) {
+		const firstLetter = first?.trim()?.[0];
+		const lastLetter = last?.trim()?.[0];
+		if (firstLetter && lastLetter) return `${firstLetter}${lastLetter}`.toUpperCase();
+		if (firstLetter) return firstLetter.toUpperCase();
+		if (lastLetter) return lastLetter.toUpperCase();
+		return id != null ? `T${id}` : 'TR';
+	}
+
+	const selectedTrainerSummaries = $derived.by<TrainerSummary[]>(() => {
+		const ids = selectedTrainerIds;
+		if (!ids.length) return [];
+		const infoLookup = new Map<number, { name: string; initials: string }>();
+		for (const booking of bookings) {
+			const trainer = booking.trainer;
+			if (!trainer?.id || infoLookup.has(trainer.id)) continue;
+			infoLookup.set(trainer.id, {
+				name: buildTrainerSummaryName(trainer.firstname, trainer.lastname, trainer.id),
+				initials: buildTrainerInitials(trainer.firstname, trainer.lastname, trainer.id)
+			});
+		}
+
+		const summaries: TrainerSummary[] = [];
+		const seen = new Set<number>();
+		for (const id of ids) {
+			if (seen.has(id)) continue;
+			const info = infoLookup.get(id);
+			summaries.push({
+				id,
+				name: info?.name ?? `Tränare ${id}`,
+				initials: info?.initials ?? `T${id}`,
+				color: getTrainerColor(id)
+			});
+			seen.add(id);
+		}
+		return summaries;
+	});
+
+	const selectedTrainerIdSet = $derived.by(() => new Set(selectedTrainerIds));
+	const trainerFilterCount = $derived.by(() => {
+		const ids = filters?.trainerIds;
+		if (!Array.isArray(ids)) return 0;
+		return ids.filter((id): id is number => typeof id === 'number').length;
+	});
+
 	const selectedLocationIds = $derived(
 		Array.isArray(filters?.locationIds)
 			? filters.locationIds.filter((id): id is number => typeof id === 'number')
@@ -397,14 +483,72 @@
 
 	const selectedLocationIdSet = $derived.by(() => new Set(selectedLocationIds));
 
+	const hasNonTrainerFilters = $derived.by(() => {
+		const locationFiltersActive =
+			Array.isArray(filters?.locationIds) && filters.locationIds.length > 0;
+		const clientFiltersActive =
+			Array.isArray(filters?.clientIds) && filters.clientIds.length > 0;
+		const userFiltersActive =
+			Array.isArray(filters?.userIds) && filters.userIds.length > 0;
+		const roomFilterActive = filters?.roomId != null;
+		const personalBookingsActive = Boolean(filters?.personalBookings);
+		return (
+			locationFiltersActive ||
+			clientFiltersActive ||
+			userFiltersActive ||
+			roomFilterActive ||
+			personalBookingsActive
+		);
+	});
+
+	const hasNonLocationFilters = $derived.by(() => {
+		const trainerFiltersActive =
+			Array.isArray(filters?.trainerIds) && filters.trainerIds.length > 0;
+		const clientFiltersActive =
+			Array.isArray(filters?.clientIds) && filters.clientIds.length > 0;
+		const userFiltersActive =
+			Array.isArray(filters?.userIds) && filters.userIds.length > 0;
+		const roomFilterActive = filters?.roomId != null;
+		const personalBookingsActive = Boolean(filters?.personalBookings);
+		return (
+			trainerFiltersActive ||
+			clientFiltersActive ||
+			userFiltersActive ||
+			roomFilterActive ||
+			personalBookingsActive
+		);
+	});
+
 	const shouldSplitByLocation = $derived(
-		singleDayView && selectedLocationSummaries.length > 1
+		singleDayView
+			? selectedLocationSummaries.length > 1
+			: selectedLocationSummaries.length > 0 && !hasNonLocationFilters
 	);
+
+	const shouldSplitByTrainer = $derived.by(() => {
+		const count = trainerFilterCount;
+		const trainerIds = filters?.trainerIds ?? null;
+		if (count <= 1 || hasNonTrainerFilters) {
+			return false;
+		}
+		if (singleDayView) {
+			return count <= 5;
+		}
+		return count <= 5;
+	});
 
 	type LocationColumnView = {
 		locationId: number | null;
 		locationName: string;
 		locationColor: string | null;
+		layout: LayoutInfo[];
+		emptySlots: { top: number; start: Date }[];
+	};
+
+	type TrainerColumnView = {
+		trainerId: number | null;
+		trainerName: string;
+		trainerColor: string;
 		layout: LayoutInfo[];
 		emptySlots: { top: number; start: Date }[];
 	};
@@ -441,6 +585,45 @@
 					locationId: null,
 					locationName: 'Övriga',
 					locationColor: '#94a3b8',
+					layout: layoutDayBookings(leftoverBookings),
+					emptySlots: []
+				});
+			}
+
+			return columns;
+		});
+	});
+
+	const trainerColumnsByDay = $derived.by<TrainerColumnView[][]>(() => {
+		if (!shouldSplitByTrainer) {
+			return [];
+		}
+
+		return weekDays.map(({ fullDate }, dayIndex) => {
+			const dayBookings = bookingsByDay[dayIndex] ?? [];
+			const columns = selectedTrainerSummaries.map((trainer) => {
+				const trainerBookings = dayBookings.filter(
+					(booking) => (booking.trainer?.id ?? null) === trainer.id
+				);
+				return {
+					trainerId: trainer.id,
+					trainerName: trainer.name,
+					trainerColor: trainer.color,
+					layout: layoutDayBookings(trainerBookings),
+					emptySlots: computeEmptySlotBlocks(fullDate, trainerBookings, filters, availability)
+				};
+			});
+
+			const leftoverBookings = dayBookings.filter((booking) => {
+				const trainerId = booking.trainer?.id ?? null;
+				return !(trainerId != null && selectedTrainerIdSet.has(trainerId));
+			});
+
+			if (leftoverBookings.length) {
+				columns.push({
+					trainerId: null,
+					trainerName: 'Övriga',
+					trainerColor: '#94a3b8',
 					layout: layoutDayBookings(leftoverBookings),
 					emptySlots: []
 				});
@@ -1078,27 +1261,74 @@ $effect(() => {
 				{#if shouldSplitByLocation}
 					<div class="flex h-full gap-1">
 						{#each locationColumnsByDay[dayIndex] ?? [] as column, columnIndex (column.locationId ?? `unknown-${columnIndex}`)}
-							{@const locationHeaderLabel = isMobile
-								? getLocationShortLabel(column.locationName)
-								: column.locationName ?? 'Plats'}
-							<div class="flex basis-0 flex-1 flex-col gap-1">
-								<div
-									class="calendar-location-header text-gray-dark flex items-center justify-center rounded border border-gray-bright/70 bg-white/80 px-2 py-1 text-xs font-semibold"
-									style="border-color: {column.locationColor ?? '#e2e8f0'};"
-								>
-									<span
-										class="truncate tracking-wide"
-										class:uppercase={isMobile}
+							{@const locationHeaderLabel = getLocationShortLabel(column.locationName)}
+							{@const locationHeaderTitle = column.locationName ?? 'Plats'}
+							<div class="flex basis-0 flex-1 flex-col" class:gap-1={singleDayView} class:gap-0={!singleDayView}>
+								{#if singleDayView}
+									<div
+										class="calendar-location-header text-gray-dark flex items-center justify-center rounded border border-gray-bright/70 bg-white/80 px-2 py-1 text-xs font-semibold"
+										style="border-color: {column.locationColor ?? '#e2e8f0'};"
+										title={locationHeaderTitle}
 									>
-										{locationHeaderLabel}
-									</span>
-								</div>
+										<span
+											class="truncate tracking-wide"
+											class:uppercase={isMobile}
+										>
+											{locationHeaderLabel}
+										</span>
+									</div>
+								{/if}
 								<div class="relative flex-1">
 									{#each column.emptySlots as slot}
 										<button
 											class="hover:bg-orange/20 absolute right-0 left-0 cursor-pointer"
 											style="top: {slot.top}px; height: {hourHeight}px; z-index: 0;"
 											on:click={() => openBookingPopup(slot.start, column.locationId)}
+											use:tooltip={{
+												content: `${slot.start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - ${new Date(slot.start.getTime() + 60 * 60 * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+											}}
+										>
+										</button>
+									{/each}
+									{#each column.layout ?? [] as layoutItem (layoutItem.booking.booking.id)}
+										<BookingSlot
+											booking={layoutItem.booking}
+											{startHour}
+											{hourHeight}
+											columnIndex={layoutItem.columnIndex}
+											columnCount={layoutItem.columnCount}
+											toolTipText={layoutItem.booking.booking.startTime
+												? `${new Date(layoutItem.booking.booking.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} ${layoutItem.booking.booking.endTime ? ` - ${new Date(layoutItem.booking.booking.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''}`
+												: ''}
+											onbookingselected={(event) => handleBookingSlotClick(event, layoutItem.booking)}
+										/>
+									{/each}
+								</div>
+							</div>
+						{/each}
+					</div>
+				{:else if shouldSplitByTrainer}
+					<div class="flex h-full gap-1">
+						{#each trainerColumnsByDay[dayIndex] ?? [] as column, columnIndex (column.trainerId ?? `trainer-${columnIndex}`)}
+							{@const trainerHeaderTitle = column.trainerName ?? 'Tränare'}
+							<div class="flex basis-0 flex-1 flex-col" class:gap-1={singleDayView}>
+								{#if singleDayView}
+									<div
+										class="calendar-location-header flex items-center justify-center rounded border border-gray-bright/70 bg-white/80 px-2 py-1 text-gray-dark text-xs font-semibold"
+										title={trainerHeaderTitle}
+										style={`border-color: ${column.trainerColor ?? '#e2e8f0'};`}
+									>
+										<span class="truncate tracking-wide">
+											{trainerHeaderTitle}
+										</span>
+									</div>
+								{/if}
+								<div class="relative flex-1">
+									{#each column.emptySlots as slot}
+										<button
+											class="hover:bg-orange/20 absolute right-0 left-0 cursor-pointer"
+											style="top: {slot.top}px; height: {hourHeight}px; z-index: 0;"
+											on:click={() => openBookingPopup(slot.start)}
 											use:tooltip={{
 												content: `${slot.start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - ${new Date(slot.start.getTime() + 60 * 60 * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
 											}}
