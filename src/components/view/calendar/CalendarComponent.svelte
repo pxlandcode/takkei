@@ -297,6 +297,18 @@
 		};
 	}
 
+	const gridTemplateColumns = $derived(
+		`${timeColumnWidth} repeat(${weekDays.length}, ${dayColumnWidth})`
+	);
+
+	const hourHeight = 50;
+
+	const dayDateStrings = $derived(weekDays.map(({ fullDate }) => ymdLocal(fullDate)));
+
+	const bookingsByDay = $derived.by(() => {
+		return partitionBookingsByDay(bookings, dayDateStrings, filters, singleDayView);
+	});
+
 	const pinnedSlotView = $derived.by(() => {
 		const slot = pinnedSlot;
 		if (!slot?.date || !slot?.time) return null;
@@ -310,22 +322,24 @@
 			new Date(new Date(startISO).getTime() + 60 * 60 * 1000).toISOString();
 		const top = getTopOffset(startISO, startHour, hourHeight);
 		const height = getMeetingHeight(startISO, computedEnd, hourHeight);
-		return { slot, dayIndex, booking, top, height };
+		const dayBookings = bookingsByDay[dayIndex] ?? [];
+		const layoutWithPinned = layoutDayBookings([...dayBookings, booking]);
+		const pinnedLayout = layoutWithPinned.find((info) => info.booking === booking);
+		const columnIndex = pinnedLayout?.columnIndex ?? 0;
+		const columnCount = pinnedLayout?.columnCount ?? 1;
+		return { slot, dayIndex, booking, top, height, columnIndex, columnCount };
 	});
 
-	const gridTemplateColumns = $derived(
-		`${timeColumnWidth} repeat(${weekDays.length}, ${dayColumnWidth})`
+	const layoutByDay = $derived(
+		weekDays.map((_, dayIndex) => {
+			const dayBookings = bookingsByDay[dayIndex] ?? [];
+			if (pinnedSlotView && pinnedSlotView.dayIndex === dayIndex) {
+				const combined = layoutDayBookings([...dayBookings, pinnedSlotView.booking]);
+				return combined.filter((layout) => layout.booking !== pinnedSlotView.booking);
+			}
+			return layoutDayBookings(dayBookings);
+		})
 	);
-
-	const hourHeight = 50;
-
-	const dayDateStrings = $derived(weekDays.map(({ fullDate }) => ymdLocal(fullDate)));
-
-	const bookingsByDay = $derived.by(() => {
-		return partitionBookingsByDay(bookings, dayDateStrings, filters, singleDayView);
-	});
-
-	const layoutByDay = $derived(bookingsByDay.map((dayBookings) => layoutDayBookings(dayBookings)));
 
 	type LocationSummary = {
 		id: number;
@@ -1035,8 +1049,8 @@ $effect(() => {
 						booking={pinnedSlotBooking}
 						{startHour}
 						{hourHeight}
-						columnIndex={0}
-						columnCount={1}
+						columnIndex={pinnedSlotForDay.columnIndex ?? 0}
+						columnCount={pinnedSlotForDay.columnCount ?? 1}
 						variant="selected"
 						toolTipText={`Vald tid ${pinnedSlotForDay.slot.time ?? ''}`}
 						clearLabel="Rensa vald tid"
