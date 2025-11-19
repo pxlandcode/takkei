@@ -184,7 +184,7 @@
 							<input
 								type="time"
 								step="900"
-								class="input"
+								class="w-full rounded border px-2 py-1 text-sm"
 								bind:value={day.start_time}
 								disabled={!editing}
 							/>
@@ -194,7 +194,7 @@
 							<input
 								type="time"
 								step="900"
-								class="input"
+								class="w-full rounded border px-2 py-1 text-sm"
 								bind:value={day.end_time}
 								disabled={!editing}
 							/>
@@ -287,7 +287,7 @@
 						<input
 							type="time"
 							step="900"
-							class="input"
+							class="w-full rounded border px-2 py-1 text-sm"
 							bind:value={day.start_time}
 							disabled={!editing}
 						/>
@@ -295,7 +295,7 @@
 						<input
 							type="time"
 							step="900"
-							class="input"
+							class="w-full rounded border px-2 py-1 text-sm"
 							bind:value={day.end_time}
 							disabled={!editing}
 						/>
@@ -333,9 +333,3 @@
 		</div>
 	</div>
 </div>
-
-<style>
-	.input {
-		@apply w-full rounded border px-2 py-1 text-sm;
-	}
-</style>

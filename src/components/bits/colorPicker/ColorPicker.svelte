@@ -34,30 +34,34 @@
 
 	<!-- Hue Slider -->
 	<div>
-		<label class="text-xs">Färgton</label>
-		<input
-			type="range"
-			min="0"
-			max="360"
-			bind:value={hue}
-			on:input={updateColor}
-			class="w-full appearance-none"
-			style="background: linear-gradient(to right, red, yellow, lime, cyan, blue, magenta, red)"
-		/>
+		<label class="flex flex-col gap-1 text-xs">
+			<span>Färgton</span>
+			<input
+				type="range"
+				min="0"
+				max="360"
+				bind:value={hue}
+				on:input={updateColor}
+				class="w-full appearance-none"
+				style="background: linear-gradient(to right, red, yellow, lime, cyan, blue, magenta, red)"
+			/>
+		</label>
 	</div>
 
 	<!-- Lightness Slider -->
 	<div>
-		<label class="text-xs">Ljusstyrka</label>
-		<input
-			type="range"
-			min="0"
-			max="100"
-			bind:value={lightness}
-			on:input={updateColor}
-			class="w-full appearance-none"
-			style="background: linear-gradient(to right, black, white)"
-		/>
+		<label class="flex flex-col gap-1 text-xs">
+			<span>Ljusstyrka</span>
+			<input
+				type="range"
+				min="0"
+				max="100"
+				bind:value={lightness}
+				on:input={updateColor}
+				class="w-full appearance-none"
+				style="background: linear-gradient(to right, black, white)"
+			/>
+		</label>
 	</div>
 
 	{#if showColor}

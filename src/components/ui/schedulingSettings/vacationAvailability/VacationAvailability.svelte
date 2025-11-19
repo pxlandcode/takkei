@@ -132,9 +132,3 @@
 		<p class="text-sm italic text-gray-400">Ingen semester registrerad.</p>
 	{/if}
 </div>
-
-<style>
-	.input {
-		@apply w-full rounded border px-2 py-1 text-sm;
-	}
-</style>

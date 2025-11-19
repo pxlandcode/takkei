@@ -5,8 +5,8 @@ import { isAdministrator, json, resolveUserWithRoles } from '../../helpers';
 import { mapHolidayRow, type HolidayRow } from '../helpers';
 
 const require = createRequire(import.meta.url);
-type SwedishHolidaysModule = typeof import('$lib/vendors/swedish-holidays');
-const { getHolidays } = require('../../../../../lib/vendors/swedish-holidays/index.js') as SwedishHolidaysModule;
+type SwedishHolidaysModule = typeof import('swedish-holidays/dist/index.js');
+const { getHolidays } = require('swedish-holidays/dist/index.js') as SwedishHolidaysModule;
 
 const MIN_YEAR = 1900;
 const MAX_YEAR = 8702; // library limit according to swedish-holidays docs

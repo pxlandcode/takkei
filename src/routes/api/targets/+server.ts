@@ -1,4 +1,4 @@
-import { getUserTargets, getLocationTargets } from '$lib/services/api/targetApiService';
+import { getUserTargets } from '$lib/services/api/targetApiService';
 import type { RequestHandler } from '@sveltejs/kit';
 
 export const GET: RequestHandler = async ({ url }) => {

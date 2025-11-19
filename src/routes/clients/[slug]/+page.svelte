@@ -158,12 +158,3 @@
 		<p class="text-gray-500">Innehåll kommer snart.</p>
 	{/if}
 </Navigation>
-
-<style>
-	.tab-button {
-		@apply flex items-center gap-2 rounded-sm p-2 text-gray-600 hover:bg-gray-200;
-	}
-	.selected {
-		@apply bg-gray-200 font-semibold;
-	}
-</style>
