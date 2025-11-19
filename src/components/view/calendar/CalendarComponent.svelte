@@ -426,14 +426,6 @@ const selectedTrainerSummaries = $derived.by<TrainerSummary[]>(() => {
 	return summaries;
 });
 
-const trainerSummaryLookup = $derived.by(() => {
-	const entries: [number, TrainerSummary][] = selectedTrainerSummaries.map((trainer) => [
-		trainer.id,
-		trainer
-	]);
-	return new Map(entries);
-});
-
 const selectedTrainerIdSet = $derived.by(() => new Set(selectedTrainerIds));
 const trainerFilterCount = $derived.by(() => selectedTrainerIds.length);
 

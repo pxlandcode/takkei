@@ -374,16 +374,14 @@
 				? []
 				: selectedClients.map((client) => client.id);
 
-		calendarStore.updateFilters(
-			{
-				trainerIds,
-				locationIds,
-				clientIds,
-				personalBookings:
-					trainerIds.length >= 1 && trainerIds.length <= 5 && locationIds.length === 0
-			},
-			fetch
-		);
+	calendarStore.updateFilters(
+		{
+			trainerIds,
+			locationIds,
+			clientIds
+		},
+		fetch
+	);
 
 		addToast({
 			type: AppToastType.NOTE,
