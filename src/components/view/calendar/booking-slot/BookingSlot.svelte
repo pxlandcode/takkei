@@ -58,6 +58,8 @@ import { IconTraining, IconShiningStar, IconGraduationCap, IconPlane } from '$li
 	let personalLineClamp = $state(1);
 	let debounceTimer: NodeJS.Timeout;
 	let showIcon = $state(true);
+	let showTrainerLine = $state(true);
+	let showParticipantLine = $state(true);
 	const ICON_SPACE = 32;
 	const PERSONAL_VERTICAL_PADDING = 8;
 	const DEFAULT_LINE_HEIGHT = 14;
@@ -312,18 +314,36 @@ import { IconTraining, IconShiningStar, IconGraduationCap, IconPlane } from '$li
 
 		const effectiveWidth = shouldShowIcon ? availableWithIcon : availableWithoutIcon;
 
-		trainerDisplayMode = selectDisplayMode(
+		const resolvedTrainerMode = selectDisplayMode(
 			trainerFullWidth,
 			trainerLastWidth,
 			trainerInitialWidth,
 			effectiveWidth
 		);
-		participantDisplayMode = selectDisplayMode(
+		const resolvedParticipantMode = selectDisplayMode(
 			participantFullWidth,
 			participantLastWidth,
 			participantInitialWidth,
 			effectiveWidth
 		);
+
+		const initialsWidthCombined = trainerInitialWidth + participantInitialWidth;
+
+		if (
+			resolvedTrainerMode === 'none' &&
+			resolvedParticipantMode === 'none' &&
+			initialsWidthCombined <= effectiveWidth
+		) {
+			trainerDisplayMode = 'initials';
+			participantDisplayMode = 'initials';
+			showTrainerLine = true;
+			showParticipantLine = true;
+		} else {
+			trainerDisplayMode = resolvedTrainerMode;
+			participantDisplayMode = resolvedParticipantMode;
+			showTrainerLine = resolvedTrainerMode !== 'none';
+			showParticipantLine = resolvedParticipantMode !== 'none';
+		}
 	}
 
 	onMount(async () => {

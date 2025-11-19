@@ -379,7 +379,8 @@
 				trainerIds,
 				locationIds,
 				clientIds,
-				personalBookings: trainerIds.length === 1
+				personalBookings:
+					trainerIds.length >= 1 && trainerIds.length <= 5 && locationIds.length === 0
 			},
 			fetch
 		);

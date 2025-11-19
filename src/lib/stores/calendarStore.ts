@@ -20,12 +20,19 @@ export type CalendarFilters = {
 	personalBookings?: boolean;
 };
 
+
+function getTrainerFilterCount(f: CalendarFilters | undefined): number {
+	if (!Array.isArray(f?.trainerIds)) return 0;
+	return f.trainerIds.filter((id): id is number => typeof id === 'number').length;
+}
+
 function computePersonalBookingsFlag(f: CalendarFilters): boolean {
-	const oneTrainer = Array.isArray(f?.trainerIds) && f.trainerIds.length === 1;
+	const trainerCount = getTrainerFilterCount(f);
+	const allowMultipleTrainers = trainerCount >= 1 && trainerCount <= 5;
 	const noClients = !Array.isArray(f?.clientIds) || f.clientIds.length === 0;
 	const noLocations = !Array.isArray(f?.locationIds) || f.locationIds.length === 0;
 	const noRoom = f?.roomId == null;
-	return oneTrainer && noClients && noLocations && noRoom;
+	return allowMultipleTrainers && noClients && noLocations && noRoom;
 }
 
 /**

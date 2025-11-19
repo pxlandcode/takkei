@@ -397,37 +397,72 @@
 		return id != null ? `T${id}` : 'TR';
 	}
 
-	const selectedTrainerSummaries = $derived.by<TrainerSummary[]>(() => {
-		const ids = selectedTrainerIds;
-		if (!ids.length) return [];
-		const infoLookup = new Map<number, { name: string; initials: string }>();
-		for (const booking of bookings) {
-			const trainer = booking.trainer;
-			if (!trainer?.id || infoLookup.has(trainer.id)) continue;
-			infoLookup.set(trainer.id, {
-				name: buildTrainerSummaryName(trainer.firstname, trainer.lastname, trainer.id),
-				initials: buildTrainerInitials(trainer.firstname, trainer.lastname, trainer.id)
-			});
-		}
+const selectedTrainerSummaries = $derived.by<TrainerSummary[]>(() => {
+	const ids = selectedTrainerIds;
+	if (!ids.length) return [];
+	const infoLookup = new Map<number, { name: string; initials: string }>();
+	for (const booking of bookings) {
+		const trainer = booking.trainer;
+		if (!trainer?.id || infoLookup.has(trainer.id)) continue;
+		infoLookup.set(trainer.id, {
+			name: buildTrainerSummaryName(trainer.firstname, trainer.lastname, trainer.id),
+			initials: buildTrainerInitials(trainer.firstname, trainer.lastname, trainer.id)
+		});
+	}
 
-		const summaries: TrainerSummary[] = [];
-		const seen = new Set<number>();
-		for (const id of ids) {
-			if (seen.has(id)) continue;
-			const info = infoLookup.get(id);
-			summaries.push({
-				id,
-				name: info?.name ?? `Tränare ${id}`,
-				initials: info?.initials ?? `T${id}`,
-				color: getTrainerColor(id)
-			});
-			seen.add(id);
-		}
-		return summaries;
-	});
+	const summaries: TrainerSummary[] = [];
+	const seen = new Set<number>();
+	for (const id of ids) {
+		if (seen.has(id)) continue;
+		const info = infoLookup.get(id);
+		summaries.push({
+			id,
+			name: info?.name ?? `Tränare ${id}`,
+			initials: info?.initials ?? `T${id}`,
+			color: getTrainerColor(id)
+		});
+		seen.add(id);
+	}
+	return summaries;
+});
 
-	const selectedTrainerIdSet = $derived.by(() => new Set(selectedTrainerIds));
-	const trainerFilterCount = $derived.by(() => selectedTrainerIds.length);
+const trainerSummaryLookup = $derived.by(() => {
+	const entries: [number, TrainerSummary][] = selectedTrainerSummaries.map((trainer) => [
+		trainer.id,
+		trainer
+	]);
+	return new Map(entries);
+});
+
+const selectedTrainerIdSet = $derived.by(() => new Set(selectedTrainerIds));
+const trainerFilterCount = $derived.by(() => selectedTrainerIds.length);
+
+	function getTrainerBucketId(
+		booking: FullBooking,
+		allowedTrainerIds: Set<number>
+ ): number | null {
+		const bookingTrainerId = booking.trainer?.id ?? null;
+		if (bookingTrainerId != null && allowedTrainerIds.has(bookingTrainerId)) {
+			return bookingTrainerId;
+		}
+	if (booking.isPersonalBooking) {
+		const personalIds = booking.personalBooking?.userIds ?? [];
+		if (Array.isArray(personalIds)) {
+			for (const rawId of personalIds) {
+				const numericId =
+					typeof rawId === 'number'
+						? rawId
+						: typeof rawId === 'string' && rawId.trim() !== ''
+							? Number(rawId)
+							: null;
+				if (numericId != null && Number.isFinite(numericId) && allowedTrainerIds.has(numericId)) {
+					return numericId;
+				}
+			}
+		}
+	}
+		return null;
+	}
 
 	const selectedLocationIds = $derived(
 		Array.isArray(filters?.locationIds)
@@ -487,14 +522,7 @@
 		const userFiltersActive =
 			Array.isArray(filters?.userIds) && filters.userIds.length > 0;
 		const roomFilterActive = filters?.roomId != null;
-		const personalBookingsActive = Boolean(filters?.personalBookings);
-		return (
-			locationFiltersActive ||
-			clientFiltersActive ||
-			userFiltersActive ||
-			roomFilterActive ||
-			personalBookingsActive
-		);
+		return locationFiltersActive || clientFiltersActive || userFiltersActive || roomFilterActive;
 	});
 
 	const hasNonLocationFilters = $derived.by(() => {
@@ -597,10 +625,25 @@
 
 		return weekDays.map(({ fullDate }, dayIndex) => {
 			const dayBookings = bookingsByDay[dayIndex] ?? [];
+			const buckets = new Map<number | null, FullBooking[]>();
+			for (const trainer of selectedTrainerSummaries) {
+				buckets.set(trainer.id, []);
+			}
+			buckets.set(null, []);
+
+			for (const booking of dayBookings) {
+				const bucketId = getTrainerBucketId(booking, selectedTrainerIdSet);
+				const targetBucket = bucketId != null ? buckets.get(bucketId) : undefined;
+				if (targetBucket) {
+					targetBucket.push(booking);
+				} else {
+					const leftoverBucket = buckets.get(null);
+					leftoverBucket?.push(booking);
+				}
+			}
+
 			const columns = selectedTrainerSummaries.map((trainer) => {
-				const trainerBookings = dayBookings.filter(
-					(booking) => (booking.trainer?.id ?? null) === trainer.id
-				);
+				const trainerBookings = buckets.get(trainer.id) ?? [];
 				return {
 					trainerId: trainer.id,
 					trainerName: trainer.name,
@@ -610,11 +653,7 @@
 				};
 			});
 
-			const leftoverBookings = dayBookings.filter((booking) => {
-				const trainerId = booking.trainer?.id ?? null;
-				return !(trainerId != null && selectedTrainerIdSet.has(trainerId));
-			});
-
+			const leftoverBookings = buckets.get(null) ?? [];
 			if (leftoverBookings.length) {
 				columns.push({
 					trainerId: null,
