@@ -110,7 +110,10 @@
 			persistedYearGoal = payload?.yearGoal == null ? null : Math.trunc(Number(payload.yearGoal));
 			yearDraft = persistedYearGoal == null ? '' : persistedYearGoal;
 
-			persistedMonthAnchors = (payload?.months || []).map((r: any) => ({
+			const lockedMonths = (payload?.months || []).filter((r: any) =>
+				r?.is_anchor === undefined ? true : Boolean(r.is_anchor)
+			);
+			persistedMonthAnchors = lockedMonths.map((r: any) => ({
 				month: Number(r.month),
 				value: Math.trunc(Number(r.goal_value))
 			}));
@@ -270,13 +273,14 @@
 
 			// 2) Save *every* month (persist what is currently shown in the UI)
 			//    `monthsView` already contains the final values (anchors + auto).
-			const monthPayloads = monthsView.map(({ month, value }) => ({
+			const monthPayloads = monthsView.map(({ month, value, isAnchor }) => ({
 				ownerType,
 				ownerId: Number(activeOwnerId),
 				year,
 				month, // 1..12
 				targetKindId,
 				goalValue: Math.max(0, Math.trunc(Number(value))),
+				isAnchor,
 				title: `Månadsmål ${year}-${String(month).padStart(2, '0')}`,
 				description: ''
 			}));
@@ -327,6 +331,7 @@
 	function unanchorMonthLocally(month: number) {
 		const i = monthDraftAnchors.findIndex((a) => a.month === month);
 		if (i >= 0) monthDraftAnchors.splice(i, 1);
+		editedMonths.delete(month); // allow toggled month to stay unlocked
 	}
 
 	// fired on every keystroke (already clamped to cap)
