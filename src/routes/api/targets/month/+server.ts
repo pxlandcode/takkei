@@ -42,20 +42,25 @@ export async function GET({ url }) {
 
 	// --- LIST MODE: no month -> return all months + yearGoal
 	const rows = await query(
-		`SELECT month, goal_value
+		`SELECT month, goal_value, description
        FROM target_goals_month
       WHERE target_owner_type=$1 AND target_owner_id=$2 AND year=$3 AND target_kind_id=$4
       ORDER BY month`,
 		[ownerType, ownerId, year, targetKindId]
 	);
 
-	const months = rows.map((r: any) => ({
-		month: Number(r.month),
-		goal_value:
-			r.goal_value == null || Number.isNaN(Number(r.goal_value))
-				? null
-				: Math.trunc(Number(r.goal_value))
-	}));
+	const months = rows.map((r: any) => {
+		const desc = String(r.description ?? '').toLowerCase();
+		const isAnchor = desc === 'anchor' || desc === '';
+		return {
+			month: Number(r.month),
+			goal_value:
+				r.goal_value == null || Number.isNaN(Number(r.goal_value))
+					? null
+					: Math.trunc(Number(r.goal_value)),
+			is_anchor: isAnchor
+		};
+	});
 
 	return json({ yearGoal, months });
 }
@@ -69,12 +74,20 @@ export async function POST({ request }) {
 		targetKindId,
 		goalValue,
 		title = '',
-		description = ''
+		description = '',
+		isAnchor = true
 	} = await request.json();
 
 	if (!ownerType || !ownerId || !year || !month) {
 		return json({ error: 'Missing required body fields' }, { status: 400 });
 	}
+
+	const normalizedDescription =
+		description && description.trim().length > 0
+			? description
+			: isAnchor
+				? 'anchor'
+				: 'auto';
 
 	await query(
 		`INSERT INTO target_goals_month (target_owner_type, target_owner_id, year, month, target_kind_id, goal_value, title, description)
@@ -85,7 +98,7 @@ export async function POST({ request }) {
             title=EXCLUDED.title,
             description=EXCLUDED.description,
             updated_at=now()`,
-		[ownerType, ownerId, year, month, targetKindId, goalValue, title, description]
+		[ownerType, ownerId, year, month, targetKindId, goalValue, title, normalizedDescription]
 	);
 	return json({ ok: true });
 }

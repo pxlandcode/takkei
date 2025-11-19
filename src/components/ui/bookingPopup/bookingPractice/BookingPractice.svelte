@@ -1,19 +1,22 @@
 <!-- src/lib/components/booking/bookingPractice/BookingPractice.svelte -->
 <script lang="ts">
 	import { browser } from '$app/environment';
-import { calendarStore, getWeekStartAndEnd } from '$lib/stores/calendarStore';
-import { closePopup } from '$lib/stores/popupStore';
-import Dropdown from '../../../bits/dropdown/Dropdown.svelte';
-import SlotTimePicker from '../../../bits/slotTimePicker/SlotTimePicker.svelte';
-import Checkbox from '../../../bits/checkbox/Checkbox.svelte';
-import Input from '../../../bits/Input/Input.svelte';
-import Button from '../../../bits/button/Button.svelte';
-import { user } from '$lib/stores/userStore';
-import { get } from 'svelte/store';
-import type { CalendarFilters } from '$lib/stores/calendarStore';
-import { locations as locationsStore } from '$lib/stores/locationsStore';
-import { users as usersStore } from '$lib/stores/usersStore';
-import { setSelectedSlot } from '$lib/stores/selectedSlotStore';
+	import { goto } from '$app/navigation';
+	import { page } from '$app/stores';
+	import { calendarStore, getWeekStartAndEnd } from '$lib/stores/calendarStore';
+	import { closePopup } from '$lib/stores/popupStore';
+	import Dropdown from '../../../bits/dropdown/Dropdown.svelte';
+	import SlotTimePicker from '../../../bits/slotTimePicker/SlotTimePicker.svelte';
+	import Checkbox from '../../../bits/checkbox/Checkbox.svelte';
+	import Input from '../../../bits/Input/Input.svelte';
+	import Button from '../../../bits/button/Button.svelte';
+	import { user } from '$lib/stores/userStore';
+	import { get } from 'svelte/store';
+	import type { CalendarFilters } from '$lib/stores/calendarStore';
+	import { locations as locationsStore } from '$lib/stores/locationsStore';
+	import { users as usersStore } from '$lib/stores/usersStore';
+	import { setSelectedSlot } from '$lib/stores/selectedSlotStore';
+	import { getCalendarUrl } from '$lib/helpers/calendarHelpers/calendarNavigation';
 
 	export let kind: 'practice' | 'education' = 'practice'; // NEW
 	export let bookingObject: any;
@@ -149,6 +152,12 @@ import { setSelectedSlot } from '$lib/stores/selectedSlotStore';
 		// Update filters first, then close popup to avoid timing issues
 		await calendarStore.setNewFilters(filters, fetch);
 		closePopup();
+
+		const currentPath = get(page).url.pathname;
+		if (currentPath !== '/calendar') {
+			const targetUrl = getCalendarUrl(filters);
+			goto(targetUrl);
+		}
 	}
 </script>
 

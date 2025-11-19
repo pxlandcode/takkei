@@ -245,10 +245,12 @@ $: popupProps = popup?.props ? { ...popup.props } : {};
 			background: white;
 			border-top-left-radius: 1rem;
 			border-top-right-radius: 1rem;
+			pointer-events: none;
 		}
 
         .mobile-drawer.visible {
                 transform: translateY(0%);
+		pointer-events: auto;
         }
 
         .client-shell {

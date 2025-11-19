@@ -10,6 +10,10 @@
 	import ProfileNotesComponent from '../../../components/ui/profileNotesComponent/ProfileNotesComponent.svelte';
 	import MailComponent from '../../../components/ui/mailComponent/MailComponent.svelte';
 	import { openPopup } from '$lib/stores/popupStore';
+	import { goto } from '$app/navigation';
+	import { calendarStore } from '$lib/stores/calendarStore';
+	import type { CalendarFilters } from '$lib/stores/calendarStore';
+	import { getCalendarUrl } from '$lib/helpers/calendarHelpers/calendarNavigation';
 
 	let trainerId: number;
 	let profile = null;
@@ -105,6 +109,13 @@
 			}
 		});
 	}
+
+	function goToCalendar() {
+		if (!trainerId) return;
+		const filters: Partial<CalendarFilters> = { trainerIds: [trainerId] };
+		calendarStore.setNewFilters(filters, fetch);
+		goto(getCalendarUrl(filters));
+	}
 </script>
 
 <!-- Page Header -->
@@ -120,7 +131,7 @@
 
 	<div class="mr-14 flex space-x-2 md:mr-0">
 		<Button icon="Mail" variant="secondary" on:click={openMailPopup} />
-		<Button icon="Calendar" variant="secondary" />
+		<Button icon="Calendar" variant="secondary" on:click={goToCalendar} />
 		<Button iconLeft="Plus" iconLeftSize="12px" text="Boka" variant="primary" icon="Plus" />
 	</div>
 </div>

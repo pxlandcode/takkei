@@ -6,8 +6,10 @@
 	import { goto } from '$app/navigation';
 	import { user } from '$lib/stores/userStore';
 	import { calendarStore } from '$lib/stores/calendarStore';
+	import type { CalendarFilters } from '$lib/stores/calendarStore';
 	import { locations, fetchLocations } from '$lib/stores/locationsStore';
 	import { clickOutside } from '$lib/actions/clickOutside';
+	import { getCalendarUrl } from '$lib/helpers/calendarHelpers/calendarNavigation';
 
 	// Props
 	export let selectedDate: Date = new Date();
@@ -143,8 +145,9 @@
 	}
 
 	function openMyCalender() {
-		calendarStore.setNewFilters({ trainerIds: [currentUser.id] }, fetch);
-		goto(`/calendar?trainerId=${currentUser.id}`);
+		const filters: Partial<CalendarFilters> = { trainerIds: [currentUser.id] };
+		calendarStore.setNewFilters(filters, fetch);
+		goto(getCalendarUrl(filters));
 	}
 
 	function closeLocationDropdown(event?: MouseEvent) {
@@ -186,8 +189,9 @@
 
 	function selectLocation(locationId: number) {
 		closeLocationDropdown();
-		calendarStore.setNewFilters({ locationIds: [locationId] }, fetch);
-		goto(`/calendar?locationId=${locationId}`);
+		const filters: Partial<CalendarFilters> = { locationIds: [locationId] };
+		calendarStore.setNewFilters(filters, fetch);
+		goto(getCalendarUrl(filters));
 	}
 
 	onMount(updateTodayRow);

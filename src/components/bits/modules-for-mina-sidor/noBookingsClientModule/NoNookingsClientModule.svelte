@@ -3,10 +3,13 @@
 	import { user } from '$lib/stores/userStore';
 	import Icon from '../../icon-component/Icon.svelte';
 
-	let clientsWeek1: any[] = [];
-	let clientsWeek2: any[] = [];
+	let clientsThisWeek: any[] = [];
+	let clientsNextWeek: any[] = [];
+	let clientsWeekAfter: any[] = [];
 	let isLoading = true;
 
+	let thisWeekStart: Date;
+	let thisWeekEnd: Date;
 	let week1Start: Date;
 	let week1End: Date;
 	let week2Start: Date;
@@ -25,17 +28,23 @@
 	function getDateRanges() {
 		const today = new Date();
 		const currentDay = today.getDay();
-		const daysUntilNextMonday = (8 - currentDay) % 7 || 7;
+		const daysSinceMonday = (currentDay + 6) % 7;
 
-		week1Start = new Date(today);
-		week1Start.setDate(today.getDate() + daysUntilNextMonday);
-		week1Start.setHours(0, 0, 0, 0);
+		thisWeekStart = new Date(today);
+		thisWeekStart.setDate(today.getDate() - daysSinceMonday);
+		thisWeekStart.setHours(0, 0, 0, 0);
+
+		thisWeekEnd = new Date(thisWeekStart);
+		thisWeekEnd.setDate(thisWeekStart.getDate() + 6);
+
+		week1Start = new Date(thisWeekStart);
+		week1Start.setDate(week1Start.getDate() + 7);
 
 		week1End = new Date(week1Start);
 		week1End.setDate(week1Start.getDate() + 6);
 
-		week2Start = new Date(week1End);
-		week2Start.setDate(week2Start.getDate() + 1);
+		week2Start = new Date(week1Start);
+		week2Start.setDate(week2Start.getDate() + 7);
 
 		week2End = new Date(week2Start);
 		week2End.setDate(week2Start.getDate() + 6);
@@ -51,8 +60,9 @@
 			const res = await fetch(`/api/clients-without-bookings?trainer_id=${$user.id}`);
 			if (res.ok) {
 				const data = await res.json();
-				clientsWeek1 = data.week1;
-				clientsWeek2 = data.week2;
+				clientsThisWeek = data.thisWeek ?? [];
+				clientsNextWeek = data.week1 ?? [];
+				clientsWeekAfter = data.week2 ?? [];
 			}
 		} finally {
 			isLoading = false;
@@ -72,26 +82,47 @@
 
 	{#if isLoading}
 		<p class="text-sm text-text">Laddar...</p>
-	{:else if clientsWeek1.length === 0 && clientsWeek2.length === 0}
+	{:else if clientsThisWeek.length === 0 && clientsNextWeek.length === 0 && clientsWeekAfter.length === 0}
 		<p class="text-sm text-text">Alla klienter har bokningar de kommande veckorna 🎉</p>
 	{:else}
-		<div class="grid grid-cols-2 gap-4 text-sm text-text">
-			<!-- Week 1 -->
+		<div class="grid grid-cols-1 gap-4 text-sm text-text md:grid-cols-3">
+			<!-- This Week -->
 			<div>
 				<div class="mb-2 flex flex-col gap-1">
-					<h4 class=" font-semibold text-gray-700">Nästa vecka</h4>
-					<p class="text-xs text-gray-400">({formatDate(week1Start)} – {formatDate(week1End)})</p>
+					<h4 class="font-semibold text-gray-700">Denna vecka</h4>
+					<p class="text-xs text-gray-400">({formatDate(thisWeekStart)} – {formatDate(thisWeekEnd)})</p>
 				</div>
 
 				<ul class="space-y-1">
-					{#each clientsWeek1 as client}
+					{#each clientsThisWeek as client}
 						<li>
 							<a class="text-orange hover:underline" href={`/clients/${client.id}`}
 								>{client.firstname} {client.lastname}</a
 							>
 						</li>
 					{/each}
-					{#if clientsWeek1.length === 0}
+					{#if clientsThisWeek.length === 0}
+						<li class="text-xs italic text-gray-400">Alla är bokade 💪</li>
+					{/if}
+				</ul>
+			</div>
+
+			<!-- Week 1 -->
+			<div>
+				<div class="mb-2 flex flex-col gap-1">
+					<h4 class="font-semibold text-gray-700">Nästa vecka</h4>
+					<p class="text-xs text-gray-400">({formatDate(week1Start)} – {formatDate(week1End)})</p>
+				</div>
+
+				<ul class="space-y-1">
+					{#each clientsNextWeek as client}
+						<li>
+							<a class="text-orange hover:underline" href={`/clients/${client.id}`}
+								>{client.firstname} {client.lastname}</a
+							>
+						</li>
+					{/each}
+					{#if clientsNextWeek.length === 0}
 						<li class="text-xs italic text-gray-400">Alla är bokade 💪</li>
 					{/if}
 				</ul>
@@ -104,14 +135,14 @@
 					<p class="text-xs text-gray-400">({formatDate(week2Start)} – {formatDate(week2End)})</p>
 				</div>
 				<ul class="space-y-1">
-					{#each clientsWeek2 as client}
+					{#each clientsWeekAfter as client}
 						<li>
 							<a class="text-orange hover:underline" href={`/clients/${client.id}`}
 								>{client.firstname} {client.lastname}</a
 							>
 						</li>
 					{/each}
-					{#if clientsWeek2.length === 0}
+					{#if clientsWeekAfter.length === 0}
 						<li class="text-xs italic text-gray-400">Alla är bokade 💪</li>
 					{/if}
 				</ul>

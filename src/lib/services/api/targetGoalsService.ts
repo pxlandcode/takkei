@@ -2,7 +2,7 @@ import type { OwnerType } from './targetService';
 
 export type TargetGoalsResponse = {
 	yearGoal: number | null;
-	months: Array<{ month: number; goal_value: number | null }>;
+	months: Array<{ month: number; goal_value: number | null; is_anchor?: boolean }>;
 };
 
 function buildQuery(params: {
@@ -30,9 +30,14 @@ export async function getTargetGoals(
 	const res = await fetch(`/api/targets/month?${qs.toString()}`);
 	if (!res.ok) throw new Error('Failed to fetch target goals');
 	const body = await res.json();
+	const months = (body?.months ?? []).map((r: any) => ({
+		month: Number(r.month),
+		goal_value: r.goal_value,
+		is_anchor: Boolean(r.is_anchor)
+	}));
 	return {
 		yearGoal: body?.yearGoal ?? null,
-		months: (body?.months ?? []) as Array<{ month: number; goal_value: number | null }>
+		months
 	};
 }
 
@@ -72,6 +77,7 @@ export async function setMonthGoal(args: {
 	month: number; // 1..12
 	targetKindId: number;
 	goalValue: number;
+	isAnchor?: boolean;
 	title?: string;
 	description?: string;
 }) {

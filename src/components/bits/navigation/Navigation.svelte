@@ -26,8 +26,9 @@
 		<ul class="space-y-2 text-gray-600">
 			{#each visibleMenuItems as item}
 				<li
-					class="flex cursor-pointer items-center gap-2 rounded-sm p-2 underline-offset-4 hover:text-orange hover:underline {selectedTab.label ===
-						item.label && 'selected'}"
+					class="flex cursor-pointer items-center gap-2 rounded-sm p-2 underline-offset-4 hover:text-orange hover:underline"
+					class:font-semibold={selectedTab.label === item.label}
+					class:text-orange={selectedTab.label === item.label}
 					on:click={() => selectTab(item)}
 				>
 					<Icon icon={item.icon} size="18px" />
@@ -43,8 +44,12 @@
 		<nav class="flex w-full shrink-0 flex-wrap justify-around border-b p-4 lg:hidden">
 			{#each visibleMenuItems as item}
 				<button
+					type="button"
 					on:click={() => selectTab(item)}
-					class="tab-button {selectedTab.label === item.label && 'selected'}"
+					class="flex items-center gap-2 rounded-sm p-2 hover:bg-gray-200 hover:text-orange"
+					class:text-gray-600={selectedTab.label !== item.label}
+					class:text-orange={selectedTab.label === item.label}
+					class:font-semibold={selectedTab.label === item.label}
 				>
 					<Icon icon={item.icon} size="18px" />
 					{item.label}
@@ -58,12 +63,3 @@
 		</div>
 	</div>
 </div>
-
-<style>
-	.tab-button {
-		@apply flex items-center gap-2 rounded-sm p-2 text-gray-600 hover:text-orange;
-	}
-	.selected {
-		@apply font-semibold text-orange;
-	}
-</style>

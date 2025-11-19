@@ -1,11 +1,14 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { addToast } from '$lib/stores/toastStore';
+	import { AppToastType } from '$lib/types/toastTypes';
 	import { user } from '$lib/stores/userStore';
 	import { notificationStore } from '$lib/stores/notificationStore';
 	import { goto } from '$app/navigation';
 	import Icon from '../../icon-component/Icon.svelte';
 	import NotificationCard from '../../notificationCard/NotificationCard.svelte';
 
+	let allEvents = [];
 	let events = [];
 	let isLoading = true;
 
@@ -17,14 +20,14 @@
 			const res = await fetch(`/api/notifications?user_id=${$user.id}`);
 			if (res.ok) {
 				const all = await res.json();
-				events = all
+				allEvents = all
 					.filter((e) => !e.done)
 					.sort((a, b) => {
 						if (a.event_type === 'alert' && b.event_type !== 'alert') return -1;
 						if (a.event_type !== 'alert' && b.event_type === 'alert') return 1;
 						return new Date(b.start_time).getTime() - new Date(a.start_time).getTime();
-					})
-					.slice(0, 3); // Limit to 3
+					});
+				events = allEvents.slice(0, 3); // Limit to 3
 			}
 		} finally {
 			isLoading = false;
@@ -33,6 +36,36 @@
 
 	$: $user;
 	onMount(fetchNotifications);
+
+	async function markAsDone(eventId: number) {
+		try {
+			const res = await fetch('/api/notifications', {
+				method: 'PUT',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ event_id: eventId, user_id: $user.id })
+			});
+
+			if (!res.ok) throw new Error('Kunde inte uppdatera notifikationen');
+
+			allEvents = allEvents.filter((event) => event.id !== eventId);
+			events = allEvents.slice(0, 3);
+
+			addToast({
+				type: AppToastType.SUCCESS,
+				message: 'Markerad som klar',
+				description: 'Notifikationen är markerad som klar.'
+			});
+
+			notificationStore.updateFromServer($user.id);
+		} catch (err) {
+			const description = err instanceof Error ? err.message : 'Något gick fel.';
+			addToast({
+				type: AppToastType.CANCEL,
+				message: 'Fel vid uppdatering',
+				description
+			});
+		}
+	}
 
 	function relativeTime(iso: string): string {
 		const diff = Date.now() - new Date(iso).getTime();
@@ -69,6 +102,7 @@
 					startTime={event.start_time}
 					endTime={event.end_time}
 					createdBy={event.created_by?.name}
+					on:done={() => markAsDone(event.id)}
 					small
 				/>
 			{/each}

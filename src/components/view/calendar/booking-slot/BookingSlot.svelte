@@ -41,7 +41,7 @@ import { IconTraining, IconShiningStar, IconGraduationCap, IconPlane } from '$li
 	const SELECTED_BG_COLOR = '#fff7ed';
 	const SELECTED_TEXT_COLOR = '#7c2d12';
 
-	type NameDisplayMode = 'full' | 'last' | 'initials';
+	type NameDisplayMode = 'full' | 'last' | 'initials' | 'none';
 	type NameStrings = {
 		trainerFull: string;
 		trainerLast: string;
@@ -58,6 +58,8 @@ import { IconTraining, IconShiningStar, IconGraduationCap, IconPlane } from '$li
 	let personalLineClamp = $state(1);
 	let debounceTimer: NodeJS.Timeout;
 	let showIcon = $state(true);
+	let showTrainerLine = $state(true);
+	let showParticipantLine = $state(true);
 	const ICON_SPACE = 32;
 	const PERSONAL_VERTICAL_PADDING = 8;
 	const DEFAULT_LINE_HEIGHT = 14;
@@ -208,6 +210,7 @@ import { IconTraining, IconShiningStar, IconGraduationCap, IconPlane } from '$li
 	}
 
 	function resolveTrainerDisplay(mode: NameDisplayMode) {
+		if (mode === 'none') return '';
 		const full = getTrainerDisplay() || trainerInitials;
 		const last = getTrainerLastName() || full;
 		if (mode === 'last') return last;
@@ -216,6 +219,7 @@ import { IconTraining, IconShiningStar, IconGraduationCap, IconPlane } from '$li
 	}
 
 	function resolveParticipantDisplay(mode: NameDisplayMode) {
+		if (mode === 'none') return '';
 		const full = getParticipantDisplay();
 		const last = getParticipantLastName() || full;
 		if (mode === 'last') return last;
@@ -240,9 +244,11 @@ import { IconTraining, IconShiningStar, IconGraduationCap, IconPlane } from '$li
 		initialsWidth: number,
 		availableWidth: number
 	): NameDisplayMode {
-		if (fullWidth <= availableWidth) return 'full';
-		if (lastWidth <= availableWidth) return 'last';
-		return 'initials';
+		if (availableWidth <= 0) return 'none';
+		if (fullWidth > 0 && fullWidth <= availableWidth) return 'full';
+		if (lastWidth > 0 && lastWidth <= availableWidth) return 'last';
+		if (initialsWidth > 0 && initialsWidth <= availableWidth) return 'initials';
+		return 'none';
 	}
 
 	async function measurePersonalText(_displayText?: string) {
@@ -308,18 +314,36 @@ import { IconTraining, IconShiningStar, IconGraduationCap, IconPlane } from '$li
 
 		const effectiveWidth = shouldShowIcon ? availableWithIcon : availableWithoutIcon;
 
-		trainerDisplayMode = selectDisplayMode(
+		const resolvedTrainerMode = selectDisplayMode(
 			trainerFullWidth,
 			trainerLastWidth,
 			trainerInitialWidth,
 			effectiveWidth
 		);
-		participantDisplayMode = selectDisplayMode(
+		const resolvedParticipantMode = selectDisplayMode(
 			participantFullWidth,
 			participantLastWidth,
 			participantInitialWidth,
 			effectiveWidth
 		);
+
+		const initialsWidthCombined = trainerInitialWidth + participantInitialWidth;
+
+		if (
+			resolvedTrainerMode === 'none' &&
+			resolvedParticipantMode === 'none' &&
+			initialsWidthCombined <= effectiveWidth
+		) {
+			trainerDisplayMode = 'initials';
+			participantDisplayMode = 'initials';
+			showTrainerLine = true;
+			showParticipantLine = true;
+		} else {
+			trainerDisplayMode = resolvedTrainerMode;
+			participantDisplayMode = resolvedParticipantMode;
+			showTrainerLine = resolvedTrainerMode !== 'none';
+			showParticipantLine = resolvedParticipantMode !== 'none';
+		}
 	}
 
 	onMount(async () => {
@@ -409,10 +433,17 @@ import { IconTraining, IconShiningStar, IconGraduationCap, IconPlane } from '$li
 
 				<div class="flex flex-row text-xs">
 					<div class="flex flex-col gap-1 text-left whitespace-nowrap">
-						<p class="" bind:this={trainerNameElement}>
+						<p
+							class=""
+							bind:this={trainerNameElement}
+							class:hidden={trainerDisplayMode === 'none'}
+						>
 							{resolveTrainerDisplay(trainerDisplayMode)}
 						</p>
-						<p bind:this={clientNameElement}>
+						<p
+							bind:this={clientNameElement}
+							class:hidden={participantDisplayMode === 'none'}
+						>
 							{resolveParticipantDisplay(participantDisplayMode)}
 						</p>
 					</div>

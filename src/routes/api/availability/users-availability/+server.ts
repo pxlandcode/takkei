@@ -50,7 +50,7 @@ export async function GET({ url }) {
 
 		for (const dateStr of days) {
 			const currentDate = new Date(dateStr);
-			const weekday = ((currentDate.getDay() + 6) % 7) + 1;
+			const weekday = currentDate.getDay(); // Matches DB convention: Sun=0, Mon=1..Sat=6
 
 			// 1️⃣ Absence check (highest priority)
 			const isAbsent = absences.some((a) => {
