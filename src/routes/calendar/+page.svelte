@@ -154,7 +154,8 @@ import type { SelectedSlot } from '$lib/stores/selectedSlotStore';
 	function handleTimeSlotClick(event) {
 		const timeSlot = event.detail.startTime;
 		const locationId = event.detail.locationId ?? null;
-		openBookingPopup(timeSlot, null, locationId);
+		const trainerId = event.detail.trainerId ?? null;
+		openBookingPopup(timeSlot, null, locationId, trainerId);
 	}
 
 	function handlePinnedSlotClick(event) {
@@ -356,11 +357,12 @@ import type { SelectedSlot } from '$lib/stores/selectedSlotStore';
 	function openBookingPopup(
 		initialStartTime: Date | null = null,
 		resumeSlot: SelectedSlot | null = null,
-		preselectedLocationId: number | null = null
+		preselectedLocationId: number | null = null,
+		preselectedTrainerId: number | null = null
 	) {
 		let nextResumeSlot = resumeSlot;
 
-		if (!nextResumeSlot && preselectedLocationId != null) {
+		if (!nextResumeSlot && (preselectedLocationId != null || preselectedTrainerId != null)) {
 			const derivedDate = initialStartTime
 				? formatLocalDate(initialStartTime)
 				: filters.date ?? null;
@@ -370,7 +372,7 @@ import type { SelectedSlot } from '$lib/stores/selectedSlotStore';
 				source: 'training',
 				date: derivedDate,
 				time: derivedTime,
-				trainerId: null,
+				trainerId: preselectedTrainerId,
 				locationId: preselectedLocationId,
 				createdAt: Date.now()
 			};

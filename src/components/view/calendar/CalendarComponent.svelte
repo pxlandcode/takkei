@@ -427,11 +427,7 @@
 	});
 
 	const selectedTrainerIdSet = $derived.by(() => new Set(selectedTrainerIds));
-	const trainerFilterCount = $derived.by(() => {
-		const ids = filters?.trainerIds;
-		if (!Array.isArray(ids)) return 0;
-		return ids.filter((id): id is number => typeof id === 'number').length;
-	});
+	const trainerFilterCount = $derived.by(() => selectedTrainerIds.length);
 
 	const selectedLocationIds = $derived(
 		Array.isArray(filters?.locationIds)
@@ -1087,8 +1083,12 @@ $effect(() => {
 		return blocks;
 	}
 
-	function openBookingPopup(startTime: Date, locationId?: number | null) {
-		dispatch('onTimeSlotClick', { startTime, locationId: locationId ?? null });
+	function openBookingPopup(startTime: Date, locationId?: number | null, trainerId?: number | null) {
+		dispatch('onTimeSlotClick', {
+			startTime,
+			locationId: locationId ?? null,
+			trainerId: trainerId ?? null
+		});
 	}
 
 	function handleDaySelection(fullDate: Date) {
@@ -1328,7 +1328,7 @@ $effect(() => {
 										<button
 											class="hover:bg-orange/20 absolute right-0 left-0 cursor-pointer"
 											style="top: {slot.top}px; height: {hourHeight}px; z-index: 0;"
-											on:click={() => openBookingPopup(slot.start)}
+											on:click={() => openBookingPopup(slot.start, null, column.trainerId)}
 											use:tooltip={{
 												content: `${slot.start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - ${new Date(slot.start.getTime() + 60 * 60 * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
 											}}
