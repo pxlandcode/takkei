@@ -88,7 +88,7 @@ export const POST: RequestHandler = async ({ request }) => {
 	}));
 
 	if (availability.length === 0) {
-		const weekday = ((targetDate.getDay() + 6) % 7) + 1;
+		const weekday = targetDate.getDay(); // Matches DB convention Sun=0 .. Sat=6
 		const weekly = await query(
 			`SELECT start_time, end_time FROM weekly_availabilities WHERE user_id = $1 AND weekday = $2`,
 			[trainerIdNumber, weekday]
