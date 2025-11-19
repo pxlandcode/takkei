@@ -2,6 +2,12 @@ import { query } from '$lib/db';
 import { extractStockholmMinutes, extractStockholmTimeParts } from '$lib/server/stockholm-time';
 
 export const CANCELLED_STATUSES = ['Cancelled', 'Late_cancelled'];
+
+const LATE_CANCELLATION_STATUS = 'late_cancelled';
+
+const SALARY_EXCLUDED_STATUSES: string[] = CANCELLED_STATUSES.map((status) =>
+	status.toLowerCase()
+).filter((status) => status !== LATE_CANCELLATION_STATUS);
 const FALLBACK_SESSION_MINUTES = 60; // Default duration when bookings lack explicit end_time
 
 export type SalaryReportParams = {
@@ -330,7 +336,7 @@ async function loadHolidays(startDate: string, endDate: string) {
 }
 
 async function loadBookings(start: string, endExclusive: string) {
-        const params: [string, string, string[]] = [start, endExclusive, CANCELLED_STATUSES];
+	const params: [string, string, string[]] = [start, endExclusive, SALARY_EXCLUDED_STATUSES];
 
         if (bookingsSupportsEndTime === false) {
                 return query<BookingRow>(buildBookingsQuery(false), params);
@@ -353,10 +359,10 @@ let bookingsSupportsEndTime: boolean | null = null;
 
 function buildBookingsQuery(includeEndTime: boolean) {
         const endTimeColumn = includeEndTime ? 'b.end_time,' : '';
-        return `SELECT
-                        b.id,
-                        b.start_time,
-                        ${endTimeColumn}
+	return `SELECT
+			b.id,
+			b.start_time,
+			${endTimeColumn}
                         b.trainer_id,
                         u.firstname AS trainer_firstname,
                         u.lastname AS trainer_lastname,
@@ -379,11 +385,11 @@ function buildBookingsQuery(includeEndTime: boolean) {
                  LEFT JOIN clients c ON c.id = b.client_id
                  LEFT JOIN customers cu ON cu.id = c.customer_id
                  LEFT JOIN booking_contents bc ON bc.id = b.booking_content_id
-                 LEFT JOIN locations l ON l.id = b.location_id
-                 WHERE b.status <> ALL($3::text[])
-                   AND b.start_time >= $1::timestamp
-                   AND b.start_time < $2::timestamp
-                 ORDER BY b.start_time ASC`;
+		LEFT JOIN locations l ON l.id = b.location_id
+		WHERE COALESCE(LOWER(b.status), '') <> ALL($3::text[])
+		  AND b.start_time >= $1::timestamp
+		  AND b.start_time < $2::timestamp
+		ORDER BY b.start_time ASC`;
 }
 
 function isMissingColumnError(error: unknown) {

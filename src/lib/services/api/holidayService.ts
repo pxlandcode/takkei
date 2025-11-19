@@ -7,6 +7,20 @@ type HolidayServiceError = Error & {
         errors?: Record<string, string>;
 };
 
+export type AdminHolidayResponse = {
+        holidays: Holiday[];
+        years: number[];
+};
+
+export type HolidayImportMeta = {
+        year: number;
+        sourceTotal: number;
+        normalized: number;
+        inserted: number;
+        skippedExisting: number;
+        skippedInvalid: number;
+};
+
 function resolveFetch(fetchFn?: FetchLike): FetchLike {
         return fetchFn ?? fetch;
 }
@@ -53,7 +67,7 @@ export async function fetchHolidays(
 export async function fetchAdminHolidays(
         showPassed = false,
         fetchFn?: FetchLike
-): Promise<Holiday[]> {
+): Promise<AdminHolidayResponse> {
         const fetcher = resolveFetch(fetchFn);
         const url = toUrl('/api/settings/holidays', {
                 showPassed: showPassed ? 'true' : undefined
@@ -65,7 +79,12 @@ export async function fetchAdminHolidays(
         }
 
         const body = await res.json();
-        return Array.isArray(body?.data) ? (body.data as Holiday[]) : [];
+        return {
+                holidays: Array.isArray(body?.data) ? (body.data as Holiday[]) : [],
+                years: Array.isArray(body?.meta?.years)
+                        ? (body.meta.years as number[])
+                        : []
+        };
 }
 
 export async function createHoliday(
@@ -127,6 +146,42 @@ export async function deleteHoliday(id: number, fetchFn?: FetchLike): Promise<vo
                 const body = res.status === 400 ? await res.json().catch(() => null) : null;
                 throw buildError('Kunde inte ta bort helgdag.', res.status, body ?? undefined);
         }
+}
+
+export type HolidayImportResponse = {
+        data: Holiday[];
+        meta: HolidayImportMeta;
+};
+
+export async function importSwedishHolidays(
+        year: number,
+        fetchFn?: FetchLike
+): Promise<HolidayImportResponse> {
+        const fetcher = resolveFetch(fetchFn);
+        const res = await fetcher('/api/settings/holidays/import', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ year })
+        });
+
+        if (res.status === 400) {
+                const body = await res.json().catch(() => null);
+                throw buildError(
+                        body?.errors?.year ?? 'Ogiltig begäran för helgdagimport.',
+                        res.status,
+                        body ?? undefined
+                );
+        }
+
+        if (!res.ok) {
+                throw new Error('Kunde inte importera helgdagar.');
+        }
+
+        const body = await res.json();
+        return {
+                data: Array.isArray(body?.data) ? (body.data as Holiday[]) : [],
+                meta: body?.meta as HolidayImportMeta
+        };
 }
 
 export type { HolidayServiceError };

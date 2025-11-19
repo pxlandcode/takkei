@@ -21,20 +21,30 @@ export const GET: RequestHandler = async ({ locals, url }) => {
         const showPassed = parseShowPassedParam(url.searchParams.get('showPassed'));
 
         try {
-                const rows = await query<HolidayRow>(
-                        `SELECT id,
-                                name,
-                                date::date AS date,
-                                description,
-                                created_at,
-                                updated_at
-                         FROM holidays
-                         ${showPassed ? '' : 'WHERE date::date >= CURRENT_DATE'}
-                         ORDER BY date::date ASC, name ASC`
-                );
+                const [holidaysResult, yearsResult] = await Promise.all([
+                        query<HolidayRow>(
+                                `SELECT id,
+                                        name,
+                                        date::date AS date,
+                                        description,
+                                        created_at,
+                                        updated_at
+                                 FROM holidays
+                                 ${showPassed ? '' : 'WHERE date::date >= CURRENT_DATE'}
+                                 ORDER BY date::date ASC, name ASC`
+                        ),
+                        query<{ year: number }>(
+                                `SELECT DISTINCT EXTRACT(YEAR FROM date::date)::int AS year
+                                 FROM holidays
+                                 ORDER BY year ASC`
+                        )
+                ]);
 
-                const holidays = rows.map(mapHolidayRow);
-                return json({ data: holidays });
+                const holidays = holidaysResult.map(mapHolidayRow);
+                const years = yearsResult
+                        .map((row) => Number(row.year))
+                        .filter((year) => Number.isFinite(year));
+                return json({ data: holidays, meta: { years } });
         } catch (error) {
                 console.error('Failed to fetch holidays', error);
                 return new Response('Internal Server Error', { status: 500 });
