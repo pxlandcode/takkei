@@ -5,27 +5,30 @@ export async function GET({ url }) {
 	const trainerId = url.searchParams.get('trainer_id');
 	if (!trainerId) return json({ error: 'Missing trainer_id' }, { status: 400 });
 
-	// Calculate date ranges
+	// Calculate date ranges (this week + next two weeks)
 	const today = new Date();
 	const day = today.getDay();
-	const daysUntilNextMonday = (8 - day) % 7 || 7;
+	const daysSinceMonday = (day + 6) % 7;
 
-	const week1Start = new Date(today);
-	week1Start.setDate(today.getDate() + daysUntilNextMonday);
-	week1Start.setHours(0, 0, 0, 0);
+	const thisWeekStart = new Date(today);
+	thisWeekStart.setDate(today.getDate() - daysSinceMonday);
+	thisWeekStart.setHours(0, 0, 0, 0);
 
-	const week1End = new Date(week1Start);
-	week1End.setDate(week1Start.getDate() + 7);
+	const nextWeekStart = new Date(thisWeekStart);
+	nextWeekStart.setDate(nextWeekStart.getDate() + 7);
 
-	const week2End = new Date(week1End);
-	week2End.setDate(week2End.getDate() + 7);
+	const weekAfterNextStart = new Date(nextWeekStart);
+	weekAfterNextStart.setDate(weekAfterNextStart.getDate() + 7);
+
+	const weekThreeStart = new Date(weekAfterNextStart);
+	weekThreeStart.setDate(weekThreeStart.getDate() + 7);
 
 	const params = [
 		trainerId,
-		week1Start.toISOString(),
-		week1End.toISOString(),
-		week1End.toISOString(),
-		week2End.toISOString()
+		thisWeekStart.toISOString(),
+		nextWeekStart.toISOString(),
+		weekAfterNextStart.toISOString(),
+		weekThreeStart.toISOString()
 	];
 
 	const sql = `
@@ -34,10 +37,16 @@ export async function GET({ url }) {
         FROM clients
         WHERE active = true AND primary_trainer_id = $1
     ),
-    booked_week1 AS (
+    booked_this_week AS (
         SELECT DISTINCT client_id
         FROM bookings
         WHERE start_time >= $2 AND start_time < $3
+        AND cancel_time IS NULL
+    ),
+    booked_week1 AS (
+        SELECT DISTINCT client_id
+        FROM bookings
+        WHERE start_time >= $3 AND start_time < $4
         AND cancel_time IS NULL
     ),
     booked_week2 AS (
@@ -51,6 +60,10 @@ export async function GET({ url }) {
         tc.firstname,
         tc.lastname,
         CASE
+            WHEN btw.client_id IS NULL THEN 'thisWeek'
+            ELSE NULL
+        END AS no_booking_this_week,
+        CASE
             WHEN bw1.client_id IS NULL THEN 'week1'
             ELSE NULL
         END AS no_booking_week1,
@@ -59,13 +72,22 @@ export async function GET({ url }) {
             ELSE NULL
         END AS no_booking_week2
     FROM trainer_clients tc
+    LEFT JOIN booked_this_week btw ON tc.id = btw.client_id
     LEFT JOIN booked_week1 bw1 ON tc.id = bw1.client_id
     LEFT JOIN booked_week2 bw2 ON tc.id = bw2.client_id
 	`;
 
 	const results = await query(sql, params);
 
-	// Split into week1 and week2 arrays
+	// Split into week arrays
+	const thisWeek = results
+		.filter((r) => r.no_booking_this_week)
+		.map((r) => ({
+			id: r.id,
+			firstname: r.firstname,
+			lastname: r.lastname
+		}));
+
 	const week1 = results
 		.filter((r) => r.no_booking_week1)
 		.map((r) => ({
@@ -82,5 +104,5 @@ export async function GET({ url }) {
 			lastname: r.lastname
 		}));
 
-	return json({ week1, week2 });
+	return json({ thisWeek, week1, week2 });
 }
