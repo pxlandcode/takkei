@@ -312,7 +312,7 @@
 					header: `Maila avbokningsbekräftelse till ${recipients.join(', ')}`,
 					icon: 'Mail',
 					component: MailComponent,
-					width: '900px',
+					maxWidth: '900px',
 					props: {
 						prefilledRecipients: recipients,
 						subject: mailConfig.subject,

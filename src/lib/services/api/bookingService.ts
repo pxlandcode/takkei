@@ -45,13 +45,18 @@ export async function createBooking(
 					? Number(resolvedUserIdRaw)
 					: null;
 
+			// For practice (internalEducation), education, and flight (internal) bookings,
+			// booking_content_id should be null since they don't use booking_contents table
+			const isSpecialBooking = !!bookingObject.internalEducation || !!bookingObject.education || !!bookingObject.internal;
+			const bookingContentId = isSpecialBooking ? null : (bookingObject.bookingType?.value ?? null);
+
 			requestData = {
 				client_id: bookingObject.clientId ?? null,
 				package_id: bookingObject.packageId ?? null,
 				trainer_id: bookingObject.trainerId ?? null,
 				start_time: `${bookingObject.date}T${bookingObject.time}:00`,
 				location_id: bookingObject.locationId ?? null,
-				booking_content_id: capitalizeFirstLetter(bookingObject.bookingType?.value ?? 'Corporate'),
+				booking_content_id: bookingContentId,
 				status: 'New',
 				try_out: !!bookingObject.isTrial,
 				internal_education: !!bookingObject.internalEducation, //praktiktimme

@@ -260,7 +260,25 @@
 		{#each $sortedData as row}
 			<div class="border-gray rounded-sm border p-4 shadow-md">
 				<div class="flex items-center justify-between">
-					<h3 class="text-lg font-semibold">{formatCellDisplay(row[headers[0].key])}</h3>
+					{#if Array.isArray(row[headers[0].key])}
+						<div class="flex flex-col gap-1">
+							{#each row[headers[0].key] as item}
+								{#if item.type === 'link'}
+									<button
+										type="button"
+										on:click={item.action}
+										class="text-orange text-lg font-semibold hover:underline"
+									>
+										{item.label}
+									</button>
+								{:else}
+									<h3 class="text-lg font-semibold">{formatCellDisplay(item)}</h3>
+								{/if}
+							{/each}
+						</div>
+					{:else}
+						<h3 class="text-lg font-semibold">{formatCellDisplay(row[headers[0].key])}</h3>
+					{/if}
 					{#if !noSelect}
 						<input type="checkbox" class="border-gray h-5 w-5 rounded-sm" />
 					{/if}

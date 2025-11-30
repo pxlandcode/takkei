@@ -5,30 +5,30 @@
 	import { clients, fetchClients, getClientEmails } from '$lib/stores/clientsStore';
 	import { bookingContents, fetchBookingContents } from '$lib/stores/bookingContentStore';
 	import { capitalizeFirstLetter } from '$lib/helpers/generic/genericHelpers';
-import Button from '../../bits/button/Button.svelte';
-import BookingTraining from './bookingTraining/BookingTraining.svelte';
-import BookingPractice from './bookingPractice/BookingPractice.svelte';
-import BookingMeeting from './bookingMeeting/BookingMeeting.svelte';
-import OptionsSelect from '../../bits/options-select/OptionsSelect.svelte';
-import { user } from '$lib/stores/userStore';
-import { calendarStore } from '$lib/stores/calendarStore';
-import { get } from 'svelte/store';
-import {
-	handleMeetingOrPersonalBooking,
-	handleTrainingBooking
-} from '$lib/helpers/bookingHelpers/bookingHelpers';
-import { openPopup, popupStore, closePopup, type PopupState } from '$lib/stores/popupStore';
-import { handleBookingEmail } from '$lib/helpers/bookingHelpers/bookingHelpers';
-import MailComponent from '../mailComponent/MailComponent.svelte';
-import { hasRole } from '$lib/helpers/userHelpers/roleHelper';
-import type { User } from '$lib/types/userTypes';
-import type { SelectedSlot } from '$lib/stores/selectedSlotStore';
-import { clearSelectedSlot } from '$lib/stores/selectedSlotStore';
+	import Button from '../../bits/button/Button.svelte';
+	import BookingTraining from './bookingTraining/BookingTraining.svelte';
+	import BookingPractice from './bookingPractice/BookingPractice.svelte';
+	import BookingMeeting from './bookingMeeting/BookingMeeting.svelte';
+	import OptionsSelect from '../../bits/options-select/OptionsSelect.svelte';
+	import { user } from '$lib/stores/userStore';
+	import { calendarStore } from '$lib/stores/calendarStore';
+	import { get } from 'svelte/store';
+	import {
+		handleMeetingOrPersonalBooking,
+		handleTrainingBooking
+	} from '$lib/helpers/bookingHelpers/bookingHelpers';
+	import { openPopup, popupStore, closePopup, type PopupState } from '$lib/stores/popupStore';
+	import { handleBookingEmail } from '$lib/helpers/bookingHelpers/bookingHelpers';
+	import MailComponent from '../mailComponent/MailComponent.svelte';
+	import { hasRole } from '$lib/helpers/userHelpers/roleHelper';
+	import type { User } from '$lib/types/userTypes';
+	import type { SelectedSlot } from '$lib/stores/selectedSlotStore';
+	import { clearSelectedSlot } from '$lib/stores/selectedSlotStore';
 
-export let startTime: Date | null = null;
-export let clientId: number | null = null;
-export let trainerId: number | null = null;
-export let resumeSlot: SelectedSlot | null = null;
+	export let startTime: Date | null = null;
+	export let clientId: number | null = null;
+	export let trainerId: number | null = null;
+	export let resumeSlot: SelectedSlot | null = null;
 
 	const dispatch = createEventDispatcher();
 	const popupInstance: PopupState | null = get(popupStore);
@@ -65,23 +65,23 @@ export let resumeSlot: SelectedSlot | null = null;
 
 	let selectedBookingComponent: BookingComponent = 'training';
 
-let repeatedBookings = [];
-let selectedIsUnavailable = false;
-let currentUser = get(user);
-let formErrors: Record<string, string> = {};
-let previousComponent: typeof selectedBookingComponent | null = null;
-let resumeSlotApplied = false;
-let isApplyingResumeSlot = false;
+	let repeatedBookings = [];
+	let selectedIsUnavailable = false;
+	let currentUser = get(user);
+	let formErrors: Record<string, string> = {};
+	let previousComponent: typeof selectedBookingComponent | null = null;
+	let resumeSlotApplied = false;
+	let isApplyingResumeSlot = false;
 
-let allUsers: User[] = [];
-let userOptions: UserOption[] = [];
-let educationTrainerOptions: UserOption[] = [];
-let meetingUserOptions: MeetingUserOption[] = [];
-let visibleBookingTypeOptions = BOOKING_TYPE_OPTIONS;
-let canAccessEducation = false;
-let isAdminUser = false;
-let isEducatorUser = false;
-let educatorIds = new Set<number>();
+	let allUsers: User[] = [];
+	let userOptions: UserOption[] = [];
+	let educationTrainerOptions: UserOption[] = [];
+	let meetingUserOptions: MeetingUserOption[] = [];
+	let visibleBookingTypeOptions = BOOKING_TYPE_OPTIONS;
+	let canAccessEducation = false;
+	let isAdminUser = false;
+	let isEducatorUser = false;
+	let educatorIds = new Set<number>();
 
 	let bookingObject = {
 		user_id: null,
@@ -189,11 +189,14 @@ let educatorIds = new Set<number>();
 
 	$: allUsers = ($users as User[] | undefined) ?? [];
 	$: userOptions = allUsers.map((u) => ({ label: `${u.firstname} ${u.lastname}`, value: u.id }));
-	$: meetingUserOptions = allUsers.map((u) => ({ name: `${u.firstname} ${u.lastname}`, value: u.id }));
+	$: meetingUserOptions = allUsers.map((u) => ({
+		name: `${u.firstname} ${u.lastname}`,
+		value: u.id
+	}));
 	$: educatorIds = new Set(
 		allUsers.filter((candidate) => hasRole('Educator', candidate)).map((candidate) => candidate.id)
 	);
-$: educationTrainerOptions = userOptions.filter((option) => educatorIds.has(option.value));
+	$: educationTrainerOptions = userOptions.filter((option) => educatorIds.has(option.value));
 
 	$: visibleBookingTypeOptions = BOOKING_TYPE_OPTIONS.filter(
 		(option) => option.value !== 'education' || canAccessEducation
@@ -335,44 +338,44 @@ $: educationTrainerOptions = userOptions.filter((option) => educatorIds.has(opti
 		return (loc?.address && loc.address.trim()) || loc?.name || 'Okänd plats';
 	}
 
-async function applyResumeSlot(slot: SelectedSlot) {
-	const componentMap: Record<SelectedSlot['source'], BookingComponent> = {
-		training: 'training',
-		trial: 'trial',
-		flight: 'flight',
-		practice: 'practice',
-		education: 'education'
-	};
+	async function applyResumeSlot(slot: SelectedSlot) {
+		const componentMap: Record<SelectedSlot['source'], BookingComponent> = {
+			training: 'training',
+			trial: 'trial',
+			flight: 'flight',
+			practice: 'practice',
+			education: 'education'
+		};
 
-	isApplyingResumeSlot = true;
-	try {
-		selectedBookingComponent = componentMap[slot.source] ?? 'training';
-		await tick();
+		isApplyingResumeSlot = true;
+		try {
+			selectedBookingComponent = componentMap[slot.source] ?? 'training';
+			await tick();
 
-		if (slot.date) bookingObject.date = slot.date;
-		if (slot.time) bookingObject.time = slot.time;
-		bookingObject.trainerId = slot.trainerId ?? null;
-		if (bookingObject.trainerId != null) {
-			bookingObject.trainerId = Number(bookingObject.trainerId);
+			if (slot.date) bookingObject.date = slot.date;
+			if (slot.time) bookingObject.time = slot.time;
+			bookingObject.trainerId = slot.trainerId ?? null;
+			if (bookingObject.trainerId != null) {
+				bookingObject.trainerId = Number(bookingObject.trainerId);
+			}
+			bookingObject.locationId = slot.locationId ?? null;
+			if (bookingObject.locationId != null) {
+				bookingObject.locationId = Number(bookingObject.locationId);
+			}
+			if ('clientId' in slot) {
+				const clientId = slot.clientId ?? null;
+				bookingObject.clientId = clientId != null ? Number(clientId) : null;
+			}
+			if ('traineeId' in slot) {
+				const traineeId = slot.traineeId ?? null;
+				bookingObject.user_id = traineeId != null ? Number(traineeId) : null;
+			}
+			if (slot.bookingType) bookingObject.bookingType = slot.bookingType;
+			resumeSlotApplied = true;
+		} finally {
+			isApplyingResumeSlot = false;
 		}
-		bookingObject.locationId = slot.locationId ?? null;
-		if (bookingObject.locationId != null) {
-			bookingObject.locationId = Number(bookingObject.locationId);
-		}
-		if ('clientId' in slot) {
-			const clientId = slot.clientId ?? null;
-			bookingObject.clientId = clientId != null ? Number(clientId) : null;
-		}
-		if ('traineeId' in slot) {
-			const traineeId = slot.traineeId ?? null;
-			bookingObject.user_id = traineeId != null ? Number(traineeId) : null;
-		}
-		if (slot.bookingType) bookingObject.bookingType = slot.bookingType;
-		resumeSlotApplied = true;
-	} finally {
-		isApplyingResumeSlot = false;
 	}
-}
 
 	async function submitBooking() {
 		const type = selectedBookingComponent;
@@ -441,7 +444,7 @@ async function applyResumeSlot(slot: SelectedSlot) {
 						header: `Maila bokningsbekräftelse till ${clientEmail}`,
 						icon: 'Mail',
 						component: MailComponent,
-						width: '900px',
+						maxWidth: '900px',
 						props: {
 							prefilledRecipients: [clientEmail],
 							subject: 'Bokningsbekräftelse',

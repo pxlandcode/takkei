@@ -4,9 +4,9 @@
 	import LocationSettings from '../../components/ui/locationSettings/LocationSettings.svelte';
 	import PackagesSettings from '../../components/ui/packagesSettings/PackagesSettings.svelte';
 	import TargetsSettings from '../../components/ui/targetsSettings/TargetsSettings.svelte';
-        import SchedulingSettings from '../../components/ui/schedulingSettings/SchedulingSettings.svelte';
-        import ObSettings from '../../components/ui/obSettings/ObSettings.svelte';
-        import HolidaySettings from '../../components/ui/holidaySettings/HolidaySettings.svelte';
+	import SchedulingSettings from '../../components/ui/schedulingSettings/SchedulingSettings.svelte';
+	import ObSettings from '../../components/ui/obSettings/ObSettings.svelte';
+	import HolidaySettings from '../../components/ui/holidaySettings/HolidaySettings.svelte';
 	import MailComponent from '../../components/ui/mailComponent/MailComponent.svelte';
 	import Navigation from '../../components/bits/navigation/Navigation.svelte';
 	import UserForm from '../../components/ui/userForm/UserForm.svelte';
@@ -49,25 +49,28 @@
 			component: TargetsSettings,
 			requiredRoles: ['Administrator']
 		},
-                {
-                        label: 'Schema',
-                        icon: 'Calendar',
-                        component: SchedulingSettings,
-                        requiredRoles: ['Administrator']
-                },
-                {
-                        label: 'OB-fönster',
-                        icon: 'Clock',
-                        component: ObSettings,
-                        requiredRoles: ['Administrator']
-                },
-                {
-                        label: 'Helgdagar',
-                        icon: 'CalendarSun',
-                        component: HolidaySettings,
-                        requiredRoles: ['Administrator']
-                }
-        ];
+		{
+			label: 'Schema',
+			icon: 'Calendar',
+			component: SchedulingSettings,
+			requiredRoles: ['Administrator']
+		},
+		{
+			label: 'OB-fönster',
+			icon: 'Clock',
+			component: ObSettings,
+			requiredRoles: ['Administrator']
+		},
+		{
+			label: 'Helgdagar',
+			icon: 'CalendarSun',
+			component: HolidaySettings,
+			requiredRoles: ['Administrator']
+		}
+	];
+
+	import { onMount } from 'svelte';
+	import { headerState } from '$lib/stores/headerState.svelte';
 
 	let selectedTab = menuItems[0];
 
@@ -75,10 +78,15 @@
 		await fetch('/api/logout', { method: 'POST' });
 		window.location.href = '/login';
 	}
+
+	onMount(() => {
+		headerState.title = 'Inställningar';
+		headerState.icon = 'Settings';
+	});
 </script>
 
 <div class="m-4 ml-3 flex flex-wrap items-center justify-between">
-	<div class="flex shrink-0 items-center gap-2">
+	<div class="hidden shrink-0 items-center gap-2 md:flex">
 		<div class="bg-text flex h-7 w-7 items-center justify-center rounded-full text-white">
 			<Icon icon="Settings" size="18px" />
 		</div>

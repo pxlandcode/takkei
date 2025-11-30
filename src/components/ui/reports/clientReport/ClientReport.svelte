@@ -172,7 +172,7 @@
 			header: `Maila ${email}`,
 			icon: 'Mail',
 			component: MailComponent,
-			width: '900px',
+			maxWidth: '900px',
 			props: {
 				prefilledRecipients: [email],
 				lockedFields: ['recipients'],

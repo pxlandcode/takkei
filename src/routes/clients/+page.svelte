@@ -18,6 +18,7 @@
 	import MailComponent from '../../components/ui/mailComponent/MailComponent.svelte';
 	import { debounce } from '$lib/utils/debounce';
 	import { openPopup } from '$lib/stores/popupStore';
+	import { headerState } from '$lib/stores/headerState.svelte';
 
 	let selectedClientsId: number | null = null;
 	let selectedClientEmail: string | null = null;
@@ -104,7 +105,7 @@
 			header: `Maila ${email}`,
 			icon: 'Mail',
 			component: MailComponent,
-			width: '900px',
+			maxWidth: '900px',
 			props: {
 				prefilledRecipients: [email],
 				lockedFields: ['recipients'],
@@ -235,6 +236,8 @@
 
 	// Initial load
 	onMount(() => {
+		headerState.title = 'Klienter';
+		headerState.icon = 'Person';
 		fetchPaginatedClients(true);
 	});
 
@@ -276,7 +279,7 @@
 
 <div class="custom-scrollbar m-4 h-full overflow-x-scroll" on:scroll={handleScroll}>
 	<!-- Page Title -->
-	<div class="flex items-center gap-2">
+	<div class="hidden items-center gap-2 md:flex">
 		<div class="bg-text flex h-7 w-7 items-center justify-center rounded-full text-white">
 			<Icon icon="Person" size="14px" />
 		</div>

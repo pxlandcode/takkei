@@ -4,6 +4,9 @@ import type { RequestHandler } from '@sveltejs/kit';
 
 const SLOT_LENGTH_MINUTES = 60;
 const TRAVEL_BUFFER_MINUTES = 25;
+// Total buffer needed before a booking start_time at a different location
+// (slot duration + travel time = 60 + 25 = 85 minutes)
+const TOTAL_BUFFER_BEFORE_BOOKING = SLOT_LENGTH_MINUTES + TRAVEL_BUFFER_MINUTES;
 
 type Interval = { start: number; end: number };
 type RoomInterval = Interval & { roomId: number | null };
@@ -131,6 +134,20 @@ export const POST: RequestHandler = async ({ request }) => {
 		[dayStart, dayEnd, trainerIdNumber, bookingIdToIgnore]
 	);
 
+	// 5b. Bookings where the trainer is a TRAINEE (praktiktimme/education)
+	// This blocks the trainer's time when they are being trained
+	const trainerAsTraineeBookings = await query(
+		`SELECT id, start_time, location_id FROM bookings
+     WHERE start_time BETWEEN $1 AND $2
+       AND LOWER(status) NOT IN ('cancelled', 'late_cancelled')
+       AND user_id = $3
+       AND (internal_education = true OR education = true)
+       AND ($4::int IS NULL OR id <> $4)`,
+		[dayStart, dayEnd, trainerIdNumber, bookingIdToIgnore]
+	);
+
+
+
 	// 6. Trainer personal bookings (same)
 	const personalBookings = await query(
 		`SELECT start_time, end_time FROM personal_bookings
@@ -187,6 +204,7 @@ export const POST: RequestHandler = async ({ request }) => {
 		traineeIntervals = [...traineePersonalIntervals, ...traineePracticeIntervals];
 	}
 
+	// Bookings where trainer is the trainer (for location-based travel checks)
 	const trainerLocationIntervals: LocationInterval[] = trainerBookings
 		.map((row: any): LocationInterval | null => {
 			const start = extractStockholmMinutes(row.start_time);
@@ -199,7 +217,34 @@ export const POST: RequestHandler = async ({ request }) => {
 		})
 		.filter(isNotNull);
 
+	// Bookings where trainer is a trainee (praktiktimme/education) - also need location for travel
+	const trainerAsTraineeLocationIntervals: LocationInterval[] = trainerAsTraineeBookings
+		.map((row: any): LocationInterval | null => {
+			const start = extractStockholmMinutes(row.start_time);
+			if (start === null) return null;
+			return {
+				start,
+				end: start + SLOT_LENGTH_MINUTES,
+				locationId: row.location_id === null ? null : Number(row.location_id)
+			};
+		})
+		.filter(isNotNull);
+
+	// Combined location intervals for travel time checks (trainer as trainer + trainer as trainee)
+	const allTrainerLocationIntervals: LocationInterval[] = [
+		...trainerLocationIntervals,
+		...trainerAsTraineeLocationIntervals
+	];
+
+
+
 	const trainerBookingIntervals: Interval[] = trainerLocationIntervals.map(({ start, end }) => ({
+		start,
+		end
+	}));
+
+	// Time intervals where trainer is busy as a trainee
+	const trainerAsTraineeIntervals: Interval[] = trainerAsTraineeLocationIntervals.map(({ start, end }) => ({
 		start,
 		end
 	}));
@@ -247,6 +292,12 @@ export const POST: RequestHandler = async ({ request }) => {
 			);
 			if (trainerClientBookingConflict) continue;
 
+			// Trainer busy as a trainee in praktiktimme/education
+			const trainerAsTraineeConflict = trainerAsTraineeIntervals.some((interval) =>
+				overlaps(slotStart, slotEnd, interval.start, interval.end)
+			);
+			if (trainerAsTraineeConflict) continue;
+
 			// trainer personal / meetings
 			const trainerConflict = trainerPersonalIntervals.some((b) =>
 				overlaps(slotStart, slotEnd, b.start, b.end)
@@ -261,17 +312,24 @@ export const POST: RequestHandler = async ({ request }) => {
 				if (traineeConflict) continue;
 			}
 
-			const travelConflict = trainerLocationIntervals.some((booking) => {
+			// Travel time conflicts - check both trainer-as-trainer and trainer-as-trainee bookings
+			// Need 85 minutes (60 min slot + 25 min travel) buffer between bookings at different locations
+			const travelConflict = allTrainerLocationIntervals.some((booking) => {
 				if (booking.locationId === null || booking.locationId === locationIdNumber) return false;
 
+				// Direct time overlap
 				if (overlaps(slotStart, slotEnd, booking.start, booking.end)) {
 					return true;
 				}
 
+				// New slot is AFTER existing booking: need travel buffer after existing booking ends
 				if (booking.end <= slotStart) {
 					return slotStart - booking.end < TRAVEL_BUFFER_MINUTES;
 				}
 
+				// New slot is BEFORE existing booking: need travel buffer before existing booking starts
+				// slotEnd + travel_buffer must be <= booking.start
+				// i.e., booking.start - slotEnd must be >= travel_buffer
 				if (booking.start >= slotEnd) {
 					return booking.start - slotEnd < TRAVEL_BUFFER_MINUTES;
 				}
