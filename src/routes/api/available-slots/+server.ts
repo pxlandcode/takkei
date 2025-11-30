@@ -146,8 +146,6 @@ export const POST: RequestHandler = async ({ request }) => {
 		[dayStart, dayEnd, trainerIdNumber, bookingIdToIgnore]
 	);
 
-
-
 	// 6. Trainer personal bookings (same)
 	const personalBookings = await query(
 		`SELECT start_time, end_time FROM personal_bookings
@@ -236,18 +234,18 @@ export const POST: RequestHandler = async ({ request }) => {
 		...trainerAsTraineeLocationIntervals
 	];
 
-
-
 	const trainerBookingIntervals: Interval[] = trainerLocationIntervals.map(({ start, end }) => ({
 		start,
 		end
 	}));
 
 	// Time intervals where trainer is busy as a trainee
-	const trainerAsTraineeIntervals: Interval[] = trainerAsTraineeLocationIntervals.map(({ start, end }) => ({
-		start,
-		end
-	}));
+	const trainerAsTraineeIntervals: Interval[] = trainerAsTraineeLocationIntervals.map(
+		({ start, end }) => ({
+			start,
+			end
+		})
+	);
 
 	const bookingIntervals: RoomInterval[] = bookings
 		.map((row: any): RoomInterval | null => {

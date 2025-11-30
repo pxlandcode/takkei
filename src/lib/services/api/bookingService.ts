@@ -47,7 +47,8 @@ export async function createBooking(
 
 			// For practice (internalEducation), education, and flight (internal) bookings,
 			// booking_content_id should be null since they don't use booking_contents table
-			const isSpecialBooking = !!bookingObject.internalEducation || !!bookingObject.education || !!bookingObject.internal;
+			const isSpecialBooking =
+				!!bookingObject.internalEducation || !!bookingObject.education || !!bookingObject.internal;
 			const bookingContentId = isSpecialBooking ? null : (bookingObject.bookingType?.value ?? null);
 
 			requestData = {
@@ -67,7 +68,8 @@ export async function createBooking(
 			};
 
 			if (includeUserId) {
-				const canAssignUserId = typeof resolvedUserId === 'number' && Number.isFinite(resolvedUserId);
+				const canAssignUserId =
+					typeof resolvedUserId === 'number' && Number.isFinite(resolvedUserId);
 				requestData.user_id = canAssignUserId ? resolvedUserId : null;
 			}
 		}
