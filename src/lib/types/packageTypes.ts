@@ -1,12 +1,14 @@
 export type NewPackagePayload = {
-	customerId: number;
-	clientId?: number;
-	articleId: number;
-	price: number;
-	firstPaymentDate: string;
-	invoiceNumber?: string;
-	autogiro: boolean;
-	installments: number;
+        customerId: number;
+        clientId?: number;
+        articleId: number;
+        price: number;
+        firstPaymentDate: string;
+        invoiceNumber?: string;
+        invoiceNumbers?: number[];
+        autogiro: boolean;
+        installments: number;
+        installmentBreakdown?: { date: string; sum: number; invoice_no?: string }[];
 };
 
 export type Package = {

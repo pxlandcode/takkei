@@ -25,7 +25,8 @@
 	let selectedClientId = '';
 
 	let price = '';
-	let invoiceNumber = '';
+        let invoiceNumber = '';
+        let invoiceNumbers: number[] = [];
 	let firstPaymentDate = '';
 	let autogiro = false;
 	let installments = 1;
@@ -35,7 +36,7 @@
 	let selectedArticle = null;
 	let selectedCustomer = null;
 
-	let installmentBreakdown: { date: string; sum: string }[] = [];
+        let installmentBreakdown: { date: string; sum: number; invoice_no?: string }[] = [];
 
 	const today = new Date();
 	const defaultDate = new Date(today.getFullYear(), today.getMonth() + 1, 25);
@@ -72,21 +73,21 @@
 		generateInstallmentDates();
 	$: if (!firstPaymentDate || !installments || isNaN(parseFloat(price))) installmentBreakdown = [];
 
-	function generateInstallmentDates() {
-		const total = parseFloat(price || '0');
-		const evenSum = total / installments;
-		let remainder = total;
-		installmentBreakdown = Array.from({ length: installments }, (_, i) => {
-			const date = new Date(firstPaymentDate);
-			date.setMonth(date.getMonth() + i);
-			const formattedDate = date.toISOString().split('T')[0];
+        function generateInstallmentDates() {
+                const total = parseFloat(price || '0');
+                const evenSum = total / installments;
+                let remainder = total;
+                installmentBreakdown = Array.from({ length: installments }, (_, i) => {
+                        const date = new Date(firstPaymentDate);
+                        date.setMonth(date.getMonth() + i);
+                        const formattedDate = date.toISOString().split('T')[0];
 
-			let sum = i === installments - 1 ? remainder : parseFloat(evenSum.toFixed(2));
-			remainder = parseFloat((remainder - sum).toFixed(2));
+                        let sum = i === installments - 1 ? remainder : parseFloat(evenSum.toFixed(2));
+                        remainder = parseFloat((remainder - sum).toFixed(2));
 
-			return { date: formattedDate, sum: sum.toFixed(2) };
-		});
-	}
+                        return { date: formattedDate, sum: Number(sum.toFixed(2)) };
+                });
+        }
 
 	let errors = {};
 
@@ -99,21 +100,45 @@
 			return;
 		}
 
-		try {
-			const result = await createPackage({
-				articleId: selectedArticle.id,
-				customerId: selectedCustomer.id,
-				clientId: selectedClientId || null,
-				price: parseFloat(price),
-				invoiceNumber,
-				firstPaymentDate,
-				autogiro,
-				installments: Number(installments),
-				installmentBreakdown
-			});
+                const breakdownTotal = installmentBreakdown.reduce((sum, i) => sum + Number(i.sum || 0), 0);
+                const priceValue = parseFloat(price);
 
-			onSave?.();
-		} catch (err) {
+                if (Number.isNaN(priceValue)) {
+                        errors.price = 'Pris måste anges';
+                        return;
+                }
+
+                if (installmentBreakdown.length === 0 || installments !== installmentBreakdown.length) {
+                        errors.installments = 'Antal faktureringstillfällen måste stämma.';
+                        return;
+                }
+
+                if (Number.isNaN(breakdownTotal) || Math.abs(breakdownTotal - priceValue) > 0.01) {
+                        errors.installmentBreakdown = 'Summan av faktureringstillfällena måste matcha paketpriset.';
+                        return;
+                }
+
+                invoiceNumbers = invoiceNumber
+                        .split(/[\s,]+/)
+                        .map((v) => Number(v.trim()))
+                        .filter((v) => !Number.isNaN(v));
+
+                try {
+                        const result = await createPackage({
+                                articleId: selectedArticle.id,
+                                customerId: selectedCustomer.id,
+                                clientId: selectedClientId || null,
+                                price: priceValue,
+                                invoiceNumber,
+                                invoiceNumbers,
+                                firstPaymentDate,
+                                autogiro,
+                                installments: Number(installments),
+                                installmentBreakdown
+                        });
+
+                        onSave?.();
+                } catch (err) {
 			console.error('Failed to create package', err);
 			errors.submit = 'Kunde inte skapa paket. Kontrollera värdena och försök igen.';
 		}
@@ -230,11 +255,11 @@
 	</div>
 
 	<!-- 📈 Breakdown -->
-	{#if installmentBreakdown.length}
-		<div class="space-y-2">
-			<div class="flex items-center justify-between">
-				<label class="text-sm font-medium">Faktureringstillfällen</label>
-				<Button
+        {#if installmentBreakdown.length}
+                <div class="space-y-2">
+                        <div class="flex items-center justify-between">
+                                <label class="text-sm font-medium">Faktureringstillfällen</label>
+                                <Button
 					icon={breakdownLocked ? 'Lock' : 'Unlocked'}
 					variant="secondary"
 					on:click={() => (breakdownLocked = !breakdownLocked)}
@@ -255,27 +280,28 @@
 						disabled={breakdownLocked}
 						name={`installment-sum-${index}`}
 						{errors}
-					/>
-				</div>
-			{/each}
-		</div>
-	{/if}
+                                        />
+                                </div>
+                        {/each}
+                        {#if errors.installmentBreakdown}
+                                <p class="text-sm text-red-600">{errors.installmentBreakdown}</p>
+                        {/if}
+                </div>
+        {/if}
 
 	<!-- 📊 Summering -->
 	<div class="flex flex-col gap-2">
-		<p class="text-sm">
-			<strong>Fördelad summa:</strong>
-			{installmentBreakdown.reduce((sum, i) => sum + parseFloat(i.sum), 0).toFixed(2)} kr av {parseFloat(
-				price || '0'
-			).toFixed(2)} kr
-		</p>
-		<p class="text-sm text-gray-600">
-			<strong>Återstår:</strong>
-			{(
-				parseFloat(price || '0') -
-				installmentBreakdown.reduce((sum, i) => sum + parseFloat(i.sum), 0)
-			).toFixed(2)} kr
-		</p>
+                <p class="text-sm">
+                        <strong>Fördelad summa:</strong>
+                        {installmentBreakdown.reduce((sum, i) => sum + Number(i.sum), 0).toFixed(2)} kr av
+                        {parseFloat(price || '0').toFixed(2)} kr
+                </p>
+                <p class="text-sm text-gray-600">
+                        <strong>Återstår:</strong>
+                        {(parseFloat(price || '0') - installmentBreakdown.reduce((sum, i) => sum + Number(i.sum), 0)).toFixed(
+                                2
+                        )} kr
+                </p>
 		<Button
 			iconLeft="Calculator"
 			text="Kontrollräkna faktureringstillfällen"

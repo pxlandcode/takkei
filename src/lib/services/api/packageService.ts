@@ -13,11 +13,11 @@ export async function getPackageById(id: number): Promise<Package> {
 }
 
 export async function createPackage(payload: NewPackagePayload): Promise<{ id: number }> {
-	const res = await fetch('/api/packages', {
-		method: 'POST',
-		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify(payload)
-	});
+        const res = await fetch('/api/packages', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+        });
 	if (!res.ok) throw new Error('Failed to create package');
 	return res.json();
 }
