@@ -102,7 +102,7 @@
 			header: `Maila ${target.firstname ?? ''} ${target.lastname ?? ''}`.trim(),
 			icon: 'Mail',
 			component: MailComponent,
-			width: '900px',
+			maxWidth: '900px',
 			props: {
 				prefilledRecipients: [target.email],
 				lockedFields: ['recipients'],

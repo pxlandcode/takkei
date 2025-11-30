@@ -312,7 +312,7 @@
 					header: `Maila avbokningsbekräftelse till ${recipients.join(', ')}`,
 					icon: 'Mail',
 					component: MailComponent,
-					width: '900px',
+					maxWidth: '900px',
 					props: {
 						prefilledRecipients: recipients,
 						subject: mailConfig.subject,
@@ -895,12 +895,20 @@
 						<div class="mt-1 text-base font-semibold text-gray-900">
 							{#if participantEntry?.id}
 								{#if showTraineeParticipant}
-									<a class="text-orange hover:underline" href={`/users/${participantEntry.id}`}>
+									<a
+										class="text-orange hover:underline"
+										href={`/users/${participantEntry.id}`}
+										on:click={onClose}
+									>
 										{participantEntry.firstname}
 										{participantEntry.lastname}
 									</a>
 								{:else}
-									<a class="text-orange hover:underline" href={`/clients/${participantEntry.id}`}>
+									<a
+										class="text-orange hover:underline"
+										href={`/clients/${participantEntry.id}`}
+										on:click={onClose}
+									>
 										{participantEntry.firstname}
 										{participantEntry.lastname}
 									</a>
@@ -935,6 +943,7 @@
 									<a
 										class="text-orange hover:underline"
 										href={`/users/${currentBooking.trainer?.id}`}
+										on:click={onClose}
 									>
 										{currentBooking.trainer?.firstname}
 										{currentBooking.trainer?.lastname}

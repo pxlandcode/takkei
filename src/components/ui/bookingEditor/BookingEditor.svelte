@@ -4,14 +4,14 @@
 
 	import BookingTraining from '../bookingPopup/bookingTraining/BookingTraining.svelte';
 	import BookingPractice from '../bookingPopup/bookingPractice/BookingPractice.svelte';
-import BookingMeeting from '../bookingPopup/bookingMeeting/BookingMeeting.svelte';
-import Button from '../../bits/button/Button.svelte';
-import MailComponent from '../mailComponent/MailComponent.svelte';
+	import BookingMeeting from '../bookingPopup/bookingMeeting/BookingMeeting.svelte';
+	import Button from '../../bits/button/Button.svelte';
+	import MailComponent from '../mailComponent/MailComponent.svelte';
 
 	import type { FullBooking } from '$lib/types/calendarTypes';
 	import { locations, fetchLocations } from '$lib/stores/locationsStore';
 	import { users, fetchUsers } from '$lib/stores/usersStore';
-import { clients, fetchClients, getClientEmails } from '$lib/stores/clientsStore';
+	import { clients, fetchClients, getClientEmails } from '$lib/stores/clientsStore';
 	import {
 		bookingContents as bookingContentsStore,
 		fetchBookingContents
@@ -19,21 +19,21 @@ import { clients, fetchClients, getClientEmails } from '$lib/stores/clientsStore
 	import { user } from '$lib/stores/userStore';
 	import { calendarStore } from '$lib/stores/calendarStore';
 	import { loadingStore } from '$lib/stores/loading';
-import { openPopup } from '$lib/stores/popupStore';
+	import { openPopup } from '$lib/stores/popupStore';
 	import {
 		handleBookingEmail,
 		updateTrainingBooking,
 		updateMeetingOrPersonalBooking
 	} from '$lib/helpers/bookingHelpers/bookingHelpers';
 	import { capitalizeFirstLetter } from '$lib/helpers/generic/genericHelpers';
-import { addToast } from '$lib/stores/toastStore';
-import { AppToastType } from '$lib/types/toastTypes';
-import { hasRole } from '$lib/helpers/userHelpers/roleHelper';
-import type { User } from '$lib/types/userTypes';
+	import { addToast } from '$lib/stores/toastStore';
+	import { AppToastType } from '$lib/types/toastTypes';
+	import { hasRole } from '$lib/helpers/userHelpers/roleHelper';
+	import type { User } from '$lib/types/userTypes';
 
-declare function structuredClone<T>(value: T): T;
+	declare function structuredClone<T>(value: T): T;
 
-type BookingComponentType =
+	type BookingComponentType =
 		| 'training'
 		| 'trial'
 		| 'practice'
@@ -55,17 +55,17 @@ type BookingComponentType =
 	let selectedIsUnavailable = false;
 	let initialized = false;
 
-let typeOptions: BookingTypeOption[] = [];
-let currentUser = get(user);
+	let typeOptions: BookingTypeOption[] = [];
+	let currentUser = get(user);
 
-let allUsers: User[] = [];
-let educatorIds = new Set<number>();
-let userOptions: { label: string; value: number }[] = [];
-let meetingUserOptions: { name: string; value: number }[] = [];
-let educationTrainerOptions: { label: string; value: number }[] = [];
-let locationOptions: { label: string; value: number }[] = [];
-let isAdminUser = false;
-let isEducatorUser = false;
+	let allUsers: User[] = [];
+	let educatorIds = new Set<number>();
+	let userOptions: { label: string; value: number }[] = [];
+	let meetingUserOptions: { name: string; value: number }[] = [];
+	let educationTrainerOptions: { label: string; value: number }[] = [];
+	let locationOptions: { label: string; value: number }[] = [];
+	let isAdminUser = false;
+	let isEducatorUser = false;
 
 	const componentLabels: Record<BookingComponentType, string> = {
 		training: 'Träning',
@@ -97,9 +97,9 @@ let isEducatorUser = false;
 	$: typeOptions = bookingContentOptions.length
 		? bookingContentOptions
 		: ($bookingContentsStore || []).map((content) => ({
-			value: content.id,
-			label: capitalizeFirstLetter(content.kind)
-		}));
+				value: content.id,
+				label: capitalizeFirstLetter(content.kind)
+			}));
 
 	$: currentUser = $user;
 	$: isAdminUser = hasRole('Administrator', currentUser);
@@ -107,12 +107,15 @@ let isEducatorUser = false;
 
 	$: allUsers = ($users as User[] | undefined) ?? [];
 	$: userOptions = allUsers.map((u) => ({ label: `${u.firstname} ${u.lastname}`, value: u.id }));
-	$: meetingUserOptions = allUsers.map((u) => ({ name: `${u.firstname} ${u.lastname}`, value: u.id }));
+	$: meetingUserOptions = allUsers.map((u) => ({
+		name: `${u.firstname} ${u.lastname}`,
+		value: u.id
+	}));
 	$: educatorIds = new Set(
 		allUsers.filter((candidate) => hasRole('Educator', candidate)).map((candidate) => candidate.id)
 	);
-$: educationTrainerOptions = userOptions.filter((option) => educatorIds.has(option.value));
-$: locationOptions = ($locations || []).map((loc) => ({ label: loc.name, value: loc.id }));
+	$: educationTrainerOptions = userOptions.filter((option) => educatorIds.has(option.value));
+	$: locationOptions = ($locations || []).map((loc) => ({ label: loc.name, value: loc.id }));
 
 	$: initializeIfReady();
 
@@ -165,151 +168,151 @@ $: locationOptions = ($locations || []).map((loc) => ({ label: loc.name, value: 
 		return `${hours}:${minutes}`;
 	}
 
-function deriveEndTime(start: Date, endTimeString?: string | null): string {
-	if (endTimeString) {
-		const parsed = new Date(endTimeString);
-		if (!Number.isNaN(parsed.getTime())) {
-			return toTimeInputValue(parsed);
+	function deriveEndTime(start: Date, endTimeString?: string | null): string {
+		if (endTimeString) {
+			const parsed = new Date(endTimeString);
+			if (!Number.isNaN(parsed.getTime())) {
+				return toTimeInputValue(parsed);
+			}
 		}
+
+		const fallback = new Date(start.getTime() + 60 * 60 * 1000);
+		return toTimeInputValue(fallback);
 	}
 
-	const fallback = new Date(start.getTime() + 60 * 60 * 1000);
-	return toTimeInputValue(fallback);
-}
-
-function cloneFullBooking(source: FullBooking): FullBooking {
-	return typeof structuredClone === 'function'
-		? structuredClone(source)
-		: JSON.parse(JSON.stringify(source));
-}
-
-function buildUpdatedFullBooking(
-	payload: any,
-	type: BookingComponentType,
-	apiRecord?: any
-): FullBooking {
-	const cloned = cloneFullBooking(booking);
-
-	const startISO = apiRecord?.start_time ?? `${payload.date}T${payload.time}:00`;
-	const startDate = new Date(startISO);
-	cloned.booking.startTime = startDate.toISOString();
-	cloned.booking.updatedAt = apiRecord?.updated_at
-		? new Date(apiRecord.updated_at).toISOString()
-		: new Date().toISOString();
-
-	const endISO = apiRecord?.end_time ?? (payload.endTime ? `${payload.date}T${payload.endTime}:00` : null);
-	cloned.booking.endTime = endISO ? new Date(endISO).toISOString() : null;
-	cloned.booking.status = payload.status ?? cloned.booking.status;
-	cloned.booking.userId = payload.user_id ?? cloned.booking.userId ?? null;
-
-	if (standardTypes.has(type)) {
-		cloned.booking.tryOut = !!payload.isTrial;
-		cloned.booking.internalEducation = !!payload.internalEducation;
-		if (!cloned.additionalInfo) {
-			cloned.additionalInfo = {
-				packageId: null,
-				education: false,
-				internal: false,
-				bookingContent: { id: null, kind: '' },
-				addedToPackageBy: null,
-				addedToPackageDate: null,
-				actualCancelTime: null
-			};
-		}
-		cloned.additionalInfo.education = !!payload.education;
-		cloned.additionalInfo.internal = !!payload.internal;
-		if (!cloned.additionalInfo.bookingContent) {
-			cloned.additionalInfo.bookingContent = { id: null, kind: '' };
-		}
-		if (payload.bookingType) {
-			cloned.additionalInfo.bookingContent.id = payload.bookingType.value ?? null;
-			const matchedOption = typeOptions.find((opt) => opt.value === payload.bookingType.value);
-			cloned.additionalInfo.bookingContent.kind =
-				matchedOption?.label ?? payload.bookingType.label ?? cloned.additionalInfo.bookingContent.kind;
-		}
-
-		const allUsers = get(users) ?? [];
-		const trainer = allUsers.find((u) => u.id === payload.trainerId);
-		cloned.trainer = trainer
-			? { id: trainer.id, firstname: trainer.firstname, lastname: trainer.lastname }
-			: null;
-
-		const clientList = get(clients) ?? [];
-		const client = clientList.find((c) => c.id === payload.clientId);
-		cloned.client = client
-			? { id: client.id ?? null, firstname: client.firstname, lastname: client.lastname }
-			: null;
-
-		const locationList = get(locations) ?? [];
-		const loc = locationList.find((l) => l.id === payload.locationId);
-		cloned.location = loc
-			? { id: loc.id, name: loc.name, color: loc.color }
-			: null;
-
-		const room = loc?.rooms?.find((r) => r.id === payload.roomId);
-		cloned.room = room ? { id: room.id, name: room.name } : null;
-	} else {
-		const attendeeIds = payload.user_ids ?? payload.attendees ?? [];
-		if (!cloned.personalBooking) {
-			const original = booking.personalBooking;
-			cloned.personalBooking = {
-				name: original?.name ?? '',
-				text: original?.text ?? '',
-				bookedById: original?.bookedById ?? null,
-				userIds: [],
-				kind: original?.kind ?? (type === 'personal' ? 'Private' : 'Corporate')
-			};
-		}
-		cloned.personalBooking.name = payload.name ?? cloned.personalBooking.name ?? '';
-		cloned.personalBooking.text = payload.text ?? cloned.personalBooking.text ?? '';
-		cloned.personalBooking.userIds = attendeeIds;
-		cloned.personalBooking.kind = payload.kind ?? cloned.personalBooking.kind ?? 'Corporate';
-		cloned.booking.userId = payload.user_id ?? (attendeeIds.length ? attendeeIds[0] : null);
-
-		const locationList = get(locations) ?? [];
-		const loc = locationList.find((l) => l.id === payload.locationId);
-		cloned.location = loc
-			? { id: loc.id, name: loc.name, color: loc.color }
-			: null;
-
-		cloned.trainer = null;
-		cloned.client = null;
-		cloned.room = null;
+	function cloneFullBooking(source: FullBooking): FullBooking {
+		return typeof structuredClone === 'function'
+			? structuredClone(source)
+			: JSON.parse(JSON.stringify(source));
 	}
 
-	return cloned;
-}
+	function buildUpdatedFullBooking(
+		payload: any,
+		type: BookingComponentType,
+		apiRecord?: any
+	): FullBooking {
+		const cloned = cloneFullBooking(booking);
+
+		const startISO = apiRecord?.start_time ?? `${payload.date}T${payload.time}:00`;
+		const startDate = new Date(startISO);
+		cloned.booking.startTime = startDate.toISOString();
+		cloned.booking.updatedAt = apiRecord?.updated_at
+			? new Date(apiRecord.updated_at).toISOString()
+			: new Date().toISOString();
+
+		const endISO =
+			apiRecord?.end_time ?? (payload.endTime ? `${payload.date}T${payload.endTime}:00` : null);
+		cloned.booking.endTime = endISO ? new Date(endISO).toISOString() : null;
+		cloned.booking.status = payload.status ?? cloned.booking.status;
+		cloned.booking.userId = payload.user_id ?? cloned.booking.userId ?? null;
+
+		if (standardTypes.has(type)) {
+			cloned.booking.tryOut = !!payload.isTrial;
+			cloned.booking.internalEducation = !!payload.internalEducation;
+			if (!cloned.additionalInfo) {
+				cloned.additionalInfo = {
+					packageId: null,
+					education: false,
+					internal: false,
+					bookingContent: { id: null, kind: '' },
+					addedToPackageBy: null,
+					addedToPackageDate: null,
+					actualCancelTime: null
+				};
+			}
+			cloned.additionalInfo.education = !!payload.education;
+			cloned.additionalInfo.internal = !!payload.internal;
+			if (!cloned.additionalInfo.bookingContent) {
+				cloned.additionalInfo.bookingContent = { id: null, kind: '' };
+			}
+			if (payload.bookingType) {
+				cloned.additionalInfo.bookingContent.id = payload.bookingType.value ?? null;
+				const matchedOption = typeOptions.find((opt) => opt.value === payload.bookingType.value);
+				cloned.additionalInfo.bookingContent.kind =
+					matchedOption?.label ??
+					payload.bookingType.label ??
+					cloned.additionalInfo.bookingContent.kind;
+			}
+
+			const allUsers = get(users) ?? [];
+			const trainer = allUsers.find((u) => u.id === payload.trainerId);
+			cloned.trainer = trainer
+				? { id: trainer.id, firstname: trainer.firstname, lastname: trainer.lastname }
+				: null;
+
+			const clientList = get(clients) ?? [];
+			const client = clientList.find((c) => c.id === payload.clientId);
+			cloned.client = client
+				? { id: client.id ?? null, firstname: client.firstname, lastname: client.lastname }
+				: null;
+
+			const locationList = get(locations) ?? [];
+			const loc = locationList.find((l) => l.id === payload.locationId);
+			cloned.location = loc ? { id: loc.id, name: loc.name, color: loc.color } : null;
+
+			const room = loc?.rooms?.find((r) => r.id === payload.roomId);
+			cloned.room = room ? { id: room.id, name: room.name } : null;
+		} else {
+			const attendeeIds = payload.user_ids ?? payload.attendees ?? [];
+			if (!cloned.personalBooking) {
+				const original = booking.personalBooking;
+				cloned.personalBooking = {
+					name: original?.name ?? '',
+					text: original?.text ?? '',
+					bookedById: original?.bookedById ?? null,
+					userIds: [],
+					kind: original?.kind ?? (type === 'personal' ? 'Private' : 'Corporate')
+				};
+			}
+			cloned.personalBooking.name = payload.name ?? cloned.personalBooking.name ?? '';
+			cloned.personalBooking.text = payload.text ?? cloned.personalBooking.text ?? '';
+			cloned.personalBooking.userIds = attendeeIds;
+			cloned.personalBooking.kind = payload.kind ?? cloned.personalBooking.kind ?? 'Corporate';
+			cloned.booking.userId = payload.user_id ?? (attendeeIds.length ? attendeeIds[0] : null);
+
+			const locationList = get(locations) ?? [];
+			const loc = locationList.find((l) => l.id === payload.locationId);
+			cloned.location = loc ? { id: loc.id, name: loc.name, color: loc.color } : null;
+
+			cloned.trainer = null;
+			cloned.client = null;
+			cloned.room = null;
+		}
+
+		return cloned;
+	}
 
 	function buildEditableBooking(full: FullBooking, type: BookingComponentType) {
-	const start = new Date(full.booking.startTime);
-	const date = toDateInputValue(start);
-	const time = toTimeInputValue(start);
-	const originalEndTime = full.booking.endTime ?? null;
-	const endTime = originalEndTime
-		? toTimeInputValue(new Date(originalEndTime))
-		: deriveEndTime(start, null);
+		const start = new Date(full.booking.startTime);
+		const date = toDateInputValue(start);
+		const time = toTimeInputValue(start);
+		const originalEndTime = full.booking.endTime ?? null;
+		const endTime = originalEndTime
+			? toTimeInputValue(new Date(originalEndTime))
+			: deriveEndTime(start, null);
 
-	const base = {
-		id: full.booking.id,
-		date,
-		time,
-		endTime,
-		__originalEndTime: originalEndTime,
-		status: full.booking.status,
-		repeat: false,
-		repeatWeeks: 4,
-		emailBehavior: { ...EMAIL_DEFAULT }
-	};
+		const base = {
+			id: full.booking.id,
+			date,
+			time,
+			endTime,
+			__originalEndTime: originalEndTime,
+			status: full.booking.status,
+			repeat: false,
+			repeatWeeks: 4,
+			emailBehavior: { ...EMAIL_DEFAULT }
+		};
 
 		if (standardTypes.has(type)) {
 			const bookingContentId = full.additionalInfo?.bookingContent?.id ?? null;
 			const bookingContentLabel = full.additionalInfo?.bookingContent?.kind ?? 'Okänd';
-			const bookingTypeOption = bookingContentId !== null
-				? typeOptions.find((opt) => opt.value === bookingContentId) ?? {
-					value: bookingContentId,
-					label: capitalizeFirstLetter(bookingContentLabel)
-				}
-				: null;
+			const bookingTypeOption =
+				bookingContentId !== null
+					? (typeOptions.find((opt) => opt.value === bookingContentId) ?? {
+							value: bookingContentId,
+							label: capitalizeFirstLetter(bookingContentLabel)
+						})
+					: null;
 
 			return {
 				...base,
@@ -422,26 +425,35 @@ function buildUpdatedFullBooking(
 
 	function preparePayload(): any {
 		const payload = JSON.parse(JSON.stringify(editableBooking));
-	payload.user_id = payload.user_id !== null && payload.user_id !== undefined ? Number(payload.user_id) : null;
-	payload.roomId = payload.roomId !== null && payload.roomId !== undefined ? Number(payload.roomId) : null;
-	payload.trainerId = payload.trainerId !== null && payload.trainerId !== undefined ? Number(payload.trainerId) : null;
-	payload.clientId = payload.clientId !== null && payload.clientId !== undefined ? Number(payload.clientId) : null;
-	payload.locationId = payload.locationId !== null && payload.locationId !== undefined ? Number(payload.locationId) : null;
-	if (payload.bookingType && payload.bookingType.value !== undefined) {
-		const numericValue = Number(payload.bookingType.value);
-		payload.bookingType.value = Number.isNaN(numericValue)
-			? payload.bookingType.value
-			: numericValue;
-	}
-	payload.emailBehavior = editableBooking.emailBehavior ?? { ...EMAIL_DEFAULT };
+		payload.user_id =
+			payload.user_id !== null && payload.user_id !== undefined ? Number(payload.user_id) : null;
+		payload.roomId =
+			payload.roomId !== null && payload.roomId !== undefined ? Number(payload.roomId) : null;
+		payload.trainerId =
+			payload.trainerId !== null && payload.trainerId !== undefined
+				? Number(payload.trainerId)
+				: null;
+		payload.clientId =
+			payload.clientId !== null && payload.clientId !== undefined ? Number(payload.clientId) : null;
+		payload.locationId =
+			payload.locationId !== null && payload.locationId !== undefined
+				? Number(payload.locationId)
+				: null;
+		if (payload.bookingType && payload.bookingType.value !== undefined) {
+			const numericValue = Number(payload.bookingType.value);
+			payload.bookingType.value = Number.isNaN(numericValue)
+				? payload.bookingType.value
+				: numericValue;
+		}
+		payload.emailBehavior = editableBooking.emailBehavior ?? { ...EMAIL_DEFAULT };
 
-	if (standardTypes.has(selectedBookingComponent) && !payload.__originalEndTime) {
-		payload.endTime = null;
-	}
+		if (standardTypes.has(selectedBookingComponent) && !payload.__originalEndTime) {
+			payload.endTime = null;
+		}
 
-	delete payload.__originalEndTime;
-	return payload;
-}
+		delete payload.__originalEndTime;
+		return payload;
+	}
 
 	async function maybeSendEmail(type: BookingComponentType, payload: any) {
 		if (!standardTypes.has(type)) return;
@@ -481,17 +493,17 @@ function buildUpdatedFullBooking(
 			.map((b) => `${b.date} kl. ${b.time}${b.locationName ? ` på ${b.locationName}` : ''}`)
 			.join('<br>');
 
-	openPopup({
-		header: `Maila bokningsuppdatering till ${recipient}`,
-		icon: 'Mail',
-		component: MailComponent,
-		width: '900px',
-		props: {
-			prefilledRecipients: [recipient],
-			subject: 'Bokningsuppdatering',
-			header: 'Din bokning har uppdaterats',
-			subheader: 'Nya detaljer för din bokning',
-			body: `
+		openPopup({
+			header: `Maila bokningsuppdatering till ${recipient}`,
+			icon: 'Mail',
+			component: MailComponent,
+			maxWidth: '900px',
+			props: {
+				prefilledRecipients: [recipient],
+				subject: 'Bokningsuppdatering',
+				header: 'Din bokning har uppdaterats',
+				subheader: 'Nya detaljer för din bokning',
+				body: `
 			Hej!<br><br>
 			Följande bokning har uppdaterats:<br>
 			${locationsSummary}<br><br>
@@ -500,11 +512,11 @@ function buildUpdatedFullBooking(
 			${currentUser?.firstname ?? ''}<br>
 			Takkei Trainingsystems
 		`,
-			lockedFields: ['recipients'],
-			autoFetchUsersAndClients: false
-		}
-	});
-}
+				lockedFields: ['recipients'],
+				autoFetchUsersAndClients: false
+			}
+		});
+	}
 
 	async function handleUpdate() {
 		if (!editableBooking) return;
@@ -526,7 +538,11 @@ function buildUpdatedFullBooking(
 				const result = await updateTrainingBooking(payload);
 				success = result.success;
 				if (success) {
-					updatedFullBooking = buildUpdatedFullBooking(payload, selectedBookingComponent, result.booking);
+					updatedFullBooking = buildUpdatedFullBooking(
+						payload,
+						selectedBookingComponent,
+						result.booking
+					);
 				}
 			} else {
 				const result = await updateMeetingOrPersonalBooking(
@@ -536,7 +552,11 @@ function buildUpdatedFullBooking(
 				);
 				success = result.success;
 				if (success) {
-					updatedFullBooking = buildUpdatedFullBooking(payload, selectedBookingComponent, result.booking);
+					updatedFullBooking = buildUpdatedFullBooking(
+						payload,
+						selectedBookingComponent,
+						result.booking
+					);
 				}
 			}
 
@@ -563,10 +583,14 @@ function buildUpdatedFullBooking(
 	}
 </script>
 
-<div class="flex w-[600px] flex-col gap-6 rounded-sm border border-dashed border-gray-bright bg-gray-bright/10 p-6">
+<div
+	class="border-gray-bright bg-gray-bright/10 flex w-[600px] flex-col gap-6 rounded-sm border border-dashed p-6"
+>
 	<div class="flex items-center justify-between">
 		<h2 class="text-xl font-semibold">Redigera bokning</h2>
-		<span class="rounded-sm bg-gray px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white">
+		<span
+			class="bg-gray rounded-sm px-3 py-1 text-xs font-semibold tracking-wide text-white uppercase"
+		>
 			{componentLabels[selectedBookingComponent]}
 		</span>
 	</div>
@@ -583,20 +607,20 @@ function buildUpdatedFullBooking(
 				isEditing
 				on:unavailabilityChange={handleUnavailabilityChange}
 			/>
-			{:else if selectedBookingComponent === 'practice' || selectedBookingComponent === 'education'}
-				<BookingPractice
-					bind:bookingObject={editableBooking}
-					bind:repeatedBookings
-					bind:selectedIsUnavailable
-					kind={selectedBookingComponent === 'education' ? 'education' : 'practice'}
-					locations={locationOptions}
-					users={userOptions}
-					trainerOptions={
-						selectedBookingComponent === 'education' ? educationTrainerOptions : userOptions
-					}
-					isEditing
-					on:unavailabilityChange={handleUnavailabilityChange}
-				/>
+		{:else if selectedBookingComponent === 'practice' || selectedBookingComponent === 'education'}
+			<BookingPractice
+				bind:bookingObject={editableBooking}
+				bind:repeatedBookings
+				bind:selectedIsUnavailable
+				kind={selectedBookingComponent === 'education' ? 'education' : 'practice'}
+				locations={locationOptions}
+				users={userOptions}
+				trainerOptions={selectedBookingComponent === 'education'
+					? educationTrainerOptions
+					: userOptions}
+				isEditing
+				on:unavailabilityChange={handleUnavailabilityChange}
+			/>
 		{:else}
 			<BookingMeeting
 				bind:bookingObject={editableBooking}
@@ -610,7 +634,12 @@ function buildUpdatedFullBooking(
 		{/if}
 
 		<div class="mt-4 flex justify-end gap-3">
-			<Button text="Avbryt" variant="secondary" on:click={closeEditor} disabled={$loadingStore.isLoading} />
+			<Button
+				text="Avbryt"
+				variant="secondary"
+				on:click={closeEditor}
+				disabled={$loadingStore.isLoading}
+			/>
 
 			{#if selectedIsUnavailable}
 				<Button
@@ -638,6 +667,6 @@ function buildUpdatedFullBooking(
 			{/if}
 		</div>
 	{:else}
-		<p class="text-sm text-gray">Laddar bokningsinformation...</p>
+		<p class="text-gray text-sm">Laddar bokningsinformation...</p>
 	{/if}
 </div>

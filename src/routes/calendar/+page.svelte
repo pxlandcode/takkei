@@ -12,8 +12,9 @@
 	import { openPopup } from '$lib/stores/popupStore';
 	import { addToast } from '$lib/stores/toastStore';
 	import { AppToastType } from '$lib/types/toastTypes';
-import { user } from '$lib/stores/userStore';
-import type { SelectedSlot } from '$lib/stores/selectedSlotStore';
+	import { user } from '$lib/stores/userStore';
+	import type { SelectedSlot } from '$lib/stores/selectedSlotStore';
+	import { headerState } from '$lib/stores/headerState.svelte';
 
 	export let data;
 
@@ -95,6 +96,9 @@ import type { SelectedSlot } from '$lib/stores/selectedSlotStore';
 	}
 
 	onMount(() => {
+		headerState.title = 'Kalender';
+		headerState.icon = 'Calendar';
+
 		if (typeof window === 'undefined') return;
 		const updateIsMobile = () => {
 			isMobile = window.innerWidth < 768;
@@ -365,7 +369,7 @@ import type { SelectedSlot } from '$lib/stores/selectedSlotStore';
 		if (!nextResumeSlot && (preselectedLocationId != null || preselectedTrainerId != null)) {
 			const derivedDate = initialStartTime
 				? formatLocalDate(initialStartTime)
-				: filters.date ?? null;
+				: (filters.date ?? null);
 			const derivedTime = initialStartTime ? formatLocalTime(initialStartTime) : null;
 
 			nextResumeSlot = {

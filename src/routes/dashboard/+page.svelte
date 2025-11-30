@@ -3,7 +3,15 @@
 	import { sendMail } from '$lib/services/mail/mailClientService';
 	import { user } from '$lib/stores/userStore';
 
+	import { onMount } from 'svelte';
+	import { headerState } from '$lib/stores/headerState.svelte';
+
 	$: currentUser = $user;
+
+	onMount(() => {
+		headerState.title = 'Dashboard';
+		headerState.icon = 'Home';
+	});
 
 	async function handleLogout() {
 		await fetch('/api/logout', { method: 'POST' });

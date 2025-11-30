@@ -14,6 +14,7 @@
 	import type { CalendarFilters } from '$lib/stores/calendarStore';
 	import { getCalendarUrl } from '$lib/helpers/calendarHelpers/calendarNavigation';
 	import { openPopup } from '$lib/stores/popupStore';
+	import { headerState } from '$lib/stores/headerState.svelte';
 
 	// Headers Configuration with isSearchable
 	const headers = [
@@ -88,7 +89,7 @@
 			header: `Maila ${email}`,
 			icon: 'Mail',
 			component: MailComponent,
-			width: '900px',
+			maxWidth: '900px',
 			props: {
 				prefilledRecipients: [email],
 				lockedFields: ['recipients'],
@@ -104,6 +105,8 @@
 
 	// Fetch Users on Mount
 	onMount(async () => {
+		headerState.title = 'Tränare';
+		headerState.icon = 'Person';
 		await fetchUsers();
 		users.subscribe((userList) => {
 			if (!userList || userList.length === 0) return;
@@ -168,7 +171,7 @@
 <div class="custom-scrollbar m-4 h-full overflow-x-scroll">
 	<!-- Page Title -->
 
-	<div class=" flex items-center gap-2">
+	<div class="hidden items-center gap-2 md:flex">
 		<div class="bg-text flex h-7 w-7 items-center justify-center rounded-full text-white">
 			<Icon icon="Person" size="14px" />
 		</div>

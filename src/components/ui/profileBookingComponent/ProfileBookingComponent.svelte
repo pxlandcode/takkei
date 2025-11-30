@@ -204,7 +204,7 @@
 			header: `Maila bokningsbekräftelse till ${clientEmail}`,
 			icon: 'Mail',
 			component: MailComponent,
-			width: '900px',
+			maxWidth: '900px',
 			props: {
 				prefilledRecipients: [clientEmail],
 				subject: 'Bokningsbekräftelse',

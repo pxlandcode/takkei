@@ -60,7 +60,7 @@
 			header: fullName ? `Maila ${fullName}` : `Maila ${email}`,
 			icon: 'Mail',
 			component: MailComponent,
-			width: '900px',
+			maxWidth: '900px',
 			props: {
 				prefilledRecipients: [email],
 				lockedFields: ['recipients'],
@@ -117,73 +117,73 @@
 		</div>
 
 		{#if !isEditing}
-				<div class="grid gap-6 md:grid-cols-2">
+			<div class="grid gap-6 md:grid-cols-2">
+				<dl class="space-y-4">
+					{#each contactLeftFields as field (field.label)}
+						<div>
+							<dt class="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+								{field.label}
+							</dt>
+							{#if field.action && field.value}
+								<dd>
+									<button
+										type="button"
+										class="text-primary text-base font-medium hover:underline"
+										on:click={field.action}
+									>
+										{renderFieldValue(field.value)}
+									</button>
+								</dd>
+							{:else if field.href && field.value}
+								<dd>
+									<a class="text-primary text-base font-medium hover:underline" href={field.href}>
+										{renderFieldValue(field.value)}
+									</a>
+								</dd>
+							{:else}
+								<dd class="text-base font-medium text-gray-800">
+									{renderFieldValue(field.value)}
+								</dd>
+							{/if}
+						</div>
+					{/each}
+				</dl>
+				<div class="space-y-6">
 					<dl class="space-y-4">
-						{#each contactLeftFields as field (field.label)}
+						{#each contactRightFields as field (field.label)}
 							<div>
-								<dt class="text-xs font-semibold uppercase tracking-wide text-gray-500">
+								<dt class="text-xs font-semibold tracking-wide text-gray-500 uppercase">
 									{field.label}
 								</dt>
-								{#if field.action && field.value}
-									<dd>
-										<button
-											type="button"
-											class="text-base font-medium text-primary hover:underline"
-											on:click={field.action}
-										>
-											{renderFieldValue(field.value)}
-										</button>
-									</dd>
-								{:else if field.href && field.value}
-									<dd>
-										<a class="text-base font-medium text-primary hover:underline" href={field.href}>
-											{renderFieldValue(field.value)}
-										</a>
-									</dd>
-								{:else}
-									<dd class="text-base font-medium text-gray-800">
-										{renderFieldValue(field.value)}
-									</dd>
-								{/if}
+								<dd class="text-base font-medium text-gray-800">
+									{renderFieldValue(field.value)}
+								</dd>
 							</div>
 						{/each}
 					</dl>
-					<div class="space-y-6">
-						<dl class="space-y-4">
-							{#each contactRightFields as field (field.label)}
-								<div>
-									<dt class="text-xs font-semibold uppercase tracking-wide text-gray-500">
-										{field.label}
-									</dt>
-									<dd class="text-base font-medium text-gray-800">
-										{renderFieldValue(field.value)}
-									</dd>
+					<div>
+						<p class="text-xs font-semibold tracking-wide text-gray-400 uppercase">
+							Roller & behörigheter
+						</p>
+						<div class="mt-2 rounded-sm border border-gray-100 bg-gray-50 p-4">
+							{#if hasRoles}
+								<div class="flex flex-wrap gap-2">
+									{#each roles as role (role.id ?? role.name)}
+										<span class="rounded-full bg-white px-3 py-1 text-sm font-medium text-gray-700">
+											{roleLabel(role?.name) || role?.name || 'Okänd roll'}
+										</span>
+									{/each}
 								</div>
-							{/each}
-						</dl>
-						<div>
-							<p class="text-xs font-semibold uppercase tracking-wide text-gray-400">
-								Roller & behörigheter
-							</p>
-							<div class="mt-2 rounded-sm border border-gray-100 bg-gray-50 p-4">
-								{#if hasRoles}
-									<div class="flex flex-wrap gap-2">
-										{#each roles as role (role.id ?? role.name)}
-											<span class="rounded-full bg-white px-3 py-1 text-sm font-medium text-gray-700">
-												{roleLabel(role?.name) || role?.name || 'Okänd roll'}
-											</span>
-										{/each}
-									</div>
-								{:else}
-									<p class="text-sm text-gray-500">Inga roller tilldelade.</p>
-								{/if}
-							</div>
+							{:else}
+								<p class="text-sm text-gray-500">Inga roller tilldelade.</p>
+							{/if}
 						</div>
 					</div>
 				</div>
-			{:else}
-				<ProfileEdit {trainer} onSave={handleProfileSaved} />
-			{/if}
+			</div>
+		{:else}
+			<ProfileEdit {trainer} onSave={handleProfileSaved} />
+		{/if}
 	</div>
 
 	<BookingGrid trainerId={trainer.id} />

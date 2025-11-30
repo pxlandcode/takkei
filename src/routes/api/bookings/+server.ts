@@ -73,7 +73,11 @@ export async function GET({ url }) {
 	// Individual filter conditions pushed to the OR group
 	if (hasTrainer) {
 		params.push(trainerIds.map(Number));
-		orConditions.push(`bookings.trainer_id = ANY($${params.length}::int[])`);
+		// Include bookings where the user is the trainer OR the trainee (user_id)
+		// for praktiktimme (internal_education) and utbildning (education) bookings
+		orConditions.push(
+			`(bookings.trainer_id = ANY($${params.length}::int[]) OR (bookings.user_id = ANY($${params.length}::int[]) AND (bookings.internal_education = true OR bookings.education = true)))`
+		);
 	}
 	if (hasClient) {
 		params.push(Number(clientId));

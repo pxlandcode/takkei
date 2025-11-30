@@ -14,6 +14,7 @@
 	import { calendarStore } from '$lib/stores/calendarStore';
 	import type { CalendarFilters } from '$lib/stores/calendarStore';
 	import { getCalendarUrl } from '$lib/helpers/calendarHelpers/calendarNavigation';
+	import { headerState } from '$lib/stores/headerState.svelte';
 
 	let trainerId: number;
 	let profile = null;
@@ -80,6 +81,10 @@
 			profile = storeData;
 			trainer = profile.user;
 			isLoading = false;
+			if (trainer) {
+				headerState.title = `${trainer.firstname} ${trainer.lastname}`;
+				headerState.icon = 'Person';
+			}
 		}
 	}
 
@@ -101,7 +106,7 @@
 			header: `Maila ${trainer.firstname ?? ''} ${trainer.lastname ?? ''}`.trim(),
 			icon: 'Mail',
 			component: MailComponent,
-			width: '900px',
+			maxWidth: '900px',
 			props: {
 				prefilledRecipients: [trainer.email],
 				lockedFields: ['recipients'],
@@ -119,7 +124,7 @@
 </script>
 
 <!-- Page Header -->
-<div class="m-4 ml-3 flex shrink-0 flex-wrap items-center justify-between gap-2">
+<div class="m-4 ml-3 hidden shrink-0 flex-wrap items-center justify-between gap-2 md:flex">
 	<div class="flex flex-row items-center gap-2">
 		<div class="bg-text flex h-7 w-7 items-center justify-center rounded-full text-white">
 			<Icon icon="Person" size="18px" />
