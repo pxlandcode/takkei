@@ -20,6 +20,89 @@ export type CalendarFilters = {
 	personalBookings?: boolean;
 };
 
+const FILTER_COOKIE_NAME = 'calendarFilters';
+const FILTER_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 30; // 30 days
+const isBrowser = typeof window !== 'undefined';
+
+function createDefaultFilters(): CalendarFilters {
+	return {
+		from: null,
+		to: null,
+		date: new Date().toISOString().slice(0, 10),
+		roomId: null,
+		locationIds: [],
+		trainerIds: null,
+		clientIds: null,
+		userIds: null,
+		personalBookings: false
+	};
+}
+
+function sanitizeFiltersFromCookie(data: unknown): CalendarFilters | null {
+	if (!data || typeof data !== 'object') return null;
+	const obj = data as Record<string, unknown>;
+	const base = createDefaultFilters();
+	const sanitizeNumberArray = (value: unknown): number[] =>
+		Array.isArray(value) ? value.filter((id): id is number => typeof id === 'number') : [];
+	const sanitizeNullableNumberArray = (value: unknown): number[] | null | undefined => {
+		if (value === null) return null;
+		return Array.isArray(value)
+			? value.filter((id): id is number => typeof id === 'number')
+			: undefined;
+	};
+
+	const trainerIds =
+		sanitizeNullableNumberArray(obj.trainerIds) ?? base.trainerIds ?? null;
+	const clientIds =
+		sanitizeNullableNumberArray(obj.clientIds) ?? base.clientIds ?? null;
+	const userIds = sanitizeNullableNumberArray(obj.userIds) ?? base.userIds ?? null;
+
+	return {
+		...base,
+		from: typeof obj.from === 'string' || obj.from === null ? (obj.from as string | null) : base.from,
+		to: typeof obj.to === 'string' || obj.to === null ? (obj.to as string | null) : base.to,
+		date: typeof obj.date === 'string' ? obj.date : base.date,
+		roomId:
+			typeof obj.roomId === 'number' || obj.roomId === null ? (obj.roomId as number | null) : base.roomId,
+		locationIds: Array.isArray(obj.locationIds)
+			? sanitizeNumberArray(obj.locationIds)
+			: base.locationIds,
+		trainerIds,
+		clientIds,
+		userIds,
+		personalBookings:
+			typeof obj.personalBookings === 'boolean' ? obj.personalBookings : base.personalBookings
+	};
+}
+
+function loadFiltersFromCookie(): CalendarFilters | null {
+	if (!isBrowser) return null;
+	const rawCookie = document.cookie
+		.split(';')
+		.map((cookie) => cookie.trim())
+		.find((cookie) => cookie.startsWith(`${FILTER_COOKIE_NAME}=`));
+
+	if (!rawCookie) return null;
+
+	try {
+		const value = decodeURIComponent(rawCookie.slice(FILTER_COOKIE_NAME.length + 1));
+		const parsed = JSON.parse(value);
+		return sanitizeFiltersFromCookie(parsed);
+	} catch (err) {
+		console.error('❌ Failed to parse calendar filters from cookie:', err);
+		return null;
+	}
+}
+
+function persistFiltersToCookie(filters: CalendarFilters): void {
+	if (!isBrowser) return;
+	try {
+		const encoded = encodeURIComponent(JSON.stringify(filters));
+		document.cookie = `${FILTER_COOKIE_NAME}=${encoded};path=/;max-age=${FILTER_COOKIE_MAX_AGE_SECONDS};SameSite=Lax`;
+	} catch (err) {
+		console.error('❌ Failed to persist calendar filters to cookie:', err);
+	}
+}
 
 function getTrainerFilterCount(f: CalendarFilters | undefined): number {
 	if (!Array.isArray(f?.trainerIds)) return 0;
@@ -43,27 +126,20 @@ type CalendarAvailability = Record<string, { from: string; to: string }[] | null
 type CalendarStoreState = {
         filters: CalendarFilters;
         bookings: FullBooking[];
-        availability: CalendarAvailability;
-        holidays: Holiday[];
-        holidaySet: Set<string>;
-        isLoading: boolean;
+	availability: CalendarAvailability;
+	holidays: Holiday[];
+	holidaySet: Set<string>;
+	isLoading: boolean;
 };
 
-const isBrowser = typeof window !== 'undefined';
-
 const createCalendarStore = () => {
+	const initialFilters = loadFiltersFromCookie() ?? createDefaultFilters();
+	if (initialFilters.personalBookings === undefined) {
+		initialFilters.personalBookings = computePersonalBookingsFlag(initialFilters);
+	}
+
         const { subscribe, update } = writable<CalendarStoreState>({
-                filters: {
-                        from: null,
-                        to: null,
-			date: new Date().toISOString().slice(0, 10),
-			roomId: null,
-			locationIds: [],
-			trainerIds: null,
-			clientIds: null,
-			userIds: null,
-			personalBookings: false
-                },
+                filters: initialFilters,
                 bookings: [],
                 availability: {},
                 holidays: [],
@@ -73,6 +149,11 @@ const createCalendarStore = () => {
 
 	let pendingRequests = 0;
 	let latestRequestId = 0;
+
+	function setFiltersState(nextFilters: CalendarFilters) {
+		update((store) => ({ ...store, filters: nextFilters }));
+		persistFiltersToCookie(nextFilters);
+	}
 
 	function startLoading(text: string = 'Hämtar kalender...') {
 		pendingRequests += 1;
@@ -169,19 +250,7 @@ const createCalendarStore = () => {
 			snapshot = state;
 		});
 		unsubscribe();
-		return (
-			snapshot?.filters ?? {
-				from: null,
-				to: null,
-				date: new Date().toISOString().slice(0, 10),
-				roomId: null,
-				locationIds: [],
-				trainerIds: null,
-				clientIds: null,
-				userIds: null,
-				personalBookings: false
-			}
-		);
+		return snapshot?.filters ?? createDefaultFilters();
 	}
 
 	async function updateFilters(
@@ -190,11 +259,11 @@ const createCalendarStore = () => {
 	): Promise<void> {
 		const merged = { ...getCurrentFilters(), ...newFilters };
 
-		if (newFilters.personalBookings === undefined) {
+		if (merged.personalBookings === undefined) {
 			merged.personalBookings = computePersonalBookingsFlag(merged);
 		}
 
-		update((store) => ({ ...store, filters: merged }));
+		setFiltersState(merged);
 		await refresh(fetchFn, merged);
 	}
 
@@ -203,14 +272,7 @@ const createCalendarStore = () => {
 		fetchFn: typeof fetch
 	): Promise<void> {
 		const baseDefaults: CalendarFilters = {
-			from: null,
-			to: null,
-			date: new Date().toISOString().slice(0, 10),
-			roomId: null,
-			locationIds: [],
-			trainerIds: null,
-			clientIds: null,
-			userIds: null,
+			...createDefaultFilters(),
 			personalBookings: undefined
 		};
 
@@ -219,7 +281,7 @@ const createCalendarStore = () => {
 			filters.personalBookings = computePersonalBookingsFlag(filters);
 		}
 
-		update((store) => ({ ...store, filters }));
+		setFiltersState(filters);
 		await refresh(fetchFn, filters);
 	}
 	/**
@@ -382,24 +444,23 @@ const createCalendarStore = () => {
 	 * Set Specific Date (Single Day View)
 	 */
 	async function goToDate(date: Date, fetchFn: typeof fetch): Promise<void> {
-		let needsWeekUpdate: boolean = false;
-		update((store) => {
-			const newDateStr = date.toISOString().slice(0, 10);
-			const { weekStart, weekEnd } = getWeekStartAndEnd(date);
+		const currentFilters = getCurrentFilters();
+		const newDateStr = date.toISOString().slice(0, 10);
+		const { weekStart, weekEnd } = getWeekStartAndEnd(date);
 
-			// Check if the new date is outside the current week range
-			const { from, to } = store.filters;
-			needsWeekUpdate = !from || !to || newDateStr < from || newDateStr > to;
+		const needsWeekUpdate =
+			!currentFilters.from ||
+			!currentFilters.to ||
+			newDateStr < currentFilters.from ||
+			newDateStr > currentFilters.to;
 
-			return {
-				...store,
-				filters: {
-					...store.filters,
-					date: newDateStr,
-					...(needsWeekUpdate ? { from: weekStart, to: weekEnd } : {})
-				}
-			};
-		});
+		const nextFilters: CalendarFilters = {
+			...currentFilters,
+			date: newDateStr,
+			...(needsWeekUpdate ? { from: weekStart, to: weekEnd } : {})
+		};
+
+		setFiltersState(nextFilters);
 
 		if (needsWeekUpdate) {
 			await refresh(fetchFn);
