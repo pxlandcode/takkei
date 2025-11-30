@@ -9,6 +9,7 @@ import { openPopup, closePopup } from '$lib/stores/popupStore';
 
 	export let customer;
 	export let onCustomerChange: (value: any) => void = () => {};
+	export let refreshCustomer: (() => Promise<void> | void) | null = null;
 	let isEditing = false;
 
 	function handleClientsUpdated(event) {
@@ -67,8 +68,15 @@ const packageHeaders = [
 		};
 	});
 
-function handleCreatePackage() {
+async function handleCreatePackage() {
 	closePopup();
+	try {
+		if (typeof refreshCustomer === 'function') {
+			await refreshCustomer();
+		}
+	} catch (error) {
+		console.error('Failed to refresh customer after creating package:', error);
+	}
 }
 
 function openPackagePopup() {

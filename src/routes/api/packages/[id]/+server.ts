@@ -1,4 +1,5 @@
 import { query } from '$lib/db';
+import { normalizeDate, serializeInstallments, type InstallmentInput } from '$lib/server/packageUtils';
 
 // --- tiny YAML-ish parser for Rails :payment_installments_per_date ---
 // Accepts the serialized hash and returns [{ date: 'YYYY-MM-DD', sum: number, invoice_no?: string }]
@@ -122,6 +123,7 @@ export async function GET({ params }) {
 			created_at: row.created_at,
 			paid_price: row.paid_price,
 			first_payment_date: row.first_payment_date,
+			invoice_no: row.invoice_no ?? null,
 			autogiro: row.autogiro,
 			invoice_numbers: row.invoice_numbers ?? [],
 			frozen_from_date: row.frozen_from_date,
@@ -167,6 +169,133 @@ export async function GET({ params }) {
 		}),
 		{ status: 200 }
 	);
+}
+
+export async function PUT({ params, request }) {
+	const id = Number(params.id);
+	if (Number.isNaN(id))
+		return new Response(JSON.stringify({ error: 'Ogiltigt paket-id' }), { status: 400 });
+
+	try {
+		const body = await request.json();
+		const customerId = body.customerId ?? null;
+		const clientId = body.clientId ?? null;
+		const articleId = Number(body.articleId);
+		const autogiro = !!body.autogiro;
+		const installmentsCount = Number(body.installments ?? 0);
+		const providedFirstPayment =
+			normalizeDate(body.firstPaymentDate) ?? new Date().toISOString().slice(0, 10);
+
+		if (!customerId && !clientId) {
+			return new Response(JSON.stringify({ error: 'Kund eller klient måste anges' }), { status: 400 });
+		}
+		if (!articleId || Number.isNaN(articleId)) {
+			return new Response(JSON.stringify({ error: 'Ogiltig produkt' }), { status: 400 });
+		}
+
+		const [article] = await query(
+			`SELECT price, sessions FROM articles WHERE id = $1`,
+			[articleId]
+		);
+
+		if (!article) {
+			return new Response(JSON.stringify({ error: 'Produkten hittades inte' }), { status: 404 });
+		}
+
+		const paidPrice =
+			typeof body.price === 'number' && !Number.isNaN(body.price)
+				? Number(body.price)
+				: Number(article.price ?? 0);
+
+		const installmentsRaw: InstallmentInput[] = Array.isArray(body.installmentBreakdown)
+			? body.installmentBreakdown
+			: [];
+
+		if (!installmentsRaw.length || installmentsCount !== installmentsRaw.length) {
+			return new Response(JSON.stringify({ error: 'Antal faktureringstillfällen stämmer inte' }), {
+				status: 400
+			});
+		}
+
+		const normalizedInstallments = installmentsRaw.map((i: InstallmentInput) => ({
+			date: normalizeDate(i.date) ?? providedFirstPayment,
+			sum: Number(i.sum) || 0,
+			invoice_no: i.invoice_no ?? ''
+		}));
+
+		const totalInstallmentsSum = normalizedInstallments.reduce(
+			(acc, i) => acc + Number(i.sum || 0),
+			0
+		);
+		if (Math.abs(totalInstallmentsSum - paidPrice) > 0.01) {
+			return new Response(
+				JSON.stringify({ error: 'Summan av delbetalningarna måste matcha paketpriset' }),
+				{ status: 400 }
+			);
+		}
+
+		const yamlData = serializeInstallments(normalizedInstallments);
+
+		const invoiceNumberRaw = typeof body.invoiceNumber === 'string' ? body.invoiceNumber.trim() : '';
+		const invoiceNumber = invoiceNumberRaw.length > 0 ? invoiceNumberRaw : null;
+
+		const invoiceNumbersArray = (Array.isArray(body.invoiceNumbers) ? body.invoiceNumbers : [])
+			.map((n: any) => Number(n))
+			.filter((n: number) => Number.isInteger(n));
+
+		const invoiceNumberAsInt = invoiceNumber !== null ? Number(invoiceNumber) : null;
+		if (
+			invoiceNumberAsInt !== null &&
+			Number.isInteger(invoiceNumberAsInt) &&
+			!invoiceNumbersArray.includes(invoiceNumberAsInt)
+		) {
+			invoiceNumbersArray.push(invoiceNumberAsInt);
+		}
+
+		const invoiceNumbersStr = invoiceNumbersArray.length > 0 ? `{${invoiceNumbersArray.join(',')}}` : '{}';
+		const paymentInstallmentsStr = normalizedInstallments.length > 0 ? `{${normalizedInstallments.length}}` : null;
+
+		const sql = `
+			UPDATE packages
+			SET customer_id = $1,
+				article_id = $2,
+				client_id = $3,
+				paid_price = $4,
+				invoice_no = $5,
+				first_payment_date = $6,
+				autogiro = $7,
+				payment_installments_per_date = $8,
+				invoice_numbers = $9,
+				payment_installments = $10,
+				updated_at = NOW()
+			WHERE id = $11
+			RETURNING id
+		`;
+
+		const params = [
+			customerId,
+			articleId,
+			clientId || null,
+			paidPrice,
+			invoiceNumber,
+			providedFirstPayment,
+			autogiro,
+			yamlData,
+			invoiceNumbersStr,
+			paymentInstallmentsStr,
+			id
+		];
+
+		const result = await query(sql, params);
+		if (!result.length) {
+			return new Response(JSON.stringify({ error: 'Paketet hittades inte' }), { status: 404 });
+		}
+
+		return new Response(JSON.stringify({ id: result[0].id }), { status: 200 });
+	} catch (err) {
+		console.error('Error updating package:', err);
+		return new Response(JSON.stringify({ error: 'Internal Server Error' }), { status: 500 });
+	}
 }
 
 export async function DELETE({ params }) {

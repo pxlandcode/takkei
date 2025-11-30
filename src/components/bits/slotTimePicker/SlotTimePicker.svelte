@@ -2,7 +2,7 @@
 <script lang="ts">
 	import Dropdown from '../dropdown/Dropdown.svelte';
 	import { fetchAvailableSlots } from '$lib/services/api/bookingService';
-	import Input from '../Input/Input.svelte';
+	import DatePicker from '../datePicker/DatePicker.svelte';
 	import { createEventDispatcher } from 'svelte';
 
 	export let selectedDate: string = new Date().toISOString().slice(0, 10);
@@ -27,6 +27,7 @@
 	let sortedOptions: { label: string; value: string; unavailable: boolean }[] = [];
 
 	let showWarning = false;
+	$: dateInputId = `${dateField}-datepicker`;
 
 	function timeToMinutes(time: string): number {
 		const [h, m] = time.split(':').map(Number);
@@ -41,14 +42,14 @@
 			outsideAvailabilitySlots = [];
 			sortedOptions = [];
 			try {
-					const res = await fetchAvailableSlots({
-						date: selectedDate,
-						trainerId,
-						locationId,
-						checkUsersBusy,
-						userId: traineeUserId ?? undefined,
-						ignoreBookingId: bookingIdToIgnore ?? undefined
-					});
+				const res = await fetchAvailableSlots({
+					date: selectedDate,
+					trainerId,
+					locationId,
+					checkUsersBusy,
+					userId: traineeUserId ?? undefined,
+					ignoreBookingId: bookingIdToIgnore ?? undefined
+				});
 
 				availableSlots = res.availableSlots ?? [];
 				outsideAvailabilitySlots = res.outsideAvailabilitySlots ?? [];
@@ -75,7 +76,13 @@
 		}
 	}
 
-	$: selectedDate, trainerId, locationId, checkUsersBusy, traineeUserId, bookingIdToIgnore, updateSlots();
+	$: selectedDate,
+		trainerId,
+		locationId,
+		checkUsersBusy,
+		traineeUserId,
+		bookingIdToIgnore,
+		updateSlots();
 
 	function missingFields(): string[] {
 		const missing: string[] = [];
@@ -100,7 +107,15 @@
 	</div>
 {:else if !showWarning || availableSlots.length > 0 || outsideAvailabilitySlots.length > 0}
 	<div class="grid grid-cols-1 gap-2 xl:grid-cols-2">
-		<Input label="Datum" name={dateField} type="date" bind:value={selectedDate} {errors} />
+		<DatePicker
+			id={dateInputId}
+			name={dateField}
+			label="Datum"
+			openPosition="up"
+			bind:value={selectedDate}
+			placeholder="Välj datum"
+			{errors}
+		/>
 		<Dropdown
 			id={timeField}
 			{label}

@@ -25,14 +25,17 @@
 	async function removeFromPackage(bookingId: number) {
 		if (!confirm('Är du säker?')) return;
 		const res = await fetch(`/api/bookings/${bookingId}/remove-from-package`, { method: 'POST' });
-		if (!res.ok) {
-			const t = await res.text();
-			try {
-				throw new Error(JSON.parse(t).error || t);
-			} catch {
-				throw new Error(t);
-			}
+	if (!res.ok) {
+		const t = await res.text();
+		let msg = t;
+		try {
+			const parsed = JSON.parse(t);
+			msg = parsed?.error || t;
+		} catch {
+			// ignore
 		}
+		throw new Error(msg);
+	}
 		await fetchBookings();
 		dispatch('changed'); // tell parent to refresh pkg counters
 	}

@@ -1,13 +1,15 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { page } from '$app/stores';
-	import Icon from '../../../../components/bits/icon-component/Icon.svelte';
-	import Button from '../../../../components/bits/button/Button.svelte';
-	import Navigation from '../../../../components/bits/navigation/Navigation.svelte';
+import { page } from '$app/stores';
+import Icon from '../../../../components/bits/icon-component/Icon.svelte';
+import Button from '../../../../components/bits/button/Button.svelte';
+import Navigation from '../../../../components/bits/navigation/Navigation.svelte';
+import PackagePopup from '../../../../components/ui/packagePopup/PackagePopup.svelte';
+import { openPopup, closePopup } from '$lib/stores/popupStore';
 
-	import OverviewTab from '../../../../components/ui/packages/details/OverviewTab.svelte';
-	import BookingsTab from '../../../../components/ui/packages/details/BookingsTab.svelte';
-	import NotesTab from '../../../../components/ui/packages/details/NotesTab.svelte';
+import OverviewTab from '../../../../components/ui/packages/details/OverviewTab.svelte';
+import BookingsTab from '../../../../components/ui/packages/details/BookingsTab.svelte';
+import NotesTab from '../../../../components/ui/packages/details/NotesTab.svelte';
 
 	let packageId: number;
 	let pkg: any = null;
@@ -68,11 +70,14 @@
 			});
 			if (!res.ok) {
 				const t = await res.text();
+				let msg = t;
 				try {
-					throw new Error(JSON.parse(t).error || t);
+					const parsed = JSON.parse(t);
+					msg = parsed?.error || t;
 				} catch {
-					throw new Error(t);
+					// ignore, keep raw text
 				}
+				throw new Error(msg);
 			}
 			showFreeze = false;
 			await fetchPkg();
@@ -96,11 +101,14 @@
 			});
 			if (!res.ok) {
 				const t = await res.text();
+				let msg = t;
 				try {
-					throw new Error(JSON.parse(t).error || t);
+					const parsed = JSON.parse(t);
+					msg = parsed?.error || t;
 				} catch {
-					throw new Error(t);
+					// ignore
 				}
+				throw new Error(msg);
 			}
 			showInvoice = false;
 			invoiceNo = '';
@@ -119,11 +127,14 @@
 			const res = await fetch(`/api/packages/${packageId}`, { method: 'DELETE' });
 			if (!res.ok) {
 				const t = await res.text();
+				let msg = t;
 				try {
-					throw new Error(JSON.parse(t).error || t);
+					const parsed = JSON.parse(t);
+					msg = parsed?.error || t;
 				} catch {
-					throw new Error(t);
+					// ignore
 				}
+				throw new Error(msg);
 			}
 			window.history.back();
 		} catch (e: any) {
@@ -137,13 +148,50 @@
 		const res = await fetch(`/api/packages/${packageId}/move-to-customer`, { method: 'POST' });
 		if (!res.ok) {
 			const t = await res.text();
+			let msg = t;
 			try {
-				throw new Error(JSON.parse(t).error || t);
+				const parsed = JSON.parse(t);
+				msg = parsed?.error || t;
 			} catch {
-				throw new Error(t);
+				// ignore
 			}
+			throw new Error(msg);
 		}
 		await fetchPkg();
+	}
+
+	async function handlePackageSaved() {
+		closePopup();
+		await fetchPkg();
+	}
+
+	function openEditPopup() {
+		if (!pkg) return;
+		openPopup({
+		header: 'Ändra paket',
+		icon: 'Pen',
+		component: PackagePopup,
+		width: '1000px',
+		props: {
+			mode: 'edit',
+			packageId,
+			customerId: pkg.customer?.id ?? null,
+			initialPackage: {
+				id: pkg.id,
+				article: pkg.article,
+				customer: pkg.customer,
+				client: pkg.client,
+				paid_price: pkg.paid_price,
+				invoice_no: pkg.invoice_no,
+				invoice_numbers: pkg.invoice_numbers,
+				first_payment_date: pkg.first_payment_date,
+				autogiro: pkg.autogiro,
+				installments: pkg.installments,
+				installments_summary: pkg.installments_summary
+			},
+			onSave: handlePackageSaved
+		}
+		});
 	}
 
 	const todayISO = new Date().toISOString().slice(0, 10);
@@ -197,12 +245,7 @@
 					on:click={() => (showFreeze = true)}
 				/>
 			{/if}
-			<Button
-				text="Ändra"
-				icon="Pen"
-				variant="primary"
-				on:click={() => (window.location.href = `/settings/packages/${packageId}/edit`)}
-			/>
+		<Button text="Ändra" icon="Pen" variant="primary" on:click={openEditPopup} />
 			<Button text="Ta bort" icon="Trash" variant="danger" on:click={() => (showDelete = true)} />
 		</div>
 	</div>
