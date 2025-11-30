@@ -259,7 +259,7 @@ const createCalendarStore = () => {
 	): Promise<void> {
 		const merged = { ...getCurrentFilters(), ...newFilters };
 
-		if (merged.personalBookings === undefined) {
+		if (newFilters.personalBookings === undefined) {
 			merged.personalBookings = computePersonalBookingsFlag(merged);
 		}
 
