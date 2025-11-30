@@ -4,37 +4,56 @@
 	import {
 		createPackage,
 		getArticles,
-		getClientsForCustomer
+		getClientsForCustomer,
+		updatePackage
 	} from '$lib/services/api/packageService';
 	import Dropdown from '../../bits/dropdown/Dropdown.svelte';
 	import Input from '../../bits/Input/Input.svelte';
 	import Checkbox from '../../bits/checkbox/Checkbox.svelte';
 	import Button from '../../bits/button/Button.svelte';
 
+	type InitialPackageInput = {
+		id?: number;
+		article?: { id: number; price?: number; sessions?: number } | null;
+		customer?: { id: number } | null;
+		client?: { id: number } | null;
+		paid_price?: number | null;
+		invoice_no?: string | number | null;
+		invoice_numbers?: (number | string)[] | null;
+		first_payment_date?: string | null;
+		autogiro?: boolean | null;
+		installments?: { date: string; sum: number; invoice_no?: string }[] | null;
+		installments_summary?: { count?: number | null } | null;
+	};
+
 	export let onSave;
 	export let customerId: number = null;
+	export let mode: 'create' | 'edit' = 'create';
+	export let packageId: number | null = null;
+	export let initialPackage: InitialPackageInput | null = null;
 
-	let customerLocked = customerId !== null;
+let customerLocked = customerId !== null;
 
-	let articles = [];
-	let customers = [];
-	let clients = [];
+let articles = [];
+let customers = [];
+let clients = [];
 
 	let selectedArticleId = '';
 	let selectedCustomerId = '';
 	let selectedClientId = '';
 
-	let price = '';
+let price = '';
         let invoiceNumber = '';
         let invoiceNumbers: number[] = [];
-	let firstPaymentDate = '';
-	let autogiro = false;
-	let installments = 1;
-	let priceLocked = true;
-	let breakdownLocked = true;
+let firstPaymentDate = '';
+let autogiro = false;
+let installments = 1;
+let priceLocked = true;
+let breakdownLocked = true;
 
-	let selectedArticle = null;
-	let selectedCustomer = null;
+let selectedArticle = null;
+let selectedCustomer = null;
+let initialDataApplied = false;
 
         let installmentBreakdown: { date: string; sum: number; invoice_no?: string }[] = [];
 
@@ -63,31 +82,93 @@
 
 	$: if (selectedArticle && priceLocked) price = selectedArticle.price;
 
-	async function loadClientsForCustomer(id) {
-		const res = await getClientsForCustomer(id);
+	async function loadClientsForCustomer(id: number | string, preserveSelection = false) {
+		const res = await getClientsForCustomer(Number(id));
 		clients = res;
-		selectedClientId = '';
+		if (preserveSelection) {
+			if (!selectedClientId || !clients.some((c) => c.id === Number(selectedClientId))) {
+				selectedClientId = '';
+			}
+		} else {
+			selectedClientId = '';
+		}
 	}
 
-	$: if (firstPaymentDate && installments > 0 && !isNaN(parseFloat(price)))
-		generateInstallmentDates();
-	$: if (!firstPaymentDate || !installments || isNaN(parseFloat(price))) installmentBreakdown = [];
+	$: if (mode !== 'edit') {
+		const priceValue = parseFloat(price);
+		if (firstPaymentDate && Number(installments) > 0 && !isNaN(priceValue)) {
+			generateInstallmentDates();
+		} else if (!firstPaymentDate || !installments || isNaN(priceValue)) {
+			installmentBreakdown = [];
+		}
+	}
 
-        function generateInstallmentDates() {
-                const total = parseFloat(price || '0');
-                const evenSum = total / installments;
-                let remainder = total;
-                installmentBreakdown = Array.from({ length: installments }, (_, i) => {
-                        const date = new Date(firstPaymentDate);
-                        date.setMonth(date.getMonth() + i);
-                        const formattedDate = date.toISOString().split('T')[0];
+	function generateInstallmentDates() {
+		const installmentsCount = Number(installments);
+		if (!firstPaymentDate || installmentsCount <= 0) {
+			installmentBreakdown = [];
+			return;
+		}
+		const total = parseFloat(price || '0');
+		const evenSum = installmentsCount > 0 ? total / installmentsCount : 0;
+		let remainder = total;
+		installmentBreakdown = Array.from({ length: installmentsCount }, (_, i) => {
+			const date = new Date(firstPaymentDate);
+			date.setMonth(date.getMonth() + i);
+			const formattedDate = date.toISOString().split('T')[0];
 
-                        let sum = i === installments - 1 ? remainder : parseFloat(evenSum.toFixed(2));
-                        remainder = parseFloat((remainder - sum).toFixed(2));
+			let sum = i === installmentsCount - 1 ? remainder : parseFloat(evenSum.toFixed(2));
+			remainder = parseFloat((remainder - sum).toFixed(2));
 
-                        return { date: formattedDate, sum: Number(sum.toFixed(2)) };
-                });
-        }
+			return { date: formattedDate, sum: Number(sum.toFixed(2)) };
+		});
+	}
+
+	async function applyInitialPackageData(pkg: InitialPackageInput) {
+		if (!pkg || initialDataApplied) return;
+		if (pkg.customer?.id) {
+			selectedCustomerId = String(pkg.customer.id);
+			await loadClientsForCustomer(pkg.customer.id, true);
+		}
+		selectedClientId = pkg.client?.id ? String(pkg.client.id) : '';
+		selectedArticleId = pkg.article?.id ? String(pkg.article.id) : '';
+		priceLocked = false;
+		price = pkg.paid_price != null ? String(pkg.paid_price) : price;
+		const numericInvoices = Array.isArray(pkg.invoice_numbers)
+			? pkg.invoice_numbers
+					.map((value: any) => Number(value))
+					.filter((n: number) => Number.isInteger(n))
+			: [];
+		invoiceNumbers = numericInvoices;
+		if (pkg.invoice_no !== null && pkg.invoice_no !== undefined && `${pkg.invoice_no}`.length > 0) {
+			invoiceNumber = String(pkg.invoice_no);
+		} else if (numericInvoices.length) {
+			invoiceNumber = numericInvoices.join(', ');
+		} else {
+			invoiceNumber = '';
+		}
+		firstPaymentDate = pkg.first_payment_date ?? pkg.installments?.[0]?.date ?? firstPaymentDate;
+		autogiro = !!pkg.autogiro;
+		const breakdown = Array.isArray(pkg.installments)
+			? pkg.installments.map((i) => ({
+					date: i.date,
+					sum: Number(i.sum) || 0,
+					invoice_no: i.invoice_no ?? ''
+			  }))
+			: [];
+		if (breakdown.length) {
+			installmentBreakdown = breakdown;
+			installments = breakdown.length;
+		} else if (pkg.installments_summary?.count) {
+			installments = Number(pkg.installments_summary.count) || installments;
+			installmentBreakdown = [];
+		}
+		initialDataApplied = true;
+	}
+
+	$: if (mode === 'edit' && initialPackage && !initialDataApplied) {
+		void applyInitialPackageData(initialPackage);
+	}
 
 	let errors = {};
 
@@ -108,7 +189,7 @@
                         return;
                 }
 
-                if (installmentBreakdown.length === 0 || installments !== installmentBreakdown.length) {
+		if (installmentBreakdown.length === 0 || Number(installments) !== installmentBreakdown.length) {
                         errors.installments = 'Antal faktureringstillfällen måste stämma.';
                         return;
                 }
@@ -123,26 +204,31 @@
                         .map((v) => Number(v.trim()))
                         .filter((v) => !Number.isNaN(v));
 
-                try {
-                        const result = await createPackage({
-                                articleId: selectedArticle.id,
-                                customerId: selectedCustomer.id,
-                                clientId: selectedClientId || null,
-                                price: priceValue,
-                                invoiceNumber,
-                                invoiceNumbers,
-                                firstPaymentDate,
-                                autogiro,
-                                installments: Number(installments),
-                                installmentBreakdown
-                        });
+	const payload = {
+		articleId: selectedArticle.id,
+		customerId: selectedCustomer.id,
+		clientId: selectedClientId || null,
+		price: priceValue,
+		invoiceNumber,
+		invoiceNumbers,
+		firstPaymentDate,
+		autogiro,
+		installments: Number(installments),
+		installmentBreakdown
+	};
 
-                        onSave?.();
-                } catch (err) {
-			console.error('Failed to create package', err);
-			errors.submit = 'Kunde inte skapa paket. Kontrollera värdena och försök igen.';
-		}
+	try {
+		const result =
+			mode === 'edit' && packageId
+				? await updatePackage(packageId, payload)
+				: await createPackage(payload);
+
+		onSave?.(result);
+	} catch (err) {
+		console.error('Failed to save package', err);
+		errors.submit = 'Kunde inte spara paketet. Kontrollera värdena och försök igen.';
 	}
+}
 </script>
 
 <div class="mx-auto w-full max-w-full space-y-6 px-2 sm:px-4 md:max-w-[1000px]">
@@ -319,6 +405,6 @@
 
 	<!-- 📅 Spara -->
 	<div class="flex justify-end pt-4">
-		<Button text="Spara" iconRight="Save" on:click={save} />
+		<Button text={mode === 'edit' ? 'Uppdatera paket' : 'Spara'} iconRight="Save" on:click={save} />
 	</div>
 </div>

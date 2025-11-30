@@ -23,12 +23,39 @@
 		customer = updatedCustomer;
 	}
 
+	async function loadCustomer() {
+		if (!customerId) {
+			isLoading = false;
+			return;
+		}
+
+		isLoading = true;
+		loadingStore.loading(true, 'Hämtar kund...');
+		try {
+			const res = await fetch(`/api/customers/${customerId}`);
+			if (!res.ok) throw new Error('Failed to fetch customer');
+			customer = await res.json();
+		} catch (error) {
+			console.error('Error loading customer:', error);
+		} finally {
+			loadingStore.loading(false);
+			isLoading = false;
+		}
+	}
+
 	const menuItems = [
 		{
 			label: 'Profil',
 			icon: 'Customer',
 			component: ProfileCustomerInfo,
-			props: () => (customer ? { customer, onCustomerChange: handleCustomerChange } : {})
+			props: () =>
+				customer
+					? {
+							customer,
+							onCustomerChange: handleCustomerChange,
+							refreshCustomer: loadCustomer
+					  }
+					: {}
 		},
 		{
 			label: 'Bokningar',
@@ -79,24 +106,8 @@
 		});
 	}
 
-	onMount(async () => {
-		if (!customerId) {
-			isLoading = false;
-			return;
-		}
-		isLoading = true;
-		loadingStore.loading(true, 'Hämtar kund...');
-		try {
-			const res = await fetch(`/api/customers/${customerId}`);
-			if (!res.ok) throw new Error('Failed to fetch customer');
-			customer = await res.json();
-			isLoading = false;
-		} catch (error) {
-			console.error('Error loading customer:', error);
-		} finally {
-			loadingStore.loading(false);
-			isLoading = false;
-		}
+	onMount(() => {
+		loadCustomer();
 	});
 </script>
 

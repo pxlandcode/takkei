@@ -24,6 +24,7 @@
 	import type { User } from '$lib/types/userTypes';
 	import type { SelectedSlot } from '$lib/stores/selectedSlotStore';
 	import { clearSelectedSlot } from '$lib/stores/selectedSlotStore';
+	import { loadingStore } from '$lib/stores/loading';
 
 	export let startTime: Date | null = null;
 	export let clientId: number | null = null;
@@ -72,6 +73,7 @@
 	let previousComponent: typeof selectedBookingComponent | null = null;
 	let resumeSlotApplied = false;
 	let isApplyingResumeSlot = false;
+	let isSubmitting = false;
 
 	let allUsers: User[] = [];
 	let userOptions: UserOption[] = [];
@@ -387,7 +389,13 @@
 		if (Object.keys(validationErrors).length > 0) {
 			return;
 		}
+		if (isSubmitting) {
+			return;
+		}
+		isSubmitting = true;
+		loadingStore.loading(true, 'Skapar bokning...');
 
+		try {
 		const locationName = getLocationLabelFromId(bookingObject.locationId);
 
 		let bookedDates: { date: string; time: string; locationName?: string }[] = [];
@@ -478,7 +486,11 @@
 			clearSelectedSlot();
 			onClose();
 		}
-	}
+		} finally {
+			loadingStore.loading(false);
+			isSubmitting = false;
+		}
+}
 </script>
 
 <!-- Booking Manager UI -->

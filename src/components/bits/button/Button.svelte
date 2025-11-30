@@ -3,6 +3,7 @@
 	import Icon from '../icon-component/Icon.svelte';
 	import { confirm } from '$lib/actions/confirm';
 	import { cancelConfirm } from '$lib/actions/cancelConfirm';
+	import { loadingStore } from '$lib/stores/loading';
 
 	// Props
 	export let type: 'button' | 'submit' | 'reset' = 'button';
@@ -14,9 +15,9 @@
 		'primary';
 	export let transparent: boolean = false;
 	export let small: boolean = false;
-export let iconRightSize: string | null = null;
-export let iconLeftSize: string | null = null;
-export let iconSize: string = '20px';
+	export let iconRightSize: string | null = null;
+	export let iconLeftSize: string | null = null;
+	export let iconSize: string = '20px';
 	export let full: boolean = false;
 	export let iconColor: string = 'currentColor';
 	export let notificationCount: number = 0;
@@ -40,10 +41,12 @@ const DEFAULT_ICON_LEFT_SIZE_SMALL = '15px';
 const DEFAULT_ICON_RIGHT_SIZE = '20px';
 const DEFAULT_ICON_RIGHT_SIZE_SMALL = '15px';
 
-$: resolvedIconLeftSize =
-	iconLeftSize ?? (small ? DEFAULT_ICON_LEFT_SIZE_SMALL : DEFAULT_ICON_LEFT_SIZE);
-$: resolvedIconRightSize =
-	iconRightSize ?? (small ? DEFAULT_ICON_RIGHT_SIZE_SMALL : DEFAULT_ICON_RIGHT_SIZE);
+	$: resolvedIconLeftSize =
+		iconLeftSize ?? (small ? DEFAULT_ICON_LEFT_SIZE_SMALL : DEFAULT_ICON_LEFT_SIZE);
+	$: resolvedIconRightSize =
+		iconRightSize ?? (small ? DEFAULT_ICON_RIGHT_SIZE_SMALL : DEFAULT_ICON_RIGHT_SIZE);
+	$: isGlobalLoading = Boolean($loadingStore?.isLoading);
+	$: isDisabled = disabled || isGlobalLoading;
 
 	// Handle click event
 	function handleClick() {
@@ -65,18 +68,18 @@ $: resolvedIconRightSize =
 		${transparent ? 'bg-transparent text-gray shadow-none hover:bg-gray hover:text-white' : ''}
 		${transparent && variant === 'cancel' ? 'hover:text-red' : ''}
 		${icon && !text ? (small ? 'h-8 w-8' : 'h-[45px] w-[45px]') : 'p-2'}
-        ${!icon && text ? (small ? 'text-sm' : 'h-[45px]') : 'text-base'}
-        ${full ? 'w-full' : ''}
+		${!icon && text ? (small ? 'text-sm' : 'h-[45px]') : 'text-base'}
+		${full ? 'w-full' : ''}
 		focus:outline-hidden active:translate-y-1 active:scale-95 active:shadow-xs
-        disabled:opacity-60 disabled:cursor-not-allowed disabled:pointer-events-none
+		disabled:opacity-60 disabled:cursor-not-allowed disabled:pointer-events-none disabled:bg-gray-100 disabled:text-gray-500 disabled:border-gray/40
 	`;
 </script>
 
 <div class="relative inline-block">
 	{#if confirmOptions}
 		<button
-			aria-disabled={disabled}
-			{disabled}
+			aria-disabled={isDisabled}
+			disabled={isDisabled}
 			use:confirm={confirmOptions}
 			{type}
 			class={buttonClasses}
@@ -95,8 +98,8 @@ $: resolvedIconRightSize =
 		</button>
 	{:else if cancelConfirmOptions}
 		<button
-			aria-disabled={disabled}
-			{disabled}
+			aria-disabled={isDisabled}
+			disabled={isDisabled}
 			use:cancelConfirm={cancelConfirmOptions}
 			{type}
 			class={buttonClasses}
@@ -114,7 +117,7 @@ $: resolvedIconRightSize =
 			{/if}
 		</button>
 	{:else}
-		<button aria-disabled={disabled} {disabled} {type} class={buttonClasses} on:click={handleClick}>
+		<button aria-disabled={isDisabled} disabled={isDisabled} {type} class={buttonClasses} on:click={handleClick}>
 			{#if icon && !text}
 				<Icon {icon} size={iconSize} color={iconColor} />
 			{:else}

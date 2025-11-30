@@ -1,25 +1,5 @@
 import { query } from '$lib/db';
-
-type InstallmentInput = { date: string; sum: number; invoice_no?: string };
-
-function serializeInstallments(items: InstallmentInput[]) {
-        if (!items?.length) return '--- {}\n';
-        let s = '---\n';
-        for (const i of items) {
-                s += `'${i.date}':\n`;
-                s += `  :date: ${i.date}\n`;
-                s += `  :sum: ${Number(i.sum).toString()}\n`;
-                s += `  :invoice_no: '${i.invoice_no ?? ''}'\n`;
-        }
-        return s;
-}
-
-function normalizeDate(value: string | null | undefined) {
-        if (!value) return null;
-        const parsed = new Date(value);
-        if (Number.isNaN(parsed.getTime())) return null;
-        return parsed.toISOString().slice(0, 10);
-}
+import { normalizeDate, serializeInstallments, type InstallmentInput } from '$lib/server/packageUtils';
 
 async function attachEligibleBookings({
         packageId,
@@ -229,17 +209,24 @@ export async function POST({ request, locals }) {
 
                 const yamlData = serializeInstallments(normalizedInstallments);
 
-                const invoiceNumbersArray = (Array.isArray(body.invoiceNumbers) ? body.invoiceNumbers : [])
-                        .map((n: any) => Number(n))
-                        .filter((n: number) => Number.isFinite(n));
+		const invoiceNumberRaw = typeof body.invoiceNumber === 'string' ? body.invoiceNumber.trim() : '';
+		const invoiceNumber = invoiceNumberRaw.length > 0 ? invoiceNumberRaw : null;
 
-                const invoiceNumber = body.invoiceNumber ? Number(body.invoiceNumber) : null;
-                if (invoiceNumber && !invoiceNumbersArray.includes(invoiceNumber)) {
-                        invoiceNumbersArray.push(invoiceNumber);
-                }
+		const invoiceNumbersArray = (Array.isArray(body.invoiceNumbers) ? body.invoiceNumbers : [])
+			.map((n: any) => Number(n))
+			.filter((n: number) => Number.isInteger(n));
 
-                const invoiceNumbersStr = invoiceNumbersArray.length > 0 ? `{${invoiceNumbersArray.join(',')}}` : '{}';
-                const paymentInstallmentsStr = `{${normalizedInstallments.map((i) => Number(i.sum) || 0).join(',')}}`;
+		const invoiceNumberAsInt = invoiceNumber !== null ? Number(invoiceNumber) : null;
+		if (
+			invoiceNumberAsInt !== null &&
+			Number.isInteger(invoiceNumberAsInt) &&
+			!invoiceNumbersArray.includes(invoiceNumberAsInt)
+		) {
+			invoiceNumbersArray.push(invoiceNumberAsInt);
+		}
+
+		const invoiceNumbersStr = invoiceNumbersArray.length > 0 ? `{${invoiceNumbersArray.join(',')}}` : '{}';
+		const paymentInstallmentsStr = normalizedInstallments.length > 0 ? `{${normalizedInstallments.length}}` : null;
 
                 const sql = `
                         INSERT INTO packages (

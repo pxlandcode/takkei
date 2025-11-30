@@ -10,7 +10,7 @@
 	import Dashboard from '../components/view/dashboard/Dashboard.svelte';
 	import ToastContainer from '../components/ui/toast-container/ToastContainer.svelte';
 
-	import { onMount } from 'svelte';
+	import { onMount, onDestroy } from 'svelte';
 	import { browser, dev } from '$app/environment';
 	import { goto } from '$app/navigation';
 	import Button from '../components/bits/button/Button.svelte';
@@ -33,6 +33,13 @@
 	let isMobile = false;
 	let showDrawer = false;
 
+	let showTopLoadingBar = false;
+	let loadingBarVisible = false;
+	let loadingBarPhase: 'loading' | 'complete' = 'loading';
+	let loadingBarSequence = 0;
+	let loadingBarHideTimeout: ReturnType<typeof setTimeout> | null = null;
+	const LOADING_BAR_HIDE_DELAY = 300;
+
 	let popup: PopupState | null = null;
 	let popupListeners: Record<string, (event: CustomEvent<any>) => void> = {};
 	let popupProps: Record<string, unknown> = {};
@@ -40,6 +47,49 @@
 	$: currentRoute = $page.url.pathname;
 
 	$: navigating.to && loadingStore.loading(!!navigating.to);
+
+	$: isRouteNavigating = Boolean(navigating?.to);
+	$: isGlobalLoading = Boolean($loadingStore?.isLoading);
+	$: showTopLoadingBar = isRouteNavigating || isGlobalLoading;
+	$: {
+		if (showTopLoadingBar) {
+			activateTopLoadingBar();
+		} else {
+			completeTopLoadingBar();
+		}
+	}
+
+	function activateTopLoadingBar() {
+		if (!loadingBarVisible) {
+			loadingBarVisible = true;
+			loadingBarSequence += 1;
+		} else if (loadingBarPhase === 'complete') {
+			loadingBarSequence += 1;
+		}
+		loadingBarPhase = 'loading';
+		if (loadingBarHideTimeout) {
+			clearTimeout(loadingBarHideTimeout);
+			loadingBarHideTimeout = null;
+		}
+	}
+
+	function completeTopLoadingBar() {
+		if (!loadingBarVisible || loadingBarPhase === 'complete') return;
+		loadingBarPhase = 'complete';
+		if (loadingBarHideTimeout) {
+			clearTimeout(loadingBarHideTimeout);
+		}
+		loadingBarHideTimeout = setTimeout(() => {
+			loadingBarVisible = false;
+			loadingBarHideTimeout = null;
+		}, LOADING_BAR_HIDE_DELAY);
+	}
+
+	onDestroy(() => {
+		if (loadingBarHideTimeout) {
+			clearTimeout(loadingBarHideTimeout);
+		}
+	});
 
 	$: if (!isTrainer) {
 		showDrawer = false;
@@ -133,6 +183,16 @@
 </script>
 
 <ParaglideJS {i18n}>
+	<div class="top-loading-bar" aria-hidden="true">
+		{#if loadingBarVisible}
+			{#key loadingBarSequence}
+				<div
+					class="top-loading-bar__fill bg-primary"
+					class:complete={loadingBarPhase === 'complete'}
+				></div>
+			{/key}
+		{/if}
+	</div>
 	{#if currentRoute === '/login'}
 		<slot />
 	{:else if isClient}
@@ -253,6 +313,49 @@
 {/if}
 
 <style>
+	.top-loading-bar {
+		position: fixed;
+		top: env(safe-area-inset-top, 0px);
+		left: 0;
+		width: 100%;
+		height: 4px;
+		z-index: 1000;
+		pointer-events: none;
+	}
+
+	.top-loading-bar__fill {
+		width: 100%;
+		height: 100%;
+
+		transform: scaleX(0);
+		transform-origin: left center;
+		animation: top-loading-bar-progress 1.5s ease-in-out infinite;
+		transition:
+			transform 0.25s ease-out,
+			opacity 0.25s ease-out;
+	}
+
+	.top-loading-bar__fill.complete {
+		animation: none;
+		transform: scaleX(1);
+		opacity: 1;
+	}
+
+	@keyframes top-loading-bar-progress {
+		0% {
+			transform: scaleX(0);
+			opacity: 0.5;
+		}
+		60% {
+			transform: scaleX(0.85);
+			opacity: 1;
+		}
+		100% {
+			transform: scaleX(1);
+			opacity: 0.7;
+		}
+	}
+
 	@media (max-width: 768px) {
 		.mobile-drawer {
 			transition: transform 0.4s ease;

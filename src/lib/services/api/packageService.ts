@@ -22,6 +22,16 @@ export async function createPackage(payload: NewPackagePayload): Promise<{ id: n
 	return res.json();
 }
 
+export async function updatePackage(id: number, payload: NewPackagePayload): Promise<{ id: number }> {
+	const res = await fetch(`/api/packages/${id}`, {
+		method: 'PUT',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify(payload)
+	});
+	if (!res.ok) throw new Error('Failed to update package');
+	return res.json();
+}
+
 export async function getArticles() {
 	const res = await fetch('/api/articles');
 	if (!res.ok) throw new Error('Failed to fetch articles');
