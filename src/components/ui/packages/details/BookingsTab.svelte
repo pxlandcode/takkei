@@ -25,17 +25,17 @@
 	async function removeFromPackage(bookingId: number) {
 		if (!confirm('Är du säker?')) return;
 		const res = await fetch(`/api/bookings/${bookingId}/remove-from-package`, { method: 'POST' });
-	if (!res.ok) {
-		const t = await res.text();
-		let msg = t;
-		try {
-			const parsed = JSON.parse(t);
-			msg = parsed?.error || t;
-		} catch {
-			// ignore
+		if (!res.ok) {
+			const t = await res.text();
+			let msg = t;
+			try {
+				const parsed = JSON.parse(t);
+				msg = parsed?.error || t;
+			} catch {
+				// ignore
+			}
+			throw new Error(msg);
 		}
-		throw new Error(msg);
-	}
 		await fetchBookings();
 		dispatch('changed'); // tell parent to refresh pkg counters
 	}
@@ -65,15 +65,12 @@
 					<tr class="border-b">
 						<td class="py-2 pr-4">
 							{#if b.is_saldojustering}
-								<a class="text-blue-600 underline" href={`/settings/bookings/${b.id}`}>{b.date}</a
-								><br />
+								<a class="text-blue-600 underline" href={`/settings/bookings/${b.id}`}>{b.date}</a><br />
 								<span class="rounded-sm bg-red-100 px-2 py-0.5 text-xs text-red-700">
 									Saldojustering / {b.trainer_name}
 								</span>
 							{:else}
-								<a class="text-blue-600 underline" href={`/settings/bookings/${b.id}`}
-									>{b.datetime}</a
-								>
+								<a class="text-blue-600 underline" href={`/settings/bookings/${b.id}`}>{b.datetime}</a>
 							{/if}
 						</td>
 						<td class="py-2 pr-4">{b.is_saldojustering ? '–' : b.trainer_name}</td>

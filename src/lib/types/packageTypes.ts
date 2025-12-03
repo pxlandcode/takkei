@@ -9,6 +9,7 @@ export type NewPackagePayload = {
         autogiro: boolean;
         installments: number;
         installmentBreakdown?: { date: string; sum: number; invoice_no?: string }[];
+        payment_installments_per_date?: Record<string, { date: string; sum: number; invoice_no?: string }>;
 };
 
 export type Package = {

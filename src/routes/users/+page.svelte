@@ -6,6 +6,7 @@
 	import { goto } from '$app/navigation';
 	import Icon from '../../components/bits/icon-component/Icon.svelte';
 	import Button from '../../components/bits/button/Button.svelte';
+	import OptionButton from '../../components/bits/optionButton/OptionButton.svelte';
 	import UserForm from '../../components/ui/userForm/UserForm.svelte';
 	import { hasRole } from '$lib/helpers/userHelpers/roleHelper';
 	import BookingPopup from '../../components/ui/bookingPopup/BookingPopup.svelte';
@@ -28,6 +29,7 @@
 	let data: TableType = [];
 	let filteredData: TableType = [];
 	let searchQuery = '';
+	let selectedStatusOption = { value: 'active', label: 'Visa aktiva' }; // active | inactive | all
 
 	let selectedTrainerId: number | null = null;
 	let selectedTrainerEmail: string | null = null;
@@ -129,6 +131,7 @@
 					{ type: 'phone', content: user.mobile }
 				],
 				location: user.default_location || '-',
+				isActive: user.active,
 				actions: [
 					{
 						type: 'button',
@@ -152,19 +155,31 @@
 	});
 
 	$: {
-		const query = searchQuery.toLowerCase();
-		filteredData = query
-			? data.filter((row) =>
-					headers.some(
-						(header) =>
-							(header.isSearchable &&
-								typeof row[header.key] === 'string' &&
-								row[header.key].toLowerCase().includes(query)) ||
-							(Array.isArray(row[header.key]) &&
-								row[header.key].some((item) => item.content?.toLowerCase().includes(query)))
-					)
-				)
-			: data;
+		const query = searchQuery.toLowerCase().trim();
+
+		filteredData = data.filter((row) => {
+			if (selectedStatusOption.value === 'active' && !row.isActive) return false;
+			if (selectedStatusOption.value === 'inactive' && row.isActive) return false;
+
+			if (!query) return true;
+
+			return headers.some((header) => {
+				const value = row[header.key];
+
+				if (header.isSearchable && typeof value === 'string') {
+					return value.toLowerCase().includes(query);
+				}
+
+				if (Array.isArray(value)) {
+					return value.some((item) => {
+						const s = (item?.content ?? item?.label ?? '').toString().toLowerCase();
+						return s.includes(query);
+					});
+				}
+
+				return false;
+			});
+		});
 	}
 </script>
 
@@ -184,13 +199,24 @@
 			{/if}
 		</div>
 
-		<div class="ml-4 flex flex-row gap-4">
+		<div class="ml-4 flex flex-col gap-2 xl:flex-row xl:items-center xl:gap-4">
 			<input
 				type="text"
 				bind:value={searchQuery}
 				placeholder="Sök tränare..."
-				class="w-full max-w-md rounded-sm border border-gray-300 p-2 focus:border-blue-500 focus:outline-hidden"
+				class="w-full max-w-md min-w-60 rounded-sm border border-gray-300 p-2 focus:border-blue-500 focus:outline-hidden"
 			/>
+			<div class="min-w-80">
+				<OptionButton
+					options={[
+						{ value: 'active', label: 'Visa aktiva' },
+						{ value: 'inactive', label: 'Visa inaktiva' },
+						{ value: 'all', label: 'Visa alla' }
+					]}
+					bind:selectedOption={selectedStatusOption}
+					size="small"
+				/>
+			</div>
 		</div>
 	</div>
 

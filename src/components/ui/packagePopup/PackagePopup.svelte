@@ -58,8 +58,7 @@ let initialDataApplied = false;
         let installmentBreakdown: { date: string; sum: number; invoice_no?: string }[] = [];
 
 	const today = new Date();
-	const defaultDate = new Date(today.getFullYear(), today.getMonth() + 1, 25);
-	firstPaymentDate = defaultDate.toISOString().split('T')[0];
+	firstPaymentDate = today.toISOString().split('T')[0];
 
 	onMount(async () => {
 		const res = await fetch('/api/customers?short=true');
@@ -103,6 +102,18 @@ let initialDataApplied = false;
 		}
 	}
 
+	function addMonthsPreserveDay(dateStr: string, offset: number): string {
+		const [y, m, d] = dateStr.split('-').map(Number);
+		if (!y || !m || !d) return dateStr;
+
+		const targetMonthIndex = m - 1 + offset;
+		const nextYear = y + Math.floor(targetMonthIndex / 12);
+		const nextMonth = ((targetMonthIndex % 12) + 12) % 12; // keep 0-11
+		const daysInTargetMonth = new Date(Date.UTC(nextYear, nextMonth + 1, 0)).getUTCDate();
+		const safeDay = Math.min(d, daysInTargetMonth);
+		return new Date(Date.UTC(nextYear, nextMonth, safeDay)).toISOString().split('T')[0];
+	}
+
 	function generateInstallmentDates() {
 		const installmentsCount = Number(installments);
 		if (!firstPaymentDate || installmentsCount <= 0) {
@@ -113,9 +124,7 @@ let initialDataApplied = false;
 		const evenSum = installmentsCount > 0 ? total / installmentsCount : 0;
 		let remainder = total;
 		installmentBreakdown = Array.from({ length: installmentsCount }, (_, i) => {
-			const date = new Date(firstPaymentDate);
-			date.setMonth(date.getMonth() + i);
-			const formattedDate = date.toISOString().split('T')[0];
+			const formattedDate = addMonthsPreserveDay(firstPaymentDate, i);
 
 			let sum = i === installmentsCount - 1 ? remainder : parseFloat(evenSum.toFixed(2));
 			remainder = parseFloat((remainder - sum).toFixed(2));

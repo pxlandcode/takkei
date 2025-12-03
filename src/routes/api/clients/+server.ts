@@ -107,16 +107,24 @@ export async function GET({ url }) {
 
 	// Search filter
 	if (search) {
-		whereClauses.push(`
-      (
-        clients.firstname ILIKE $${paramIndex} OR
-        clients.lastname ILIKE $${paramIndex + 1} OR
-        clients.email ILIKE $${paramIndex + 2} OR
-        clients.phone ILIKE $${paramIndex + 3}
-      )
-    `);
-		params.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`);
-		paramIndex += 4;
+		const searchTerms = search.split(/\s+/).filter(Boolean);
+		const termClauses = searchTerms.map((term) => {
+			const startIndex = paramIndex;
+			params.push(`%${term}%`, `%${term}%`, `%${term}%`, `%${term}%`);
+			paramIndex += 4;
+			return `
+        (
+          clients.firstname ILIKE $${startIndex} OR
+          clients.lastname ILIKE $${startIndex + 1} OR
+          clients.email ILIKE $${startIndex + 2} OR
+          clients.phone ILIKE $${startIndex + 3}
+        )
+      `;
+		});
+
+		if (termClauses.length > 0) {
+			whereClauses.push(`(${termClauses.join(' AND ')})`);
+		}
 	}
 
 	// Remove clients with empty names

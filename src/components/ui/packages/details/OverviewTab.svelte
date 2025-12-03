@@ -26,9 +26,7 @@
 		{#if pkg.invoice_numbers?.length}
 			{pkg.invoice_numbers.join(', ')}
 		{:else}
-			— <button class="ml-2 text-blue-600 underline" on:click={() => dispatch('addinvoice')}
-				>Lägg till</button
-			>
+			— <button class="ml-2 text-blue-600 underline" on:click={() => dispatch('addinvoice')}>Lägg till</button>
 		{/if}
 	</p>
 
