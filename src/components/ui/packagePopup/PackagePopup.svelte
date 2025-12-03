@@ -38,9 +38,9 @@ let articles = [];
 let customers = [];
 let clients = [];
 
-	let selectedArticleId = '';
-	let selectedCustomerId = '';
-	let selectedClientId = '';
+	let selectedArticleId: number | '' = '';
+	let selectedCustomerId: number | '' = '';
+	let selectedClientId: number | '' = '';
 
 let price = '';
         let invoiceNumber = '';
@@ -57,29 +57,117 @@ let initialDataApplied = false;
 
         let installmentBreakdown: { date: string; sum: number; invoice_no?: string }[] = [];
 
+	function normalizeDateInput(value: string | Date | null | undefined): string {
+		if (!value) return '';
+		if (value instanceof Date) {
+			if (Number.isNaN(value.getTime())) return '';
+			return value.toISOString().split('T')[0];
+		}
+		if (typeof value === 'string') {
+			const parsed = new Date(value);
+			if (Number.isNaN(parsed.getTime())) return value;
+			return parsed.toISOString().split('T')[0];
+		}
+		return '';
+	}
+
+	function ensureCustomerOption(customer: { id: number; name?: string } | null | undefined) {
+		if (!customer?.id) return;
+		const idNum = Number(customer.id);
+		if (!customers.some((c) => Number(c.id) === idNum)) {
+			customers = [...customers, { ...customer, id: idNum }];
+		}
+	}
+
+	function ensureArticleOption(
+		article: { id: number; name?: string; price?: number; sessions?: number } | null | undefined
+	) {
+		if (!article?.id) return;
+		const idNum = Number(article.id);
+		const fallbackPrice =
+			initialPackage && Number(initialPackage.article?.id) === idNum
+				? initialPackage.paid_price ?? initialPackage.article?.price ?? null
+				: null;
+		const normalizedArticle = {
+			...article,
+			id: idNum,
+			price: article.price ?? fallbackPrice,
+			sessions: article.sessions ?? initialPackage?.article?.sessions ?? null
+		};
+		if (!articles.some((a) => Number(a.id) === idNum)) {
+			articles = [...articles, normalizedArticle];
+		} else {
+			articles = articles.map((a) =>
+				Number(a.id) === idNum
+					? {
+							...a,
+							...normalizedArticle,
+							price: a.price ?? normalizedArticle.price,
+							sessions: a.sessions ?? normalizedArticle.sessions
+					  }
+					: a
+			);
+		}
+	}
+
 	const today = new Date();
 	firstPaymentDate = today.toISOString().split('T')[0];
+
+	function formatArticleLabel(article: { id: number; name?: string; price?: number; sessions?: number }) {
+		const idNum = Number(article.id);
+		const fallbackPrice =
+			initialPackage && Number(initialPackage.article?.id) === idNum
+				? initialPackage.paid_price ?? initialPackage.article?.price ?? null
+				: null;
+		const priceValue = article.price ?? fallbackPrice;
+		const sessionsValue = article.sessions ?? initialPackage?.article?.sessions ?? '—';
+		const priceText = priceValue != null ? `${priceValue} kr` : '— kr';
+		return `${article.name ?? 'Paket'} (${sessionsValue} pass – ${priceText})`;
+	}
 
 	onMount(async () => {
 		const res = await fetch('/api/customers?short=true');
 		customers = await res.json();
 		articles = await getArticles();
+		ensureCustomerOption(initialPackage?.customer ?? null);
+		ensureArticleOption(initialPackage?.article ?? null);
 
 		if (customerId) {
-			selectedCustomerId = customerId;
-			selectedCustomer = customers.find((c) => c.id === customerId) ?? null;
-			await loadClientsForCustomer(customerId);
+			selectedCustomerId = Number(customerId);
+			selectedCustomer = customers.find((c) => Number(c.id) === Number(customerId)) ?? null;
+			await loadClientsForCustomer(customerId, true);
 		}
 	});
 
 	$: if (selectedArticleId) {
-		selectedArticle = articles.find((a) => a.id === Number(selectedArticleId)) ?? null;
+		const match = articles.find((a) => Number(a.id) === Number(selectedArticleId)) ?? null;
+		const fallbackPrice =
+			initialPackage && Number(initialPackage.article?.id) === Number(selectedArticleId)
+				? initialPackage.paid_price ?? initialPackage.article?.price ?? null
+				: null;
+		const fallbackSessions =
+			initialPackage && Number(initialPackage.article?.id) === Number(selectedArticleId)
+				? initialPackage.article?.sessions ?? null
+				: null;
+		selectedArticle = match
+			? {
+					...match,
+					price: match.price ?? fallbackPrice,
+					sessions: match.sessions ?? fallbackSessions
+			  }
+			: initialPackage && Number(initialPackage.article?.id) === Number(selectedArticleId)
+				? {
+						...initialPackage.article,
+						price: fallbackPrice,
+						sessions: fallbackSessions
+				  }
+				: null;
 	}
 	$: if (selectedCustomerId) {
-		selectedCustomer = customers.find((c) => c.id === Number(selectedCustomerId)) ?? null;
+		selectedCustomer = customers.find((c) => Number(c.id) === Number(selectedCustomerId)) ?? null;
 	}
 
-	$: if (selectedArticle && priceLocked) price = selectedArticle.price;
+	$: if (selectedArticle && priceLocked) price = selectedArticle.price ?? price;
 
 	async function loadClientsForCustomer(id: number | string, preserveSelection = false) {
 		const res = await getClientsForCustomer(Number(id));
@@ -135,12 +223,14 @@ let initialDataApplied = false;
 
 	async function applyInitialPackageData(pkg: InitialPackageInput) {
 		if (!pkg || initialDataApplied) return;
+		ensureCustomerOption(pkg.customer ?? null);
+		ensureArticleOption(pkg.article ?? null);
 		if (pkg.customer?.id) {
-			selectedCustomerId = String(pkg.customer.id);
+			selectedCustomerId = Number(pkg.customer.id);
 			await loadClientsForCustomer(pkg.customer.id, true);
 		}
-		selectedClientId = pkg.client?.id ? String(pkg.client.id) : '';
-		selectedArticleId = pkg.article?.id ? String(pkg.article.id) : '';
+		selectedClientId = pkg.client?.id ? Number(pkg.client.id) : '';
+		selectedArticleId = pkg.article?.id ? Number(pkg.article.id) : '';
 		priceLocked = false;
 		price = pkg.paid_price != null ? String(pkg.paid_price) : price;
 		const numericInvoices = Array.isArray(pkg.invoice_numbers)
@@ -156,7 +246,11 @@ let initialDataApplied = false;
 		} else {
 			invoiceNumber = '';
 		}
-		firstPaymentDate = pkg.first_payment_date ?? pkg.installments?.[0]?.date ?? firstPaymentDate;
+		const initialDate =
+			normalizeDateInput(pkg.first_payment_date) ||
+			normalizeDateInput(pkg.installments?.[0]?.date) ||
+			firstPaymentDate;
+		firstPaymentDate = initialDate;
 		autogiro = !!pkg.autogiro;
 		const breakdown = Array.isArray(pkg.installments)
 			? pkg.installments.map((i) => ({
@@ -247,8 +341,8 @@ let initialDataApplied = false;
 		label="Produkt"
 		placeholder="Välj paket"
 		options={articles.map((a) => ({
-			label: `${a.name} (${a.sessions} pass – ${a.price} kr)`,
-			value: a.id
+			label: formatArticleLabel(a),
+			value: Number(a.id)
 		}))}
 		bind:selectedValue={selectedArticleId}
 		name="articleId"
@@ -262,7 +356,7 @@ let initialDataApplied = false;
 				id="customer"
 				label="Kund"
 				placeholder="Välj kund"
-				options={customers.map((c) => ({ label: c.name, value: c.id }))}
+				options={customers.map((c) => ({ label: c.name, value: Number(c.id) }))}
 				bind:selectedValue={selectedCustomerId}
 				disabled={customerLocked}
 				on:change={async (e) => {
@@ -287,7 +381,10 @@ let initialDataApplied = false;
 					id="client"
 					label="Klient"
 					placeholder="Välj klient"
-					options={clients.map((c) => ({ label: `${c.firstname} ${c.lastname}`, value: c.id }))}
+					options={clients.map((c) => ({
+						label: `${c.firstname} ${c.lastname}`,
+						value: Number(c.id)
+					}))}
 					bind:selectedValue={selectedClientId}
 					name="clientId"
 					{errors}

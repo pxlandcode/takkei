@@ -5,6 +5,7 @@
 	import Button from '../../../../components/bits/button/Button.svelte';
 	import Navigation from '../../../../components/bits/navigation/Navigation.svelte';
 	import PackagePopup from '../../../../components/ui/packagePopup/PackagePopup.svelte';
+	import { hasRole } from '$lib/helpers/userHelpers/roleHelper';
 	import { openPopup, closePopup } from '$lib/stores/popupStore';
 
 	import OverviewTab from '../../../../components/ui/packages/details/OverviewTab.svelte';
@@ -15,6 +16,7 @@
 	let pkg: any = null;
 	let loading = true;
 	let error: string | null = null;
+	let isAdmin = false;
 
 	// Freeze state
 	let showFreeze = false;
@@ -32,6 +34,8 @@
 	let showDelete = false;
 	let deleteErr: string | null = null;
 	let deletePending = false;
+
+	$: isAdmin = hasRole('Administrator');
 
 	$: packageId = Number($page.params.id);
 
@@ -60,6 +64,7 @@
 	onMount(fetchPkg);
 
 	async function confirmFreeze() {
+		if (!isAdmin) return;
 		freezeErr = null;
 		freezePending = true;
 		try {
@@ -89,6 +94,7 @@
 	}
 
 	async function addInvoiceNo() {
+		if (!isAdmin) return;
 		invoiceErr = null;
 		invoicePending = true;
 		try {
@@ -121,6 +127,7 @@
 	}
 
 	async function deletePackage() {
+		if (!isAdmin) return;
 		deleteErr = null;
 		deletePending = true;
 		try {
@@ -145,6 +152,7 @@
 	}
 
 	async function moveToCustomer() {
+		if (!isAdmin) return;
 		const res = await fetch(`/api/packages/${packageId}/move-to-customer`, { method: 'POST' });
 		if (!res.ok) {
 			const t = await res.text();
@@ -166,10 +174,11 @@
 	}
 
 	function openEditPopup() {
+		if (!isAdmin) return;
 		if (!pkg) return;
 		openPopup({
 			header: 'Ändra paket',
-			icon: 'Pen',
+			icon: 'Edit',
 			component: PackagePopup,
 			width: '1000px',
 			props: {
@@ -217,7 +226,7 @@
 	</div>
 
 	<div class="flex flex-wrap gap-2">
-		{#if pkg?.client}
+		{#if pkg?.client && isAdmin}
 			<Button
 				text="Flytta till kund"
 				icon="ArrowRightLeft"
@@ -225,17 +234,18 @@
 				on:click={moveToCustomer}
 			/>
 		{/if}
-		{#if pkg?.frozen_from_date}
+		{#if pkg?.frozen_from_date && isAdmin}
 			<Button
 				text="Ta bort frysning"
 				icon="X"
 				variant="secondary"
 				on:click={async () => {
+					if (!isAdmin) return;
 					await fetch(`/api/packages/${packageId}/unfreeze`, { method: 'POST' });
 					await fetchPkg();
 				}}
 			/>
-		{:else}
+		{:else if isAdmin}
 			<Button
 				text="Frys paket"
 				icon="Snowflake"
@@ -244,8 +254,10 @@
 				on:click={() => (showFreeze = true)}
 			/>
 		{/if}
-		<Button text="Ändra" icon="Pen" variant="primary" on:click={openEditPopup} />
-		<Button text="Ta bort" icon="Trash" variant="danger" on:click={() => (showDelete = true)} />
+		{#if isAdmin}
+			<Button text="Ändra" icon="Edit" variant="primary" on:click={openEditPopup} />
+			<Button text="Ta bort" icon="Trash" variant="danger" on:click={() => (showDelete = true)} />
+		{/if}
 	</div>
 </div>
 
@@ -294,14 +306,17 @@
 			{fmtKr}
 			{fmtDate}
 			{packageId}
+			isAdmin={isAdmin}
 			showClientColumn={!pkg.client}
-			on:addinvoice={() => (showInvoice = true)}
+			on:addinvoice={() => {
+				if (isAdmin) showInvoice = true;
+			}}
 			on:changed={fetchPkg}
 		/>
 	</Navigation>
 {/if}
 <!-- Freeze modal -->
-{#if showFreeze}
+	{#if showFreeze && isAdmin}
 	<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
 		<div class="w-full max-w-md rounded-sm bg-white p-5 shadow-xl">
 			<div class="mb-3 flex items-center gap-2">
@@ -330,7 +345,7 @@
 {/if}
 
 <!-- Add invoice number modal -->
-{#if showInvoice}
+	{#if showInvoice && isAdmin}
 	<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
 		<div class="w-full max-w-md rounded-sm bg-white p-5 shadow-xl">
 			<div class="mb-3 flex items-center gap-2">
@@ -355,7 +370,7 @@
 {/if}
 
 <!-- Delete confirm modal -->
-{#if showDelete}
+	{#if showDelete && isAdmin}
 	<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
 		<div class="w-full max-w-md rounded-sm bg-white p-5 shadow-xl">
 			<div class="mb-3 flex items-center gap-2">
