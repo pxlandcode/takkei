@@ -1,20 +1,22 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-import { page } from '$app/stores';
-import Icon from '../../../../components/bits/icon-component/Icon.svelte';
-import Button from '../../../../components/bits/button/Button.svelte';
-import Navigation from '../../../../components/bits/navigation/Navigation.svelte';
-import PackagePopup from '../../../../components/ui/packagePopup/PackagePopup.svelte';
-import { openPopup, closePopup } from '$lib/stores/popupStore';
+	import { page } from '$app/stores';
+	import Icon from '../../../../components/bits/icon-component/Icon.svelte';
+	import Button from '../../../../components/bits/button/Button.svelte';
+	import Navigation from '../../../../components/bits/navigation/Navigation.svelte';
+	import PackagePopup from '../../../../components/ui/packagePopup/PackagePopup.svelte';
+	import { hasRole } from '$lib/helpers/userHelpers/roleHelper';
+	import { openPopup, closePopup } from '$lib/stores/popupStore';
 
-import OverviewTab from '../../../../components/ui/packages/details/OverviewTab.svelte';
-import BookingsTab from '../../../../components/ui/packages/details/BookingsTab.svelte';
-import NotesTab from '../../../../components/ui/packages/details/NotesTab.svelte';
+	import OverviewTab from '../../../../components/ui/packages/details/OverviewTab.svelte';
+	import BookingsTab from '../../../../components/ui/packages/details/BookingsTab.svelte';
+	import NotesTab from '../../../../components/ui/packages/details/NotesTab.svelte';
 
 	let packageId: number;
 	let pkg: any = null;
 	let loading = true;
 	let error: string | null = null;
+	let isAdmin = false;
 
 	// Freeze state
 	let showFreeze = false;
@@ -32,6 +34,8 @@ import NotesTab from '../../../../components/ui/packages/details/NotesTab.svelte
 	let showDelete = false;
 	let deleteErr: string | null = null;
 	let deletePending = false;
+
+	$: isAdmin = hasRole('Administrator');
 
 	$: packageId = Number($page.params.id);
 
@@ -60,6 +64,7 @@ import NotesTab from '../../../../components/ui/packages/details/NotesTab.svelte
 	onMount(fetchPkg);
 
 	async function confirmFreeze() {
+		if (!isAdmin) return;
 		freezeErr = null;
 		freezePending = true;
 		try {
@@ -89,6 +94,7 @@ import NotesTab from '../../../../components/ui/packages/details/NotesTab.svelte
 	}
 
 	async function addInvoiceNo() {
+		if (!isAdmin) return;
 		invoiceErr = null;
 		invoicePending = true;
 		try {
@@ -121,6 +127,7 @@ import NotesTab from '../../../../components/ui/packages/details/NotesTab.svelte
 	}
 
 	async function deletePackage() {
+		if (!isAdmin) return;
 		deleteErr = null;
 		deletePending = true;
 		try {
@@ -145,6 +152,7 @@ import NotesTab from '../../../../components/ui/packages/details/NotesTab.svelte
 	}
 
 	async function moveToCustomer() {
+		if (!isAdmin) return;
 		const res = await fetch(`/api/packages/${packageId}/move-to-customer`, { method: 'POST' });
 		if (!res.ok) {
 			const t = await res.text();
@@ -166,31 +174,32 @@ import NotesTab from '../../../../components/ui/packages/details/NotesTab.svelte
 	}
 
 	function openEditPopup() {
+		if (!isAdmin) return;
 		if (!pkg) return;
 		openPopup({
-		header: 'Ändra paket',
-		icon: 'Pen',
-		component: PackagePopup,
-		width: '1000px',
-		props: {
-			mode: 'edit',
-			packageId,
-			customerId: pkg.customer?.id ?? null,
-			initialPackage: {
-				id: pkg.id,
-				article: pkg.article,
-				customer: pkg.customer,
-				client: pkg.client,
-				paid_price: pkg.paid_price,
-				invoice_no: pkg.invoice_no,
-				invoice_numbers: pkg.invoice_numbers,
-				first_payment_date: pkg.first_payment_date,
-				autogiro: pkg.autogiro,
-				installments: pkg.installments,
-				installments_summary: pkg.installments_summary
-			},
-			onSave: handlePackageSaved
-		}
+			header: 'Ändra paket',
+			icon: 'Edit',
+			component: PackagePopup,
+			width: '1000px',
+			props: {
+				mode: 'edit',
+				packageId,
+				customerId: pkg.customer?.id ?? null,
+				initialPackage: {
+					id: pkg.id,
+					article: pkg.article,
+					customer: pkg.customer,
+					client: pkg.client,
+					paid_price: pkg.paid_price,
+					invoice_no: pkg.invoice_no,
+					invoice_numbers: pkg.invoice_numbers,
+					first_payment_date: pkg.first_payment_date,
+					autogiro: pkg.autogiro,
+					installments: pkg.installments,
+					installments_summary: pkg.installments_summary
+				},
+				onSave: handlePackageSaved
+			}
 		});
 	}
 
@@ -205,70 +214,73 @@ import NotesTab from '../../../../components/ui/packages/details/NotesTab.svelte
 	let selectedTab = menuItems[0];
 </script>
 
-<div class="m-4 custom-scrollbar">
-	<!-- Header -->
-	<div class="flex items-center justify-between">
-		<div class="flex items-center gap-2">
-			<div class="flex h-7 w-7 items-center justify-center rounded-full bg-text text-white">
-				<Icon icon="Package" size="18px" />
-			</div>
-			<h2 class="text-3xl font-semibold text-text">
-				{loading ? 'Laddar…' : (pkg?.article?.name ?? 'Paket')}
-			</h2>
+<!-- Header -->
+<div class="m-4 flex flex-wrap items-center justify-between gap-2">
+	<div class="flex items-center gap-2">
+		<div class="bg-text flex h-7 w-7 items-center justify-center rounded-full text-white">
+			<Icon icon="Package" size="18px" />
 		</div>
-
-		<div class="flex flex-wrap gap-2">
-			{#if pkg?.client}
-				<Button
-					text="Flytta till kund"
-					icon="ArrowRightLeft"
-					variant="secondary"
-					on:click={moveToCustomer}
-				/>
-			{/if}
-			{#if pkg?.frozen_from_date}
-				<Button
-					text="Ta bort frysning"
-					icon="X"
-					variant="secondary"
-					on:click={async () => {
-						await fetch(`/api/packages/${packageId}/unfreeze`, { method: 'POST' });
-						await fetchPkg();
-					}}
-				/>
-			{:else}
-				<Button
-					text="Frys paket"
-					icon="Snowflake"
-					variant="secondary"
-					disabled={!pkg?.freeze?.allowed}
-					on:click={() => (showFreeze = true)}
-				/>
-			{/if}
-		<Button text="Ändra" icon="Pen" variant="primary" on:click={openEditPopup} />
-			<Button text="Ta bort" icon="Trash" variant="danger" on:click={() => (showDelete = true)} />
-		</div>
+		<h2 class="text-text text-3xl font-semibold">
+			{loading ? 'Laddar…' : (pkg?.article?.name ?? 'Paket')}
+		</h2>
 	</div>
 
+	<div class="flex flex-wrap gap-2">
+		{#if pkg?.client && isAdmin}
+			<Button
+				text="Flytta till kund"
+				icon="ArrowRightLeft"
+				variant="secondary"
+				on:click={moveToCustomer}
+			/>
+		{/if}
+		{#if pkg?.frozen_from_date && isAdmin}
+			<Button
+				text="Ta bort frysning"
+				icon="X"
+				variant="secondary"
+				on:click={async () => {
+					if (!isAdmin) return;
+					await fetch(`/api/packages/${packageId}/unfreeze`, { method: 'POST' });
+					await fetchPkg();
+				}}
+			/>
+		{:else if isAdmin}
+			<Button
+				text="Frys paket"
+				icon="Snowflake"
+				variant="secondary"
+				disabled={!pkg?.freeze?.allowed}
+				on:click={() => (showFreeze = true)}
+			/>
+		{/if}
+		{#if isAdmin}
+			<Button text="Ändra" icon="Edit" variant="primary" on:click={openEditPopup} />
+			<Button text="Ta bort" icon="Trash" variant="danger" on:click={() => (showDelete = true)} />
+		{/if}
+	</div>
+</div>
+
+<div class="m-4 flex flex-col gap-3">
 	{#if error}
-		<p class="mt-6 text-red-600">{error}</p>
+		<p class="text-red-600">{error}</p>
 	{:else if loading}
-		<p class="mt-6 text-gray-600">Laddar paket…</p>
+		<p class="text-gray-600">Laddar paket…</p>
 	{:else}
 		{#if pkg?.frozen_from_date}
-			<div class="mt-4 rounded-sm border border-yellow-300 bg-yellow-50 p-3 text-yellow-900">
+			<div class="rounded-sm border border-yellow-300 bg-yellow-50 p-3 text-yellow-900">
 				<strong>Paketet är fryst från och med {pkg.frozen_from_date}.</strong>
 			</div>
 		{/if}
 
 		{#if pkg?.overbooked}
-			<div class="mt-3 rounded-sm border border-red-300 bg-red-50 p-3 text-red-800">
+			<div class="rounded-sm border border-red-300 bg-red-50 p-3 text-red-800">
 				<strong>OBS!</strong> Paketet har för många bokningar. Koppla bort bokningar eller uppgradera.
 			</div>
 		{/if}
 
 		{#if pkg?.valid_to && pkg.valid_to < todayISO && pkg.remaining_sessions > 0}
-			<div class="mt-3 rounded-sm border border-yellow-300 bg-yellow-50 p-3 text-yellow-900">
+			<div class="rounded-sm border border-yellow-300 bg-yellow-50 p-3 text-yellow-900">
 				<p>
 					<strong>Giltighetstiden har gått ut men {pkg.remaining_sessions} pass återstår.</strong>
 					Uppgradera paketet under <em>Ändra</em> för att kunna använda återstående pass.
@@ -277,30 +289,34 @@ import NotesTab from '../../../../components/ui/packages/details/NotesTab.svelte
 		{/if}
 
 		{#if pkg?.locked_installments > 0}
-			<div class="mt-2 rounded-sm border border-red-200 bg-red-50 p-2 text-sm text-red-800">
+			<div class="rounded-sm border border-red-200 bg-red-50 p-2 text-sm text-red-800">
 				<strong>OBS!</strong> Vissa faktureringstillfällen ligger i passerade månader och kan vara låsta.
 			</div>
 		{/if}
-
-		<!-- 🔀 Navigation-driven tabs -->
-		<Navigation {menuItems} bind:selectedTab>
-			<!-- We pass live props into the selected component -->
-			<svelte:component
-				this={selectedTab.component}
-				{pkg}
-				{fmtKr}
-				{fmtDate}
-				{packageId}
-				showClientColumn={!pkg.client}
-				on:addinvoice={() => (showInvoice = true)}
-				on:changed={fetchPkg}
-			/>
-		</Navigation>
 	{/if}
 </div>
 
+<!-- 🔀 Navigation-driven tabs -->
+{#if !loading && pkg}
+	<Navigation {menuItems} bind:selectedTab>
+		<!-- We pass live props into the selected component -->
+		<svelte:component
+			this={selectedTab.component}
+			{pkg}
+			{fmtKr}
+			{fmtDate}
+			{packageId}
+			isAdmin={isAdmin}
+			showClientColumn={!pkg.client}
+			on:addinvoice={() => {
+				if (isAdmin) showInvoice = true;
+			}}
+			on:changed={fetchPkg}
+		/>
+	</Navigation>
+{/if}
 <!-- Freeze modal -->
-{#if showFreeze}
+	{#if showFreeze && isAdmin}
 	<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
 		<div class="w-full max-w-md rounded-sm bg-white p-5 shadow-xl">
 			<div class="mb-3 flex items-center gap-2">
@@ -329,7 +345,7 @@ import NotesTab from '../../../../components/ui/packages/details/NotesTab.svelte
 {/if}
 
 <!-- Add invoice number modal -->
-{#if showInvoice}
+	{#if showInvoice && isAdmin}
 	<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
 		<div class="w-full max-w-md rounded-sm bg-white p-5 shadow-xl">
 			<div class="mb-3 flex items-center gap-2">
@@ -354,7 +370,7 @@ import NotesTab from '../../../../components/ui/packages/details/NotesTab.svelte
 {/if}
 
 <!-- Delete confirm modal -->
-{#if showDelete}
+	{#if showDelete && isAdmin}
 	<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
 		<div class="w-full max-w-md rounded-sm bg-white p-5 shadow-xl">
 			<div class="mb-3 flex items-center gap-2">

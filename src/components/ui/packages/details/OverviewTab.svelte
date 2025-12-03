@@ -3,6 +3,7 @@
 	export let pkg: any;
 	export let fmtKr: (n?: number) => string;
 	export let fmtDate: (iso?: string) => string;
+	export let isAdmin: boolean = false;
 
 	const dispatch = createEventDispatcher();
 </script>
@@ -25,10 +26,10 @@
 		<strong>Fakturanummer:</strong>
 		{#if pkg.invoice_numbers?.length}
 			{pkg.invoice_numbers.join(', ')}
+		{:else if isAdmin}
+			— <button class="ml-2 text-blue-600 underline" on:click={() => dispatch('addinvoice')}>Lägg till</button>
 		{:else}
-			— <button class="ml-2 text-blue-600 underline" on:click={() => dispatch('addinvoice')}
-				>Lägg till</button
-			>
+			—
 		{/if}
 	</p>
 
