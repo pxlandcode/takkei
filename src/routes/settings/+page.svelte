@@ -11,28 +11,16 @@
 	import Navigation from '../../components/bits/navigation/Navigation.svelte';
 	import UserForm from '../../components/ui/userForm/UserForm.svelte';
 	import Button from '../../components/bits/button/Button.svelte';
+	import GreetingSettings from '../../components/ui/greetingSettings/GreetingSettings.svelte';
 
 	import NotificationAdministration from '../../components/ui/notificationAdministration/NotificationAdministration.svelte';
 	import MailHistory from '../../components/ui/mailHistory/MailHistory.svelte';
 
 	const menuItems = [
-		{ label: 'Allmänt', icon: 'Settings', component: Icon },
-		{
-			label: 'Ny användare',
-			icon: 'Person',
-			component: UserForm,
-			requiredRoles: ['Administrator']
-		},
 		{
 			label: 'Kunder',
 			icon: 'Customer',
 			component: CustomerSettings
-		},
-		{
-			label: 'Lokaler',
-			icon: 'Building',
-			component: LocationSettings,
-			requiredRoles: ['Administrator']
 		},
 		{ label: 'Paket', icon: 'Package', component: PackagesSettings },
 		{ label: 'Mailutskick', icon: 'Mail', component: MailComponent },
@@ -42,6 +30,24 @@
 			icon: 'Notification',
 			component: NotificationAdministration,
 			requiredRoles: ['Administrator', 'LocationAdmin']
+		},
+		{
+			label: 'Hälsningar',
+			icon: 'ShiningStar',
+			component: GreetingSettings,
+			requiredRoles: ['Administrator']
+		},
+		{
+			label: 'Ny användare',
+			icon: 'Person',
+			component: UserForm,
+			requiredRoles: ['Administrator']
+		},
+		{
+			label: 'Lokaler',
+			icon: 'Building',
+			component: LocationSettings,
+			requiredRoles: ['Administrator']
 		},
 		{
 			label: 'Mål',
