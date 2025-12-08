@@ -396,7 +396,7 @@
 		: ''} {booking.isPersonalBooking
 		? isMeetingSlot()
 			? 'bg-gray-600/40'
-			: 'bg-gray-300/20'
+			: 'bg-gray-300/40'
 		: ''}"
 	class:selected-slot={isSelectedVariant}
 	style:top={`${topOffset}px`}

@@ -470,7 +470,7 @@
 	async function buildTrainerSwapOptions() {
 		try {
 			await ensureUsersLoaded();
-			const userOptions = get(users);
+			const userOptions = (get(users) ?? []).filter((candidate) => candidate.active);
 			const locationId = currentLocationId;
 			if (!locationId) {
 				addToast({
