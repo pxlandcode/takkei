@@ -32,6 +32,7 @@ import { getCalendarUrl } from '$lib/helpers/calendarHelpers/calendarNavigation'
 
 	let availableRooms = [];
 	let eligibleTrialClients = [];
+	let trainerOptions = [];
 
 	// Client scope toggle
 	let clientScope = { value: 'trainer', label: 'Tränarens klienter' };
@@ -73,6 +74,9 @@ import { getCalendarUrl } from '$lib/helpers/calendarHelpers/calendarNavigation'
 	}
 
 	let filteredClients = [];
+	$: trainerOptions = $users
+		.filter((u) => u.active)
+		.map((u) => ({ label: `${u.firstname} ${u.lastname}`, value: u.id }));
 
 	if (!bookingObject.repeatWeeks) {
 		bookingObject.repeatWeeks = 4;
@@ -292,7 +296,7 @@ import { getCalendarUrl } from '$lib/helpers/calendarHelpers/calendarNavigation'
 		labelIconSize="16px"
 		placeholder="Välj tränare"
 		id="users"
-		options={$users.map((u) => ({ label: `${u.firstname} ${u.lastname}`, value: u.id }))}
+		options={trainerOptions}
 		search
 		maxNumberOfSuggestions={15}
 		infiniteScroll

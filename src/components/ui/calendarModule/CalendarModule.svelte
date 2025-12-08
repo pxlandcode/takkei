@@ -4,6 +4,7 @@
 	import Button from '../../bits/button/Button.svelte';
 	import { get, writable } from 'svelte/store';
 	import { goto } from '$app/navigation';
+	import { page } from '$app/stores';
 	import { user } from '$lib/stores/userStore';
 	import { calendarStore } from '$lib/stores/calendarStore';
 	import type { CalendarFilters } from '$lib/stores/calendarStore';
@@ -45,6 +46,9 @@
 	let moduleRef: HTMLDivElement | null = null;
 	let showLocationDropdown = false;
 	const dropdownOffset = { top: 70, left: 93 };
+	let isOnCalendarPage = false;
+
+	$: isOnCalendarPage = $page.url.pathname.startsWith('/calendar');
 
 	// ---- Store → calendar sync (only when store date string changes) ----
 	$: storeDateStr = $calendarStore.filters.date ?? null;
@@ -144,8 +148,31 @@
 		}
 	}
 
-	function openMyCalender() {
-		const filters: Partial<CalendarFilters> = { trainerIds: [currentUser.id] };
+	function mergeWithCurrentDateFilters(
+		nextFilters: Partial<CalendarFilters>
+	): Partial<CalendarFilters> {
+		if (!isOnCalendarPage) return nextFilters;
+
+		const merged = { ...nextFilters };
+		const currentFilters = get(calendarStore).filters;
+
+		if (currentFilters?.date && merged.date == null) {
+			merged.date = currentFilters.date;
+		}
+		if (currentFilters?.from && merged.from == null) {
+			merged.from = currentFilters.from;
+		}
+		if (currentFilters?.to && merged.to == null) {
+			merged.to = currentFilters.to;
+		}
+
+		return merged;
+	}
+
+	function openMyCalendar() {
+		const filters: Partial<CalendarFilters> = mergeWithCurrentDateFilters({
+			trainerIds: [currentUser.id]
+		});
 		calendarStore.setNewFilters(filters, fetch);
 		goto(getCalendarUrl(filters));
 	}
@@ -166,7 +193,7 @@
 		showLocationDropdown = false;
 	}
 
-	async function openLocationCalender(event: MouseEvent) {
+	async function openLocationCalendar(event: MouseEvent) {
 		event.preventDefault();
 		event.stopPropagation();
 
@@ -189,7 +216,9 @@
 
 	function selectLocation(locationId: number) {
 		closeLocationDropdown();
-		const filters: Partial<CalendarFilters> = { locationIds: [locationId] };
+		const filters: Partial<CalendarFilters> = mergeWithCurrentDateFilters({
+			locationIds: [locationId]
+		});
 		calendarStore.setNewFilters(filters, fetch);
 		goto(getCalendarUrl(filters));
 	}
@@ -221,13 +250,13 @@
 			</button>
 		</div>
 		<div class="flex flex-row justify-between gap-4">
-			<Button variant="secondary" icon="CalendarMy" iconSize="25px" on:click={openMyCalender} />
+			<Button variant="secondary" icon="CalendarMy" iconSize="25px" on:click={openMyCalendar} />
 			<Button
 				variant="secondary"
 				icon="CalendarLocation"
 				iconSize="25px"
 				data-location-trigger="true"
-				on:click={openLocationCalender}
+				on:click={openLocationCalendar}
 			/>
 		</div>
 	</div>
