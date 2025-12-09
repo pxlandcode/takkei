@@ -61,7 +61,6 @@
 		isObjectOption(opt) ? valuesEqual(opt.value, selectedValue) : valuesEqual(opt, selectedValue)
 	);
 	$: iconsForSelected = selectedIcons ?? getIcons(selectedOption);
-	$: console.log('[Dropdown] selected', { id, selectedValue, iconsForSelected, selectedOption });
 
 	type IconDef = { icon: string; size?: string };
 

@@ -20,7 +20,9 @@ export const GET: RequestHandler = async ({ locals, url }) => {
 			`SELECT id, message, icon, active, audience, created_at, updated_at
                          FROM greetings
                          WHERE active = TRUE
-                           AND ($1 = 'both' OR audience = 'both' OR audience = $1)
+                           AND ($1::greeting_audience_enum = 'both'::greeting_audience_enum
+                                OR audience = 'both'::greeting_audience_enum
+                                OR audience = $1::greeting_audience_enum)
                          ORDER BY created_at DESC, id DESC`,
 			[audienceParam]
 		);

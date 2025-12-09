@@ -212,15 +212,6 @@
 			(opt) => Number(opt.value) === Number(bookingObject.locationId ?? NaN)
 		);
 		selectedLocationIcons = selectedLocation?.icons ?? [];
-
-		console.log('[bookingTraining] location icons', {
-			selectedTrainerId,
-			trainerDefaultLocationId,
-			selectedClientId,
-			clientPrimaryLocationId,
-			locationId: bookingObject.locationId,
-			selectedLocationIcons
-		});
 	}
 
 	// If no location is chosen, fall back to the client's primary location (when available)
