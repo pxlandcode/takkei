@@ -4,6 +4,7 @@ type NormalizedGreeting = {
 	message: string;
 	icon: string | null;
 	active: boolean;
+	audience: 'client' | 'user' | 'both';
 };
 
 export type GreetingValidationResult = {
@@ -31,6 +32,13 @@ function normalizeActive(value: unknown): boolean {
 	return true; // default to active
 }
 
+function normalizeAudience(value: unknown): 'client' | 'user' | 'both' {
+	if (typeof value !== 'string') return 'both';
+	const normalized = value.trim().toLowerCase();
+	if (normalized === 'client' || normalized === 'user' || normalized === 'both') return normalized;
+	return 'both';
+}
+
 export function validateGreetingPayload(payload: Record<string, unknown>): GreetingValidationResult {
 	const errors: Record<string, string> = {};
 
@@ -41,10 +49,11 @@ export function validateGreetingPayload(payload: Record<string, unknown>): Greet
 
 	const icon = normalizeIcon(payload.icon);
 	const active = normalizeActive(payload.active);
+	const audience = normalizeAudience(payload.audience);
 
 	return {
 		errors,
-		values: { message, icon, active }
+		values: { message, icon, active, audience }
 	};
 }
 
@@ -53,6 +62,7 @@ export type GreetingRow = {
 	message: string;
 	icon: string | null;
 	active: boolean;
+	audience: string | null;
 	created_at: string | null;
 	updated_at: string | null;
 };
@@ -72,6 +82,7 @@ export function mapGreetingRow(row: GreetingRow): Greeting {
 		message: normalizeString(row.message),
 		icon: row.icon ? String(row.icon) : null,
 		active: Boolean(row.active),
+		audience: normalizeAudience(row.audience),
 		createdAt: toIso(row.created_at),
 		updatedAt: toIso(row.updated_at)
 	};

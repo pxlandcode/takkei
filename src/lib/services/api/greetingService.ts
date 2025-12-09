@@ -1,4 +1,4 @@
-import type { Greeting, GreetingPayload } from '$lib/types/greeting';
+import type { Greeting, GreetingAudience, GreetingPayload } from '$lib/types/greeting';
 
 type FetchLike = typeof fetch;
 
@@ -21,9 +21,20 @@ function parseList(body: any): Greeting[] {
 	return [];
 }
 
-export async function fetchActiveGreetings(fetchFn?: FetchLike): Promise<Greeting[]> {
+type ActiveGreetingOptions = {
+	fetchFn?: FetchLike;
+	audience?: GreetingAudience;
+};
+
+export async function fetchActiveGreetings(options: ActiveGreetingOptions = {}): Promise<Greeting[]> {
+	const { fetchFn, audience } = options;
 	const fetcher = resolveFetch(fetchFn);
-	const res = await fetcher('/api/greetings');
+	const params = new URLSearchParams();
+	if (audience) {
+		params.set('audience', audience);
+	}
+	const query = params.toString();
+	const res = await fetcher(`/api/greetings${query ? `?${query}` : ''}`);
 	if (!res.ok) {
 		throw new Error('Kunde inte hämta hälsningar.');
 	}

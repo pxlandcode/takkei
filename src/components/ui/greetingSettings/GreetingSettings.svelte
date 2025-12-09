@@ -3,14 +3,14 @@
 	import Input from '../../bits/Input/Input.svelte';
 	import Checkbox from '../../bits/checkbox/Checkbox.svelte';
 	import Button from '../../bits/button/Button.svelte';
-	import Icon from '../../bits/icon-component/Icon.svelte';
 	import EmojiSelector from '../../bits/emoji/EmojiSelector.svelte';
+	import Dropdown from '../../bits/dropdown/Dropdown.svelte';
 	import { clickOutside } from '$lib/actions/clickOutside';
 	import { hasRole } from '$lib/helpers/userHelpers/roleHelper';
 	import { user as userStore } from '$lib/stores/userStore';
 	import { addToast } from '$lib/stores/toastStore';
 	import { AppToastType } from '$lib/types/toastTypes';
-	import type { Greeting } from '$lib/types/greeting';
+	import type { Greeting, GreetingAudience } from '$lib/types/greeting';
 	import {
 		createGreeting,
 		deleteGreeting,
@@ -27,9 +27,15 @@
 	let formErrors: Record<string, string> = {};
 	let message = '';
 	let active = true;
+	let audience: GreetingAudience = 'both';
 	let showIconPicker = false;
 	let pickerRef: HTMLDivElement | null = null;
 	let iconRowRef: HTMLDivElement | null = null;
+	const audienceOptions: { value: GreetingAudience; label: string }[] = [
+		{ value: 'both', label: 'Båda' },
+		{ value: 'user', label: 'Användare' },
+		{ value: 'client', label: 'Kunder' }
+	];
 
 	onMount(() => {
 		const unsubscribe = userStore.subscribe((currentUser) => {
@@ -67,6 +73,7 @@
 	function resetForm() {
 		message = '';
 		active = true;
+		audience = 'both';
 		formErrors = {};
 	}
 
@@ -83,7 +90,8 @@
 			const created = await createGreeting({
 				message: trimmedMessage,
 				icon: null,
-				active
+				active,
+				audience
 			});
 			greetings = [created, ...greetings];
 			clearGreetingCache();
@@ -113,7 +121,8 @@
 			const updated = await updateGreeting(greeting.id, {
 				message: greeting.message,
 				icon: greeting.icon ?? null,
-				active: !greeting.active
+				active: !greeting.active,
+				audience: greeting.audience ?? 'both'
 			});
 			greetings = greetings.map((g) => (g.id === updated.id ? updated : g));
 			clearGreetingCache();
@@ -129,9 +138,6 @@
 
 	async function handleDelete(greeting: Greeting) {
 		if (!isAdmin || !greeting?.id) return;
-		const shouldDelete = confirm(`Ta bort hälsningen "${greeting.message}"?`);
-		if (!shouldDelete) return;
-
 		try {
 			await deleteGreeting(greeting.id);
 			greetings = greetings.filter((g) => g.id !== greeting.id);
@@ -159,6 +165,32 @@
 		message = `${message || ''}${value}`;
 		showIconPicker = false;
 	}
+
+	async function handleAudienceChange(greeting: Greeting, value: GreetingAudience) {
+		if (!isAdmin || !greeting?.id) return;
+		try {
+			const updated = await updateGreeting(greeting.id, {
+				message: greeting.message,
+				icon: greeting.icon ?? null,
+				active: greeting.active ?? true,
+				audience: value
+			});
+			greetings = greetings.map((g) => (g.id === updated.id ? updated : g));
+			clearGreetingCache();
+			addToast({
+				type: AppToastType.SUCCESS,
+				message: 'Målgrupp uppdaterad',
+				description: 'Hälsningen har uppdaterats.'
+			});
+		} catch (error) {
+			console.error('Failed to update audience', error);
+			addToast({
+				type: AppToastType.CANCEL,
+				message: 'Kunde inte uppdatera',
+				description: 'Försök igen senare.'
+			});
+		}
+	}
 </script>
 
 {#if !isAdmin}
@@ -173,8 +205,8 @@
 				<p class="text-sm text-gray-600">Ställ in om den ska vara aktiv från start.</p>
 			</div>
 
-			<div class="relative flex flex-col gap-2" bind:this={iconRowRef}>
-				<div class="flex items-start gap-2">
+			<div class="relative flex flex-col gap-3" bind:this={iconRowRef}>
+				<div class="flex flex-col gap-3 md:flex-row md:items-start md:gap-4">
 					<div class="flex-1">
 						<Input
 							label="Meddelande"
@@ -212,10 +244,25 @@
 					</div>
 				{/if}
 			</div>
-			<div class="flex flex-row items-center justify-end gap-5">
-				<Checkbox id="greeting-active" label="Aktiv" name="active" bind:checked={active} />
-
-				<Button text="Spara hälsning" iconLeft="Plus" small on:click={handleCreate} />
+			<div
+				class="flex flex-col items-stretch gap-3 md:flex-row md:items-center md:justify-end md:gap-4"
+			>
+				<div class="mt-8">
+					<Checkbox id="greeting-active" label="Aktiv" name="active" bind:checked={active} />
+				</div>
+				<div class="md:w-48">
+					<Dropdown
+						id="greeting-audience"
+						label="Målgrupp"
+						options={audienceOptions}
+						placeholder="Välj målgrupp"
+						selectedValue={audience}
+						on:change={(event) => (audience = (event.detail?.value ?? 'both') as GreetingAudience)}
+					/>
+				</div>
+				<div class="mt-8">
+					<Button text="Spara hälsning" iconLeft="Plus" small on:click={handleCreate} />
+				</div>
 			</div>
 		</section>
 
@@ -248,6 +295,20 @@
 										· Skapad {new Date(greeting.createdAt).toLocaleDateString('sv-SE')}
 									{/if}
 								</p>
+								<div class="mt-2 w-full max-w-xs">
+									<Dropdown
+										id={`greet-${greeting.id}-audience`}
+										label="Målgrupp"
+										options={audienceOptions}
+										selectedValue={greeting.audience ?? 'both'}
+										placeholder="Välj målgrupp"
+										on:change={(event) =>
+											handleAudienceChange(
+												greeting,
+												(event.detail?.value ?? 'both') as GreetingAudience
+											)}
+									/>
+								</div>
 							</div>
 							<div class="flex items-center gap-3">
 								<Checkbox
@@ -262,7 +323,12 @@
 									iconLeft="Trash"
 									variant="danger-outline"
 									small
-									on:click={() => handleDelete(greeting)}
+									confirmOptions={{
+										title: 'Ta bort hälsning',
+										description: `Ta bort "${greeting.message}"?`,
+										actionLabel: 'Ta bort',
+										action: () => handleDelete(greeting)
+									}}
 								/>
 							</div>
 						</div>

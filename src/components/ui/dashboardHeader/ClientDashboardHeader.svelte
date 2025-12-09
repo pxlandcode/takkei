@@ -5,15 +5,15 @@
 	let greeting: Greeting = { message: 'Hej!', icon: '👋' };
 	let name: string | null = null;
 
-	async function refreshGreeting(currentUser: any) {
-		if (!currentUser) return;
-		name = currentUser.firstname ?? null;
-		try {
-			greeting = await getGreeting();
-		} catch (error) {
-			console.error('Failed to load greeting', error);
-		}
+async function refreshGreeting(currentUser: any) {
+	if (!currentUser) return;
+	name = currentUser.firstname ?? null;
+	try {
+		greeting = await getGreeting({ audience: 'client' });
+	} catch (error) {
+		console.error('Failed to load greeting', error);
 	}
+}
 
 	$: {
 		const currentUser = $userStore;

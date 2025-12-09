@@ -15,7 +15,7 @@ export const GET: RequestHandler = async ({ locals }) => {
 
 	try {
 		const rows = await query<GreetingRow>(
-			`SELECT id, message, icon, active, created_at, updated_at
+			`SELECT id, message, icon, active, audience, created_at, updated_at
                          FROM greetings
                          ORDER BY created_at DESC, id DESC`
 		);
@@ -52,10 +52,10 @@ export const POST: RequestHandler = async ({ locals, request }) => {
 
 	try {
 		const rows = await query<GreetingRow>(
-			`INSERT INTO greetings (message, icon, active)
-                         VALUES ($1, $2, $3)
-                         RETURNING id, message, icon, active, created_at, updated_at`,
-			[values.message, values.icon, values.active]
+			`INSERT INTO greetings (message, icon, active, audience)
+                         VALUES ($1, $2, $3, $4)
+                         RETURNING id, message, icon, active, audience, created_at, updated_at`,
+			[values.message, values.icon, values.active, values.audience]
 		);
 
 		const created = rows[0];

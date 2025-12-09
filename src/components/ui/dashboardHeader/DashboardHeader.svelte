@@ -14,14 +14,14 @@
 	let greeting: Greeting = { message: 'Hej!', icon: '👋' };
 	$: totalNotifications = $notificationStore.total;
 
-	async function loadGreeting() {
-		if (!currentUser) return;
-		try {
-			greeting = await getGreeting();
-		} catch (error) {
-			console.error('Failed to load greeting', error);
-		}
+async function loadGreeting() {
+	if (!currentUser) return;
+	try {
+		greeting = await getGreeting({ audience: 'user' });
+	} catch (error) {
+		console.error('Failed to load greeting', error);
 	}
+}
 
 	onMount(() => {
 		const unsubscribe = user.subscribe((value) => {

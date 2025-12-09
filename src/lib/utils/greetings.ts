@@ -1,27 +1,13 @@
 import { get } from 'svelte/store';
 import { fetchActiveGreetings } from '$lib/services/api/greetingService';
-import type { Greeting as GreetingType } from '$lib/types/greeting';
+import type { Greeting as GreetingType, GreetingAudience } from '$lib/types/greeting';
 import { user } from '$lib/stores/userStore';
 
 export type Greeting = GreetingType & {
 	condition?: (user: any) => boolean;
 };
 
-const fallbackGreetings: Greeting[] = [
-	{ message: 'Hej, {name}!', icon: '👋' },
-	{ message: 'TAKKEI ❤️ DIG!', icon: '' },
-	{ message: 'Nu kör vi!', icon: '🚗' },
-	{ message: 'Du är bäst!', icon: '💪' },
-	{ message: 'Du är en', icon: '🌟' },
-	{ message: 'Du rockar!', icon: '🤘' },
-	{ message: 'Dags att svettas!', icon: '🔥' },
-	{ message: 'Kämpa på!', icon: '🏋️' },
-	{ message: 'Push it to the limit!', icon: '🚀' },
-	{ message: 'En rep till!', icon: '🔁' },
-	{ message: 'Gains på väg!', icon: '🥩' },
-	{ message: 'Starkare än igår!', icon: '📈' },
-	{ message: 'Du är nr. 1!', icon: '🥇' }
-];
+const fallbackGreetings: Greeting[] = [{ message: 'Hej, {name}!', icon: '👋', audience: 'both' }];
 
 export const specialGreetings: Greeting[] = [
 	{
@@ -34,38 +20,65 @@ export const specialGreetings: Greeting[] = [
 	}
 ];
 
-let cachedGreetings: Greeting[] | null = null;
-let fetchPromise: Promise<Greeting[]> | null = null;
+const cache: Record<GreetingAudience, Greeting[] | null> = {
+	user: null,
+	client: null,
+	both: null
+};
 
-async function loadActiveGreetings(fetchFn?: typeof fetch): Promise<Greeting[]> {
-	if (cachedGreetings) return cachedGreetings;
-	if (!fetchPromise) {
-		fetchPromise = fetchActiveGreetings(fetchFn)
+const fetchPromises: Partial<Record<GreetingAudience, Promise<Greeting[]>>> = {};
+
+function normalizeAudience(value?: GreetingAudience | null): GreetingAudience {
+	if (value === 'client' || value === 'user' || value === 'both') return value;
+	return 'both';
+}
+
+function normalizeList(rows: GreetingType[], audience: GreetingAudience): Greeting[] {
+	const normalizedAudience = normalizeAudience(audience);
+	return (rows ?? [])
+		.filter((g) => (g.active ?? true) && g.message)
+		.filter((g) => {
+			const a = normalizeAudience(g.audience as GreetingAudience);
+			if (normalizedAudience === 'both') return true;
+			return a === 'both' || a === normalizedAudience;
+		})
+		.map((g) => ({
+			...g,
+			icon: g.icon ?? '',
+			audience: normalizeAudience(g.audience as GreetingAudience)
+		}));
+}
+
+async function loadActiveGreetings(
+	audience: GreetingAudience,
+	fetchFn?: typeof fetch
+): Promise<Greeting[]> {
+	const audienceKey = normalizeAudience(audience);
+	if (cache[audienceKey]) return cache[audienceKey] as Greeting[];
+
+	if (!fetchPromises[audienceKey]) {
+		fetchPromises[audienceKey] = fetchActiveGreetings({ fetchFn, audience: audienceKey })
 			.then((rows) => {
-				const normalized = (rows ?? [])
-					.filter((g) => (g.active ?? true) && g.message)
-					.map((g) => ({
-						...g,
-						icon: g.icon ?? ''
-					}));
+				const normalized = normalizeList(rows, audienceKey);
 				if (normalized.length === 0) {
-					return [{ message: 'Hej, {name}', icon: '👋' }];
+					return [{ message: 'Hej, {name}', icon: '👋', audience: 'both' }];
 				}
 				return normalized;
 			})
 			.catch((error) => {
 				console.error('Failed to fetch greetings, using fallback', error);
-				return fallbackGreetings;
+				return normalizeList(fallbackGreetings, audienceKey);
 			})
 			.then((result) => {
-				cachedGreetings = result;
+				cache[audienceKey] = result;
 				return result;
 			})
 			.finally(() => {
-				fetchPromise = null;
+				fetchPromises[audienceKey] = undefined;
 			});
 	}
-	return fetchPromise;
+
+	return fetchPromises[audienceKey] as Promise<Greeting[]>;
 }
 
 function personalize(message: string, name?: string): string {
@@ -74,7 +87,13 @@ function personalize(message: string, name?: string): string {
 	return message.replace('{name}', name);
 }
 
-export async function getGreeting(fetchFn?: typeof fetch): Promise<Greeting> {
+type GetGreetingOptions = {
+	audience?: GreetingAudience;
+	fetchFn?: typeof fetch;
+};
+
+export async function getGreeting(options: GetGreetingOptions = {}): Promise<Greeting> {
+	const audience = normalizeAudience(options.audience ?? 'user');
 	const currentUser = get(user);
 	const username = currentUser?.firstname;
 
@@ -82,13 +101,14 @@ export async function getGreeting(fetchFn?: typeof fetch): Promise<Greeting> {
 		if (greeting.condition && greeting.condition(currentUser)) {
 			return {
 				...greeting,
+				audience,
 				message: personalize(greeting.message, username)
 			};
 		}
 	}
 
-	const greetings = await loadActiveGreetings(fetchFn);
-	const pool = greetings.length ? greetings : fallbackGreetings;
+	const greetings = await loadActiveGreetings(audience, options.fetchFn);
+	const pool = greetings.length ? greetings : normalizeList(fallbackGreetings, audience);
 	const randomGreeting = pool[Math.floor(Math.random() * pool.length)];
 	return {
 		...randomGreeting,
@@ -97,6 +117,10 @@ export async function getGreeting(fetchFn?: typeof fetch): Promise<Greeting> {
 }
 
 export function clearGreetingCache() {
-	cachedGreetings = null;
-	fetchPromise = null;
+	cache.user = null;
+	cache.client = null;
+	cache.both = null;
+	fetchPromises.user = undefined;
+	fetchPromises.client = undefined;
+	fetchPromises.both = undefined;
 }

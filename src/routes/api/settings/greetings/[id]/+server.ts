@@ -42,10 +42,11 @@ export const PATCH: RequestHandler = async ({ locals, params, request }) => {
                          SET message = $1,
                              icon = $2,
                              active = $3,
+                             audience = $4,
                              updated_at = NOW()
-                         WHERE id = $4
-                         RETURNING id, message, icon, active, created_at, updated_at`,
-			[values.message, values.icon, values.active, id]
+                         WHERE id = $5
+                         RETURNING id, message, icon, active, audience, created_at, updated_at`,
+			[values.message, values.icon, values.active, values.audience, id]
 		);
 
 		const updated = rows[0];
