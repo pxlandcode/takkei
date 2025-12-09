@@ -9,9 +9,13 @@ export async function POST({ request }) {
 		phone,
 		person_number,
 		primary_trainer_id,
+		primary_location_id,
 		customer_id,
 		active
 	} = await request.json();
+	const primaryTrainerId = primary_trainer_id ?? null;
+	const primaryLocationId = primary_location_id ?? null;
+	const isActive = active ?? true;
 
 	// Check for existing email
 	const existing = await query(`SELECT id FROM clients WHERE email = $1`, [email]);
@@ -25,10 +29,20 @@ export async function POST({ request }) {
 
 	const result = await query(
 		`INSERT INTO clients (
-			firstname, lastname, email, phone, person_number, primary_trainer_id,
+			firstname, lastname, email, phone, person_number, primary_trainer_id, primary_location_id,
 			active, key, created_at, updated_at
-		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NOW(),NOW()) RETURNING id`,
-		[firstname, lastname, email, phone, person_number, primary_trainer_id, active, key]
+		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW(),NOW()) RETURNING id`,
+		[
+			firstname,
+			lastname,
+			email,
+			phone,
+			person_number,
+			primaryTrainerId,
+			primaryLocationId,
+			isActive,
+			key
+		]
 	);
 	const clientId = result[0]?.id;
 

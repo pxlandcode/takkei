@@ -39,9 +39,11 @@ export async function GET({ params }) {
             clients.*, 
             users.id AS trainer_id, 
             users.firstname AS trainer_firstname, 
-            users.lastname AS trainer_lastname
+            users.lastname AS trainer_lastname,
+            locations.name AS primary_location
         FROM clients
         LEFT JOIN users ON clients.primary_trainer_id = users.id
+        LEFT JOIN locations ON clients.primary_location_id = locations.id
         WHERE clients.id = $1
     `;
 
@@ -62,6 +64,9 @@ export async function GET({ params }) {
 export async function PUT({ request, params }) {
 	const clientId = params.slug;
 	const body = await request.json();
+	const primaryTrainerId = body.primary_trainer_id ?? null;
+	const primaryLocationId = body.primary_location_id ?? null;
+	const isActive = body.active ?? true;
 
 	try {
 		const updateQuery = `
@@ -73,10 +78,11 @@ export async function PUT({ request, params }) {
 				alternative_email = $5,
 				phone = $6,
 				primary_trainer_id = $7,
-				active = $8,
+				primary_location_id = $8,
+				active = $9,
 				updated_at = NOW()
-			WHERE id = $9
-			RETURNING *
+			WHERE id = $10
+			RETURNING id
 		`;
 
 		const values = [
@@ -86,8 +92,9 @@ export async function PUT({ request, params }) {
 			body.email,
 			body.alternative_email,
 			body.phone,
-			body.primary_trainer_id,
-			body.active,
+			primaryTrainerId,
+			primaryLocationId,
+			isActive,
 			clientId
 		];
 
@@ -114,7 +121,23 @@ export async function PUT({ request, params }) {
 			await updateClientPassword(Number(clientId), body.email, trimmedPassword);
 		}
 
-		return json(result[0]);
+		const refreshed = await query(
+			`
+			SELECT
+				clients.*,
+				users.id AS trainer_id,
+				users.firstname AS trainer_firstname,
+				users.lastname AS trainer_lastname,
+				locations.name AS primary_location
+			FROM clients
+			LEFT JOIN users ON clients.primary_trainer_id = users.id
+			LEFT JOIN locations ON clients.primary_location_id = locations.id
+			WHERE clients.id = $1
+			`,
+			[clientId]
+		);
+
+		return json(refreshed[0] ?? result[0]);
 	} catch (error) {
 		console.error('Error updating client:', error);
 		return json({ error: 'Internal Server Error' }, { status: 500 });

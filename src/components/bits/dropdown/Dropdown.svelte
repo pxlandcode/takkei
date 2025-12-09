@@ -11,6 +11,7 @@
 	export let disabled: boolean = false;
 	export let variant: 'black' | 'gray' = 'gray';
 	export let selectedValue: any = '';
+	export let selectedIcons: IconDef[] | null = null;
 	export let search: boolean = false;
 	export let maxNumberOfSuggestions: number | undefined = undefined;
 	export let infiniteScroll: boolean = false;
@@ -33,6 +34,13 @@
 
 	const dispatch = createEventDispatcher();
 
+	const valuesEqual = (a: any, b: any) => {
+		if (a === b) return true;
+		const na = Number(a);
+		const nb = Number(b);
+		return Number.isFinite(na) && Number.isFinite(nb) && na === nb;
+	};
+
 	// Helper function to check if options are objects
 	function isObjectOption(
 		option: any
@@ -43,9 +51,42 @@
 	// Get label for the selected value
 	function getLabel(value: any): string {
 		const option = options.find((opt) =>
-			isObjectOption(opt) ? opt.value === value : opt === value
+			isObjectOption(opt) ? valuesEqual(opt.value, value) : valuesEqual(opt, value)
 		);
 		return isObjectOption(option) ? option.label : (option as string) || placeholder;
+	}
+
+	// Selected option (for optional icon rendering)
+	$: selectedOption = options.find((opt) =>
+		isObjectOption(opt) ? valuesEqual(opt.value, selectedValue) : valuesEqual(opt, selectedValue)
+	);
+	$: iconsForSelected = selectedIcons ?? getIcons(selectedOption);
+	$: console.log('[Dropdown] selected', { id, selectedValue, iconsForSelected, selectedOption });
+
+	type IconDef = { icon: string; size?: string };
+
+	function getIcons(option: any): IconDef[] {
+		if (!isObjectOption(option)) return [];
+
+		const iconSize = option.iconSize;
+
+		// Normalise icons array entries into objects with icon + size
+		if (Array.isArray(option.icons)) {
+			return option.icons
+				.map((entry) => {
+					if (!entry) return null;
+					if (typeof entry === 'string') return { icon: entry, size: iconSize };
+					if (typeof entry === 'object' && 'icon' in entry) {
+						return { icon: entry.icon, size: entry.size ?? iconSize };
+					}
+					return null;
+				})
+				.filter((item): item is IconDef => Boolean(item));
+		}
+
+		if (option.icon) return [{ icon: option.icon, size: iconSize }];
+
+		return [];
 	}
 
 	// Select an option and close dropdown
@@ -61,7 +102,9 @@
 
 	$: isSelectedUnavailable = (() => {
 		const selected = options.find((opt) =>
-			isObjectOption(opt) ? opt.value === selectedValue : opt === selectedValue
+			isObjectOption(opt)
+				? valuesEqual(opt.value, selectedValue)
+				: valuesEqual(opt, selectedValue)
 		);
 		return isObjectOption(selected) && selected.unavailable;
 	})();
@@ -170,7 +213,16 @@
 		{disabled}
 		aria-disabled={disabled}
 	>
-		{getLabel(selectedValue)}
+		<div class="flex min-w-0 items-center gap-2">
+			<span class="truncate">{getLabel(selectedValue)}</span>
+			{#if isObjectOption(selectedOption) || (iconsForSelected && iconsForSelected.length)}
+				<div class="flex shrink-0 items-center gap-1">
+					{#each iconsForSelected as ic}
+						<Icon icon={ic.icon} size={ic.size ?? '14px'} />
+					{/each}
+				</div>
+			{/if}
+		</div>
 		<IconArrowDown
 			size="12px"
 			extraClasses={`transform transition-all duration-300 group-hover:text-white
@@ -222,7 +274,16 @@
 				${variant === 'black' ? 'hover:bg-black focus:bg-black' : 'hover:bg-gray focus:bg-gray'}`}
 						aria-label={isObjectOption(option) ? option.label : option}
 					>
-						{isObjectOption(option) ? option.label : option}
+						<div class="flex items-center justify-between gap-2">
+							<span>{isObjectOption(option) ? option.label : option}</span>
+							{#if isObjectOption(option)}
+								<div class="flex items-center gap-1">
+									{#each getIcons(option) as ic}
+										<Icon icon={ic.icon} size={ic.size ?? '14px'} />
+									{/each}
+								</div>
+							{/if}
+						</div>
 					</button>
 				</li>
 			{/each}

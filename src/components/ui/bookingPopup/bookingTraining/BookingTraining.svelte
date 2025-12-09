@@ -3,12 +3,12 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
 	import { capitalizeFirstLetter } from '$lib/helpers/generic/genericHelpers';
-import { calendarStore, getWeekStartAndEnd } from '$lib/stores/calendarStore';
-import { closePopup } from '$lib/stores/popupStore';
-import OptionButton from '../../../bits/optionButton/OptionButton.svelte';
-import Dropdown from '../../../bits/dropdown/Dropdown.svelte';
-import { user } from '$lib/stores/userStore';
-import { locations, fetchLocations } from '$lib/stores/locationsStore';
+	import { calendarStore, getWeekStartAndEnd } from '$lib/stores/calendarStore';
+	import { closePopup } from '$lib/stores/popupStore';
+	import OptionButton from '../../../bits/optionButton/OptionButton.svelte';
+	import Dropdown from '../../../bits/dropdown/Dropdown.svelte';
+	import { user } from '$lib/stores/userStore';
+	import { locations, fetchLocations } from '$lib/stores/locationsStore';
 	import { clients, fetchClients, fetchTrialEligibleClients } from '$lib/stores/clientsStore';
 	import { users, fetchUsers } from '$lib/stores/usersStore';
 	import { onMount } from 'svelte';
@@ -17,9 +17,9 @@ import { locations, fetchLocations } from '$lib/stores/locationsStore';
 	import Checkbox from '../../../bits/checkbox/Checkbox.svelte';
 	import Input from '../../../bits/Input/Input.svelte';
 	import Button from '../../../bits/button/Button.svelte';
-import type { CalendarFilters } from '$lib/stores/calendarStore';
-import { setSelectedSlot } from '$lib/stores/selectedSlotStore';
-import { getCalendarUrl } from '$lib/helpers/calendarHelpers/calendarNavigation';
+	import type { CalendarFilters } from '$lib/stores/calendarStore';
+	import { setSelectedSlot } from '$lib/stores/selectedSlotStore';
+	import { getCalendarUrl } from '$lib/helpers/calendarHelpers/calendarNavigation';
 
 	export let bookingObject: any;
 	export let bookingContents: { value: string; label: string }[] = [];
@@ -74,6 +74,8 @@ import { getCalendarUrl } from '$lib/helpers/calendarHelpers/calendarNavigation'
 	}
 
 	let filteredClients = [];
+	let locationOptions = [];
+	let selectedLocationIcons: { icon: string; size?: string }[] = [];
 	$: trainerOptions = $users
 		.filter((u) => u.active)
 		.map((u) => ({ label: `${u.firstname} ${u.lastname}`, value: u.id }));
@@ -165,6 +167,69 @@ import { getCalendarUrl } from '$lib/helpers/calendarHelpers/calendarNavigation'
 		}
 
 		filteredClients = newFiltered;
+	}
+
+	$: {
+		const selectedTrainerId = Number.isFinite(Number(bookingObject.trainerId ?? NaN))
+			? Number(bookingObject.trainerId)
+			: null;
+		const trainer = $users.find((u) => Number(u.id) === selectedTrainerId);
+		const allClients = isTrial ? eligibleTrialClients : $clients;
+		const selectedClientId =
+			bookingObject.clientId === null || bookingObject.clientId === undefined
+				? null
+				: Number(bookingObject.clientId);
+		const clientRecord = allClients.find((c) => Number(c.id) === selectedClientId);
+
+		const trainerDefaultLocationId = Number.isFinite(
+			Number(trainer?.default_location_id ?? NaN)
+		)
+			? Number(trainer?.default_location_id)
+			: null;
+		const clientPrimaryLocationId = Number.isFinite(
+			Number(clientRecord?.primary_location_id ?? NaN)
+		)
+			? Number(clientRecord?.primary_location_id)
+			: null;
+
+		locationOptions = $locations.map((loc) => {
+			const locId = Number(loc.id);
+			const icons: { icon: string; size?: string }[] = [];
+			const isTrainerDefault = trainer && trainerDefaultLocationId !== null && trainerDefaultLocationId === locId;
+			const isClientPrimary = clientRecord && clientPrimaryLocationId !== null && clientPrimaryLocationId === locId;
+
+			if (isClientPrimary) icons.push({ icon: 'Clients', size: '19px' });
+			if (isTrainerDefault) icons.push({ icon: 'Person', size: '14px' });
+
+			return {
+				label: loc.name,
+				value: locId,
+				icons
+			};
+		});
+
+		const selectedLocation = locationOptions.find(
+			(opt) => Number(opt.value) === Number(bookingObject.locationId ?? NaN)
+		);
+		selectedLocationIcons = selectedLocation?.icons ?? [];
+
+		console.log('[bookingTraining] location icons', {
+			selectedTrainerId,
+			trainerDefaultLocationId,
+			selectedClientId,
+			clientPrimaryLocationId,
+			locationId: bookingObject.locationId,
+			selectedLocationIcons
+		});
+	}
+
+	// If no location is chosen, fall back to the client's primary location (when available)
+	$: {
+		const allClients = isTrial ? eligibleTrialClients : $clients;
+		const selectedClient = allClients.find((c) => c.id === bookingObject.clientId);
+		if (!bookingObject.locationId && selectedClient?.primary_location_id) {
+			bookingObject.locationId = selectedClient.primary_location_id;
+		}
 	}
 
 	let previousLocationId: number | null = null;
@@ -337,8 +402,9 @@ import { getCalendarUrl } from '$lib/helpers/calendarHelpers/calendarNavigation'
 				labelIcon="Building"
 				labelIconSize="16px"
 				id="locations"
-				options={$locations.map((loc) => ({ label: loc.name, value: loc.id }))}
+				options={locationOptions}
 				bind:selectedValue={bookingObject.locationId}
+				selectedIcons={selectedLocationIcons}
 				{errors}
 			/>
 			<div class="flex items-center xl:justify-end">

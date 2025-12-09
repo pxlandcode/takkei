@@ -9,7 +9,7 @@
 
 	let IconComponent: typeof SvelteComponent | null = null;
 
-	IconComponent = icons[`Icon${icon}`];
+	$: IconComponent = icons[`Icon${icon}`];
 	$: classString = `transition-colors duration-200 ${extraClasses}`;
 </script>
 

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { users, fetchUsers } from '$lib/stores/usersStore';
+	import { fetchLocations, locations } from '$lib/stores/locationsStore';
 	import Input from '../../bits/Input/Input.svelte';
 	import Dropdown from '../../bits/dropdown/Dropdown.svelte';
 	import Button from '../../bits/button/Button.svelte';
@@ -15,7 +16,15 @@
 	let newPassword = '';
 	let confirmPassword = '';
 
-	onMount(fetchUsers);
+	onMount(() => {
+		fetchUsers();
+		fetchLocations();
+	});
+
+	$: locationOptions = $locations.map((location) => ({
+		label: location.name,
+		value: location.id
+	}));
 
 	async function handleSave() {
 		errors = {};
@@ -42,6 +51,7 @@
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
 					...client,
+					primary_location_id: client.primary_location_id ?? null,
 					password: trimmedPassword || undefined
 				})
 			});
@@ -97,6 +107,15 @@
 		{errors}
 	/>
 	<Input label="Telefonnummer" bind:value={client.phone} name="phone" {errors} />
+
+	<Dropdown
+		id="primary_location"
+		label="Primär lokal"
+		placeholder="Välj plats"
+		options={locationOptions}
+		bind:selectedValue={client.primary_location_id}
+		{errors}
+	/>
 
 	<Dropdown
 		id="primary_trainer"
