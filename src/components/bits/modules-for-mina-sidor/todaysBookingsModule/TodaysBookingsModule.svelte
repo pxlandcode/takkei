@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { browser } from '$app/environment';
 	import { user } from '$lib/stores/userStore';
 	import Icon from '../../icon-component/Icon.svelte';
 	import Button from '../../button/Button.svelte';
@@ -14,7 +15,7 @@
 	let selectedDate = new Date();
 
 	$: $user;
-	$: if ($user && selectedDate) loadBookings();
+	$: if (browser && $user && selectedDate) loadBookings();
 
 	const TZ = 'Europe/Stockholm';
 
@@ -48,6 +49,7 @@
 	}
 
 	async function loadBookings() {
+		if (!browser) return;
 		if (!$user?.id || !selectedDate) return;
 
 		isLoading = true;

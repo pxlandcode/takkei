@@ -74,6 +74,7 @@ export interface FullBooking {
 	location?: Location | null;
 	additionalInfo?: AdditionalInfo | null;
 	personalBooking?: PersonalBookingInfo | null;
+	linkedNoteCount?: number;
 }
 
 export type BookingFilters = {

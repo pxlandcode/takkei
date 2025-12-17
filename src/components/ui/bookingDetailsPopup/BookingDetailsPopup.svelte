@@ -25,6 +25,8 @@
 	import { user } from '$lib/stores/userStore';
 	import { users, fetchUsers } from '$lib/stores/usersStore';
 	import { locations, fetchLocations } from '$lib/stores/locationsStore';
+	import QuillViewer from '../../bits/quillViewer/QuillViewer.svelte';
+	import { fetchBookingNotes } from '$lib/services/api/bookingNotesService';
 	import { openPopup, popupStore, closePopup, type PopupState } from '$lib/stores/popupStore';
 
 	type BookingComponentType =
@@ -44,6 +46,13 @@
 		flight: 'Flygtimme',
 		meeting: 'Möte',
 		personal: 'Personlig'
+	};
+
+	const noteKindIcons: Record<number | 'default', string> = {
+		1: 'BasicInfo',
+		2: 'HandoverInfo',
+		3: 'CircleInfo',
+		default: 'Notes'
 	};
 
 	export let booking: FullBooking;
@@ -109,6 +118,9 @@
 	let currentLocationId: number | null = null;
 	let currentBookingDate = '';
 	let currentBookingTime = '';
+	let bookingNotes: any[] = [];
+	let isLoadingBookingNotes = false;
+	let lastLoadedBookingNotesId: number | null = null;
 
 	function normalizeKind(kind?: string | null) {
 		if (!kind) return '';
@@ -186,6 +198,30 @@
 		});
 	}
 
+	function noteIconName(note: any) {
+		const kindId = note?.note_kind?.id ?? note?.note_kind_id;
+		return noteKindIcons[kindId as number] ?? noteKindIcons.default;
+	}
+
+	async function refreshBookingNotes(bookingId: number) {
+		isLoadingBookingNotes = true;
+		bookingNotes = await fetchBookingNotes(bookingId, fetch);
+		isLoadingBookingNotes = false;
+	}
+
+	async function bootstrapBookingNotes() {
+		const bookingId = currentBooking?.booking?.id;
+
+		if (!bookingId || currentBooking.isPersonalBooking) {
+			bookingNotes = [];
+			lastLoadedBookingNotesId = null;
+			return;
+		}
+
+		lastLoadedBookingNotesId = bookingId;
+		await refreshBookingNotes(bookingId);
+	}
+
 	function cloneBookingData(source: FullBooking): FullBooking {
 		return JSON.parse(JSON.stringify(source));
 	}
@@ -213,6 +249,18 @@
 				.map((u) => `${u.firstname} ${u.lastname}`);
 		} else {
 			participantNames = [];
+		}
+	}
+
+	$: {
+		const bookingId = currentBooking?.booking?.id;
+		if (bookingId && !currentBooking.isPersonalBooking && bookingId !== lastLoadedBookingNotesId) {
+			void bootstrapBookingNotes();
+		}
+
+		if (!bookingId || currentBooking.isPersonalBooking) {
+			bookingNotes = [];
+			lastLoadedBookingNotesId = null;
 		}
 	}
 
@@ -1167,6 +1215,40 @@
 					</div>
 				{/if}
 			</div>
+
+			{#if !currentBooking.isPersonalBooking}
+				<div class="mt-6 space-y-3 rounded-sm border border-gray-100 bg-gray-50 p-5 text-gray-700">
+					<div class="flex items-center gap-2">
+						<Icon icon="Notes" size="16px" />
+						<span class="text-sm font-semibold tracking-wide text-gray-500 uppercase">
+							Bokningsanteckningar
+						</span>
+					</div>
+
+					{#if isLoadingBookingNotes}
+						<p class="text-sm text-gray-600">Hämtar anteckningar...</p>
+					{:else if bookingNotes.length === 0}
+						<p class="text-sm text-gray-600">Inga anteckningar kopplade till bokningen.</p>
+					{:else}
+						<div class="space-y-3">
+							{#each bookingNotes as note (note.id)}
+								<div class="rounded-sm border border-gray-200 bg-white p-3 shadow-sm">
+									<div class="flex items-center gap-2">
+										<Icon icon={noteIconName(note)} size="18px" color="orange" />
+										<p class="text-orange text-xs font-semibold">
+											{note.note_kind?.title ?? 'Anteckning'}
+										</p>
+									</div>
+									<div class="mt-1">
+										<QuillViewer content={note.text} key={note.id} />
+									</div>
+									<p class="text-gray-medium text-xs">{fmtDateTime(note.created_at)}</p>
+								</div>
+							{/each}
+						</div>
+					{/if}
+				</div>
+			{/if}
 
 			{#if currentBooking.booking.tryOut}
 				<p class="font-semibold text-orange-600">Prova-på-bokning</p>

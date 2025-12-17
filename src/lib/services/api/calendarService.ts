@@ -104,11 +104,17 @@ export async function fetchBookings(
 /**
  * Convert API response into FullBooking format (for standard bookings).
  */
-function transformBooking(raw: any): FullBooking {
+export function transformBooking(raw: any): FullBooking {
 	const tryOut = Boolean(raw.try_out);
 	const internalEducation = Boolean(raw.internal_education);
 	const education = Boolean(raw.education);
 	const internal = Boolean(raw.internal);
+	const linkedNoteCount =
+		typeof raw.linked_note_count === 'number'
+			? raw.linked_note_count
+			: raw.linked_note_count != null
+				? Number(raw.linked_note_count)
+				: undefined;
 
 	const trainee =
 		raw.trainee_id != null
@@ -169,8 +175,27 @@ function transformBooking(raw: any): FullBooking {
 			addedToPackageBy: raw.added_to_package_by ?? null,
 			addedToPackageDate: raw.added_to_package_date ?? null,
 			actualCancelTime: raw.actual_cancel_time ?? null
-		}
+		},
+		linkedNoteCount
 	};
+}
+
+export async function fetchBookingById(
+	bookingId: number,
+	fetchFn: typeof fetch
+): Promise<FullBooking | null> {
+	try {
+		const res = await fetchFn(`/api/bookings/${bookingId}`);
+		if (!res.ok) {
+			return null;
+		}
+		const raw = await res.json();
+		if (!raw) return null;
+		return transformBooking(raw);
+	} catch (error) {
+		console.error('Error fetching booking by id:', error);
+		return null;
+	}
 }
 
 /**

@@ -23,6 +23,7 @@ export async function GET({ url }) {
 	const params: (string | number | number[])[] = [];
 	let queryStr = `
         SELECT bookings.*, 
+               COALESCE(bn.notes_count, 0) AS linked_note_count,
                rooms.name AS room_name, 
                locations.name AS location_name,
                locations.color AS location_color,
@@ -36,6 +37,11 @@ export async function GET({ url }) {
                trainee.firstname AS trainee_firstname,
                trainee.lastname AS trainee_lastname
         FROM bookings
+        LEFT JOIN (
+          SELECT booking_id, COUNT(*) AS notes_count
+          FROM booking_notes
+          GROUP BY booking_id
+        ) bn ON bn.booking_id = bookings.id
         LEFT JOIN rooms ON bookings.room_id = rooms.id
         LEFT JOIN locations ON bookings.location_id = locations.id
         LEFT JOIN users ON bookings.trainer_id = users.id
