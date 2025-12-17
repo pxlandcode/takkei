@@ -11,6 +11,7 @@
 	import { locations, fetchLocations } from '$lib/stores/locationsStore';
 	import { clickOutside } from '$lib/actions/clickOutside';
 	import { getCalendarUrl } from '$lib/helpers/calendarHelpers/calendarNavigation';
+	import { getISOWeekNumber } from '$lib/helpers/calendarHelpers/calendar-utils';
 
 	// Props
 	export let selectedDate: Date = new Date();
@@ -47,6 +48,7 @@
 	let showLocationDropdown = false;
 	const dropdownOffset = { top: 70, left: 93 };
 	let isOnCalendarPage = false;
+	let weeks: Date[][] = [];
 
 	$: isOnCalendarPage = $page.url.pathname.startsWith('/calendar');
 
@@ -97,6 +99,16 @@
 		}
 		return daysInMonth;
 	}
+
+	function chunkIntoWeeks(days: Date[]) {
+		const weekChunks: Date[][] = [];
+		for (let i = 0; i < days.length; i += 7) {
+			weekChunks.push(days.slice(i, i + 7));
+		}
+		return weekChunks;
+	}
+
+	$: weeks = chunkIntoWeeks(monthDays);
 
 	// ------- NAV BUTTONS: page the calendar only (do NOT update store) -------
 	function prevMonth() {
@@ -288,7 +300,8 @@
 
 	<!-- Days of the week -->
 	<div class="flex w-full flex-col items-center justify-center">
-		<div class="grid grid-cols-7 gap-x-3 text-white">
+		<div class="grid grid-cols-[32px_repeat(7,1fr)] justify-items-center gap-x-1 text-white">
+			<div class="h-8 w-8" aria-hidden="true"></div>
 			{#each daysOfWeek as day}
 				<div class="h-8 w-8 text-center">{day}</div>
 			{/each}
@@ -302,22 +315,29 @@
 				></div>
 			{/if}
 
-			<div class="relative z-10 grid grid-cols-7 gap-x-2">
-				{#each monthDays as day}
-					<button
-						class="relative flex h-8 w-8 items-center justify-center rounded-full
+			<div class="relative z-10 flex flex-col">
+				{#each weeks as week}
+					<div class="grid grid-cols-[32px_repeat(7,1fr)] items-center justify-items-center gap-x-1">
+						<div class="text-gray-400 flex h-8 w-8 items-center justify-center text-xs">
+							{getISOWeekNumber(week[0])}
+						</div>
+						{#each week as day}
+							<button
+								class="relative flex h-8 w-8 items-center justify-center rounded-full
 						{day.getMonth() !== $currentDate.getMonth() ? 'text-gray-medium' : 'text-white'}
 						transition hover:bg-black/50"
-						on:click={() => selectDate(day)}
-					>
-						{#if isToday(day)}
-							<div
-								bind:this={todayRef}
-								class="bg-orange hover:bg-primary-hover absolute z-0 h-8 w-8 rounded-full"
-							></div>
-						{/if}
-						<p class="pointer-events-none z-10">{day.getDate()}</p>
-					</button>
+								on:click={() => selectDate(day)}
+							>
+								{#if isToday(day)}
+									<div
+										bind:this={todayRef}
+										class="bg-orange hover:bg-primary-hover absolute z-0 h-8 w-8 rounded-full"
+									></div>
+								{/if}
+								<p class="pointer-events-none z-10">{day.getDate()}</p>
+							</button>
+						{/each}
+					</div>
 				{/each}
 			</div>
 		</div>
@@ -326,8 +346,8 @@
 
 <style>
 	.weekband {
-		width: calc(100% + 16px);
-		left: -8px;
+		width: 100%;
+		left: 0;
 		transition: top 0.3s ease-in-out;
 	}
 </style>
