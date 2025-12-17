@@ -1,30 +1,14 @@
 import { get } from 'svelte/store';
+import { fetchActiveGreetings } from '$lib/services/api/greetingService';
+import type { Greeting as GreetingType, GreetingAudience } from '$lib/types/greeting';
 import { user } from '$lib/stores/userStore';
 
-export type Greeting = {
-	message: string;
-	icon?: string;
+export type Greeting = GreetingType & {
 	condition?: (user: any) => boolean;
 };
 
-// Define greetings list
-export const greetings: Greeting[] = [
-	{ message: 'Hej, {name}!', icon: '👋' },
-	{ message: 'TAKKEI ❤️ DIG!', icon: '' },
-	{ message: 'Nu kör vi!', icon: '🚗' },
-	{ message: 'Du är bäst!', icon: '💪' },
-	{ message: 'Du är en', icon: '🌟' },
-	{ message: 'Du rockar!', icon: '🤘' },
-	{ message: 'Dags att svettas!', icon: '🔥' },
-	{ message: 'Kämpa på!', icon: '🏋️' },
-	{ message: 'Push it to the limit!', icon: '🚀' },
-	{ message: 'En rep till!', icon: '🔁' },
-	{ message: 'Gains på väg!', icon: '🥩' },
-	{ message: 'Starkare än igår!', icon: '📈' },
-	{ message: 'Du är nr. 1!', icon: '🥇' }
-];
+const fallbackGreetings: Greeting[] = [{ message: 'Hej, {name}!', icon: '👋', audience: 'both' }];
 
-// Define special greetings with conditions
 export const specialGreetings: Greeting[] = [
 	{
 		message: 'Grattis på födelsedagen!',
@@ -36,21 +20,107 @@ export const specialGreetings: Greeting[] = [
 	}
 ];
 
-export function getGreeting(): Greeting {
-	const currentUser = get(user); // Get the latest user value at runtime
+const cache: Record<GreetingAudience, Greeting[] | null> = {
+	user: null,
+	client: null,
+	both: null
+};
+
+const fetchPromises: Partial<Record<GreetingAudience, Promise<Greeting[]>>> = {};
+
+function normalizeAudience(value?: GreetingAudience | null): GreetingAudience {
+	if (value === 'client' || value === 'user' || value === 'both') return value;
+	return 'both';
+}
+
+function normalizeList(rows: GreetingType[], audience: GreetingAudience): Greeting[] {
+	const normalizedAudience = normalizeAudience(audience);
+	return (rows ?? [])
+		.filter((g) => (g.active ?? true) && g.message)
+		.filter((g) => {
+			const a = normalizeAudience(g.audience as GreetingAudience);
+			if (normalizedAudience === 'both') return true;
+			return a === 'both' || a === normalizedAudience;
+		})
+		.map((g) => ({
+			...g,
+			icon: g.icon ?? '',
+			audience: normalizeAudience(g.audience as GreetingAudience)
+		}));
+}
+
+async function loadActiveGreetings(
+	audience: GreetingAudience,
+	fetchFn?: typeof fetch
+): Promise<Greeting[]> {
+	const audienceKey = normalizeAudience(audience);
+	if (cache[audienceKey]) return cache[audienceKey] as Greeting[];
+
+	if (!fetchPromises[audienceKey]) {
+		fetchPromises[audienceKey] = fetchActiveGreetings({ fetchFn, audience: audienceKey })
+			.then((rows) => {
+				const normalized = normalizeList(rows, audienceKey);
+				if (normalized.length === 0) {
+					return [{ message: 'Hej, {name}', icon: '👋', audience: 'both' }];
+				}
+				return normalized;
+			})
+			.catch((error) => {
+				console.error('Failed to fetch greetings, using fallback', error);
+				return normalizeList(fallbackGreetings, audienceKey);
+			})
+			.then((result) => {
+				cache[audienceKey] = result;
+				return result;
+			})
+			.finally(() => {
+				fetchPromises[audienceKey] = undefined;
+			});
+	}
+
+	return fetchPromises[audienceKey] as Promise<Greeting[]>;
+}
+
+function personalize(message: string, name?: string): string {
+	if (!message) return message;
+	if (!name) return message.replace('{name}', 'du');
+	return message.replace('{name}', name);
+}
+
+type GetGreetingOptions = {
+	audience?: GreetingAudience;
+	fetchFn?: typeof fetch;
+};
+
+export async function getGreeting(options: GetGreetingOptions = {}): Promise<Greeting> {
+	const audience = normalizeAudience(options.audience ?? 'user');
+	const currentUser = get(user);
 	const username = currentUser?.firstname;
 
-	// Check for special greetings
 	for (const greeting of specialGreetings) {
 		if (greeting.condition && greeting.condition(currentUser)) {
-			return greeting;
+			return {
+				...greeting,
+				audience,
+				message: personalize(greeting.message, username)
+			};
 		}
 	}
 
-	// Get a random greeting and replace `{name}` with the user's name
-	const randomGreeting = greetings[Math.floor(Math.random() * greetings.length)];
+	const greetings = await loadActiveGreetings(audience, options.fetchFn);
+	const pool = greetings.length ? greetings : normalizeList(fallbackGreetings, audience);
+	const randomGreeting = pool[Math.floor(Math.random() * pool.length)];
 	return {
 		...randomGreeting,
-		message: randomGreeting.message.replace('{name}', username)
+		message: personalize(randomGreeting.message, username)
 	};
+}
+
+export function clearGreetingCache() {
+	cache.user = null;
+	cache.client = null;
+	cache.both = null;
+	fetchPromises.user = undefined;
+	fetchPromises.client = undefined;
+	fetchPromises.both = undefined;
 }

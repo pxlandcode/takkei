@@ -15,6 +15,7 @@
 	import { user } from '$lib/stores/userStore';
 	import type { SelectedSlot } from '$lib/stores/selectedSlotStore';
 	import { headerState } from '$lib/stores/headerState.svelte';
+	import { getISOWeekNumber } from '$lib/helpers/calendarHelpers/calendar-utils';
 
 	export let data;
 
@@ -62,6 +63,7 @@
 			year: 'numeric'
 		})
 	);
+	$: selectedWeekNumber = getISOWeekNumber(selectedDate);
 
 	const weekOption = { value: false, label: 'Vecka', icon: 'Week' };
 	const dayOption = { value: true, label: 'Dag', icon: 'Day' };
@@ -397,7 +399,10 @@
 		class="mx-2 mt-2 flex flex-col items-center gap-4 lg:flex-row lg:items-center lg:justify-between"
 	>
 		<div class="flex flex-row flex-wrap items-center md:gap-4">
-			<p class="p-4 text-2xl font-thin">{formattedMonthYear}</p>
+			<p class="flex flex-row items-center gap-3 p-4 text-2xl font-thin">
+				{formattedMonthYear}
+				<span class="text-base font-normal text-gray-300">v. {selectedWeekNumber}</span>
+			</p>
 			<div class="hidden w-60 lg:block">
 				<OptionButton
 					options={dayOrWeekOptions}

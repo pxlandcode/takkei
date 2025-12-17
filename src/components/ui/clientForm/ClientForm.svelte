@@ -2,6 +2,7 @@
 	import { createEventDispatcher, onMount } from 'svelte';
 	import { loadingStore } from '$lib/stores/loading';
 	import { users, fetchUsers } from '$lib/stores/usersStore';
+	import { fetchLocations, locations } from '$lib/stores/locationsStore';
 	import Input from '../../bits/Input/Input.svelte';
 	import Button from '../../bits/button/Button.svelte';
 	import Dropdown from '../../bits/dropdown/Dropdown.svelte';
@@ -16,6 +17,7 @@
 	let phone = '';
 	let person_number = '';
 	let primary_trainer_id: number | null = null;
+	let primary_location_id: number | null = null;
 	let selectedCustomerId: number | null = null;
 	let customerOptions: { label: string; value: number | null }[] = [{ label: 'Ingen kund', value: null }];
 	let customerLoadError = '';
@@ -30,6 +32,7 @@
 
 	onMount(() => {
 		fetchUsers();
+		fetchLocations();
 		loadCustomers();
 	});
 
@@ -62,10 +65,13 @@
 		}
 	}
 
-
 	$: trainerOptions = ($users || []).map((user) => ({
 		label: `${user.firstname} ${user.lastname}`,
 		value: user.id
+	}));
+	$: locationOptions = $locations.map((location) => ({
+		label: location.name,
+		value: location.id
 	}));
 
 	async function handleSubmit() {
@@ -90,6 +96,7 @@
 					phone,
 					person_number,
 					primary_trainer_id,
+					primary_location_id,
 					customer_id: selectedCustomerId ?? null,
 					active
 				})
@@ -139,6 +146,7 @@
 			phone = '';
 			person_number = '';
 			primary_trainer_id = null;
+			primary_location_id = null;
 			selectedCustomerId = null;
 			createdClientId = null;
 			active = true;
@@ -175,6 +183,15 @@
 			<Input label="E-post" name="email" bind:value={email} placeholder="mail@takkei.se" {errors} />
 			<Input label="Telefon" name="phone" bind:value={phone} placeholder="+4670..." />
 		</div>
+
+		<Dropdown
+			label="Primär lokal"
+			placeholder="Välj plats"
+			id="primary_location_id"
+			options={locationOptions}
+			bind:selectedValue={primary_location_id}
+			search
+		/>
 
 		<Dropdown
 			label="Primär tränare"

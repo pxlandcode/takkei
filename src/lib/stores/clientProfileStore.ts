@@ -1,6 +1,7 @@
 import { get, writable } from 'svelte/store';
 
-import type { Client, FullBooking } from '$lib/types/calendarTypes';
+import type { FullBooking } from '$lib/types/calendarTypes';
+import type { Client } from '$lib/types/clientTypes';
 import { fetchClient } from '$lib/services/api/clientService';
 
 /**

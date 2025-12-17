@@ -77,3 +77,14 @@ export function shiftUTCIndex(date: Date): number {
 
 	return (sundayBased + 6) % 7;
 }
+
+export function getISOWeekNumber(date: Date): number {
+	// Clone to avoid mutating caller's date and normalize to UTC for a stable ISO calculation
+	const utcDate = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+	// ISO weeks start on Monday, with week 1 being the week with January 4th in it
+	const day = utcDate.getUTCDay() || 7; // Sunday -> 7
+	utcDate.setUTCDate(utcDate.getUTCDate() + 4 - day); // Move to Thursday of this week
+	const yearStart = new Date(Date.UTC(utcDate.getUTCFullYear(), 0, 1));
+	const daysSinceYearStart = (utcDate.getTime() - yearStart.getTime()) / 86400000 + 1;
+	return Math.ceil(daysSinceYearStart / 7);
+}

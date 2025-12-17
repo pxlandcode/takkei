@@ -1,10 +1,12 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import Button from '../../bits/button/Button.svelte';
 	import BookingGrid from '../bookingGrid/BookingGrid.svelte';
 	import ProfileClientEdit from '../ProfileClientEdit/ProfileClientEdit.svelte';
 	import ProfileClientPackages from '../ProfileClientPackages/ProfileClientPackages.svelte';
 	import MailComponent from '../mailComponent/MailComponent.svelte';
 	import { openPopup } from '$lib/stores/popupStore';
+	import { fetchLocations, locations } from '$lib/stores/locationsStore';
 
 	type ProfileField = {
 		label: string;
@@ -21,9 +23,17 @@
 	export let allowMailPopup = true;
 
 	let isEditing = false;
+	let locationsLoaded = false;
 
 	const EMPTY_VALUE = 'Inte angivet';
 	const boolToLabel = (value?: boolean | null) => (value ? 'Ja' : 'Nej');
+
+	onMount(async () => {
+		if ($locations.length === 0) {
+			await fetchLocations();
+		}
+		locationsLoaded = true;
+	});
 
 	function renderFieldValue(value: string | number | null | undefined) {
 		if (value === null || value === undefined) return EMPTY_VALUE;
@@ -55,6 +65,14 @@
 			return `${client.trainer_firstname} ${client.trainer_lastname}`;
 		}
 		return 'Ingen';
+	}
+
+	function primaryLocationLabel() {
+		if (client?.primary_location) return client.primary_location;
+		if (!client?.primary_location_id) return 'Ingen vald';
+		if (!locationsLoaded) return 'Laddar...';
+		const location = $locations.find((l) => l.id === client.primary_location_id);
+		return location?.name ?? 'Okänd lokal';
 	}
 
 	let contactLeftFields: ProfileField[] = [];
@@ -91,6 +109,7 @@
 	$: contactRightFields = [
 		{ label: 'Personnummer', value: client?.person_number },
 		{ label: 'Primär tränare', value: primaryTrainerName() },
+		{ label: 'Primär lokal', value: primaryLocationLabel() },
 		{ label: 'Aktiv', value: boolToLabel(client?.active) }
 	];
 

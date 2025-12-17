@@ -3,7 +3,7 @@
 	import { tooltip } from '$lib/actions/tooltip';
 	import { getMeetingHeight, getTopOffset } from '$lib/helpers/calendarHelpers/calendar-utils';
 
-import { IconTraining, IconShiningStar, IconGraduationCap, IconPlane } from '$lib/icons';
+	import { IconTraining, IconShiningStar, IconGraduationCap, IconPlane } from '$lib/icons';
 
 	import type { FullBooking } from '$lib/types/calendarTypes';
 	import { user } from '$lib/stores/userStore';
@@ -102,7 +102,7 @@ import { IconTraining, IconShiningStar, IconGraduationCap, IconPlane } from '$li
 
 	function getParticipant(): { firstname?: string | null; lastname?: string | null } | null {
 		if (booking.isPersonalBooking) return null;
-		return isTraineeParticipant() ? booking.trainee ?? null : booking.client ?? null;
+		return isTraineeParticipant() ? (booking.trainee ?? null) : (booking.client ?? null);
 	}
 
 	function normalizeKind(kind?: string | null) {
@@ -117,12 +117,7 @@ import { IconTraining, IconShiningStar, IconGraduationCap, IconPlane } from '$li
 		if (!booking.isPersonalBooking) return false;
 		const personalKind = normalizeKind(booking.personalBooking?.kind ?? null);
 		const contentKind = normalizeKind(booking.additionalInfo?.bookingContent?.kind ?? null);
-		return (
-			personalKind.includes('meeting') ||
-			personalKind.includes('mote') ||
-			contentKind.includes('meeting') ||
-			contentKind.includes('mote')
-		);
+		return personalKind.includes('corporate') || contentKind.includes('corporate');
 	});
 
 	function getPersonalDisplayText() {
@@ -131,7 +126,7 @@ import { IconTraining, IconShiningStar, IconGraduationCap, IconPlane } from '$li
 		if (name && text) return `${name} - ${text}`;
 		if (name) return name;
 		if (text) return text;
-		return isMeetingSlot ? 'Möte' : 'Personlig bokning';
+		return isMeetingSlot() ? 'Möte' : 'Personlig bokning';
 	}
 
 	const personalDisplayText = $derived(getPersonalDisplayText());
@@ -269,10 +264,10 @@ import { IconTraining, IconShiningStar, IconGraduationCap, IconPlane } from '$li
 					? fontSizeValue * 1.2
 					: DEFAULT_LINE_HEIGHT;
 			const safeLineHeight = Math.max(fallbackLineHeight, 1);
-			const maxLines = isMeetingSlot
+			const maxLines = isMeetingSlot()
 				? 1
 				: Math.max(Math.floor(availableHeight / safeLineHeight), 1);
-			personalLineClamp = Math.max(isMeetingSlot ? 1 : maxLines, 1);
+			personalLineClamp = Math.max(isMeetingSlot() ? 1 : maxLines, 1);
 		});
 	}
 
@@ -351,7 +346,7 @@ import { IconTraining, IconShiningStar, IconGraduationCap, IconPlane } from '$li
 
 		isMounted = true;
 		if (booking.isPersonalBooking) {
-			void measurePersonalText(personalDisplayText);
+			void measurePersonalText(personalDisplayText());
 		} else {
 			measureNameWidths(nameStrings);
 		}
@@ -362,7 +357,7 @@ import { IconTraining, IconShiningStar, IconGraduationCap, IconPlane } from '$li
 			debounceTimer = setTimeout(() => {
 				if (!booking) return;
 				if (booking.isPersonalBooking) {
-					void measurePersonalText(personalDisplayText);
+					void measurePersonalText(personalDisplayText());
 				} else {
 					checkNameWidths();
 				}
@@ -382,7 +377,7 @@ import { IconTraining, IconShiningStar, IconGraduationCap, IconPlane } from '$li
 	$effect(() => {
 		if (!isMounted || !booking) return;
 		if (booking.isPersonalBooking) {
-			void measurePersonalText(personalDisplayText);
+			void measurePersonalText(personalDisplayText());
 			return;
 		}
 		const names = nameStrings;
@@ -399,9 +394,9 @@ import { IconTraining, IconShiningStar, IconGraduationCap, IconPlane } from '$li
 		: 'items-center'} {booking.trainer?.id === $user?.id
 		? 'border-2'
 		: ''} {booking.isPersonalBooking
-		? booking.additionalInfo?.bookingContent.kind === 'Private'
-			? 'bg-gray-400/20'
-			: 'bg-gray-600/20'
+		? isMeetingSlot()
+			? 'bg-gray-600/40'
+			: 'bg-gray-300/40'
 		: ''}"
 	class:selected-slot={isSelectedVariant}
 	style:top={`${topOffset}px`}
@@ -433,17 +428,10 @@ import { IconTraining, IconShiningStar, IconGraduationCap, IconPlane } from '$li
 
 				<div class="flex flex-row text-xs">
 					<div class="flex flex-col gap-1 text-left whitespace-nowrap">
-						<p
-							class=""
-							bind:this={trainerNameElement}
-							class:hidden={trainerDisplayMode === 'none'}
-						>
+						<p class="" bind:this={trainerNameElement} class:hidden={trainerDisplayMode === 'none'}>
 							{resolveTrainerDisplay(trainerDisplayMode)}
 						</p>
-						<p
-							bind:this={clientNameElement}
-							class:hidden={participantDisplayMode === 'none'}
-						>
+						<p bind:this={clientNameElement} class:hidden={participantDisplayMode === 'none'}>
 							{resolveParticipantDisplay(participantDisplayMode)}
 						</p>
 					</div>
@@ -453,7 +441,7 @@ import { IconTraining, IconShiningStar, IconGraduationCap, IconPlane } from '$li
 	{:else}
 		<div class="flex w-full flex-col text-xs">
 			<p
-				class={`personal-text ${isMeetingSlot ? 'personal-text--single' : ''}`}
+				class={`personal-text ${isMeetingSlot() ? 'personal-text--single' : ''}`}
 				bind:this={personalTextElement}
 				style={`-webkit-line-clamp: ${personalLineClamp}; line-clamp: ${personalLineClamp};`}
 			>
@@ -484,5 +472,4 @@ import { IconTraining, IconShiningStar, IconGraduationCap, IconPlane } from '$li
 		border-style: dashed;
 		box-shadow: 0 4px 12px rgba(249, 115, 22, 0.2);
 	}
-
 </style>

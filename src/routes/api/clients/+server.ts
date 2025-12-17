@@ -25,7 +25,7 @@ export async function GET({ url }) {
 
 	// --- 1. SELECT ---
 	let sql = `
-    SELECT clients.id, clients.firstname, clients.lastname
+    SELECT clients.id, clients.firstname, clients.lastname, clients.primary_location_id, locations.name AS primary_location
   `;
 
 	if (!short) {
@@ -44,6 +44,7 @@ export async function GET({ url }) {
 	sql += `
     FROM clients
     LEFT JOIN users ON clients.primary_trainer_id = users.id
+    LEFT JOIN locations ON clients.primary_location_id = locations.id
   `;
 
 	// --- 2. FILTERS ---

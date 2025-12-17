@@ -4,8 +4,8 @@
 	import CustomerEdit from '../CustomerEdit/CustomerEdit.svelte';
 	import Table from '../../bits/table/Table.svelte';
 	import { goto } from '$app/navigation';
-import PackagePopup from '../packagePopup/PackagePopup.svelte';
-import { openPopup, closePopup } from '$lib/stores/popupStore';
+	import PackagePopup from '../packagePopup/PackagePopup.svelte';
+	import { openPopup, closePopup } from '$lib/stores/popupStore';
 
 	export let customer;
 	export let onCustomerChange: (value: any) => void = () => {};
@@ -16,6 +16,14 @@ import { openPopup, closePopup } from '$lib/stores/popupStore';
 		const updatedClients = event.detail ?? [];
 		customer = { ...customer, clients: updatedClients };
 		onCustomerChange?.(customer);
+	}
+
+	function handleCustomerSaved(updatedCustomer: any) {
+		if (updatedCustomer && typeof updatedCustomer === 'object') {
+			customer = { ...customer, ...updatedCustomer };
+		}
+		onCustomerChange?.(customer);
+		isEditing = false;
 	}
 
 const packageHeaders = [
@@ -99,7 +107,7 @@ function openPackagePopup() {
 		<div class="mb-4 flex items-center justify-between">
 			<h4 class="text-xl font-semibold">{!isEditing ? 'Profil' : 'Redigera kund'}</h4>
 			<Button
-				text={isEditing ? 'Spara' : 'Redigera'}
+				text={isEditing ? 'Avbryt' : 'Redigera'}
 				on:click={() => (isEditing = !isEditing)}
 				variant="primary"
 			/>
@@ -120,7 +128,7 @@ function openPackagePopup() {
 			<p class="text-gray-600"><strong>Referens:</strong> {customer.invoice_reference || '—'}</p>
 			<p class="text-gray-600"><strong>Aktiv:</strong> {customer.active ? 'Ja' : 'Nej'}</p>
 		{:else}
-			<CustomerEdit {customer} onSave={() => (isEditing = false)} />
+			<CustomerEdit {customer} onSave={handleCustomerSaved} />
 		{/if}
 	</div>
 

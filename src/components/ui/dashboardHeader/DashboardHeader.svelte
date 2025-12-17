@@ -14,18 +14,24 @@
 	let greeting: Greeting = { message: 'Hej!', icon: '👋' };
 	$: totalNotifications = $notificationStore.total;
 
-	user.subscribe((value) => {
-		currentUser = value;
-
-		if (currentUser) {
-			greeting = getGreeting();
-		}
-	});
+async function loadGreeting() {
+	if (!currentUser) return;
+	try {
+		greeting = await getGreeting({ audience: 'user' });
+	} catch (error) {
+		console.error('Failed to load greeting', error);
+	}
+}
 
 	onMount(() => {
-		if (currentUser) {
-			greeting = getGreeting();
-		}
+		const unsubscribe = user.subscribe((value) => {
+			currentUser = value;
+			if (currentUser) {
+				void loadGreeting();
+			}
+		});
+
+		return () => unsubscribe();
 	});
 
 	function openBookingPopup(initialStartTime: Date | null = null) {

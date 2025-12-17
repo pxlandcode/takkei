@@ -76,6 +76,7 @@
 	let isSubmitting = false;
 
 	let allUsers: User[] = [];
+	let activeUsers: User[] = [];
 	let userOptions: UserOption[] = [];
 	let educationTrainerOptions: UserOption[] = [];
 	let meetingUserOptions: MeetingUserOption[] = [];
@@ -190,13 +191,14 @@
 	$: canAccessEducation = isAdminUser || isEducatorUser;
 
 	$: allUsers = ($users as User[] | undefined) ?? [];
-	$: userOptions = allUsers.map((u) => ({ label: `${u.firstname} ${u.lastname}`, value: u.id }));
-	$: meetingUserOptions = allUsers.map((u) => ({
+	$: activeUsers = allUsers.filter((u) => u.active);
+	$: userOptions = activeUsers.map((u) => ({ label: `${u.firstname} ${u.lastname}`, value: u.id }));
+	$: meetingUserOptions = activeUsers.map((u) => ({
 		name: `${u.firstname} ${u.lastname}`,
 		value: u.id
 	}));
 	$: educatorIds = new Set(
-		allUsers.filter((candidate) => hasRole('Educator', candidate)).map((candidate) => candidate.id)
+		activeUsers.filter((candidate) => hasRole('Educator', candidate)).map((candidate) => candidate.id)
 	);
 	$: educationTrainerOptions = userOptions.filter((option) => educatorIds.has(option.value));
 

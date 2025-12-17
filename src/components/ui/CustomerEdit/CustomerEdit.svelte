@@ -6,7 +6,7 @@
 	import Input from '../../bits/Input/Input.svelte';
 
 	export let customer;
-	export let onSave: () => void;
+	export let onSave: (updated?: any) => void = () => {};
 
 	let form = {
 		name: customer.name,
@@ -21,9 +21,10 @@
 		active: customer.active
 	};
 
-	let errors = {};
+	let errors: Record<string, string> = {};
 
 	async function save() {
+		errors = {};
 		loadingStore.loading(true, 'Sparar kund...');
 		try {
 			const res = await fetch(`/api/customers/${customer.id}`, {
@@ -32,14 +33,34 @@
 				body: JSON.stringify(form)
 			});
 
-			if (!res.ok) throw new Error('Kunde inte spara kund');
+			let result: any = null;
+			try {
+				result = await res.json();
+			} catch (parseError) {
+				result = null;
+			}
+
+			if (!res.ok) {
+				errors = (result && result.errors) || {};
+				addToast({
+					type: AppToastType.CANCEL,
+					message: 'Fel vid sparande',
+					description: result?.error || 'Något gick fel vid uppdatering av kund.'
+				});
+				return;
+			}
 
 			addToast({
 				type: AppToastType.SUCCESS,
 				message: 'Kund uppdaterad',
-				description: `${form.name} uppdaterades korrekt.`
+				description: `${(result && result.name) || form.name} uppdaterades korrekt.`
 			});
-			onSave();
+
+			if (result && typeof result === 'object') {
+				form = { ...form, ...result };
+			}
+
+			onSave(result);
 		} catch (e) {
 			console.error(e);
 			addToast({

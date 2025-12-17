@@ -10,9 +10,11 @@ export type Client = {
 	id: number;
 	firstname: string;
 	lastname: string;
-	email: string;
-	phone: string;
+	email: string | null;
+	phone: string | null;
 	isActive: boolean;
+	primary_location_id?: number | null;
+	primary_location?: string | null;
 	trainer?: Trainer | null;
 };
 
@@ -33,6 +35,8 @@ export async function fetchClients() {
 			email: client.email,
 			phone: client.phone,
 			isActive: client.active,
+			primary_location_id: client.primary_location_id ?? null,
+			primary_location: client.primary_location ?? null,
 			trainer: client.trainer_id
 				? {
 						id: client.trainer_id,
@@ -73,6 +77,8 @@ export async function fetchTrialEligibleClients({
 		email: client.email,
 		phone: client.phone,
 		isActive: client.active,
+		primary_location_id: client.primary_location_id ?? null,
+		primary_location: client.primary_location ?? null,
 		trainer: client.trainer_id
 			? {
 					id: client.trainer_id,

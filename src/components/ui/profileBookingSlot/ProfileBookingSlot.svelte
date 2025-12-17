@@ -3,6 +3,7 @@
 
 	import { IconCancel, IconTraining, IconShiningStar, IconGraduationCap, IconPlane } from '$lib/icons';
 	import IconWrench from '$icons/IconWrench.svelte';
+	import Icon from '../../bits/icon-component/Icon.svelte';
 
 	import type { FullBooking } from '$lib/types/calendarTypes';
 	import { goto } from '$app/navigation';
@@ -83,6 +84,12 @@ const dispatch = createEventDispatcher();
 		{booking.booking.status === 'Late_cancelled' ? 'late-cancelled' : ''}"
 	style="background-color: {bookingColor}20; border-color: {bookingColor};"
 >
+	{#if (booking.linkedNoteCount ?? 0) > 0}
+		<div class="absolute right-2 top-1 flex items-center gap-1 text-[11px] font-semibold text-emerald-700">
+			<Icon icon="Notes" size="12px" />
+			<span>{booking.linkedNoteCount}</span>
+		</div>
+	{/if}
 	<!-- ✅ Diagonal Lines for Cancelled Bookings -->
 	{#if booking.booking.status === 'Cancelled'}
 		<div class="cancelled-overlay"></div>

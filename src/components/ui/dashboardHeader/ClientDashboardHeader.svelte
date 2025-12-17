@@ -5,11 +5,22 @@
 	let greeting: Greeting = { message: 'Hej!', icon: '👋' };
 	let name: string | null = null;
 
+async function refreshGreeting(currentUser: any) {
+	if (!currentUser) return;
+	name = currentUser.firstname ?? null;
+	try {
+		greeting = await getGreeting({ audience: 'client' });
+	} catch (error) {
+		console.error('Failed to load greeting', error);
+	}
+}
+
 	$: {
 		const currentUser = $userStore;
 		if (currentUser) {
-			name = currentUser.firstname ?? null;
-			greeting = getGreeting();
+			void refreshGreeting(currentUser);
+		} else {
+			name = null;
 		}
 	}
 </script>
