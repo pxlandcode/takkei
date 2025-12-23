@@ -11,13 +11,24 @@
 	let year = selectedDate.getFullYear();
 	let month = capitalizeFirstLetter(svMonth(selectedDate.getMonth() + 1));
 
+	// Get current week number
+	function getWeekNumber(date: Date): number {
+		const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+		const dayNum = d.getUTCDay() || 7;
+		d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+		const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+		return Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
+	}
+
+	let weekNumber = getWeekNumber(selectedDate);
+
 	onMount(() => {
 		const formattedDate = selectedDate.toISOString().slice(0, 10);
 		updateTargets('trainer', userId, formattedDate);
 	});
 </script>
 
-<div class="relative w-[320px] rounded-sm p-4 text-sm font-light glass">
+<div class="glass relative w-[320px] rounded-sm p-4 text-sm font-light">
 	<div class="mb-4 flex items-center justify-between">
 		<h2 class="text-xl text-white">Mål</h2>
 		<Button
@@ -56,6 +67,19 @@
 					textColor="white"
 					value={$targetMeta.achievedMonth ?? 0}
 					max={$targetMeta.monthGoal ?? 0}
+				/>
+			</div>
+
+			<!-- Veckomål -->
+			<div class="flex flex-col gap-1">
+				<div class="flex items-baseline justify-between">
+					<p class="text-white">Vecka {weekNumber}</p>
+				</div>
+				<ProgressBar
+					icon="Running"
+					textColor="white"
+					value={$targetMeta.achievedWeek ?? 0}
+					max={$targetMeta.weekGoal ?? 0}
 				/>
 			</div>
 		</div>

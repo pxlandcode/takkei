@@ -2,35 +2,29 @@
 	import Icon from '../../bits/icon-component/Icon.svelte';
 
 	interface Props {
-		name?: string;
-		month?: number;
+		weekStart?: string;
+		weekEnd?: string;
 		value?: number;
 		cap?: number;
 		scaleMax?: number;
 		locked?: boolean;
 		disabled?: boolean;
-		expanded?: boolean;
-		showExpandButton?: boolean;
-		oninput?: (detail: { month: number; value: number }) => void;
-		oncommit?: (detail: { month: number; value: number }) => void;
-		ontoggle?: (detail: { month: number }) => void;
-		onexpand?: (detail: { month: number }) => void;
+		oninput?: (detail: { weekStart: string; value: number }) => void;
+		oncommit?: (detail: { weekStart: string; value: number }) => void;
+		ontoggle?: (detail: { weekStart: string }) => void;
 	}
 
 	let {
-		name = '',
-		month = 1,
+		weekStart = '',
+		weekEnd = '',
 		value = 0,
 		cap = 0,
 		scaleMax = 0,
 		locked = false,
 		disabled = false,
-		expanded = false,
-		showExpandButton = false,
 		oninput,
 		oncommit,
-		ontoggle,
-		onexpand
+		ontoggle
 	}: Props = $props();
 
 	let refreshing = $state(false);
@@ -39,24 +33,38 @@
 
 	let draft = $state(String(value));
 
-	// Update draft when value changes from parent
 	$effect(() => {
 		draft = String(value);
 	});
 
+	// Format week range for display
+	function formatWeekRange(start: string, end: string): string {
+		const s = new Date(start);
+		const e = new Date(end);
+		const sDay = s.getDate();
+		const eDay = e.getDate();
+		const sMonth = s.toLocaleDateString('sv-SE', { month: 'short' });
+		const eMonth = e.toLocaleDateString('sv-SE', { month: 'short' });
+
+		if (sMonth === eMonth) {
+			return `${sDay}–${eDay} ${sMonth}`;
+		}
+		return `${sDay} ${sMonth} – ${eDay} ${eMonth}`;
+	}
+
 	function handleType(e: Event) {
 		const raw = Number((e.currentTarget as HTMLInputElement).value);
 		if (!Number.isFinite(raw)) return;
-		oninput?.({ month, value: clamp(raw) });
+		oninput?.({ weekStart, value: clamp(raw) });
 	}
 	function handleCommit() {
 		const raw = Number(draft);
 		const v = Number.isFinite(raw) ? clamp(raw) : 0;
 		draft = String(v);
-		oncommit?.({ month, value: v });
+		oncommit?.({ weekStart, value: v });
 	}
 	function handleToggle() {
-		ontoggle?.({ month });
+		ontoggle?.({ weekStart });
 	}
 
 	function handleRefreshClick() {
@@ -66,12 +74,6 @@
 		setTimeout(() => (refreshing = false), 600);
 	}
 
-	function handleExpandClick() {
-		if (disabled) return;
-		onexpand?.({ month });
-	}
-
-	// --- BAR VISUALS (uniform track; scaled fill) -----------------------------
 	const MAX_BAR_PCT = 96;
 	const MIN_VISIBLE_PCT = 3;
 
@@ -82,14 +84,14 @@
 	);
 </script>
 
-<div class="grid grid-cols-[140px_1fr_120px_78px_auto] items-center gap-3">
+<div class="grid grid-cols-[140px_1fr_120px_78px] items-center gap-3 pl-4">
 	<!-- Label -->
-	<div class="text-sm font-medium capitalize">{name}</div>
+	<div class="text-xs font-medium text-gray-600">{formatWeekRange(weekStart, weekEnd)}</div>
 
-	<!-- Bar: full-width gray track, orange fill scaled to global max -->
-	<div class="relative h-[8px] overflow-hidden rounded-full bg-black/15 select-none">
+	<!-- Bar -->
+	<div class="relative h-[6px] overflow-hidden rounded-full bg-black/10 select-none">
 		<div
-			class="bg-orange pointer-events-none absolute inset-y-0 left-0 rounded-full"
+			class="bg-orange/80 pointer-events-none absolute inset-y-0 left-0 rounded-full"
 			style={`width:${pctFill}%`}
 		/>
 	</div>
@@ -99,7 +101,7 @@
 		<input
 			type="number"
 			inputmode="numeric"
-			class="focus:ring-orange w-full rounded-sm border px-2 py-1 text-sm focus:ring-2 focus:outline-hidden disabled:opacity-60"
+			class="focus:ring-orange w-full rounded-sm border px-2 py-1 text-xs focus:ring-2 focus:outline-hidden disabled:opacity-60"
 			bind:value={draft}
 			{disabled}
 			min="0"
@@ -107,27 +109,27 @@
 			oninput={handleType}
 			onblur={handleCommit}
 			onkeydown={(e) => (e.key === 'Enter' ? handleCommit() : null)}
-			aria-label={`Mål för ${name}`}
+			aria-label={`Mål för vecka ${weekStart}`}
 		/>
 		<button
 			type="button"
-			class="rounded-sm border px-2 py-1 text-xs hover:bg-gray-50 disabled:opacity-40"
+			class="rounded-sm border px-1.5 py-0.5 text-xs hover:bg-gray-50 disabled:opacity-40"
 			disabled={disabled || value <= 0}
 			onclick={() => {
 				const v = Math.max(0, value - 1);
-				oninput?.({ month, value: v });
-				oncommit?.({ month, value: v });
+				oninput?.({ weekStart, value: v });
+				oncommit?.({ weekStart, value: v });
 			}}
 			title="-1">–</button
 		>
 		<button
 			type="button"
-			class="rounded-sm border px-2 py-1 text-xs hover:bg-gray-50 disabled:opacity-40"
+			class="rounded-sm border px-1.5 py-0.5 text-xs hover:bg-gray-50 disabled:opacity-40"
 			disabled={disabled || value >= cap}
 			onclick={() => {
 				const v = Math.min(cap, value + 1);
-				oninput?.({ month, value: v });
-				oncommit?.({ month, value: v });
+				oninput?.({ weekStart, value: v });
+				oncommit?.({ weekStart, value: v });
 			}}
 			title="+1">+</button
 		>
@@ -136,43 +138,23 @@
 	<!-- Status + lock toggle -->
 	<div class="flex items-center justify-end gap-2">
 		{#if locked}
-			<span class="xt-green-700 text-x rounded-sm px-2 py-1"
-				><Icon icon="Lock" size="14" color="error" /></span
-			>
+			<span class="rounded-sm px-2 py-1"><Icon icon="Lock" size="12" color="error" /></span>
 		{:else}
-			<span class="rounded-sm px-2 py-1 text-xs"
-				><Icon icon="Unlocked" size="14" color="success" /></span
-			>
+			<span class="rounded-sm px-2 py-1"><Icon icon="Unlocked" size="12" color="success" /></span>
 		{/if}
 		<button
 			type="button"
-			class="rounded-sm border px-2 py-1 text-xs hover:bg-gray-50 disabled:opacity-60"
+			class="rounded-sm border px-1.5 py-0.5 text-xs hover:bg-gray-50 disabled:opacity-60"
 			onclick={handleRefreshClick}
 			{disabled}
 			title={locked ? 'Lås upp' : 'Lås'}
 			aria-label="Uppdatera"
 		>
 			<span class="inline-block" class:half-spin={refreshing}>
-				<Icon icon="Refresh" size="14" />
+				<Icon icon="Refresh" size="12" />
 			</span>
 		</button>
 	</div>
-
-	<!-- Expand weeks button -->
-	{#if showExpandButton}
-		<button
-			type="button"
-			class="rounded-sm border px-2 py-1 text-xs hover:bg-gray-50 disabled:opacity-60"
-			onclick={handleExpandClick}
-			{disabled}
-			title={expanded ? 'Dölj veckor' : 'Visa veckor'}
-			aria-expanded={expanded}
-		>
-			<span class="inline-block transition-transform" class:rotate-45={expanded}>
-				<Icon icon="Plus" size="14" />
-			</span>
-		</button>
-	{/if}
 </div>
 
 <style>
@@ -189,7 +171,7 @@
 			transform: rotate(180deg);
 		}
 		100% {
-			transform: rotate(0deg);
+			transform: rotate(360deg);
 		}
 	}
 </style>
