@@ -7,12 +7,14 @@
 	import Button from '../../bits/button/Button.svelte';
 	import { addToast } from '$lib/stores/toastStore';
 	import { AppToastType } from '$lib/types/toastTypes';
+	import Icon from '../../bits/icon-component/Icon.svelte';
 
 	import {
 		getTargetGoals,
 		setYearGoal,
 		setMonthGoal,
-		getWeekGoals
+		getWeekGoals,
+		setWeekGoal
 	} from '$lib/services/api/targetGoalsService';
 
 	import {
@@ -22,39 +24,52 @@
 	import { debounce } from '$lib/utils/debounce';
 
 	import MonthBarInput from '../targets/MonthBarInput.svelte';
+	import WeekBarInput from '../targets/WeekBarInput.svelte';
 
 	// ---- Local state ---------------------------------------------------------
-	let ownerType: 'trainer' | 'location' = 'trainer';
-	let selectedUserId: number | null = null;
-	let selectedLocationId: number | null = null;
+	let ownerType: 'trainer' | 'location' = $state('trainer');
+	let selectedUserId: number | null = $state(null);
+	let selectedLocationId: number | null = $state(null);
 
-	let year = new Date().getFullYear();
+	let year = $state(new Date().getFullYear());
 
-	let isEditing = false;
+	let isEditing = $state(false);
 
 	// target kind matches new targets (1=trainer bookings, 2=location bookings)
-	$: targetKindId = ownerType === 'trainer' ? 1 : 2;
+	let targetKindId = $derived(ownerType === 'trainer' ? 1 : 2);
 
 	// Active owner context
-	let activeOwnerId: number | null = null;
+	let activeOwnerId: number | null = $state(null);
 
 	// SERVER snapshot
-	let persistedYearGoal: number | null = null;
-	let persistedMonthAnchors: { month: number; value: number }[] = [];
+	let persistedYearGoal: number | null = $state(null);
+	let persistedMonthAnchors: { month: number; value: number }[] = $state([]);
 
 	// DRAFT (local)
-	let yearDraft: number | '' = ''; // numeric (or empty while editing)
-	let monthDraftAnchors: { month: number; value: number }[] = []; // local anchored months
-	let monthInputs: (string | number)[] = Array(13).fill(''); // 1..12; bound to inputs
-	let editedMonths = new Set<number>(); // months user has touched in this session
+	let yearDraft: number | '' = $state(''); // numeric (or empty while editing)
+	let monthDraftAnchors: { month: number; value: number }[] = $state([]); // local anchored months
+	let monthInputs: (string | number)[] = $state(Array(13).fill('')); // 1..12; bound to inputs
+	let editedMonths = $state(new Set<number>()); // months user has touched in this session
 
 	// Derived
-	let monthsView: { month: number; value: number; isAnchor: boolean }[] = [];
-	let yearTotal = 0;
+	let monthsView: { month: number; value: number; isAnchor: boolean }[] = $state([]);
+	let yearTotal = $state(0);
 
 	// Weeks (read-only preview)
-	let showWeeksForMonth: number | null = null;
-	let weeksView: { week_start: string; week_end: string; value: number; isAnchor: boolean }[] = [];
+	let showWeeksForMonth: number | null = $state(null);
+	let weeksView: { week_start: string; week_end: string; value: number; isAnchor: boolean }[] =
+		$state([]);
+
+	// Weeks (expandable per month)
+	let expandedMonths: number[] = $state([]); // which months have weeks expanded (array for reactivity)
+	let weekDraftsByMonth: Record<
+		number,
+		{ week_start: string; week_end: string; value: number; isAnchor: boolean }[]
+	> = $state({});
+	let weekEditedByMonth: Record<number, Set<string>> = $state({}); // tracks edited weeks per month
+
+	// Shared visual scale across rows — use the current max value only
+	let scaleMaxDisplay = $derived(Math.max(1, ...monthsView.map((m) => m.value || 0)));
 
 	// Safe Swedish month name helper that accepts 1..12
 	function svMonthName(monthOneBased: number): string {
@@ -221,17 +236,6 @@
 		if (changed) recomputeFromDraft();
 	}, 120);
 
-	// Reactive triggers while editing
-	$: if (isEditing) {
-		yearDraft; // trigger debounce when year changes
-		applyYearDraft();
-	}
-
-	$: if (isEditing) {
-		monthInputs;
-		applyMonthDrafts();
-	}
-
 	// ---------------- LOCK / UNLOCK (LOCAL) -----------------------------------
 	function lockAllMonths() {
 		monthDraftAnchors = monthsView.map(({ month, value }) => ({ month, value }));
@@ -288,7 +292,35 @@
 			// Save in parallel to speed things up
 			await Promise.all(monthPayloads.map((p) => setMonthGoal(p)));
 
+			// 3) Save week goals for expanded months
+			const weekSavePromises: Promise<any>[] = [];
+			for (const month of expandedMonths) {
+				const weeks = weekDraftsByMonth[month] || [];
+				for (const w of weeks) {
+					weekSavePromises.push(
+						setWeekGoal({
+							ownerType,
+							ownerId: Number(activeOwnerId),
+							year,
+							month,
+							week_start: w.week_start,
+							week_end: w.week_end,
+							targetKindId,
+							goalValue: Math.max(0, Math.trunc(Number(w.value))),
+							isAnchor: w.isAnchor,
+							title: `Veckomål ${w.week_start}`,
+							description: ''
+						})
+					);
+				}
+			}
+			await Promise.all(weekSavePromises);
+
 			await loadAnchors(); // reload from DB (will now reflect all 12 months)
+			// Reset week state
+			expandedMonths = [];
+			weekDraftsByMonth = {};
+			weekEditedByMonth = {};
 			isEditing = false;
 			addToast({ type: AppToastType.SUCCESS, message: 'Mål sparade' });
 		} catch (err) {
@@ -303,9 +335,6 @@
 		recomputeFromDraft();
 	}
 
-	// keep ownerId derived reactively
-	$: setActiveOwnerFromSelections();
-
 	function monthMaxCap(monthNo: number) {
 		const current = monthsView.find((m) => m.month === monthNo)?.value ?? 0;
 		const sumAnchOther = monthsView
@@ -319,9 +348,6 @@
 		const theoreticalMax = Math.max(0, Math.floor(yearTarget - sumAnchOther));
 		return Math.max(current, theoreticalMax);
 	}
-
-	// Shared visual scale across rows — use the current max value only
-	$: scaleMaxDisplay = Math.max(1, ...monthsView.map((m) => m.value || 0));
 
 	function anchorMonthLocally(month: number, newVal: number) {
 		const i = monthDraftAnchors.findIndex((a) => a.month === month);
@@ -356,6 +382,141 @@
 			anchorMonthLocally(month, v);
 		}
 		recomputeFromDraft();
+	}
+
+	// ------------- WEEKS EXPANSION & EDITING ----------------------------------
+	async function toggleWeeksForMonth(month: number) {
+		if (expandedMonths.includes(month)) {
+			// Collapse
+			expandedMonths = expandedMonths.filter((m) => m !== month);
+		} else {
+			// Expand: load weeks from server first, then distribute
+			expandedMonths = [...expandedMonths, month];
+			await loadWeeksForMonth(month);
+		}
+	}
+
+	async function loadWeeksForMonth(month: number) {
+		if (!activeOwnerId) return;
+
+		const monthGoal = monthsView.find((m) => m.month === month)?.value ?? 0;
+
+		try {
+			// Get persisted weeks from DB
+			const serverWeeks = await getWeekGoals(
+				ownerType,
+				Number(activeOwnerId),
+				year,
+				month,
+				targetKindId
+			);
+
+			// Build anchors from server (only anchored weeks)
+			const anchors = (serverWeeks || [])
+				.filter((w: any) => w.is_anchor)
+				.map((w: any) => ({
+					start: w.week_start,
+					end: w.week_end,
+					value: Math.trunc(Number(w.goal_value))
+				}));
+
+			// Distribute month goal across weeks
+			const result = splitMonthToWeeks({
+				year,
+				month,
+				monthTotal: monthGoal,
+				weekAnchors: anchors
+			});
+
+			weekDraftsByMonth[month] = result.weeks.map((w) => ({
+				week_start: w.week_start,
+				week_end: w.week_end,
+				value: w.value,
+				isAnchor: w.isAnchor
+			}));
+			weekDraftsByMonth = { ...weekDraftsByMonth };
+			weekEditedByMonth[month] = new Set();
+		} catch (err) {
+			console.error('Error loading weeks for month', month, err);
+			weekDraftsByMonth[month] = [];
+		}
+	}
+
+	function recomputeWeeksForMonth(month: number) {
+		const monthGoal = monthsView.find((m) => m.month === month)?.value ?? 0;
+		const currentWeeks = weekDraftsByMonth[month] || [];
+
+		// Build anchors from current draft
+		const anchors = currentWeeks
+			.filter((w) => w.isAnchor)
+			.map((w) => ({
+				start: w.week_start,
+				end: w.week_end,
+				value: w.value
+			}));
+
+		const result = splitMonthToWeeks({ year, month, monthTotal: monthGoal, weekAnchors: anchors });
+
+		weekDraftsByMonth[month] = result.weeks.map((w) => ({
+			week_start: w.week_start,
+			week_end: w.week_end,
+			value: w.value,
+			isAnchor: w.isAnchor
+		}));
+		weekDraftsByMonth = { ...weekDraftsByMonth };
+	}
+
+	function onWeekTyped(month: number, weekStart: string, value: number) {
+		if (!weekEditedByMonth[month]) weekEditedByMonth[month] = new Set();
+		weekEditedByMonth[month].add(weekStart);
+
+		const weeks = weekDraftsByMonth[month] || [];
+		const idx = weeks.findIndex((w) => w.week_start === weekStart);
+		if (idx >= 0) {
+			weeks[idx].value = value;
+			weeks[idx].isAnchor = true;
+		}
+		weekDraftsByMonth[month] = [...weeks];
+		recomputeWeeksForMonth(month);
+	}
+
+	function onWeekCommit(month: number, weekStart: string, value: number) {
+		const weeks = weekDraftsByMonth[month] || [];
+		const idx = weeks.findIndex((w) => w.week_start === weekStart);
+		if (idx >= 0) {
+			weeks[idx].value = value;
+			weeks[idx].isAnchor = true;
+		}
+		weekDraftsByMonth[month] = [...weeks];
+		recomputeWeeksForMonth(month);
+	}
+
+	function onToggleWeek(month: number, weekStart: string) {
+		console.log('onToggleWeek called', { month, weekStart });
+		const weeks = weekDraftsByMonth[month] || [];
+		const idx = weeks.findIndex((w) => w.week_start === weekStart);
+		if (idx >= 0) {
+			weeks[idx].isAnchor = !weeks[idx].isAnchor;
+		}
+		weekDraftsByMonth[month] = [...weeks];
+		recomputeWeeksForMonth(month);
+	}
+
+	function weekMaxCap(month: number, weekStart: string) {
+		const weeks = weekDraftsByMonth[month] || [];
+		const current = weeks.find((w) => w.week_start === weekStart)?.value ?? 0;
+		const sumAnchOther = weeks
+			.filter((w) => w.week_start !== weekStart && w.isAnchor)
+			.reduce((s, w) => s + w.value, 0);
+
+		const monthGoal = monthsView.find((m) => m.month === month)?.value ?? 0;
+		const theoreticalMax = Math.max(0, Math.floor(monthGoal - sumAnchOther));
+		return Math.max(current, theoreticalMax);
+	}
+
+	function weekScaleMax(month: number) {
+		const weeks = weekDraftsByMonth[month] || [];
+		return Math.max(1, ...weeks.map((w) => w.value || 0));
 	}
 </script>
 
@@ -464,7 +625,7 @@
 					max="2100"
 					bind:value={year}
 					class="rounded-sm border p-2"
-					on:change={() => {
+					onchange={() => {
 						if (activeOwnerId) loadAnchors();
 					}}
 				/>
@@ -479,8 +640,8 @@
 					min="0"
 					step="1"
 					inputmode="numeric"
-					on:blur={commitYear}
-					on:keydown={(e) => (e.key === 'Enter' ? commitYear() : null)}
+					onblur={commitYear}
+					onkeydown={(e) => (e.key === 'Enter' ? commitYear() : null)}
 				/>
 				{#if yearDraft !== ''}<div class="text-sm text-gray-600">
 						Summa månader: <strong>{yearTotal}</strong>
@@ -499,23 +660,60 @@
 
 				<div class="space-y-3">
 					{#each monthsView as m}
-						<MonthBarInput
-							name={svMonthName(m.month)}
-							month={m.month}
-							value={m.value}
-							cap={monthMaxCap(m.month)}
-							scaleMax={scaleMaxDisplay}
-							locked={m.isAnchor}
-							disabled={!isEditing}
-							on:input={(e) => onMonthTyped(e.detail.month, e.detail.value)}
-							on:commit={(e) => onMonthCommit(e.detail.month, e.detail.value)}
-							on:toggle={(e) => onToggleMonth(e.detail.month)}
-						/>
+						<div class="flex flex-col">
+							<MonthBarInput
+								name={svMonthName(m.month)}
+								month={m.month}
+								value={m.value}
+								cap={monthMaxCap(m.month)}
+								scaleMax={scaleMaxDisplay}
+								locked={m.isAnchor}
+								disabled={!isEditing}
+								showExpandButton={true}
+								expanded={expandedMonths.includes(m.month)}
+								oninput={(e) => onMonthTyped(e.month, e.value)}
+								oncommit={(e) => onMonthCommit(e.month, e.value)}
+								ontoggle={(e) => onToggleMonth(e.month)}
+								onexpand={(e) => toggleWeeksForMonth(e.month)}
+							/>
+
+							<!-- Expanded weeks section -->
+							{#if expandedMonths.includes(m.month)}
+								<div
+									class="border-orange/30 mt-2 ml-4 space-y-2 rounded-r-sm border-l-2 bg-gray-50 py-2 pl-4"
+								>
+									<div class="mb-2 flex items-center justify-between">
+										<span class="text-xs font-medium text-gray-500"
+											>Veckomål för {svMonthName(m.month)}</span
+										>
+										<span class="text-xs text-gray-400">
+											Summa: {(weekDraftsByMonth[m.month] || []).reduce((s, w) => s + w.value, 0)} /
+											{m.value}
+										</span>
+									</div>
+									{#each weekDraftsByMonth[m.month] || [] as w}
+										<WeekBarInput
+											weekStart={w.week_start}
+											weekEnd={w.week_end}
+											value={w.value}
+											cap={weekMaxCap(m.month, w.week_start)}
+											scaleMax={weekScaleMax(m.month)}
+											locked={w.isAnchor}
+											disabled={!isEditing}
+											oninput={(e) => onWeekTyped(m.month, e.weekStart, e.value)}
+											oncommit={(e) => onWeekCommit(m.month, e.weekStart, e.value)}
+											ontoggle={(e) => onToggleWeek(m.month, e.weekStart)}
+										/>
+									{/each}
+								</div>
+							{/if}
+						</div>
 					{/each}
 				</div>
 
 				<p class="mt-3 text-xs text-gray-500">
-					Skriv exakta värden per månad. Låsta månader ändras inte när övriga fördelas.
+					Skriv exakta värden per månad. Låsta månader ändras inte när övriga fördelas. Klicka på +
+					för att visa veckor.
 				</p>
 			</div>
 		{/if}

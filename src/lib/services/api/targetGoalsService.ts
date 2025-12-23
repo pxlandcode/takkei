@@ -118,7 +118,9 @@ export async function getWeekGoals(
 	year: number,
 	month: number,
 	targetKindId: number
-) {
+): Promise<
+	Array<{ week_start: string; week_end: string; goal_value: number | null; is_anchor?: boolean }>
+> {
 	const qs = new URLSearchParams({
 		ownerType,
 		ownerId: String(ownerId),
@@ -126,7 +128,30 @@ export async function getWeekGoals(
 		month: String(month),
 		targetKindId: String(targetKindId)
 	});
-	const res = await fetch(`/api/targets/weeks?${qs.toString()}`);
+	const res = await fetch(`/api/targets/week?${qs.toString()}`);
 	if (!res.ok) throw new Error('Failed to fetch week goals');
+	return res.json();
+}
+
+/** Upsert a single week goal */
+export async function setWeekGoal(args: {
+	ownerType: OwnerType;
+	ownerId: number;
+	year: number;
+	month: number;
+	week_start: string;
+	week_end: string;
+	targetKindId: number;
+	goalValue: number;
+	isAnchor?: boolean;
+	title?: string;
+	description?: string;
+}) {
+	const res = await fetch('/api/targets/week', {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify(args)
+	});
+	if (!res.ok) throw new Error('Failed to set week goal');
 	return res.json();
 }
