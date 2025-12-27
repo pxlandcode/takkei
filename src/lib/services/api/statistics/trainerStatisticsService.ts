@@ -517,6 +517,7 @@ function determineCategory(
         row: BookingRow,
         context: { isWeekend: boolean; isHoliday: boolean }
 ): TableCategory {
+        if (row.internal) return 'flight'; // flygtimme stored as internal
         if (row.internal_education) return 'practice';
         if (row.education) return 'education';
         if (row.booking_content_kind === 'flight') return 'flight';
