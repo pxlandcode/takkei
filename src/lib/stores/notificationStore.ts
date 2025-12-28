@@ -1,4 +1,5 @@
 import { writable } from 'svelte/store';
+import { wrapFetch } from '$lib/services/api/apiCache';
 
 type NotificationType = 'alert' | 'client' | 'info';
 
@@ -24,7 +25,7 @@ const createNotificationStore = () => {
 			if (!userId) return;
 
 			try {
-				const res = await fetch(`/api/notifications?user_id=${userId}`);
+				const res = await wrapFetch(fetch)(`/api/notifications?user_id=${userId}`);
 				if (!res.ok) throw new Error('Kunde inte hämta notifikationer');
 				const notifications = await res.json();
 

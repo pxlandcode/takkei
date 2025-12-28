@@ -1,3 +1,5 @@
+import { invalidateByPrefix, wrapFetch } from '$lib/services/api/apiCache';
+
 export type OwnerType = 'trainer' | 'location';
 
 export function toTargetKindId(ownerType: OwnerType): 1 | 2 {
@@ -37,6 +39,7 @@ function parseIsoDateParts(isoDate: string): {
 
 export async function fetchTargets(ownerType: OwnerType, ownerId: number, date: string) {
 	assertRequestParams(ownerType, ownerId, date);
+	const fetcher = wrapFetch(fetch);
 
 	const queryString = new URLSearchParams({
 		ownerType,
@@ -44,7 +47,7 @@ export async function fetchTargets(ownerType: OwnerType, ownerId: number, date: 
 		date
 	}).toString();
 
-	const response = await fetch(`/api/targets?${queryString}`);
+	const response = await fetcher(`/api/targets?${queryString}`);
 	if (!response.ok) throw new Error('Failed to fetch targets');
 	return response.json() as Promise<any>;
 }
@@ -58,6 +61,7 @@ export async function createTarget(payload: {
 	start_date: string;
 	end_date: string;
 }) {
+	const fetcher = wrapFetch(fetch);
 	const requestBody = {
 		title: payload.title,
 		description: payload.description ?? '',
@@ -69,18 +73,20 @@ export async function createTarget(payload: {
 		end_date: payload.end_date
 	};
 
-	const response = await fetch('/api/targets', {
+	const response = await fetcher('/api/targets', {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
 		body: JSON.stringify(requestBody)
 	});
 
 	if (!response.ok) throw new Error('Could not create target');
+	invalidateByPrefix('/api/targets');
 }
 
 /** Legacy helper kept for compatibility when you already have a QS string prebuilt */
 export async function fetchTargetSummary(queryString: string) {
-	const response = await fetch(`/api/targets/summary?${queryString}`);
+	const fetcher = wrapFetch(fetch);
+	const response = await fetcher(`/api/targets/summary?${queryString}`);
 	if (!response.ok) throw new Error('Failed to fetch target summary');
 
 	const data = await response.json();
@@ -101,12 +107,14 @@ export async function fetchTargetSummary(queryString: string) {
 }
 
 export async function createTargetsBulk(rows: any[]) {
-	const response = await fetch('/api/targets/bulk', {
+	const fetcher = wrapFetch(fetch);
+	const response = await fetcher('/api/targets/bulk', {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
 		body: JSON.stringify(rows)
 	});
 	if (!response.ok) throw new Error('Bulk create failed');
+	invalidateByPrefix('/api/targets');
 	return response.json();
 }
 
@@ -121,6 +129,7 @@ export async function fetchMonthGoal(params: {
 	targetKindId?: number; // default 1
 }) {
 	assertRequestParams(params.ownerType, params.ownerId, params.date);
+	const fetcher = wrapFetch(fetch);
 
 	const { yearFromDate, monthFromDate } = parseIsoDateParts(params.date);
 	const targetKindIdentifier = params.targetKindId ?? 1;
@@ -133,7 +142,7 @@ export async function fetchMonthGoal(params: {
 		targetKindId: String(targetKindIdentifier)
 	}).toString();
 
-	const response = await fetch(`/api/targets/month?${queryString}`);
+	const response = await fetcher(`/api/targets/month?${queryString}`);
 	if (!response.ok) throw new Error('Failed to fetch month goal');
 
 	return response.json() as Promise<{ yearGoal: number | null; monthGoal: number | null }>;
@@ -146,6 +155,7 @@ export async function fetchYearGoals(params: {
 	targetKindId?: number;
 }) {
 	assertRequestParams(params.ownerType, params.ownerId);
+	const fetcher = wrapFetch(fetch);
 
 	const targetKindIdentifier = params.targetKindId ?? 1;
 
@@ -156,7 +166,7 @@ export async function fetchYearGoals(params: {
 		targetKindId: String(targetKindIdentifier)
 	}).toString();
 
-	const response = await fetch(`/api/targets/year?${queryString}`);
+	const response = await fetcher(`/api/targets/year?${queryString}`);
 	if (!response.ok) throw new Error('Failed to fetch year goals');
 
 	// Suggested shape from server: { yearGoal, months: [{ month, goal }] }
@@ -188,6 +198,7 @@ export async function fetchTargetsSummary(params: {
 	// ⬇️ use the ownerType-aware default (not 1)
 	const targetKindId = params.targetKindId ?? toTargetKindId(params.ownerType);
 	const includeGoals = params.includeGoals ?? true;
+	const fetcher = wrapFetch(fetch);
 
 	const qs = new URLSearchParams({
 		ownerType: params.ownerType,
@@ -197,7 +208,7 @@ export async function fetchTargetsSummary(params: {
 	});
 	if (includeGoals) qs.set('includeGoals', 'true');
 
-	const res = await fetch(`/api/targets/summary?${qs.toString()}`);
+	const res = await fetcher(`/api/targets/summary?${qs.toString()}`);
 	if (!res.ok) throw new Error('Failed to fetch targets summary');
 	const body = await res.json();
 

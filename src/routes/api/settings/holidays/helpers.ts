@@ -26,15 +26,25 @@ function toDateOnlyString(value: string | Date | null | undefined): string {
 
         const asString = String(value).trim();
         if (ISO_DATE_RE.test(asString)) {
-                return asString;
+                const [year, month, day] = asString.split('-').map(Number);
+                const parsed = new Date(asString);
+                if (
+                        !Number.isNaN(parsed.getTime()) &&
+                        parsed.getUTCFullYear() === year &&
+                        parsed.getUTCMonth() + 1 === month &&
+                        parsed.getUTCDate() === day
+                ) {
+                        return asString;
+                }
+                return '';
         }
 
         const parsed = new Date(asString);
         if (!Number.isNaN(parsed.getTime())) {
                 const year = parsed.getUTCFullYear();
-                const month = String(parsed.getUTCMonth() + 1).padStart(2, '0');
-                const day = String(parsed.getUTCDate()).padStart(2, '0');
-                return `${year}-${month}-${day}`;
+                const month = parsed.getUTCMonth() + 1;
+                const day = parsed.getUTCDate();
+                return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
         }
 
         return '';

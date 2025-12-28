@@ -1,4 +1,5 @@
 import type { Holiday, HolidayPayload, HolidayRange } from '$lib/types/holiday';
+import { invalidateByPrefix, wrapFetch } from '$lib/services/api/apiCache';
 
 type FetchLike = typeof fetch;
 
@@ -22,7 +23,7 @@ export type HolidayImportMeta = {
 };
 
 function resolveFetch(fetchFn?: FetchLike): FetchLike {
-        return fetchFn ?? fetch;
+        return wrapFetch(fetchFn ?? fetch);
 }
 
 function buildError(message: string, status: number, body?: any): HolidayServiceError {
@@ -108,6 +109,8 @@ export async function createHoliday(
         }
 
         const body = await res.json();
+        invalidateByPrefix('/api/settings/holidays');
+        invalidateByPrefix('/api/holidays');
         return body?.data as Holiday;
 }
 
@@ -133,6 +136,8 @@ export async function updateHoliday(
         }
 
         const body = await res.json();
+        invalidateByPrefix('/api/settings/holidays');
+        invalidateByPrefix('/api/holidays');
         return body?.data as Holiday;
 }
 
@@ -146,6 +151,9 @@ export async function deleteHoliday(id: number, fetchFn?: FetchLike): Promise<vo
                 const body = res.status === 400 ? await res.json().catch(() => null) : null;
                 throw buildError('Kunde inte ta bort helgdag.', res.status, body ?? undefined);
         }
+
+        invalidateByPrefix('/api/settings/holidays');
+        invalidateByPrefix('/api/holidays');
 }
 
 export type HolidayImportResponse = {
@@ -178,6 +186,8 @@ export async function importSwedishHolidays(
         }
 
         const body = await res.json();
+        invalidateByPrefix('/api/settings/holidays');
+        invalidateByPrefix('/api/holidays');
         return {
                 data: Array.isArray(body?.data) ? (body.data as Holiday[]) : [],
                 meta: body?.meta as HolidayImportMeta

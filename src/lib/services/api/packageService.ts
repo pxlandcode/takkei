@@ -1,4 +1,5 @@
 import type { Package, NewPackagePayload } from '$lib/types/packageTypes';
+import { invalidateByPrefix, wrapFetch } from '$lib/services/api/apiCache';
 
 type Installment = { date: string; sum: number; invoice_no: string };
 
@@ -57,13 +58,13 @@ function withSerializedInstallments(payload: NewPackagePayload): NewPackagePaylo
 }
 
 export async function getPackages(): Promise<Package[]> {
-	const res = await fetch('/api/packages');
+	const res = await wrapFetch(fetch)('/api/packages');
 	if (!res.ok) throw new Error('Failed to fetch packages');
 	return res.json();
 }
 
 export async function getPackageById(id: number): Promise<Package> {
-	const res = await fetch(`/api/packages/${id}`);
+	const res = await wrapFetch(fetch)(`/api/packages/${id}`);
 	if (!res.ok) throw new Error('Failed to fetch package');
 	return res.json();
 }
@@ -75,6 +76,7 @@ export async function createPackage(payload: NewPackagePayload): Promise<{ id: n
                 body: JSON.stringify(withSerializedInstallments(payload))
         });
 	if (!res.ok) throw new Error('Failed to create package');
+	invalidateByPrefix('/api/packages');
 	return res.json();
 }
 
@@ -85,17 +87,18 @@ export async function updatePackage(id: number, payload: NewPackagePayload): Pro
 		body: JSON.stringify(withSerializedInstallments(payload))
 	});
 	if (!res.ok) throw new Error('Failed to update package');
+	invalidateByPrefix('/api/packages');
 	return res.json();
 }
 
 export async function getArticles() {
-	const res = await fetch('/api/articles');
+	const res = await wrapFetch(fetch)('/api/articles');
 	if (!res.ok) throw new Error('Failed to fetch articles');
 	return res.json();
 }
 
 export async function getClientsForCustomer(customerId: number) {
-	const res = await fetch(`/api/clients?customerId=${customerId}`);
+	const res = await wrapFetch(fetch)(`/api/clients?customerId=${customerId}`);
 	if (!res.ok) throw new Error('Failed to fetch clients');
 	return res.json();
 }

@@ -1,4 +1,15 @@
 import { capitalizeFirstLetter } from '$lib/helpers/generic/genericHelpers';
+import { invalidateByPrefix } from '$lib/services/api/apiCache';
+
+const BOOKINGS_PREFIX = '/api/bookings';
+const PERSONAL_BOOKINGS_PREFIX = '/api/fetch-personal-bookings';
+const NOTIFICATIONS_PREFIX = '/api/notifications';
+
+function invalidateBookingRelatedCaches() {
+	invalidateByPrefix(BOOKINGS_PREFIX);
+	invalidateByPrefix(PERSONAL_BOOKINGS_PREFIX);
+	invalidateByPrefix(NOTIFICATIONS_PREFIX);
+}
 
 async function notify(data) {
 	await fetch('/api/notifications', {
@@ -126,6 +137,7 @@ export async function createBooking(
 		} else {
 			throw new Error(responseData.error || 'Booking creation failed');
 		}
+		invalidateBookingRelatedCaches();
 		return {
 			success: true,
 			message: 'Bokningen har skapats',
@@ -216,6 +228,7 @@ export async function updateStandardBooking(bookingObject: any) {
 		const responseData = await response.json();
 		if (!response.ok) throw new Error(responseData.error || 'Update failed');
 
+		invalidateBookingRelatedCaches();
 		return {
 			success: true,
 			message: 'Bokningen har uppdaterats',
@@ -255,6 +268,7 @@ export async function updatePersonalBooking(bookingObject: any, kind: string) {
 		const responseData = await response.json();
 		if (!response.ok) throw new Error(responseData.error || 'Update failed');
 
+		invalidateBookingRelatedCaches();
 		return {
 			success: true,
 			message: 'Bokningen har uppdaterats',
@@ -290,6 +304,7 @@ export async function cancelBooking(
 
 		if (!res.ok) throw new Error(data.error || 'Cancellation failed');
 
+		invalidateBookingRelatedCaches();
 		return {
 			success: true,
 			message: 'Bokningen har avbokats',
@@ -311,6 +326,7 @@ export async function deletePersonalBooking(bookingId: number) {
 		});
 		const data = await res.json();
 		if (!res.ok) throw new Error(data.error || 'Kunde inte ta bort personlig bokning');
+		invalidateBookingRelatedCaches();
 		return {
 			success: true,
 			message: 'Bokningen har tagits bort',
@@ -332,6 +348,7 @@ export async function deleteMeetingBooking(bookingId: number) {
 		});
 		const data = await res.json();
 		if (!res.ok) throw new Error(data.error || 'Kunde inte ta bort mötet');
+		invalidateBookingRelatedCaches();
 		return {
 			success: true,
 			message: 'Bokningen har tagits bort',
