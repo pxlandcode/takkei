@@ -1,6 +1,19 @@
 import { query } from '$lib/db';
 
-export async function GET({ url }) {
+function parseTimestamp(value: any): number | undefined {
+	if (!value) return undefined;
+	if (value instanceof Date && !Number.isNaN(value.getTime())) return value.getTime();
+	if (typeof value === 'string') {
+		const normalized = value.replace(' ', 'T');
+		const withZone = /([zZ]|[+-]\d{2}:?\d{2})$/.test(normalized) ? normalized : `${normalized}Z`;
+		const ms = Date.parse(withZone);
+		if (!Number.isNaN(ms)) return ms;
+	}
+	const ms = Date.parse(String(value));
+	return Number.isNaN(ms) ? undefined : ms;
+}
+
+export async function GET({ url, request }) {
 	const fromDate = url.searchParams.get('from');
 	const toDate = url.searchParams.get('to');
 	const date = url.searchParams.get('date');
@@ -108,7 +121,41 @@ export async function GET({ url }) {
 
 	try {
 		const result = await query(queryStr, params);
-		return new Response(JSON.stringify(result), { status: 200 });
+
+		const maxUpdatedMs = result
+			.map((row) => row?.updated_at || row?.updatedAt || row?.created_at || row?.createdAt)
+			.map((ts) => parseTimestamp(ts))
+			.filter((n): n is number => Number.isFinite(n))
+			.sort((a, b) => b - a)[0];
+
+		let effectiveUpdatedMs = maxUpdatedMs;
+		if (!Number.isFinite(effectiveUpdatedMs)) {
+			const trainerIdNums = trainerIds.map(Number).filter(Boolean);
+			const fallbackParams: (number[] | undefined)[] = [];
+			let fallbackQuery = `SELECT MAX(updated_at) AS last_updated FROM bookings`;
+			if (trainerIdNums.length > 0) {
+				fallbackParams.push(trainerIdNums);
+				fallbackQuery += ` WHERE trainer_id = ANY($1::int[]) OR user_id = ANY($1::int[])`;
+			}
+			const [row] = await query<{ last_updated: string | null }>(fallbackQuery, fallbackParams);
+			effectiveUpdatedMs = parseTimestamp(row?.last_updated) ?? 0;
+		}
+
+		const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+		const roundedMs = Number.isFinite(effectiveUpdatedMs)
+			? Math.floor(effectiveUpdatedMs / 1000) * 1000
+			: 0;
+		headers['Last-Modified'] = new Date(roundedMs).toUTCString();
+
+		const ifModifiedSince = request.headers.get('if-modified-since');
+		if (ifModifiedSince) {
+			const since = Date.parse(ifModifiedSince);
+			if (Number.isFinite(since) && since >= roundedMs) {
+				return new Response(null, { status: 304, headers });
+			}
+		}
+
+		return new Response(JSON.stringify(result), { status: 200, headers });
 	} catch (error) {
 		console.error('Error fetching bookings:', error);
 		return new Response(JSON.stringify({ error: 'Internal Server Error' }), { status: 500 });

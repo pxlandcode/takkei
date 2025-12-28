@@ -346,7 +346,7 @@
 
 		isMounted = true;
 		if (booking.isPersonalBooking) {
-			void measurePersonalText(personalDisplayText());
+			void measurePersonalText(personalDisplayText);
 		} else {
 			measureNameWidths(nameStrings);
 		}
@@ -356,11 +356,11 @@
 
 			debounceTimer = setTimeout(() => {
 				if (!booking) return;
-				if (booking.isPersonalBooking) {
-					void measurePersonalText(personalDisplayText());
-				} else {
-					checkNameWidths();
-				}
+					if (booking.isPersonalBooking) {
+						void measurePersonalText(personalDisplayText);
+					} else {
+						checkNameWidths();
+					}
 			}, 100);
 		});
 
@@ -377,7 +377,7 @@
 	$effect(() => {
 		if (!isMounted || !booking) return;
 		if (booking.isPersonalBooking) {
-			void measurePersonalText(personalDisplayText());
+			void measurePersonalText(personalDisplayText);
 			return;
 		}
 		const names = nameStrings;

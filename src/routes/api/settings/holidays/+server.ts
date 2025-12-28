@@ -1,6 +1,19 @@
 import type { RequestHandler } from '@sveltejs/kit';
 import { query } from '$lib/db';
 import { isAdministrator, json, resolveUserWithRoles } from '../helpers';
+
+function parseTimestamp(value: any): number | undefined {
+	if (!value) return undefined;
+	if (value instanceof Date && !Number.isNaN(value.getTime())) return value.getTime();
+	if (typeof value === 'string') {
+		const normalized = value.replace(' ', 'T');
+		const withZone = /([zZ]|[+-]\d{2}:?\d{2})$/.test(normalized) ? normalized : `${normalized}Z`;
+		const ms = Date.parse(withZone);
+		if (!Number.isNaN(ms)) return ms;
+	}
+	const ms = Date.parse(String(value));
+	return Number.isNaN(ms) ? undefined : ms;
+}
 import {
         mapHolidayRow,
         parseShowPassedParam,
@@ -8,7 +21,7 @@ import {
         type HolidayRow
 } from './helpers';
 
-export const GET: RequestHandler = async ({ locals, url }) => {
+export const GET: RequestHandler = async ({ locals, url, request }) => {
         const { authUser, roleAwareUser } = await resolveUserWithRoles(locals);
         if (!authUser) {
                 return new Response('Unauthorized', { status: 401 });
@@ -44,7 +57,36 @@ export const GET: RequestHandler = async ({ locals, url }) => {
                 const years = yearsResult
                         .map((row) => Number(row.year))
                         .filter((year) => Number.isFinite(year));
-                return json({ data: holidays, meta: { years } });
+
+                let maxUpdatedMs = holidaysResult
+                        .map((row) => row?.updated_at || row?.updatedAt || row?.created_at || row?.createdAt)
+                        .map((ts) => parseTimestamp(ts))
+                        .filter((n): n is number => Number.isFinite(n))
+                        .sort((a, b) => b - a)[0];
+
+                if (!Number.isFinite(maxUpdatedMs)) {
+                        const [row] = await query<{ last_updated: string | null }>(
+                                `SELECT MAX(updated_at) AS last_updated FROM holidays`
+                        );
+                        maxUpdatedMs = parseTimestamp(row?.last_updated) ?? 0;
+                }
+
+                const headers: Record<string, string> = { 'content-type': 'application/json' };
+                const roundedMs = Number.isFinite(maxUpdatedMs) ? Math.floor(maxUpdatedMs / 1000) * 1000 : 0;
+                headers['last-modified'] = new Date(roundedMs).toUTCString();
+
+                const ifModifiedSince = request.headers.get('if-modified-since');
+                if (ifModifiedSince) {
+                        const since = Date.parse(ifModifiedSince);
+                        if (Number.isFinite(since) && since >= roundedMs) {
+                                return new Response(null, { status: 304, headers });
+                        }
+                }
+
+                return new Response(JSON.stringify({ data: holidays, meta: { years } }), {
+                        status: 200,
+                        headers
+                });
         } catch (error) {
                 console.error('Failed to fetch holidays', error);
                 return new Response('Internal Server Error', { status: 500 });

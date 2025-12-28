@@ -1,6 +1,9 @@
 const CACHE_NAMESPACE = 'TAKKEI_API_CACHE_V1';
 const MAX_CACHE_ENTRIES = 100;
-const CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutes
+const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+const CACHE_DEBUG_ENABLED =
+	typeof console !== 'undefined' &&
+	(Boolean(import.meta.env?.DEV) || import.meta.env?.VITE_LOG_API_CACHE === 'true');
 
 type CacheEntry<T = unknown> = {
 	data: T;
@@ -24,18 +27,31 @@ function cacheDisabledExplicitly(options?: CachedFetchInit) {
 	return typeof options?.cache === 'boolean' ? options.cache === false : false;
 }
 
-function shouldBypassCache(url: string, options?: CachedFetchInit) {
-	if (import.meta.env?.VITE_DISABLE_API_CACHE) return true;
-	if (cacheDisabledExplicitly(options)) return true;
+function logCache(message: string, meta?: Record<string, unknown>) {
+	if (!CACHE_DEBUG_ENABLED) return;
+	if (meta) {
+		console.info('[apiCache]', message, meta);
+	} else {
+		console.info('[apiCache]', message);
+	}
+}
+
+function cacheBypassReason(url: string, options?: CachedFetchInit): string | undefined {
+	if (import.meta.env?.VITE_DISABLE_API_CACHE) return 'env-disabled';
+	if (cacheDisabledExplicitly(options)) return 'cache-false';
 
 	try {
 		const parsed = new URL(url, 'http://localhost');
-		if (parsed.searchParams.has('nocache')) return true;
+		if (parsed.searchParams.has('nocache')) return 'query-nocache';
 	} catch {
 		// ignore
 	}
 
-	return false;
+	return undefined;
+}
+
+function shouldBypassCache(url: string, options?: CachedFetchInit) {
+	return Boolean(cacheBypassReason(url, options));
 }
 
 function normalizeUrl(rawUrl: string) {
@@ -166,17 +182,36 @@ export function invalidateMatch(predicate: (key: string) => boolean) {
 
 function deriveLastModified(data: any): string | undefined {
 	if (!data) return undefined;
+
+	const toTimestampString = (candidate: any): string | undefined => {
+		if (typeof candidate === 'string') return candidate;
+		if (candidate instanceof Date && !Number.isNaN(candidate.getTime())) return candidate.toISOString();
+		return undefined;
+	};
+
+	const extractTimestamp = (value: any): string | undefined => {
+		if (!value || typeof value !== 'object') return undefined;
+		const candidate = toTimestampString(
+			value.updated_at ??
+				value.updatedAt ??
+				value.last_modified ??
+				value.lastModified ??
+				value.created_at ??
+				value.createdAt
+		);
+		return candidate;
+	};
+
 	if (Array.isArray(data) && data.length > 0) {
-		const updatedValues = data
-			.map((item) => item?.updated_at)
-			.filter((value) => typeof value === 'string');
-		if (updatedValues.length === data.length) {
-			return updatedValues.sort().at(-1);
+		const timestamps = data.map(extractTimestamp).filter((v): v is string => Boolean(v));
+		if (timestamps.length > 0) {
+			return timestamps.sort().at(-1);
 		}
 	}
 
-	if (data && typeof data === 'object' && typeof data.updated_at === 'string') {
-		return data.updated_at;
+	if (data && typeof data === 'object') {
+		const ts = extractTimestamp(data);
+		if (ts) return ts;
 	}
 
 	return undefined;
@@ -228,12 +263,42 @@ export async function cachedFetch(
 ): Promise<Response> {
 	const { url, method, init, headers } = resolveRequestInfo(input, options);
 
-	if (!cacheableMethod(method) || shouldBypassCache(url, options) || !isBrowser()) {
+	const normalizedUrl = normalizeUrl(url);
+
+	if (!cacheableMethod(method)) {
+		logCache('skip (non-cacheable method)', { method, url: normalizedUrl });
+		return fetchLike(input as any, options);
+	}
+
+	if (!isBrowser()) {
+		logCache('skip (non-browser)', { method, url: normalizedUrl });
+		return fetchLike(input as any, options);
+	}
+
+	const bypassReason = cacheBypassReason(url, options);
+	if (bypassReason) {
+		logCache('bypass cache', { method, url: normalizedUrl, reason: bypassReason });
 		return fetchLike(input as any, options);
 	}
 
 	const key = buildCacheKey(method, url);
 	const cached = getCacheEntry(key);
+
+	if (cached) {
+		// If we lack validators, serve from cache within TTL; otherwise revalidate with conditional GET
+		const hasValidators = Boolean(cached.etag || cached.lastModified);
+		if (!hasValidators) {
+			return buildResponseFromCache(cached);
+		}
+		logCache('cache revalidate', {
+			method,
+			url: normalizedUrl,
+			etag: cached.etag,
+			lastModified: cached.lastModified
+		});
+	} else {
+		logCache('cache miss', { method, url: normalizedUrl });
+	}
 
 	if (cached?.etag) {
 		headers.set('If-None-Match', cached.etag);
@@ -262,10 +327,12 @@ export async function cachedFetch(
 
 	if (response.status === 304 && cached) {
 		setCacheEntry(key, { ...cached, lastUpdated: Date.now() });
+		logCache('served from cache (304)', { method, url: normalizedUrl });
 		return buildResponseFromCache({ ...cached, lastUpdated: Date.now() });
 	}
 
 	if (!response.ok) {
+		logCache('skip caching (non-ok response)', { method, url: normalizedUrl, status: response.status });
 		return response;
 	}
 
@@ -274,12 +341,21 @@ export async function cachedFetch(
 		const cloned = response.clone();
 		data = await cloned.json();
 	} catch {
+		logCache('skip caching (unparsable json)', { method, url: normalizedUrl });
 		return response;
 	}
 
 	const etag = response.headers.get('etag') ?? undefined;
 	const lastModifiedFromHeader = response.headers.get('last-modified') ?? undefined;
 	const derivedLastModified = lastModifiedFromHeader ?? deriveLastModified(data);
+
+	if (!lastModifiedFromHeader) {
+		logCache('missing Last-Modified header', {
+			method,
+			url: normalizedUrl,
+			derived: Boolean(derivedLastModified)
+		});
+	}
 
 	const entry: CacheEntry = {
 		data,
@@ -290,6 +366,13 @@ export async function cachedFetch(
 	};
 
 	setCacheEntry(key, entry);
+	logCache('cache updated', {
+		method,
+		url: normalizedUrl,
+		status: response.status,
+		etag,
+		lastModified: entry.lastModified
+	});
 
 	return response;
 }

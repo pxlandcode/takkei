@@ -46,8 +46,8 @@ describe('apiCache', () => {
 		const key = buildCacheKey('GET', '/api/stale');
 		setCacheEntry(key, {
 			data: { ok: true },
-			createdAt: now - 20 * 60 * 1000,
-			lastUpdated: now - 20 * 60 * 1000
+			createdAt: now - 8 * 24 * 60 * 60 * 1000,
+			lastUpdated: now - 8 * 24 * 60 * 60 * 1000
 		});
 
 		expect(getCacheEntry(key)).toBeUndefined();
@@ -112,5 +112,68 @@ describe('apiCache', () => {
 		const entry = getCacheEntry(buildCacheKey('GET', '/api/derived'));
 
 		expect(entry?.lastModified).toBe('2024-02-01T00:00:00Z');
+	});
+
+	it('derives Last-Modified from camelCase timestamps and partial arrays', async () => {
+		const fetchSpy = vi.fn().mockResolvedValue(
+			new Response(
+				JSON.stringify([
+					{ id: 1, updatedAt: '2024-01-01T00:00:00Z' },
+					{ id: 2, name: 'no-updated' },
+					{ id: 3, updatedAt: '2024-03-01T00:00:00Z' }
+				]),
+				{
+					status: 200,
+					headers: { 'Content-Type': 'application/json' }
+				}
+			)
+		);
+
+		await wrapFetch(fetchSpy as unknown as typeof fetch)('/api/camel');
+		const entry = getCacheEntry(buildCacheKey('GET', '/api/camel'));
+
+		expect(entry?.lastModified).toBe('2024-03-01T00:00:00Z');
+	});
+
+	it('serves fresh cache without hitting the network when no validators exist', async () => {
+		const key = buildCacheKey('GET', '/api/fresh');
+		setCacheEntry(key, {
+			data: { ok: true },
+			createdAt: Date.now(),
+			lastUpdated: Date.now()
+		});
+
+		const fetchSpy = vi.fn();
+		const response = await cachedFetch(fetchSpy as unknown as typeof fetch, '/api/fresh');
+		const body = await response.json();
+
+		expect(fetchSpy).not.toHaveBeenCalled();
+		expect(body).toEqual({ ok: true });
+	});
+
+	it('uses derived last-modified to revalidate', async () => {
+		const key = buildCacheKey('GET', '/api/derived');
+		setCacheEntry(key, {
+			data: { ok: true },
+			createdAt: Date.now(),
+			lastUpdated: Date.now(),
+			lastModified: '2024-01-01T00:00:00Z'
+		});
+
+		const fetchSpy = vi.fn().mockImplementation((request: Request) => {
+			expect(request.headers.get('If-Modified-Since')).toBe('2024-01-01T00:00:00Z');
+			return Promise.resolve(
+				new Response(null, {
+					status: 304,
+					headers: { 'Content-Type': 'application/json' }
+				})
+			);
+		});
+
+		const response = await cachedFetch(fetchSpy as unknown as typeof fetch, '/api/derived');
+		const body = await response.json();
+
+		expect(fetchSpy).toHaveBeenCalledTimes(1);
+		expect(body).toEqual({ ok: true });
 	});
 });
