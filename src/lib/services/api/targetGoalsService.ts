@@ -1,3 +1,4 @@
+import { invalidateByPrefix, wrapFetch } from '$lib/services/api/apiCache';
 import type { OwnerType } from './targetService';
 
 export type TargetGoalsResponse = {
@@ -27,7 +28,7 @@ export async function getTargetGoals(
 	targetKindId: number
 ): Promise<TargetGoalsResponse> {
 	const qs = buildQuery({ ownerType, ownerId, year, targetKindId });
-	const res = await fetch(`/api/targets/month?${qs.toString()}`);
+	const res = await wrapFetch(fetch)(`/api/targets/month?${qs.toString()}`);
 	if (!res.ok) throw new Error('Failed to fetch target goals');
 	const body = await res.json();
 	const months = (body?.months ?? []).map((r: any) => ({
@@ -87,6 +88,7 @@ export async function setMonthGoal(args: {
 		body: JSON.stringify(args)
 	});
 	if (!res.ok) throw new Error('Failed to set month goal');
+	invalidateByPrefix('/api/targets');
 	return res.json();
 }
 
@@ -108,6 +110,7 @@ export async function setYearGoal(args: {
 		body: JSON.stringify(args)
 	});
 	if (!res.ok) throw new Error('Failed to set year goal');
+	invalidateByPrefix('/api/targets');
 	return res.json();
 }
 
@@ -128,7 +131,7 @@ export async function getWeekGoals(
 		month: String(month),
 		targetKindId: String(targetKindId)
 	});
-	const res = await fetch(`/api/targets/week?${qs.toString()}`);
+	const res = await wrapFetch(fetch)(`/api/targets/week?${qs.toString()}`);
 	if (!res.ok) throw new Error('Failed to fetch week goals');
 	return res.json();
 }
@@ -153,5 +156,6 @@ export async function setWeekGoal(args: {
 		body: JSON.stringify(args)
 	});
 	if (!res.ok) throw new Error('Failed to set week goal');
+	invalidateByPrefix('/api/targets');
 	return res.json();
 }

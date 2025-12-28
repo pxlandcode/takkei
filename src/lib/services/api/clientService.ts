@@ -1,6 +1,7 @@
 import type { Client } from '$lib/types/clientTypes';
 import type { FullBooking, BookingFilters } from '$lib/types/calendarTypes';
 import { fetchBookings } from '$lib/services/api/calendarService';
+import { wrapFetch } from '$lib/services/api/apiCache';
 
 /**
  * Fetch Client Details and Bookings Using `fetchBookings`
@@ -9,9 +10,11 @@ export async function fetchClient(
 	clientId: number,
 	fetchFn: typeof fetch
 ): Promise<{ client: Client; bookings: FullBooking[] } | null> {
+	const cachedFetch = wrapFetch(fetchFn);
+
 	try {
 		// Fetch client details
-		const clientResponse = await fetchFn(`/api/clients/${clientId}`);
+		const clientResponse = await cachedFetch(`/api/clients/${clientId}`);
 		if (!clientResponse.ok) throw new Error('Client not found');
 		const clientData: Client = await clientResponse.json();
 

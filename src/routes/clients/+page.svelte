@@ -19,6 +19,7 @@
 	import { debounce } from '$lib/utils/debounce';
 	import { openPopup } from '$lib/stores/popupStore';
 	import { headerState } from '$lib/stores/headerState.svelte';
+	import { wrapFetch } from '$lib/services/api/apiCache';
 
 	let selectedClientsId: number | null = null;
 	let selectedClientEmail: string | null = null;
@@ -150,6 +151,7 @@
 		if (!browser) return;
 		if (isLoading || (!hasMore && !reset)) return;
 
+		const cachedFetch = wrapFetch(fetch);
 		isLoading = true;
 
 		if (reset) {
@@ -160,7 +162,7 @@
 
 		try {
 			const qs = buildQueryParams();
-			const res = await fetch(`/api/clients?${qs}`);
+			const res = await cachedFetch(`/api/clients?${qs}`);
 			if (!res.ok) throw new Error('Failed to fetch clients');
 
 			const fetched = await res.json();

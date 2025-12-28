@@ -1,9 +1,10 @@
 import type { Greeting, GreetingAudience, GreetingPayload } from '$lib/types/greeting';
+import { invalidateByPrefix, wrapFetch } from '$lib/services/api/apiCache';
 
 type FetchLike = typeof fetch;
 
 function resolveFetch(fetchFn?: FetchLike): FetchLike {
-	return fetchFn ?? fetch;
+	return wrapFetch(fetchFn ?? fetch);
 }
 
 function buildError(message: string, status: number, body?: any) {
@@ -70,6 +71,8 @@ export async function createGreeting(payload: GreetingPayload, fetchFn?: FetchLi
 	}
 
 	const body = await res.json();
+	invalidateByPrefix('/api/settings/greetings');
+	invalidateByPrefix('/api/greetings');
 	return (body?.data as Greeting) ?? (body as Greeting);
 }
 
@@ -95,6 +98,8 @@ export async function updateGreeting(
 	}
 
 	const body = await res.json();
+	invalidateByPrefix('/api/settings/greetings');
+	invalidateByPrefix('/api/greetings');
 	return (body?.data as Greeting) ?? (body as Greeting);
 }
 
@@ -108,4 +113,7 @@ export async function deleteGreeting(id: number, fetchFn?: FetchLike): Promise<v
 		const body = res.status === 400 ? await res.json().catch(() => null) : null;
 		throw buildError('Kunde inte ta bort hälsning.', res.status, body ?? undefined);
 	}
+
+	invalidateByPrefix('/api/settings/greetings');
+	invalidateByPrefix('/api/greetings');
 }

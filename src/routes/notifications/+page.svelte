@@ -7,12 +7,14 @@
 	import Icon from '../../components/bits/icon-component/Icon.svelte';
 	import Button from '../../components/bits/button/Button.svelte';
 	import { notificationStore } from '$lib/stores/notificationStore';
+	import { invalidateByPrefix, wrapFetch } from '$lib/services/api/apiCache';
 
 	$: $user;
 
 	let events = [];
 	let expanded = new Set<number>();
 	let isLoading = true;
+	const fetchWithCache = wrapFetch(fetch);
 
 	function toggleExpand(id: number) {
 		expanded.has(id) ? expanded.delete(id) : expanded.add(id);
@@ -23,7 +25,7 @@
 
 		isLoading = true;
 		try {
-			const res = await fetch(`/api/notifications?user_id=${$user.id}`);
+			const res = await fetchWithCache(`/api/notifications?user_id=${$user.id}`);
 			if (!res.ok) throw new Error('Kunde inte hämta notifikationer');
 			const all = await res.json();
 
@@ -52,6 +54,7 @@
 				body: JSON.stringify({ event_id: eventId, user_id: $user.id })
 			});
 			events = events.filter((e) => e.id !== eventId);
+			invalidateByPrefix('/api/notifications');
 
 			addToast({
 				type: AppToastType.SUCCESS,

@@ -1,5 +1,7 @@
 import type { FullBooking, BookingFilters } from '$lib/types/calendarTypes';
 
+import { wrapFetch } from '$lib/services/api/apiCache';
+
 export async function fetchBookings(
 	filters: BookingFilters,
 	fetchFn: typeof fetch,
@@ -7,6 +9,8 @@ export async function fetchBookings(
 	offset: number = 0,
 	fetchAllStatuses: boolean = false
 ): Promise<FullBooking[]> {
+	const cachedFetch = wrapFetch(fetchFn);
+
 	const params = new URLSearchParams();
 
 	// ✅ Add date filters
@@ -54,7 +58,7 @@ export async function fetchBookings(
 	try {
 		// Fetch standard bookings
 		const bookingsUrl = `/api/bookings?${params.toString()}`;
-		const bookingsResponse = await fetchFn(bookingsUrl);
+		const bookingsResponse = await cachedFetch(bookingsUrl);
 
 		if (!bookingsResponse.ok) {
 			const errorText = await bookingsResponse.text();
@@ -68,7 +72,7 @@ export async function fetchBookings(
 		if (filters.personalBookings) {
 			const personalParams = new URLSearchParams(params);
 			const personalBookingsUrl = `/api/fetch-personal-bookings?${personalParams.toString()}`;
-			const personalBookingsResponse = await fetchFn(personalBookingsUrl);
+			const personalBookingsResponse = await cachedFetch(personalBookingsUrl);
 
 			if (!personalBookingsResponse.ok) {
 				const errorText = await personalBookingsResponse.text();
@@ -185,7 +189,8 @@ export async function fetchBookingById(
 	fetchFn: typeof fetch
 ): Promise<FullBooking | null> {
 	try {
-		const res = await fetchFn(`/api/bookings/${bookingId}`);
+		const cachedFetch = wrapFetch(fetchFn);
+		const res = await cachedFetch(`/api/bookings/${bookingId}`);
 		if (!res.ok) {
 			return null;
 		}

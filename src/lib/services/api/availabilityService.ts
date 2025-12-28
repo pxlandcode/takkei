@@ -1,8 +1,11 @@
+import { invalidateByPrefix, wrapFetch } from '$lib/services/api/apiCache';
+
 const baseUrl = '/api/availability';
 
 // ✅ Fix: match server-side param name
 export async function fetchAvailability(userId: number) {
-	const res = await fetch(`${baseUrl}?userId=${userId}`);
+	const fetchWithCache = wrapFetch(fetch);
+	const res = await fetchWithCache(`${baseUrl}?userId=${userId}`);
 	if (!res.ok) throw new Error('Kunde inte hämta tillgänglighet.');
 	return await res.json();
 }
@@ -24,6 +27,7 @@ export async function saveWeeklyAvailability(userId: number, weeklyAvailability:
 	});
 
 	if (!res.ok) throw new Error('Misslyckades att spara veckoschema.');
+	invalidateByPrefix(baseUrl);
 	return await res.json();
 }
 
@@ -40,6 +44,7 @@ export async function saveDateAvailability(
 		});
 		if (!res.ok) throw new Error(`Misslyckades att spara datum ${item.date}`);
 	}
+	invalidateByPrefix(baseUrl);
 }
 
 export async function removeDateAvailability(id: number) {
@@ -51,6 +56,7 @@ export async function removeDateAvailability(id: number) {
 		throw new Error('Misslyckades att ta bort datumtillgänglighet.');
 	}
 
+	invalidateByPrefix(baseUrl);
 	return await res.json();
 }
 
@@ -64,6 +70,7 @@ export async function saveVacations(userId: number, vacations: { from: string; t
 		});
 		if (!res.ok) throw new Error(`Misslyckades att spara semester ${vacation.from}–${vacation.to}`);
 	}
+	invalidateByPrefix(baseUrl);
 }
 
 export async function removeVacation(id: number) {
@@ -75,6 +82,7 @@ export async function removeVacation(id: number) {
 		throw new Error('Misslyckades att ta bort semester');
 	}
 
+	invalidateByPrefix(baseUrl);
 	return await res.json();
 }
 
@@ -131,5 +139,6 @@ export async function saveOrUpdateAbsences(
 		}
 	}
 
+	invalidateByPrefix(baseUrl);
 	return saved;
 }
