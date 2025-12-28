@@ -2,8 +2,7 @@ const CACHE_NAMESPACE = 'TAKKEI_API_CACHE_V1';
 const MAX_CACHE_ENTRIES = 100;
 const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 const CACHE_DEBUG_ENABLED =
-	typeof console !== 'undefined' &&
-	(Boolean(import.meta.env?.DEV) || import.meta.env?.VITE_LOG_API_CACHE === 'true');
+	typeof console !== 'undefined' && import.meta.env?.VITE_LOG_API_CACHE === 'true';
 
 type CacheEntry<T = unknown> = {
 	data: T;
