@@ -39,6 +39,15 @@ export async function GET({ url }) {
 			? `(b.start_time AT TIME ZONE 'Europe/Stockholm')`
 			: `b.start_time`;
 
+	// Include late_cancelled (paid) but exclude plain cancelled and non-billable session types
+	const baseFilters = `
+		lower(trim(COALESCE(b.status,''))) NOT IN ('cancelled')
+		AND COALESCE(b.try_out, false) = false
+		AND COALESCE(b.education, false) = false
+		AND COALESCE(b.internal_education, false) = false
+		AND COALESCE(b.internal, false) = false
+	`;
+
 	if (debug) {
 		console.log('[targets/summary] params', { ownerType, ownerId, date, year, month, kind });
 		console.log('[targets/summary] bookings.start_time type:', coltype);
@@ -49,10 +58,10 @@ export async function GET({ url }) {
 	const yearRows = await query(
 		`
     SELECT COUNT(*)::int AS c
-      FROM bookings b
+     FROM bookings b
      WHERE b.${ownerColumn} = $1
        AND EXTRACT(YEAR FROM ${ts_expr})::int = $2
-       AND lower(trim(COALESCE(b.status,''))) NOT IN ('cancelled','late_cancelled')
+       AND ${baseFilters}
   `,
 		[ownerId, year]
 	);
@@ -66,7 +75,7 @@ export async function GET({ url }) {
      WHERE b.${ownerColumn} = $1
        AND EXTRACT(YEAR FROM ${ts_expr})::int = $2
        AND EXTRACT(MONTH FROM ${ts_expr})::int = $3
-       AND lower(trim(COALESCE(b.status,''))) NOT IN ('cancelled','late_cancelled')
+       AND ${baseFilters}
   `,
 		[ownerId, year, month]
 	);
@@ -80,7 +89,7 @@ export async function GET({ url }) {
      WHERE b.${ownerColumn} = $1
        AND EXTRACT(YEAR FROM ${ts_expr})::int = $2
        AND EXTRACT(MONTH FROM ${ts_expr})::int = $3
-       AND lower(trim(COALESCE(b.status,''))) NOT IN ('cancelled','late_cancelled')
+       AND ${baseFilters}
      GROUP BY day
      ORDER BY day
   `,

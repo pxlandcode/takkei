@@ -35,23 +35,32 @@ export async function GET({ url }) {
 			? `(b.start_time AT TIME ZONE 'Europe/Stockholm')`
 			: `b.start_time`;
 
-	const statusFilter = `lower(trim(COALESCE(b.status,''))) NOT IN ('cancelled','late_cancelled')`;
+	// Include late_cancelled (paid) but exclude plain cancelled and certain session types
+	const baseFilters = `
+		lower(trim(COALESCE(b.status,''))) NOT IN ('cancelled')
+		AND COALESCE(b.try_out, false) = false
+		AND COALESCE(b.education, false) = false
+		AND COALESCE(b.internal_education, false) = false
+		AND COALESCE(b.internal, false) = false
+	`;
 
 	// Achieved YEAR (all bookings company-wide)
 	const yearRows = await query(
-		`SELECT COUNT(*)::int AS c FROM bookings b
+		`SELECT COUNT(*)::int AS c
+		 FROM bookings b
 		 WHERE EXTRACT(YEAR FROM ${ts_expr})::int = $1
-		   AND ${statusFilter}`,
+		   AND ${baseFilters}`,
 		[year]
 	);
 	const achievedYear: number = yearRows?.[0]?.c ?? 0;
 
 	// Achieved MONTH (all bookings company-wide)
 	const monthRows = await query(
-		`SELECT COUNT(*)::int AS c FROM bookings b
+		`SELECT COUNT(*)::int AS c
+		 FROM bookings b
 		 WHERE EXTRACT(YEAR FROM ${ts_expr})::int = $1
 		   AND EXTRACT(MONTH FROM ${ts_expr})::int = $2
-		   AND ${statusFilter}`,
+		   AND ${baseFilters}`,
 		[year, month]
 	);
 	const achievedMonth: number = monthRows?.[0]?.c ?? 0;
@@ -63,10 +72,11 @@ export async function GET({ url }) {
 	const weekEnd = weekRange.end.toISOString().slice(0, 10);
 
 	const weekRows = await query(
-		`SELECT COUNT(*)::int AS c FROM bookings b
+		`SELECT COUNT(*)::int AS c
+		 FROM bookings b
 		 WHERE (${ts_expr})::date >= $1::date
 		   AND (${ts_expr})::date <= $2::date
-		   AND ${statusFilter}`,
+		   AND ${baseFilters}`,
 		[weekStart, weekEnd]
 	);
 	const achievedWeek: number = weekRows?.[0]?.c ?? 0;

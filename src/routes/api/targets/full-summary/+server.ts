@@ -39,14 +39,21 @@ export async function GET({ url }) {
 			? `(b.start_time AT TIME ZONE 'Europe/Stockholm')`
 			: `b.start_time`;
 
-	const statusFilter = `lower(trim(COALESCE(b.status,''))) NOT IN ('cancelled','late_cancelled')`;
+	// Include late_cancelled (paid) but exclude plain cancelled and non-billable session types
+	const baseFilters = `
+		lower(trim(COALESCE(b.status,''))) NOT IN ('cancelled')
+		AND COALESCE(b.try_out, false) = false
+		AND COALESCE(b.education, false) = false
+		AND COALESCE(b.internal_education, false) = false
+		AND COALESCE(b.internal, false) = false
+	`;
 
 	// Achieved YEAR
 	const yearRows = await query(
 		`SELECT COUNT(*)::int AS c FROM bookings b
 		 WHERE b.${ownerColumn} = $1
 		   AND EXTRACT(YEAR FROM ${ts_expr})::int = $2
-		   AND ${statusFilter}`,
+		   AND ${baseFilters}`,
 		[ownerId, year]
 	);
 	const achievedYear: number = yearRows?.[0]?.c ?? 0;
@@ -57,7 +64,7 @@ export async function GET({ url }) {
 		 WHERE b.${ownerColumn} = $1
 		   AND EXTRACT(YEAR FROM ${ts_expr})::int = $2
 		   AND EXTRACT(MONTH FROM ${ts_expr})::int = $3
-		   AND ${statusFilter}`,
+		   AND ${baseFilters}`,
 		[ownerId, year, month]
 	);
 	const achievedMonth: number = monthRows?.[0]?.c ?? 0;
@@ -73,7 +80,7 @@ export async function GET({ url }) {
 		 WHERE b.${ownerColumn} = $1
 		   AND (${ts_expr})::date >= $2::date
 		   AND (${ts_expr})::date <= $3::date
-		   AND ${statusFilter}`,
+		   AND ${baseFilters}`,
 		[ownerId, weekStart, weekEnd]
 	);
 	const achievedWeek: number = weekRows?.[0]?.c ?? 0;
