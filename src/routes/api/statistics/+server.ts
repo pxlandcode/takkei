@@ -48,12 +48,8 @@ export const GET: RequestHandler = async ({ url, request }) => {
 			const headers: Record<string, string> = {
 				'Last-Modified': new Date(Math.floor(latestMs / 1000) * 1000).toUTCString()
 			};
-			console.info('statistics 304 preflight', { trainerId, from, to, since, latestMs, headers });
 			return new Response(null, { status: 304, headers });
 		}
-		console.info('statistics preflight miss', { trainerId, from, to, ifModifiedSince, latestMs, since });
-	} else {
-		console.info('statistics no if-modified-since header', { trainerId, from, to });
 	}
 
 	try {
@@ -69,8 +65,6 @@ export const GET: RequestHandler = async ({ url, request }) => {
 		const headers: Record<string, string> = {
 			'Last-Modified': new Date(rounded).toUTCString()
 		};
-		console.info('statistics 200', { trainerId, from, to, rounded });
-
 		return new Response(JSON.stringify(result), { status: 200, headers });
 	} catch (error) {
 		console.error('Failed to compute trainer statistics', {

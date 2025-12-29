@@ -57,24 +57,8 @@ export async function GET({ url, request }) {
 			const headers: Record<string, string> = {
 				'Last-Modified': new Date(roundedLatestMs!).toUTCString()
 			};
-			console.info('company-summary 304 preflight', {
-				date,
-				since,
-				latestMs: roundedLatestMs,
-				headers
-			});
 			return new Response(null, { status: 304, headers });
-		} else {
-			console.info('company-summary preflight miss', {
-				date,
-				ifModifiedSince,
-				since,
-				latestMs,
-				roundedLatestMs
-			});
 		}
-	} else {
-		console.info('company-summary no if-modified-since header', { date });
 	}
 
 	// Detect column type to handle timezone safely
@@ -196,8 +180,6 @@ export async function GET({ url, request }) {
 	const headers: Record<string, string> = {
 		'Last-Modified': new Date(Math.floor(latestMsFinal / 1000) * 1000).toUTCString()
 	};
-	console.info('company-summary 200', { date, latestMs: headers['Last-Modified'] });
-
 	return json(
 		{
 			year,

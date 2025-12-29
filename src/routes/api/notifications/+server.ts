@@ -71,20 +71,8 @@ export const GET: RequestHandler = async ({ url, request }) => {
 		if (Number.isFinite(roundedLatestMs) && Number.isFinite(since) && since >= roundedLatestMs) {
 			const headers: Record<string, string> = { 'content-type': 'application/json' };
 			headers['last-modified'] = new Date(roundedLatestMs!).toUTCString();
-			console.info('notifications 304 preflight', { userId, type, since, latestMs: roundedLatestMs });
 			return new Response(null, { status: 304, headers });
-		} else {
-			console.info('notifications preflight miss', {
-				userId,
-				type,
-				ifModifiedSince,
-				since,
-				latestMs,
-				roundedLatestMs
-			});
 		}
-	} else {
-		console.info('notifications no if-modified-since header', { userId, type });
 	}
 
 	const events = await getNotificationsForUser(userId, type);
@@ -100,17 +88,11 @@ export const GET: RequestHandler = async ({ url, request }) => {
 			`SELECT MAX(updated_at) AS last_updated FROM events`
 		);
 		maxUpdatedMs = parseTimestamp(row?.last_updated) ?? 0;
-		console.info('notifications fallback latest from events', {
-			userId,
-			type,
-			maxUpdatedMs
-		});
 	}
 
 	const headers: Record<string, string> = { 'content-type': 'application/json' };
 	const roundedMs = Number.isFinite(maxUpdatedMs) ? Math.floor(maxUpdatedMs / 1000) * 1000 : 0;
 	headers['last-modified'] = new Date(roundedMs).toUTCString();
-	console.info('notifications 200', { userId, type, latestMs: headers['last-modified'] });
 
 	return new Response(JSON.stringify(events), { status: 200, headers });
 };

@@ -82,12 +82,6 @@ export const GET: RequestHandler = async ({ url, request }) => {
 			const headers: Record<string, string> = {
 				'Last-Modified': new Date(roundedMs as number).toUTCString()
 			};
-			console.info('counts-per-day 304 preflight', {
-				latestMs,
-				roundedMs,
-				since,
-				headers
-			});
 			return new Response(null, { status: 304, headers });
 		}
 	}
@@ -106,12 +100,5 @@ export const GET: RequestHandler = async ({ url, request }) => {
 	} else {
 		headers['Last-Modified'] = new Date().toUTCString();
 	}
-	console.info('counts-per-day 200', {
-		latestMs,
-		roundedMs,
-		header: headers['Last-Modified'],
-		ifModifiedSince
-	});
-
 	return json(result, { headers });
 };

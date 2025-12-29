@@ -110,24 +110,8 @@ export async function GET({ url, request }) {
 			const headers: Record<string, string> = {
 				'Last-Modified': new Date(roundedLatestMs!).toUTCString()
 			};
-			console.info('clients-without-bookings 304 preflight', {
-				trainerId,
-				since,
-				latestMs: roundedLatestMs,
-				headers
-			});
 			return new Response(null, { status: 304, headers });
-		} else {
-			console.info('clients-without-bookings preflight miss', {
-				trainerId,
-				ifModifiedSince,
-				since,
-				latestMs,
-				roundedLatestMs
-			});
 		}
-	} else {
-		console.info('clients-without-bookings no if-modified-since header', { trainerId });
 	}
 
 	const results = await query(sql, params);
@@ -169,7 +153,5 @@ export async function GET({ url, request }) {
 	const headers: Record<string, string> = {
 		'Last-Modified': new Date(Math.floor(latestMs / 1000) * 1000).toUTCString()
 	};
-	console.info('clients-without-bookings 200', { trainerId, latestMs: headers['Last-Modified'] });
-
 	return json({ thisWeek, week1, week2 }, { headers });
 }
