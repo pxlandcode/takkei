@@ -27,6 +27,24 @@ export async function GET({ request }) {
     `;
 
 	try {
+		const ifModifiedSince = request.headers.get('if-modified-since');
+		if (ifModifiedSince) {
+			const [row] = await query<{ last_updated: string | null }>(
+				`SELECT MAX(updated_at) AS last_updated FROM users`
+			);
+			const latestMsRaw = parseTimestamp(row?.last_updated);
+			const latestMs =
+				Number.isFinite(latestMsRaw) && latestMsRaw !== undefined
+					? Math.floor(latestMsRaw / 1000) * 1000
+					: undefined;
+			const since = Date.parse(ifModifiedSince);
+			if (Number.isFinite(latestMs) && Number.isFinite(since) && since >= latestMs) {
+				const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+				headers['Last-Modified'] = new Date(latestMs as number).toUTCString();
+				return new Response(null, { status: 304, headers });
+			}
+		}
+
 		const result = await query(queryStr);
 
 		let maxUpdatedMs = result
@@ -45,14 +63,6 @@ export async function GET({ request }) {
 		const headers: Record<string, string> = { 'Content-Type': 'application/json' };
 		const roundedMs = Number.isFinite(maxUpdatedMs) ? Math.floor(maxUpdatedMs / 1000) * 1000 : 0;
 		headers['Last-Modified'] = new Date(roundedMs).toUTCString();
-
-		const ifModifiedSince = request.headers.get('if-modified-since');
-		if (ifModifiedSince) {
-			const since = Date.parse(ifModifiedSince);
-			if (Number.isFinite(since) && since >= roundedMs) {
-				return new Response(null, { status: 304, headers });
-			}
-		}
 
 		return new Response(JSON.stringify(result), { status: 200, headers });
 	} catch (error) {

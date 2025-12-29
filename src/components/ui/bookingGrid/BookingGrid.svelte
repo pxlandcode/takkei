@@ -1,6 +1,7 @@
 <script lang="ts">
 import { onDestroy, onMount, tick } from 'svelte';
 import { tooltip } from '$lib/actions/tooltip';
+import { wrapFetch } from '$lib/services/api/apiCache';
 
 export let trainerId: number | null = null;
 export let clientId: number | null = null;
@@ -37,6 +38,7 @@ let lastFilterKey = '';
 let resizeObserver: ResizeObserver | null = null;
 let currentFetchController: AbortController | null = null;
 const fetchCache = new Map<string, Record<string, number>>();
+const cachedFetch = wrapFetch(fetch);
 
 function formatLocalDate(date: Date) {
 	return dateFormatter.format(date);
@@ -112,7 +114,7 @@ async function fetchCountsAndRender(force = false) {
 	if (clientId) params.append('clientId', clientId.toString());
 
 	try {
-		const res = await fetch(`/api/bookings/counts-per-day?${params}`, {
+		const res = await cachedFetch(`/api/bookings/counts-per-day?${params}`, {
 			signal: controller.signal
 		});
 		if (!res.ok) {

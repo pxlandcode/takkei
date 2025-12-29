@@ -29,6 +29,20 @@ export const GET: RequestHandler = async ({ locals, url, request }) => {
 	})();
 
 	try {
+		const ifModifiedSince = request.headers.get('if-modified-since');
+		if (ifModifiedSince) {
+			const [row] = await query<{ last_updated: string | null }>(
+				`SELECT MAX(updated_at) AS last_updated FROM greetings`
+			);
+			const latestMs = parseTimestamp(row?.last_updated);
+			const since = Date.parse(ifModifiedSince);
+			if (Number.isFinite(latestMs) && Number.isFinite(since) && since >= latestMs) {
+				const headers: Record<string, string> = { 'content-type': 'application/json' };
+				headers['last-modified'] = new Date(Math.floor(latestMs / 1000) * 1000).toUTCString();
+				return new Response(null, { status: 304, headers });
+			}
+		}
+
 		const rows = await query<GreetingRow>(
 			`SELECT id, message, icon, active, audience, created_at, updated_at
                          FROM greetings
@@ -56,14 +70,6 @@ export const GET: RequestHandler = async ({ locals, url, request }) => {
 		const headers: Record<string, string> = { 'content-type': 'application/json' };
 		const roundedMs = Number.isFinite(maxUpdatedMs) ? Math.floor(maxUpdatedMs / 1000) * 1000 : 0;
 		headers['last-modified'] = new Date(roundedMs).toUTCString();
-
-		const ifModifiedSince = request.headers.get('if-modified-since');
-		if (ifModifiedSince) {
-			const since = Date.parse(ifModifiedSince);
-			if (Number.isFinite(since) && since >= roundedMs) {
-				return new Response(null, { status: 304, headers });
-			}
-		}
 
 		return new Response(JSON.stringify({ data: rows.map(mapGreetingRow) }), {
 			status: 200,

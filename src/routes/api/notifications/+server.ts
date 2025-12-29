@@ -40,6 +40,41 @@ export const GET: RequestHandler = async ({ url, request }) => {
 		return json({ error: 'Invalid type parameter' }, { status: 400 });
 	}
 
+	const ifModifiedSince = request.headers.get('if-modified-since');
+	if (ifModifiedSince) {
+		const params: any[] = [userId];
+		let latestQuery = `
+			SELECT MAX(updated_at) AS last_updated
+			FROM events
+			WHERE $1 = ANY(user_ids)
+			  AND active = true
+			  AND id NOT IN (SELECT event_id FROM events_done WHERE user_id = $1)
+		`;
+		if (type) {
+			params.push(type);
+			latestQuery += ` AND event_type_id = $2`;
+		}
+		const [row] = await query<{ last_updated: string | null }>(latestQuery, params);
+		let latestMs = parseTimestamp(row?.last_updated);
+		if (!Number.isFinite(latestMs)) {
+			// Fallback to any event change if no per-user data
+			const [fallback] = await query<{ last_updated: string | null }>(
+				`SELECT MAX(updated_at) AS last_updated FROM events`
+			);
+			latestMs = parseTimestamp(fallback?.last_updated);
+		}
+		const since = Date.parse(ifModifiedSince);
+		const roundedLatestMs =
+			Number.isFinite(latestMs) && latestMs !== undefined
+				? Math.floor(latestMs / 1000) * 1000
+				: undefined;
+		if (Number.isFinite(roundedLatestMs) && Number.isFinite(since) && since >= roundedLatestMs) {
+			const headers: Record<string, string> = { 'content-type': 'application/json' };
+			headers['last-modified'] = new Date(roundedLatestMs!).toUTCString();
+			return new Response(null, { status: 304, headers });
+		}
+	}
+
 	const events = await getNotificationsForUser(userId, type);
 
 	let maxUpdatedMs = events
@@ -58,14 +93,6 @@ export const GET: RequestHandler = async ({ url, request }) => {
 	const headers: Record<string, string> = { 'content-type': 'application/json' };
 	const roundedMs = Number.isFinite(maxUpdatedMs) ? Math.floor(maxUpdatedMs / 1000) * 1000 : 0;
 	headers['last-modified'] = new Date(roundedMs).toUTCString();
-
-	const ifModifiedSince = request.headers.get('if-modified-since');
-	if (ifModifiedSince) {
-		const since = Date.parse(ifModifiedSince);
-		if (Number.isFinite(since) && since >= roundedMs) {
-			return new Response(null, { status: 304, headers });
-		}
-	}
 
 	return new Response(JSON.stringify(events), { status: 200, headers });
 };

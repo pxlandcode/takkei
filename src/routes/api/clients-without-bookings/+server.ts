@@ -1,7 +1,20 @@
 import { json } from '@sveltejs/kit';
 import { query } from '$lib/db';
 
-export async function GET({ url }) {
+function parseTimestamp(value: any): number | undefined {
+	if (!value) return undefined;
+	if (value instanceof Date && !Number.isNaN(value.getTime())) return value.getTime();
+	if (typeof value === 'string') {
+		const normalized = value.replace(' ', 'T');
+		const withZone = /([zZ]|[+-]\d{2}:?\d{2})$/.test(normalized) ? normalized : `${normalized}Z`;
+		const ms = Date.parse(withZone);
+		if (!Number.isNaN(ms)) return ms;
+	}
+	const ms = Date.parse(String(value));
+	return Number.isNaN(ms) ? undefined : ms;
+}
+
+export async function GET({ url, request }) {
 	const trainerId = url.searchParams.get('trainer_id');
 	if (!trainerId) return json({ error: 'Missing trainer_id' }, { status: 400 });
 
@@ -77,6 +90,30 @@ export async function GET({ url }) {
     LEFT JOIN booked_week2 bw2 ON tc.id = bw2.client_id
 	`;
 
+	// Preflight 304 using latest client/booking updated_at
+	const ifModifiedSince = request.headers.get('if-modified-since');
+	if (ifModifiedSince) {
+		const [row] = await query<{ last_updated: string | null }>(
+			`SELECT GREATEST(
+				COALESCE((SELECT MAX(updated_at) FROM clients WHERE primary_trainer_id = $1), 'epoch'::timestamptz),
+				COALESCE((SELECT MAX(updated_at) FROM bookings WHERE trainer_id = $1), 'epoch'::timestamptz)
+			) AS last_updated`,
+			[trainerId]
+		);
+		const latestMs = parseTimestamp(row?.last_updated);
+		const since = Date.parse(ifModifiedSince);
+		const roundedLatestMs =
+			Number.isFinite(latestMs) && latestMs !== undefined
+				? Math.floor(latestMs / 1000) * 1000
+				: undefined;
+		if (Number.isFinite(roundedLatestMs) && Number.isFinite(since) && since >= roundedLatestMs) {
+			const headers: Record<string, string> = {
+				'Last-Modified': new Date(roundedLatestMs!).toUTCString()
+			};
+			return new Response(null, { status: 304, headers });
+		}
+	}
+
 	const results = await query(sql, params);
 
 	// Split into week arrays
@@ -104,5 +141,17 @@ export async function GET({ url }) {
 			lastname: r.lastname
 		}));
 
-	return json({ thisWeek, week1, week2 });
+	// Last-Modified header for 200 response
+	const [row] = await query<{ last_updated: string | null }>(
+		`SELECT GREATEST(
+			COALESCE((SELECT MAX(updated_at) FROM clients WHERE primary_trainer_id = $1), 'epoch'::timestamptz),
+			COALESCE((SELECT MAX(updated_at) FROM bookings WHERE trainer_id = $1), 'epoch'::timestamptz)
+		) AS last_updated`,
+		[trainerId]
+	);
+	const latestMs = parseTimestamp(row?.last_updated) ?? Date.now();
+	const headers: Record<string, string> = {
+		'Last-Modified': new Date(Math.floor(latestMs / 1000) * 1000).toUTCString()
+	};
+	return json({ thisWeek, week1, week2 }, { headers });
 }

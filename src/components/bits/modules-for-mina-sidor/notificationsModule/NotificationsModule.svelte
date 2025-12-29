@@ -7,17 +7,19 @@
 	import { goto } from '$app/navigation';
 	import Icon from '../../icon-component/Icon.svelte';
 	import NotificationCard from '../../notificationCard/NotificationCard.svelte';
+	import { wrapFetch } from '$lib/services/api/apiCache';
 
 	let allEvents = [];
 	let events = [];
 	let isLoading = true;
+	const cachedFetch = wrapFetch(fetch);
 
 	async function fetchNotifications() {
 		if (!$user?.id) return;
 
 		isLoading = true;
 		try {
-			const res = await fetch(`/api/notifications?user_id=${$user.id}`);
+			const res = await cachedFetch(`/api/notifications?user_id=${$user.id}`);
 			if (res.ok) {
 				const all = await res.json();
 				allEvents = all

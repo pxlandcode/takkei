@@ -79,7 +79,8 @@ export async function getTrainerStatistics(
         if (range?.from) params.set('from', range.from);
         if (range?.to) params.set('to', range.to);
 
-        const response = await fetchFn(`/api/statistics?${params.toString()}`);
+        const cachedFetch = wrapFetch(fetchFn as any);
+        const response = await cachedFetch(`/api/statistics?${params.toString()}`);
         if (!response.ok) {
                 let message = `Failed to fetch trainer statistics (${response.status})`;
                 try {
@@ -132,3 +133,4 @@ export function getPresetRange(preset: StatisticsPreset, now = new Date()): { st
 export function formatDateInputValue(date: Date): string {
         return date.toISOString().split('T')[0];
 }
+import { wrapFetch } from '$lib/services/api/apiCache';

@@ -1,12 +1,14 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
-	import { user } from '$lib/stores/userStore';
-	import Icon from '../../icon-component/Icon.svelte';
+import { onMount } from 'svelte';
+import { user } from '$lib/stores/userStore';
+import Icon from '../../icon-component/Icon.svelte';
+import { wrapFetch } from '$lib/services/api/apiCache';
 
-	let clientsThisWeek: any[] = [];
-	let clientsNextWeek: any[] = [];
-	let clientsWeekAfter: any[] = [];
-	let isLoading = true;
+let clientsThisWeek: any[] = [];
+let clientsNextWeek: any[] = [];
+let clientsWeekAfter: any[] = [];
+let isLoading = true;
+const cachedFetch = wrapFetch(fetch);
 
 	let thisWeekStart: Date;
 	let thisWeekEnd: Date;
@@ -56,10 +58,10 @@
 		getDateRanges();
 		isLoading = true;
 
-		try {
-			const res = await fetch(`/api/clients-without-bookings?trainer_id=${$user.id}`);
-			if (res.ok) {
-				const data = await res.json();
+	try {
+		const res = await cachedFetch(`/api/clients-without-bookings?trainer_id=${$user.id}`);
+		if (res.ok) {
+			const data = await res.json();
 				clientsThisWeek = data.thisWeek ?? [];
 				clientsNextWeek = data.week1 ?? [];
 				clientsWeekAfter = data.week2 ?? [];
