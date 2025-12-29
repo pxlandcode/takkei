@@ -1,5 +1,6 @@
 import { writable } from 'svelte/store';
 import { fetchTargets, type OwnerType, fetchTargetsSummary } from '$lib/services/api/targetService';
+import { wrapFetch } from '$lib/services/api/apiCache';
 
 export type TargetRow = {
 	id: number;
@@ -30,8 +31,9 @@ export const targetMeta = writable<TargetMeta | null>(null);
 
 export const locationTargetMeta = writable<TargetMeta | null>(null);
 
-// Company-wide combined targets
-export const companyTargetMeta = writable<TargetMeta | null>(null);
+	// Company-wide combined targets
+	export const companyTargetMeta = writable<TargetMeta | null>(null);
+	const cachedFetch = wrapFetch(fetch);
 
 export async function updateTargets(ownerType: OwnerType, ownerId: number, dateISO: string) {
 	targetStoreLoading.set(true);
@@ -45,7 +47,7 @@ export async function updateTargets(ownerType: OwnerType, ownerId: number, dateI
 			targetKindId: ownerType === 'trainer' ? '1' : '2'
 		});
 
-		const res = await fetch(`/api/targets/full-summary?${qs.toString()}`);
+		const res = await cachedFetch(`/api/targets/full-summary?${qs.toString()}`);
 		if (!res.ok) throw new Error('Failed to fetch targets');
 		const summary = await res.json();
 
@@ -78,7 +80,7 @@ export async function updateLocationTargets(locationId: number, dateISO: string)
 			targetKindId: '2'
 		});
 
-		const res = await fetch(`/api/targets/full-summary?${qs.toString()}`);
+		const res = await cachedFetch(`/api/targets/full-summary?${qs.toString()}`);
 		if (!res.ok) throw new Error('Failed to fetch location targets');
 		const summary = await res.json();
 
@@ -109,7 +111,7 @@ export async function updateLocationTargets(locationId: number, dateISO: string)
 
 export async function updateCompanyTargets(dateISO: string) {
 	try {
-		const res = await fetch(`/api/targets/company-summary?date=${dateISO}`);
+		const res = await cachedFetch(`/api/targets/company-summary?date=${dateISO}`);
 		if (!res.ok) throw new Error('Failed to fetch company targets');
 		const summary = await res.json();
 

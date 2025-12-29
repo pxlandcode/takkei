@@ -34,6 +34,22 @@ export const GET: RequestHandler = async ({ locals, url, request }) => {
         const showPassed = parseShowPassedParam(url.searchParams.get('showPassed'));
 
         try {
+                const ifModifiedSince = request.headers.get('if-modified-since');
+                if (ifModifiedSince) {
+                        const [row] = await query<{ last_updated: string | null }>(
+                                `SELECT MAX(updated_at) AS last_updated FROM holidays`
+                        );
+                        const latestMs = parseTimestamp(row?.last_updated);
+                        const since = Date.parse(ifModifiedSince);
+                        if (Number.isFinite(latestMs) && Number.isFinite(since) && since >= latestMs) {
+                                const headers: Record<string, string> = { 'content-type': 'application/json' };
+                                headers['last-modified'] = new Date(
+                                        Math.floor(latestMs / 1000) * 1000
+                                ).toUTCString();
+                                return new Response(null, { status: 304, headers });
+                        }
+                }
+
                 const [holidaysResult, yearsResult] = await Promise.all([
                         query<HolidayRow>(
                                 `SELECT id,

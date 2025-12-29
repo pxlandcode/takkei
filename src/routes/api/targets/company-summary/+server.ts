@@ -1,6 +1,19 @@
 import { json } from '@sveltejs/kit';
 import { query } from '$lib/db';
 
+function parseTimestamp(value: any): number | undefined {
+	if (!value) return undefined;
+	if (value instanceof Date && !Number.isNaN(value.getTime())) return value.getTime();
+	if (typeof value === 'string') {
+		const normalized = value.replace(' ', 'T');
+		const withZone = /([zZ]|[+-]\d{2}:?\d{2})$/.test(normalized) ? normalized : `${normalized}Z`;
+		const ms = Date.parse(withZone);
+		if (!Number.isNaN(ms)) return ms;
+	}
+	const ms = Date.parse(String(value));
+	return Number.isNaN(ms) ? undefined : ms;
+}
+
 function yymmFromDate(dateISO: string) {
 	const [y, m] = dateISO.split('-').map(Number);
 	return { year: y, month: m };
@@ -18,7 +31,7 @@ function getWeekRange(date: Date): { start: Date; end: Date } {
 	return { start, end };
 }
 
-export async function GET({ url }) {
+export async function GET({ url, request }) {
 	const date = url.searchParams.get('date')!; // YYYY-MM-DD
 
 	if (!date) {
@@ -26,6 +39,43 @@ export async function GET({ url }) {
 	}
 
 	const { year, month } = yymmFromDate(date);
+
+	// Early 304: use latest booking updated_at as proxy
+	const ifModifiedSince = request.headers.get('if-modified-since');
+	let latestMs: number | undefined;
+	if (ifModifiedSince) {
+		const [row] = await query<{ last_updated: string | null }>(
+			`SELECT MAX(updated_at) AS last_updated FROM bookings`
+		);
+		latestMs = parseTimestamp(row?.last_updated);
+		const since = Date.parse(ifModifiedSince);
+		const roundedLatestMs =
+			Number.isFinite(latestMs) && latestMs !== undefined
+				? Math.floor(latestMs / 1000) * 1000
+				: undefined;
+		if (Number.isFinite(roundedLatestMs) && Number.isFinite(since) && since >= roundedLatestMs) {
+			const headers: Record<string, string> = {
+				'Last-Modified': new Date(roundedLatestMs!).toUTCString()
+			};
+			console.info('company-summary 304 preflight', {
+				date,
+				since,
+				latestMs: roundedLatestMs,
+				headers
+			});
+			return new Response(null, { status: 304, headers });
+		} else {
+			console.info('company-summary preflight miss', {
+				date,
+				ifModifiedSince,
+				since,
+				latestMs,
+				roundedLatestMs
+			});
+		}
+	} else {
+		console.info('company-summary no if-modified-since header', { date });
+	}
 
 	// Detect column type to handle timezone safely
 	const typeRow = await query(`SELECT pg_typeof(start_time) AS coltype FROM bookings LIMIT 1`);
@@ -138,6 +188,16 @@ export async function GET({ url }) {
 	// Combined week goal
 	const weekGoal = Math.max(trainerWeekGoal, locationWeekGoal) || null;
 
+	// Use latest booking updated_at for Last-Modified
+	const [lastRow] = await query<{ last_updated: string | null }>(
+		`SELECT MAX(updated_at) AS last_updated FROM bookings`
+	);
+	const latestMsFinal = parseTimestamp(lastRow?.last_updated) ?? latestMs ?? Date.now();
+	const headers: Record<string, string> = {
+		'Last-Modified': new Date(Math.floor(latestMsFinal / 1000) * 1000).toUTCString()
+	};
+	console.info('company-summary 200', { date, latestMs: headers['Last-Modified'] });
+
 	return json(
 		{
 			year,
@@ -151,6 +211,6 @@ export async function GET({ url }) {
 			weekStart,
 			weekEnd
 		},
-		{ headers: { 'Cache-Control': 'no-store' } }
+		{ headers }
 	);
 }

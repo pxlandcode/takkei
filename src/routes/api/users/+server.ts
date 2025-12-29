@@ -27,6 +27,20 @@ export async function GET({ request }) {
     `;
 
 	try {
+		const ifModifiedSince = request.headers.get('if-modified-since');
+		if (ifModifiedSince) {
+			const [row] = await query<{ last_updated: string | null }>(
+				`SELECT MAX(updated_at) AS last_updated FROM users`
+			);
+			const latestMs = parseTimestamp(row?.last_updated);
+			const since = Date.parse(ifModifiedSince);
+			if (Number.isFinite(latestMs) && Number.isFinite(since) && since >= latestMs) {
+				const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+				headers['Last-Modified'] = new Date(Math.floor(latestMs / 1000) * 1000).toUTCString();
+				return new Response(null, { status: 304, headers });
+			}
+		}
+
 		const result = await query(queryStr);
 
 		let maxUpdatedMs = result
