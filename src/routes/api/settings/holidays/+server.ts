@@ -91,14 +91,6 @@ export const GET: RequestHandler = async ({ locals, url, request }) => {
                 const roundedMs = Number.isFinite(maxUpdatedMs) ? Math.floor(maxUpdatedMs / 1000) * 1000 : 0;
                 headers['last-modified'] = new Date(roundedMs).toUTCString();
 
-                const ifModifiedSince = request.headers.get('if-modified-since');
-                if (ifModifiedSince) {
-                        const since = Date.parse(ifModifiedSince);
-                        if (Number.isFinite(since) && since >= roundedMs) {
-                                return new Response(null, { status: 304, headers });
-                        }
-                }
-
                 return new Response(JSON.stringify({ data: holidays, meta: { years } }), {
                         status: 200,
                         headers
