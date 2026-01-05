@@ -195,7 +195,7 @@
 			<div class="grid grid-cols-4 gap-4 text-center">
 				{#each $achievementStore as achievement}
 					<div
-						use:tooltip={{ content: achievement?.name }}
+						use:tooltip={{ content: achievement?.description ?? achievement?.title ?? '' }}
 						class="flex flex-col items-center gap-2"
 					>
 						<div
@@ -208,7 +208,9 @@
 								x{achievement.achieved}
 							</span>
 						</div>
-						<p class="text-xs font-medium text-gray-700">{achievement.name}</p>
+						<p class="text-xs font-medium text-gray-700">
+							{achievement.title ?? achievement.name ?? 'Utmärkelse'}
+						</p>
 					</div>
 				{/each}
 			</div>
