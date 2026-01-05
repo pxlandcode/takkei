@@ -7,7 +7,7 @@
 	import { goto } from '$app/navigation';
 	import Icon from '../../icon-component/Icon.svelte';
 	import NotificationCard from '../../notificationCard/NotificationCard.svelte';
-	import { wrapFetch } from '$lib/services/api/apiCache';
+	import { wrapFetch, invalidateByPrefix } from '$lib/services/api/apiCache';
 
 	let allEvents = [];
 	let events = [];
@@ -52,6 +52,7 @@
 			allEvents = allEvents.filter((event) => event.id !== eventId);
 			events = allEvents.slice(0, 3);
 
+			invalidateByPrefix('/api/notifications');
 			addToast({
 				type: AppToastType.SUCCESS,
 				message: 'Markerad som klar',
@@ -96,19 +97,21 @@
 	{:else}
 		<div class="flex flex-col gap-2">
 			{#each events as event (event.id)}
-				<NotificationCard
-					title={event.name}
-					message={event.description}
-					timeAgo={relativeTime(event.start_time)}
-					type={event.event_type}
-					startTime={event.start_time}
-					endTime={event.end_time}
-					createdBy={event.created_by?.name}
-					on:done={() => markAsDone(event.id)}
-					small
-				/>
-			{/each}
-		</div>
+					<NotificationCard
+						title={event.name}
+						message={event.description}
+						timeAgo={relativeTime(event.start_time)}
+						type={event.event_type}
+						startTime={event.start_time}
+						endTime={event.end_time}
+						createdBy={event.created_by?.name}
+						link={event.link}
+						linkLabel={event.link?.startsWith('/news') ? 'Läs hela artikeln' : 'Öppna'}
+						on:done={() => markAsDone(event.id)}
+						small
+					/>
+				{/each}
+			</div>
 	{/if}
 
 	<!-- Link to full page -->

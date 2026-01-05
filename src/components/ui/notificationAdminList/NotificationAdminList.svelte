@@ -89,6 +89,7 @@
 			endTime={notif.end_time}
 			eventType={notif.event_type}
 			timeAgo={new Date(notif.created_at).toLocaleDateString('sv-SE')}
+			link={notif.link}
 			doneCount={notif.marked_done}
 			totalCount={notif.total_receivers}
 			recipients={notif.recipients || []}

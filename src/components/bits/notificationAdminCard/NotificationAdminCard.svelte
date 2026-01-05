@@ -1,24 +1,25 @@
 <script lang="ts">
-	import { text } from '@sveltejs/kit';
-	import Icon from '../icon-component/Icon.svelte';
-	import { createEventDispatcher } from 'svelte';
+import { text } from '@sveltejs/kit';
+import Icon from '../icon-component/Icon.svelte';
+import { createEventDispatcher } from 'svelte';
 
-	import { confirm } from '$lib/actions/confirm';
-	import { addToast } from '$lib/stores/toastStore';
-	import { AppToastType } from '$lib/types/toastTypes';
+import { confirm } from '$lib/actions/confirm';
+import { addToast } from '$lib/stores/toastStore';
+import { AppToastType } from '$lib/types/toastTypes';
 
-	export let title = '';
-	export let message = '';
-	export let timeAgo = 'just nu';
-	export let eventType: 'client' | 'alert' | 'info' = 'info';
-	export let startTime: string | null = null;
-	export let endTime: string | null = null;
-	export let doneCount = 0;
-	export let totalCount = 0;
-	export let recipients: { id: number; name: string; hasMarkedDone: boolean }[] = [];
-	export let expanded = false;
+export let title = '';
+export let message = '';
+export let timeAgo = 'just nu';
+export let eventType: 'client' | 'alert' | 'info' | 'article' = 'info';
+export let startTime: string | null = null;
+export let endTime: string | null = null;
+export let doneCount = 0;
+export let totalCount = 0;
+export let recipients: { id: number; name: string; hasMarkedDone: boolean }[] = [];
+export let expanded = false;
+export let link: string | null = null;
 
-	const dispatch = createEventDispatcher();
+const dispatch = createEventDispatcher();
 
 	function formatDate(date: string) {
 		return new Date(date).toLocaleDateString('sv-SE', {
@@ -86,12 +87,14 @@
 	class:border-orange={eventType === 'client'}
 	class:border-error={eventType === 'alert'}
 	class:border-success={eventType === 'info'}
+	class:border-primary={eventType === 'article'}
 >
 	<div
 		class="rounded-sm border-l-4 bg-white p-4"
 		class:border-orange={eventType === 'client'}
 		class:border-error={eventType === 'alert'}
 		class:border-success={eventType === 'info'}
+		class:border-primary={eventType === 'article'}
 	>
 		<div class="flex items-start justify-between gap-4">
 			<div class="flex-1">
@@ -102,13 +105,16 @@
 							class:text-orange={eventType === 'client'}
 							class:text-error={eventType === 'alert'}
 							class:text-success={eventType === 'info'}
+							class:text-primary={eventType === 'article'}
 						>
 							<Icon
 								icon={eventType === 'client'
 									? 'CircleUser'
 									: eventType === 'alert'
 										? 'CircleAlert'
-										: 'CircleInfo'}
+										: eventType === 'article'
+											? 'Newspaper'
+											: 'CircleInfo'}
 								size="18"
 							/>
 							<span class="text-sm font-semibold text-text">{title}</span>
@@ -140,6 +146,14 @@
 						<p class="whitespace-pre-line pl-6" class:line-clamp-2={!expanded}>
 							{expanded ? message : message.slice(0, 250)}
 						</p>
+					</div>
+				{/if}
+
+				{#if link}
+					<div class="mt-2 pl-6">
+						<a class="text-sm font-semibold text-primary underline hover:text-primary-hover" href={link}>
+							{link.startsWith('/news') ? 'Läs hela artikeln' : 'Öppna länk'}
+						</a>
 					</div>
 				{/if}
 
