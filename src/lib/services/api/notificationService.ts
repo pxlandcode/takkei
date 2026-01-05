@@ -1,5 +1,13 @@
 import { query } from '$lib/db';
 
+function extractLink(description: string | null): { cleaned: string; link: string | null } {
+	if (!description || typeof description !== 'string') return { cleaned: description ?? '', link: null };
+	const linkMatch = description.match(/NEWS_LINK:([^\s]+)/);
+	const link = linkMatch ? linkMatch[1] : null;
+	const cleaned = linkMatch ? description.replace(linkMatch[0], '').trim() : description;
+	return { cleaned, link };
+}
+
 export async function getNotificationsForUser(userId: number, type?: number) {
 	if (!userId) throw new Error('Missing userId');
 
@@ -33,8 +41,11 @@ export async function getNotificationsForUser(userId: number, type?: number) {
 
 	return result.map((event) => {
 		const { creator_id, firstname, lastname, ...rest } = event;
+		const { cleaned, link } = extractLink(rest.description);
 		return {
 			...rest,
+			description: cleaned,
+			link: link,
 			created_by: creator_id
 				? {
 						id: creator_id,
@@ -165,9 +176,12 @@ export async function getSentNotifications({ userId, offset = 0, limit = 10 }) {
 
 	return results.map((event) => {
 		const { creator_id, firstname, lastname, recipients, ...rest } = event;
+		const { cleaned, link } = extractLink(rest.description);
 
 		return {
 			...rest,
+			description: cleaned,
+			link,
 			recipients: Array.isArray(recipients) ? recipients : recipients ? JSON.parse(recipients) : [],
 			created_by: creator_id ? { id: creator_id, name: `${firstname} ${lastname}` } : null
 		};

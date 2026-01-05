@@ -111,6 +111,8 @@
 						startTime={event.start_time}
 						endTime={event.end_time}
 						createdBy={event.created_by?.name}
+						link={event.link}
+						linkLabel={event.link?.startsWith('/news') ? 'Läs hela artikeln' : 'Öppna'}
 						on:done={() => markAsDone(event.id)}
 					/>
 				</div>

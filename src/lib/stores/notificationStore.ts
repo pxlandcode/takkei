@@ -1,7 +1,7 @@
 import { writable } from 'svelte/store';
 import { wrapFetch } from '$lib/services/api/apiCache';
 
-type NotificationType = 'alert' | 'client' | 'info';
+type NotificationType = 'alert' | 'client' | 'info' | 'article';
 
 export type NotificationSummary = {
 	total: number;
@@ -14,7 +14,8 @@ const createNotificationStore = () => {
 		byType: {
 			alert: 0,
 			client: 0,
-			info: 0
+			info: 0,
+			article: 0
 		}
 	});
 
@@ -32,7 +33,8 @@ const createNotificationStore = () => {
 				const byType = {
 					alert: 0,
 					client: 0,
-					info: 0
+					info: 0,
+					article: 0
 				};
 
 				for (const n of notifications) {

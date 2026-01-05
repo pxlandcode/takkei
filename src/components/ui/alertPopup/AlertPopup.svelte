@@ -125,6 +125,17 @@
 					<p class="mt-3 text-sm whitespace-pre-line text-gray-800">
 						{alerts[currentIndex].description}
 					</p>
+
+					{#if alerts[currentIndex].link}
+						<div class="mt-3">
+							<a
+								class="text-sm font-semibold text-primary underline hover:text-primary-hover"
+								href={alerts[currentIndex].link}
+							>
+								{alerts[currentIndex].link.startsWith('/news') ? 'Läs hela artikeln' : 'Öppna länk'}
+							</a>
+						</div>
+					{/if}
 				</div>
 			</div>
 		</div>

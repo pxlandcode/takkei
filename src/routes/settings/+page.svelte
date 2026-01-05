@@ -12,6 +12,7 @@
 	import UserForm from '../../components/ui/userForm/UserForm.svelte';
 	import Button from '../../components/bits/button/Button.svelte';
 	import GreetingSettings from '../../components/ui/greetingSettings/GreetingSettings.svelte';
+	import HolidayPaySettings from '../../components/ui/holidayPaySettings/HolidayPaySettings.svelte';
 
 	import NotificationAdministration from '../../components/ui/notificationAdministration/NotificationAdministration.svelte';
 	import MailHistory from '../../components/ui/mailHistory/MailHistory.svelte';
@@ -35,6 +36,12 @@
 			label: 'Hälsningar',
 			icon: 'ShiningStar',
 			component: GreetingSettings,
+			requiredRoles: ['Administrator']
+		},
+		{
+			label: 'Semester',
+			icon: 'Money',
+			component: HolidayPaySettings,
 			requiredRoles: ['Administrator']
 		},
 		{
