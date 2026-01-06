@@ -1,9 +1,16 @@
 import { writable } from 'svelte/store';
-import { fetchBookings, fetchUserAvailability } from '$lib/services/api/calendarService';
+import {
+	buildBookingUrls,
+	fetchBookings,
+	fetchUserAvailability,
+	transformBooking,
+	transformPersonalBooking
+} from '$lib/services/api/calendarService';
 import { fetchHolidays as fetchHolidayRange } from '$lib/services/api/holidayService';
 import type { FullBooking } from '$lib/types/calendarTypes';
 import type { Holiday } from '$lib/types/holiday';
 import { loadingStore } from './loading';
+import { getCachedJson } from '$lib/services/api/apiCache';
 
 /**
  * Type for Calendar Filters
@@ -198,6 +205,26 @@ const createCalendarStore = () => {
                 startLoading();
 
                 try {
+                        const urls = buildBookingUrls(base, undefined, 0, false);
+                        // Serve cached bookings immediately if present
+                        const cachedStandard = urls.standardUrl ? getCachedJson<any[]>(urls.standardUrl) : null;
+                        const cachedPersonal = urls.personalUrl ? getCachedJson<any[]>(urls.personalUrl) : null;
+                        if (cachedStandard || cachedPersonal) {
+                                const transformedStandard = (cachedStandard ?? []).map((raw) => transformBooking(raw));
+                                const transformedPersonal = (cachedPersonal ?? []).map((raw) =>
+                                        transformPersonalBooking(raw)
+                                );
+                                const combined = [...transformedStandard, ...transformedPersonal].sort((a, b) => {
+                                        const aTime = new Date(a.booking.startTime).getTime();
+                                        const bTime = new Date(b.booking.startTime).getTime();
+                                        return (base.sortAsc === true ? aTime - bTime : bTime - aTime) || 0;
+                                });
+                                update((store) => ({
+                                        ...store,
+                                        bookings: combined
+                                }));
+                        }
+
                         const bookingsPromise = fetchBookings(base, fetchFn);
                         const availabilityPromise: Promise<CalendarAvailability> =
                                 base.trainerIds?.length === 1 && base.from && base.to

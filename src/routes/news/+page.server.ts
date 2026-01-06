@@ -1,19 +1,12 @@
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ fetch }) => {
-	const [listRes, latestRes] = await Promise.all([
-		fetch('/api/news?limit=20'),
-		fetch('/api/news?latest=1&limit=4')
-	]);
+	const listRes = await fetch('/api/news?limit=5');
 
 	let news = [];
-	let latest = [];
 	if (listRes.ok) {
 		news = await listRes.json();
 	}
-	if (latestRes.ok) {
-		latest = await latestRes.json();
-	}
 
-	return { news, latest };
+	return { news };
 };

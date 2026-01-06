@@ -13,6 +13,11 @@
 
 	let news: NewsItem[] = data.news ?? [];
 	let showForm = false;
+	let isLoading = false;
+	let hasMore = data.news?.length === 5;
+	let loadMoreTrigger: HTMLDivElement;
+
+	const PAGE_SIZE = 5;
 
 	$: currentUser = $user;
 	$: canManage = hasRole(['Administrator', 'LocationManager', 'Economy'], currentUser);
@@ -20,10 +25,44 @@
 	onMount(() => {
 		headerState.title = 'Nyheter';
 		headerState.icon = 'Newspaper';
+
+		const observer = new IntersectionObserver(
+			(entries) => {
+				if (entries[0].isIntersecting && hasMore && !isLoading) {
+					loadMore();
+				}
+			},
+			{ rootMargin: '100px' }
+		);
+
+		if (loadMoreTrigger) {
+			observer.observe(loadMoreTrigger);
+		}
+
+		return () => observer.disconnect();
 	});
 
 	function startCreate() {
 		showForm = true;
+	}
+
+	async function loadMore() {
+		if (isLoading || !hasMore) return;
+		isLoading = true;
+
+		try {
+			const offset = news.length;
+			const res = await fetch(`/api/news?limit=${PAGE_SIZE}&offset=${offset}`);
+			if (res.ok) {
+				const moreNews: NewsItem[] = await res.json();
+				if (moreNews.length < PAGE_SIZE) {
+					hasMore = false;
+				}
+				news = [...news, ...moreNews];
+			}
+		} finally {
+			isLoading = false;
+		}
 	}
 
 	function onSaved(event) {
@@ -93,6 +132,17 @@
 				{#each news as item (item.id)}
 					<NewsCard news={item} />
 				{/each}
+			</div>
+
+			<div bind:this={loadMoreTrigger} class="py-4">
+				{#if isLoading}
+					<div class="flex items-center justify-center gap-2 text-gray-500">
+						<Icon icon="Refresh" size="18px" extraClasses="animate-spin" />
+						<span class="text-sm">Laddar fler nyheter...</span>
+					</div>
+				{:else if !hasMore && news.length > 0}
+					<p class="text-center text-sm text-gray-400">Inga fler nyheter</p>
+				{/if}
 			</div>
 		{/if}
 	</div>

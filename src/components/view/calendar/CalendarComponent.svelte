@@ -397,62 +397,59 @@
 		return id != null ? `T${id}` : 'TR';
 	}
 
-const selectedTrainerSummaries = $derived.by<TrainerSummary[]>(() => {
-	const ids = selectedTrainerIds;
-	if (!ids.length) return [];
-	const infoLookup = new Map<number, { name: string; initials: string }>();
-	for (const booking of bookings) {
-		const trainer = booking.trainer;
-		if (!trainer?.id || infoLookup.has(trainer.id)) continue;
-		infoLookup.set(trainer.id, {
-			name: buildTrainerSummaryName(trainer.firstname, trainer.lastname, trainer.id),
-			initials: buildTrainerInitials(trainer.firstname, trainer.lastname, trainer.id)
-		});
-	}
+	const selectedTrainerSummaries = $derived.by<TrainerSummary[]>(() => {
+		const ids = selectedTrainerIds;
+		if (!ids.length) return [];
+		const infoLookup = new Map<number, { name: string; initials: string }>();
+		for (const booking of bookings) {
+			const trainer = booking.trainer;
+			if (!trainer?.id || infoLookup.has(trainer.id)) continue;
+			infoLookup.set(trainer.id, {
+				name: buildTrainerSummaryName(trainer.firstname, trainer.lastname, trainer.id),
+				initials: buildTrainerInitials(trainer.firstname, trainer.lastname, trainer.id)
+			});
+		}
 
-	const summaries: TrainerSummary[] = [];
-	const seen = new Set<number>();
-	for (const id of ids) {
-		if (seen.has(id)) continue;
-		const info = infoLookup.get(id);
-		summaries.push({
-			id,
-			name: info?.name ?? `Tränare ${id}`,
-			initials: info?.initials ?? `T${id}`,
-			color: getTrainerColor(id)
-		});
-		seen.add(id);
-	}
-	return summaries;
-});
+		const summaries: TrainerSummary[] = [];
+		const seen = new Set<number>();
+		for (const id of ids) {
+			if (seen.has(id)) continue;
+			const info = infoLookup.get(id);
+			summaries.push({
+				id,
+				name: info?.name ?? `Tränare ${id}`,
+				initials: info?.initials ?? `T${id}`,
+				color: getTrainerColor(id)
+			});
+			seen.add(id);
+		}
+		return summaries;
+	});
 
-const selectedTrainerIdSet = $derived.by(() => new Set(selectedTrainerIds));
-const trainerFilterCount = $derived.by(() => selectedTrainerIds.length);
+	const selectedTrainerIdSet = $derived.by(() => new Set(selectedTrainerIds));
+	const trainerFilterCount = $derived.by(() => selectedTrainerIds.length);
 
-	function getTrainerBucketId(
-		booking: FullBooking,
-		allowedTrainerIds: Set<number>
- ): number | null {
+	function getTrainerBucketId(booking: FullBooking, allowedTrainerIds: Set<number>): number | null {
 		const bookingTrainerId = booking.trainer?.id ?? null;
 		if (bookingTrainerId != null && allowedTrainerIds.has(bookingTrainerId)) {
 			return bookingTrainerId;
 		}
-	if (booking.isPersonalBooking) {
-		const personalIds = booking.personalBooking?.userIds ?? [];
-		if (Array.isArray(personalIds)) {
-			for (const rawId of personalIds) {
-				const numericId =
-					typeof rawId === 'number'
-						? rawId
-						: typeof rawId === 'string' && rawId.trim() !== ''
-							? Number(rawId)
-							: null;
-				if (numericId != null && Number.isFinite(numericId) && allowedTrainerIds.has(numericId)) {
-					return numericId;
+		if (booking.isPersonalBooking) {
+			const personalIds = booking.personalBooking?.userIds ?? [];
+			if (Array.isArray(personalIds)) {
+				for (const rawId of personalIds) {
+					const numericId =
+						typeof rawId === 'number'
+							? rawId
+							: typeof rawId === 'string' && rawId.trim() !== ''
+								? Number(rawId)
+								: null;
+					if (numericId != null && Number.isFinite(numericId) && allowedTrainerIds.has(numericId)) {
+						return numericId;
+					}
 				}
 			}
 		}
-	}
 		return null;
 	}
 
@@ -509,10 +506,8 @@ const trainerFilterCount = $derived.by(() => selectedTrainerIds.length);
 	const hasNonTrainerFilters = $derived.by(() => {
 		const locationFiltersActive =
 			Array.isArray(filters?.locationIds) && filters.locationIds.length > 0;
-		const clientFiltersActive =
-			Array.isArray(filters?.clientIds) && filters.clientIds.length > 0;
-		const userFiltersActive =
-			Array.isArray(filters?.userIds) && filters.userIds.length > 0;
+		const clientFiltersActive = Array.isArray(filters?.clientIds) && filters.clientIds.length > 0;
+		const userFiltersActive = Array.isArray(filters?.userIds) && filters.userIds.length > 0;
 		const roomFilterActive = filters?.roomId != null;
 		return locationFiltersActive || clientFiltersActive || userFiltersActive || roomFilterActive;
 	});
@@ -520,10 +515,8 @@ const trainerFilterCount = $derived.by(() => selectedTrainerIds.length);
 	const hasNonLocationFilters = $derived.by(() => {
 		const trainerFiltersActive =
 			Array.isArray(filters?.trainerIds) && filters.trainerIds.length > 0;
-		const clientFiltersActive =
-			Array.isArray(filters?.clientIds) && filters.clientIds.length > 0;
-		const userFiltersActive =
-			Array.isArray(filters?.userIds) && filters.userIds.length > 0;
+		const clientFiltersActive = Array.isArray(filters?.clientIds) && filters.clientIds.length > 0;
+		const userFiltersActive = Array.isArray(filters?.userIds) && filters.userIds.length > 0;
 		const roomFilterActive = filters?.roomId != null;
 		const personalBookingsActive = Boolean(filters?.personalBookings);
 		return (
@@ -582,12 +575,7 @@ const trainerFilterCount = $derived.by(() => selectedTrainerIds.length);
 					locationName: location.name,
 					locationColor: location.color,
 					layout: layoutDayBookings(locationBookings),
-					emptySlots: computeEmptySlotBlocks(
-						fullDate,
-						locationBookings,
-						filters,
-						availability
-					)
+					emptySlots: computeEmptySlotBlocks(fullDate, locationBookings, filters, availability)
 				};
 			});
 
@@ -689,18 +677,15 @@ const trainerFilterCount = $derived.by(() => selectedTrainerIds.length);
 		slot: SelectedSlot;
 	};
 
-	type SlotDialogConfig =
-		| SlotDialogActionsConfig
-		| SlotDialogSelectConfig
-		| SlotDialogPinnedConfig;
+	type SlotDialogConfig = SlotDialogActionsConfig | SlotDialogSelectConfig | SlotDialogPinnedConfig;
 
 	type SlotDialogView = {
 		anchor: HTMLElement;
 		config: SlotDialogConfig;
 	};
 
-let slotDialogView = $state<SlotDialogView | null>(null);
-let suppressPinnedSlotRender = $state(false);
+	let slotDialogView = $state<SlotDialogView | null>(null);
+	let suppressPinnedSlotRender = $state(false);
 
 	function openSlotDialog(anchor: HTMLElement, config: SlotDialogConfig): boolean {
 		if (!anchor || !anchor.isConnected) return false;
@@ -715,9 +700,7 @@ let suppressPinnedSlotRender = $state(false);
 		const locationIds = Array.isArray(filters?.locationIds) ? filters.locationIds : [];
 		const targetedLocation = view.config.locationId;
 		const singleLocationMatch =
-			targetedLocation != null &&
-			locationIds.length === 1 &&
-			locationIds[0] === targetedLocation;
+			targetedLocation != null && locationIds.length === 1 && locationIds[0] === targetedLocation;
 		const splitViewMatch =
 			targetedLocation != null &&
 			shouldSplitByLocation &&
@@ -842,11 +825,11 @@ let suppressPinnedSlotRender = $state(false);
 		await tick();
 		clearSelectedSlot();
 	}
-$effect(() => {
-	if (!pinnedSlotView) {
-		suppressPinnedSlotRender = false;
-	}
-});
+	$effect(() => {
+		if (!pinnedSlotView) {
+			suppressPinnedSlotRender = false;
+		}
+	});
 
 	function findBookingsInSameSlot(target: FullBooking, locationId: number): FullBooking[] {
 		if (!target?.booking?.startTime) {
@@ -905,9 +888,7 @@ $effect(() => {
 
 		const locationIds = Array.isArray(filters?.locationIds) ? filters.locationIds : [];
 		const hasSingleLocationFilter =
-			bookingLocationId != null &&
-			locationIds.length === 1 &&
-			locationIds[0] === bookingLocationId;
+			bookingLocationId != null && locationIds.length === 1 && locationIds[0] === bookingLocationId;
 		const hasSplitLocationMatch =
 			bookingLocationId != null &&
 			shouldSplitByLocation &&
@@ -1114,7 +1095,11 @@ $effect(() => {
 		return blocks;
 	}
 
-	function openBookingPopup(startTime: Date, locationId?: number | null, trainerId?: number | null) {
+	function openBookingPopup(
+		startTime: Date,
+		locationId?: number | null,
+		trainerId?: number | null
+	) {
 		dispatch('onTimeSlotClick', {
 			startTime,
 			locationId: locationId ?? null,
@@ -1158,7 +1143,7 @@ $effect(() => {
 		</div>
 		{#if calendarIsLoading}
 			<div
-				class="text-gray-dark pointer-events-none absolute top-3 right-4 z-10 flex items-center gap-2 rounded-full bg-white/80 px-3 py-1 text-xs font-medium shadow-xs"
+				class="text-gray-dark pointer-events-none absolute top-30 right-10 z-10 flex items-center gap-2 rounded-full bg-white/80 px-3 py-1 text-xs font-medium shadow-xs"
 				aria-live="polite"
 			>
 				<svg
@@ -1272,15 +1257,15 @@ $effect(() => {
 						onbookingselected={(event) => {
 							event.preventDefault();
 							event.stopPropagation();
-								const anchor = event.currentTarget as HTMLElement | null;
-								const opened = anchor
-									? openSlotDialog(anchor, { mode: 'selected-slot', slot: pinnedSlotForDay.slot })
-									: false;
-								if (!opened) {
-									handlePinnedSlotResume(pinnedSlotForDay.slot);
-								}
-							}}
-						/>
+							const anchor = event.currentTarget as HTMLElement | null;
+							const opened = anchor
+								? openSlotDialog(anchor, { mode: 'selected-slot', slot: pinnedSlotForDay.slot })
+								: false;
+							if (!opened) {
+								handlePinnedSlotResume(pinnedSlotForDay.slot);
+							}
+						}}
+					/>
 				{/if}
 				{#each unavailableBlocksByDay[dayIndex] ?? [] as block}
 					<div
@@ -1294,17 +1279,18 @@ $effect(() => {
 						{#each locationColumnsByDay[dayIndex] ?? [] as column, columnIndex (column.locationId ?? `unknown-${columnIndex}`)}
 							{@const locationHeaderLabel = getLocationShortLabel(column.locationName)}
 							{@const locationHeaderTitle = column.locationName ?? 'Plats'}
-							<div class="flex basis-0 flex-1 flex-col" class:gap-1={singleDayView} class:gap-0={!singleDayView}>
+							<div
+								class="flex flex-1 basis-0 flex-col"
+								class:gap-1={singleDayView}
+								class:gap-0={!singleDayView}
+							>
 								{#if singleDayView}
 									<div
-										class="calendar-location-header text-gray-dark flex items-center justify-center rounded border border-gray-bright/70 bg-white/80 px-2 py-1 text-xs font-semibold"
+										class="calendar-location-header text-gray-dark border-gray-bright/70 flex items-center justify-center rounded border bg-white/80 px-2 py-1 text-xs font-semibold"
 										style="border-color: {column.locationColor ?? '#e2e8f0'};"
 										title={locationHeaderTitle}
 									>
-										<span
-											class="truncate tracking-wide"
-											class:uppercase={isMobile}
-										>
+										<span class="truncate tracking-wide" class:uppercase={isMobile}>
 											{locationHeaderLabel}
 										</span>
 									</div>
@@ -1331,7 +1317,8 @@ $effect(() => {
 											toolTipText={layoutItem.booking.booking.startTime
 												? `${new Date(layoutItem.booking.booking.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} ${layoutItem.booking.booking.endTime ? ` - ${new Date(layoutItem.booking.booking.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''}`
 												: ''}
-											onbookingselected={(event) => handleBookingSlotClick(event, layoutItem.booking)}
+											onbookingselected={(event) =>
+												handleBookingSlotClick(event, layoutItem.booking)}
 										/>
 									{/each}
 								</div>
@@ -1342,10 +1329,10 @@ $effect(() => {
 					<div class="flex h-full gap-1">
 						{#each trainerColumnsByDay[dayIndex] ?? [] as column, columnIndex (column.trainerId ?? `trainer-${columnIndex}`)}
 							{@const trainerHeaderTitle = column.trainerName ?? 'Tränare'}
-							<div class="flex basis-0 flex-1 flex-col" class:gap-1={singleDayView}>
+							<div class="flex flex-1 basis-0 flex-col" class:gap-1={singleDayView}>
 								{#if singleDayView}
 									<div
-										class="calendar-location-header flex items-center justify-center rounded border border-gray-bright/70 bg-white/80 px-2 py-1 text-gray-dark text-xs font-semibold"
+										class="calendar-location-header border-gray-bright/70 text-gray-dark flex items-center justify-center rounded border bg-white/80 px-2 py-1 text-xs font-semibold"
 										title={trainerHeaderTitle}
 										style={`border-color: ${column.trainerColor ?? '#e2e8f0'};`}
 									>
@@ -1376,7 +1363,8 @@ $effect(() => {
 											toolTipText={layoutItem.booking.booking.startTime
 												? `${new Date(layoutItem.booking.booking.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} ${layoutItem.booking.booking.endTime ? ` - ${new Date(layoutItem.booking.booking.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''}`
 												: ''}
-											onbookingselected={(event) => handleBookingSlotClick(event, layoutItem.booking)}
+											onbookingselected={(event) =>
+												handleBookingSlotClick(event, layoutItem.booking)}
 										/>
 									{/each}
 								</div>

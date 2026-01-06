@@ -7,34 +7,51 @@
 	import { goto } from '$app/navigation';
 	import Icon from '../../icon-component/Icon.svelte';
 	import NotificationCard from '../../notificationCard/NotificationCard.svelte';
-	import { wrapFetch, invalidateByPrefix } from '$lib/services/api/apiCache';
+import { cacheFirstJson, invalidateByPrefix } from '$lib/services/api/apiCache';
 
-	let allEvents = [];
-	let events = [];
-	let isLoading = true;
-	const cachedFetch = wrapFetch(fetch);
+let allEvents = [];
+let events = [];
+let isLoading = true;
+let requested = false;
 
-	async function fetchNotifications() {
-		if (!$user?.id) return;
+async function fetchNotifications() {
+	if (!$user?.id) return;
+	if (requested) return;
+	requested = true;
 
-		isLoading = true;
-		try {
-			const res = await cachedFetch(`/api/notifications?user_id=${$user.id}`);
-			if (res.ok) {
-				const all = await res.json();
-				allEvents = all
-					.filter((e) => !e.done)
-					.sort((a, b) => {
-						if (a.event_type === 'alert' && b.event_type !== 'alert') return -1;
-						if (a.event_type !== 'alert' && b.event_type === 'alert') return 1;
-						return new Date(b.start_time).getTime() - new Date(a.start_time).getTime();
-					});
-				events = allEvents.slice(0, 3); // Limit to 3
-			}
-		} finally {
-			isLoading = false;
-		}
+	isLoading = true;
+	const url = `/api/notifications?user_id=${$user.id}`;
+	const { cached, fresh } = cacheFirstJson<any[]>(fetch, url);
+
+	if (cached) {
+		const all = cached
+			.filter((e) => !e.done)
+			.sort((a, b) => {
+				if (a.event_type === 'alert' && b.event_type !== 'alert') return -1;
+				if (a.event_type !== 'alert' && b.event_type === 'alert') return 1;
+				return new Date(b.start_time).getTime() - new Date(a.start_time).getTime();
+			});
+		allEvents = all;
+		events = allEvents.slice(0, 3);
+		isLoading = false;
 	}
+
+	fresh
+		.then((all) => {
+			allEvents = all
+				.filter((e) => !e.done)
+				.sort((a, b) => {
+					if (a.event_type === 'alert' && b.event_type !== 'alert') return -1;
+					if (a.event_type !== 'alert' && b.event_type === 'alert') return 1;
+					return new Date(b.start_time).getTime() - new Date(a.start_time).getTime();
+				});
+			events = allEvents.slice(0, 3);
+		})
+		.catch(() => {})
+		.finally(() => {
+			isLoading = false;
+		});
+}
 
 	$: $user;
 	onMount(fetchNotifications);

@@ -1,26 +1,66 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import Icon from '../../icon-component/Icon.svelte';
-	import { wrapFetch } from '$lib/services/api/apiCache';
+import { wrapFetch } from '$lib/services/api/apiCache';
 
-	let news = [];
-	let isLoading = true;
+const NEWS_CACHE_KEY = 'takkei_latest_news';
+const NEWS_CACHE_TTL = 24 * 60 * 60 * 1000; // 24h
 
-	const cachedFetch = wrapFetch(fetch);
+let news = [];
+let isLoading = true;
+let isRefreshing = false;
 
-	async function loadNews() {
-		isLoading = true;
-		try {
-			const res = await cachedFetch('/api/news?latest=1&limit=4');
-			if (res.ok) {
-				news = await res.json();
-			}
-		} finally {
-			isLoading = false;
-		}
+const cachedFetch = wrapFetch(fetch);
+
+function loadFromLocalCache() {
+	if (typeof localStorage === 'undefined') return null;
+	try {
+		const raw = localStorage.getItem(NEWS_CACHE_KEY);
+		if (!raw) return null;
+		const parsed = JSON.parse(raw);
+		if (!parsed?.data || !parsed?.ts) return null;
+		if (Date.now() - parsed.ts > NEWS_CACHE_TTL) return null;
+		return parsed.data;
+	} catch {
+		return null;
 	}
+}
 
-	onMount(loadNews);
+function saveToLocalCache(data: any[]) {
+	if (typeof localStorage === 'undefined') return;
+	try {
+		localStorage.setItem(NEWS_CACHE_KEY, JSON.stringify({ data, ts: Date.now() }));
+	} catch {
+		// ignore quota/parse issues
+	}
+}
+
+async function loadNews() {
+	if (!news.length) {
+		isLoading = true;
+	}
+	isRefreshing = true;
+	try {
+		const res = await cachedFetch('/api/news?latest=1&limit=4');
+		if (res.ok) {
+			const data = await res.json();
+			news = data;
+			saveToLocalCache(data);
+		}
+	} finally {
+		isLoading = false;
+		isRefreshing = false;
+	}
+}
+
+onMount(() => {
+	const cached = loadFromLocalCache();
+	if (cached) {
+		news = cached;
+		isLoading = false;
+	}
+	loadNews();
+});
 
 	function formatDate(value: string | null) {
 		if (!value) return '';

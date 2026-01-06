@@ -2,15 +2,16 @@ import type { FullBooking, BookingFilters } from '$lib/types/calendarTypes';
 
 import { wrapFetch } from '$lib/services/api/apiCache';
 
-export async function fetchBookings(
+export function buildBookingUrls(
 	filters: BookingFilters,
-	fetchFn: typeof fetch,
 	limit?: number,
 	offset: number = 0,
 	fetchAllStatuses: boolean = false
-): Promise<FullBooking[]> {
-	const cachedFetch = wrapFetch(fetchFn);
-
+): {
+	standardUrl: string;
+	personalUrl?: string;
+	sortAscending: boolean;
+} {
 	const params = new URLSearchParams();
 
 	// ✅ Add date filters
@@ -55,10 +56,33 @@ export async function fetchBookings(
 		params.append('includeCancelled', 'true');
 	}
 
+	const standardUrl = `/api/bookings?${params.toString()}`;
+	const personalParams = new URLSearchParams(params);
+	const personalUrl = filters.personalBookings
+		? `/api/fetch-personal-bookings?${personalParams.toString()}`
+		: undefined;
+	const sortAscending = filters.sortAsc === true;
+	return { standardUrl, personalUrl, sortAscending };
+}
+
+export async function fetchBookings(
+	filters: BookingFilters,
+	fetchFn: typeof fetch,
+	limit?: number,
+	offset: number = 0,
+	fetchAllStatuses: boolean = false
+): Promise<FullBooking[]> {
+	const cachedFetch = wrapFetch(fetchFn);
+	const { standardUrl, personalUrl, sortAscending } = buildBookingUrls(
+		filters,
+		limit,
+		offset,
+		fetchAllStatuses
+	);
+
 	try {
 		// Fetch standard bookings
-		const bookingsUrl = `/api/bookings?${params.toString()}`;
-		const bookingsResponse = await cachedFetch(bookingsUrl);
+		const bookingsResponse = await cachedFetch(standardUrl);
 
 		if (!bookingsResponse.ok) {
 			const errorText = await bookingsResponse.text();
@@ -69,10 +93,8 @@ export async function fetchBookings(
 
 		let transformedPersonalBookings: FullBooking[] = [];
 		// Fetch personal bookings with pagination
-		if (filters.personalBookings) {
-			const personalParams = new URLSearchParams(params);
-			const personalBookingsUrl = `/api/fetch-personal-bookings?${personalParams.toString()}`;
-			const personalBookingsResponse = await cachedFetch(personalBookingsUrl);
+		if (filters.personalBookings && personalUrl) {
+			const personalBookingsResponse = await cachedFetch(personalUrl);
 
 			if (!personalBookingsResponse.ok) {
 				const errorText = await personalBookingsResponse.text();
@@ -88,7 +110,6 @@ export async function fetchBookings(
 		// 📌 Transform and combine both types of bookings
 		const transformedStandardBookings = standardBookings.map(transformBooking);
 		const combinedBookings = [...transformedStandardBookings, ...transformedPersonalBookings];
-		const sortAscending = filters.sortAsc === true;
 		combinedBookings.sort((a, b) => {
 			const aTime = new Date(a.booking.startTime).getTime();
 			const bTime = new Date(b.booking.startTime).getTime();
@@ -206,7 +227,7 @@ export async function fetchBookingById(
 /**
  * Convert API response into FullBooking format (for personal bookings).
  */
-function transformPersonalBooking(raw: any): FullBooking {
+export function transformPersonalBooking(raw: any): FullBooking {
 	return {
 		isPersonalBooking: true, // Indicates a personal booking
 		booking: {

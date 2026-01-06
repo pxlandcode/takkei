@@ -16,5 +16,5 @@
 {#if IconComponent}
 	<svelte:component this={IconComponent} class={classString} {size} {color} />
 {:else}
-	<span class="text-red-500">Icon not found</span>
+	<span style="display: inline-block; width: {size}; height: {size};"></span>
 {/if}

@@ -5,7 +5,6 @@
         import Button from '../../button/Button.svelte';
         import StatisticCard from './StatisticCard.svelte';
         import {
-                getTrainerStatistics,
                 type TrainerStatisticsResponse,
                 type CancellationPeriodKey,
                 type CancellationPeriodStats,
@@ -14,7 +13,9 @@
         import { openPopup } from '$lib/stores/popupStore';
         import { user as userStore } from '$lib/stores/userStore';
         import StatisticsDetailsPopup from './StatisticsDetailsPopup.svelte';
+        import { cacheFirstJson } from '$lib/services/api/apiCache';
 
+        export let prefetchedStatistics: TrainerStatisticsResponse | null | undefined = undefined;
         let statistics: TrainerStatisticsResponse | null = null;
         let loading = true;
         let error: string | null = null;
@@ -31,7 +32,21 @@
                 error = null;
 
                 try {
-                        statistics = await getTrainerStatistics(trainerId);
+                        if (prefetchedStatistics) {
+                                statistics = prefetchedStatistics;
+                                loading = false;
+                        }
+
+                        const url = `/api/statistics?trainerId=${trainerId}`;
+                        const { cached, fresh } = cacheFirstJson<TrainerStatisticsResponse>(fetch, url);
+
+                        if (cached) {
+                                statistics = cached;
+                                loading = false;
+                        }
+
+                        const data = await fresh;
+                        statistics = data;
                 } catch (err) {
                         console.error('Failed to load trainer statistics', err);
                         statistics = null;
