@@ -1,12 +1,9 @@
 import type { RequestHandler } from '@sveltejs/kit';
-import { createRequire } from 'node:module';
 import { query } from '$lib/db';
 import { isAdministrator, json, resolveUserWithRoles } from '../../helpers';
 import { mapHolidayRow, type HolidayRow } from '../helpers';
 
-const require = createRequire(import.meta.url);
-type SwedishHolidaysModule = typeof import('swedish-holidays');
-const { getHolidays } = require('swedish-holidays') as SwedishHolidaysModule;
+import { getHolidays } from 'swedish-holidays';
 
 const MIN_YEAR = 1900;
 const MAX_YEAR = 8702; // library limit according to swedish-holidays docs
