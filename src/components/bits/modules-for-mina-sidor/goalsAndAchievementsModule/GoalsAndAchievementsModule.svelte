@@ -180,8 +180,8 @@
 		{:else}
 			<div class="grid grid-cols-4 items-center gap-2">
 				<div class="flex items-center gap-2">
-					<Icon icon="Users" size="16px" color="primary" />
-					<span class="text-sm font-medium text-gray-700">Företaget</span>
+					<Icon icon="Takkei" size="16px" color="primary" />
+					<span class="truncate text-sm font-medium text-gray-700">Takkei</span>
 				</div>
 				<div class="col-span-3 text-center text-sm text-gray-400 italic">Hämtar...</div>
 			</div>

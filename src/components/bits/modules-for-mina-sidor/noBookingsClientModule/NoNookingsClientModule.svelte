@@ -1,15 +1,13 @@
 <script lang="ts">
-import { onMount } from 'svelte';
-import { user } from '$lib/stores/userStore';
-import Icon from '../../icon-component/Icon.svelte';
-import { wrapFetch } from '$lib/services/api/apiCache';
+	import { onMount } from 'svelte';
+	import { user } from '$lib/stores/userStore';
+	import Icon from '../../icon-component/Icon.svelte';
+	import { cacheFirstJson } from '$lib/services/api/apiCache';
 
-let clientsThisWeek: any[] = [];
-let clientsNextWeek: any[] = [];
-let clientsWeekAfter: any[] = [];
-let isLoading = true;
-const cachedFetch = wrapFetch(fetch);
-
+	let clientsThisWeek: any[] = [];
+	let clientsNextWeek: any[] = [];
+	let clientsWeekAfter: any[] = [];
+	let isLoading = true;
 	let thisWeekStart: Date;
 	let thisWeekEnd: Date;
 	let week1Start: Date;
@@ -58,41 +56,56 @@ const cachedFetch = wrapFetch(fetch);
 		getDateRanges();
 		isLoading = true;
 
-	try {
-		const res = await cachedFetch(`/api/clients-without-bookings?trainer_id=${$user.id}`);
-		if (res.ok) {
-			const data = await res.json();
-				clientsThisWeek = data.thisWeek ?? [];
-				clientsNextWeek = data.week1 ?? [];
-				clientsWeekAfter = data.week2 ?? [];
-			}
-		} finally {
+		const url = `/api/clients-without-bookings?trainer_id=${$user.id}`;
+		const { cached, fresh } = cacheFirstJson<{
+			thisWeek: any[];
+			week1: any[];
+			week2: any[];
+		}>(fetch, url);
+
+		if (cached) {
+			clientsThisWeek = cached.thisWeek ?? [];
+			clientsNextWeek = cached.week1 ?? [];
+			clientsWeekAfter = cached.week2 ?? [];
 			isLoading = false;
 		}
-	}
 
-	onMount(fetchClientsWithoutBookings);
+	fresh
+		.then((data) => {
+			clientsThisWeek = data.thisWeek ?? [];
+			clientsNextWeek = data.week1 ?? [];
+			clientsWeekAfter = data.week2 ?? [];
+		})
+		.catch(() => {})
+		.finally(() => {
+			isLoading = false;
+		});
+}
+
+onMount(fetchClientsWithoutBookings);
 </script>
 
 <div class="rounded-sm border border-gray-200 bg-white p-4 shadow-md">
 	<div class="mb-3 flex items-center gap-2">
-		<div class="flex h-6 w-6 items-center justify-center rounded-full bg-text text-white">
+		<div class="bg-text flex h-6 w-6 items-center justify-center rounded-full text-white">
 			<Icon icon="CircleUser" size="14px" />
 		</div>
-		<h3 class="text-lg font-semibold text-text">Klienter utan bokningar</h3>
+		<h3 class="text-text text-lg font-semibold">Klienter utan bokningar</h3>
 	</div>
 
 	{#if isLoading}
-		<p class="text-sm text-text">Laddar...</p>
+		<p class="text-text text-sm">Laddar...</p>
 	{:else if clientsThisWeek.length === 0 && clientsNextWeek.length === 0 && clientsWeekAfter.length === 0}
-		<p class="text-sm text-text">Alla klienter har bokningar de kommande veckorna 🎉</p>
+		<p class="text-text text-sm">Alla klienter har bokningar de kommande veckorna 🎉</p>
 	{:else}
-		<div class="grid grid-cols-1 gap-4 text-sm text-text md:grid-cols-3">
+		<div class="text-text grid grid-cols-1 gap-4 text-sm md:grid-cols-3">
 			<!-- This Week -->
 			<div>
 				<div class="mb-2 flex flex-col gap-1">
 					<h4 class="font-semibold text-gray-700">Denna vecka</h4>
-					<p class="text-xs text-gray-400">({formatDate(thisWeekStart)} – {formatDate(thisWeekEnd)})</p>
+					<p class="text-xs text-gray-400">
+						({formatDate(thisWeekStart)} – {formatDate(thisWeekEnd)})
+					</p>
 				</div>
 
 				<ul class="space-y-1">
@@ -104,7 +117,7 @@ const cachedFetch = wrapFetch(fetch);
 						</li>
 					{/each}
 					{#if clientsThisWeek.length === 0}
-						<li class="text-xs italic text-gray-400">Alla är bokade 💪</li>
+						<li class="text-xs text-gray-400 italic">Alla är bokade 💪</li>
 					{/if}
 				</ul>
 			</div>
@@ -125,7 +138,7 @@ const cachedFetch = wrapFetch(fetch);
 						</li>
 					{/each}
 					{#if clientsNextWeek.length === 0}
-						<li class="text-xs italic text-gray-400">Alla är bokade 💪</li>
+						<li class="text-xs text-gray-400 italic">Alla är bokade 💪</li>
 					{/if}
 				</ul>
 			</div>
@@ -145,7 +158,7 @@ const cachedFetch = wrapFetch(fetch);
 						</li>
 					{/each}
 					{#if clientsWeekAfter.length === 0}
-						<li class="text-xs italic text-gray-400">Alla är bokade 💪</li>
+						<li class="text-xs text-gray-400 italic">Alla är bokade 💪</li>
 					{/if}
 				</ul>
 			</div>

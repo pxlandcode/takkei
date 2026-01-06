@@ -179,6 +179,32 @@ export function invalidateMatch(predicate: (key: string) => boolean) {
 		.forEach((key) => localStorage.removeItem(key));
 }
 
+export function getCachedJson<T = unknown>(url: string, method: string = 'GET'): T | null {
+	if (!isBrowser()) return null;
+	const key = buildCacheKey(method, url);
+	const entry = getCacheEntry<T>(key);
+	return entry?.data ?? null;
+}
+
+export function cacheFirstJson<T = unknown>(
+	fetchLike: FetchLike,
+	url: string,
+	options?: CachedFetchInit
+): { cached: T | null; fresh: Promise<T> } {
+	const method = options?.method ?? 'GET';
+	const cached = getCachedJson<T>(url, method);
+	const fresh = (async () => {
+		const res = await cachedFetch(fetchLike, url, options);
+		if (!res.ok) {
+			throw new Error(`Request failed: ${res.status}`);
+		}
+		// consume clone to avoid issues if caller reads body later
+		const data = (await res.clone().json()) as T;
+		return data;
+	})();
+	return { cached, fresh };
+}
+
 function deriveLastModified(data: any): string | undefined {
 	if (!data) return undefined;
 
