@@ -1,7 +1,7 @@
 import type { User } from '$lib/types/userTypes';
 import type { FullBooking, BookingFilters } from '$lib/types/calendarTypes';
 import { fetchBookings } from '$lib/services/api/calendarService';
-import { wrapFetch } from '$lib/services/api/apiCache';
+import { cacheFirstJson } from '$lib/services/api/apiCache';
 
 /**
  * Fetch User Details and Bookings Using `fetchBookings`
@@ -10,13 +10,20 @@ export async function fetchUser(
 	trainerId: number,
 	fetchFn: typeof fetch
 ): Promise<{ user: User; bookings: FullBooking[] } | null> {
-	const cachedFetch = wrapFetch(fetchFn);
-
 	try {
 		// Fetch user details
-		const userResponse = await cachedFetch(`/api/users/${trainerId}`);
-		if (!userResponse.ok) throw new Error('User not found');
-		const userData: User = await userResponse.json();
+		const userUrl = `/api/users/${trainerId}`;
+		let userData: User | null = null;
+		const { cached, fresh } = cacheFirstJson<User>(fetchFn, userUrl);
+		if (cached) {
+			userData = cached;
+		}
+		try {
+			userData = await fresh;
+		} catch {
+			// keep cached if fresh fails
+		}
+		if (!userData) throw new Error('User not found');
 
 		// Define filters for the last year
 		const today = new Date();
