@@ -36,87 +36,87 @@
 	let boundaryAbortController: AbortController | null = null;
 	let isBoundaryLoading = false;
 
-function timeStringToMinutes(value?: string | null): number | null {
-	if (!value) return null;
-	const [hoursStr, minutesStr] = value.split(':');
-	const hours = Number(hoursStr);
-	const minutes = Number(minutesStr);
-	if (Number.isNaN(hours) || Number.isNaN(minutes)) return null;
-	return hours * 60 + minutes;
-}
-
-function minutesToTimeString(totalMinutes: number): string {
-	const normalized = ((totalMinutes % (24 * 60)) + 24 * 60) % (24 * 60);
-	const hours = Math.floor(normalized / 60)
-		.toString()
-		.padStart(2, '0');
-	const minutes = (normalized % 60).toString().padStart(2, '0');
-	return `${hours}:${minutes}`;
-}
-
-function getBaseDurationMinutes(): number | null {
-	const start = timeStringToMinutes(bookingObject.time);
-	const end = timeStringToMinutes(bookingObject.endTime);
-	if (start === null || end === null || end <= start) return null;
-	return end - start;
-}
-
-function clampWeekTimes(week: any) {
-	if (!week) return;
-	if (!week.selectedTime) {
-		week.selectedTime = week.time ?? bookingObject.time;
+	function timeStringToMinutes(value?: string | null): number | null {
+		if (!value) return null;
+		const [hoursStr, minutesStr] = value.split(':');
+		const hours = Number(hoursStr);
+		const minutes = Number(minutesStr);
+		if (Number.isNaN(hours) || Number.isNaN(minutes)) return null;
+		return hours * 60 + minutes;
 	}
 
-	const duration = getBaseDurationMinutes();
-	let startMinutes = timeStringToMinutes(week.selectedTime);
-	if (startMinutes === null) {
-		week.selectedTime = bookingObject.time;
-		startMinutes = timeStringToMinutes(week.selectedTime);
+	function minutesToTimeString(totalMinutes: number): string {
+		const normalized = ((totalMinutes % (24 * 60)) + 24 * 60) % (24 * 60);
+		const hours = Math.floor(normalized / 60)
+			.toString()
+			.padStart(2, '0');
+		const minutes = (normalized % 60).toString().padStart(2, '0');
+		return `${hours}:${minutes}`;
 	}
 
-	let endCandidate = week.selectedEndTime ?? bookingObject.endTime;
-	let endMinutes = timeStringToMinutes(endCandidate);
+	function getBaseDurationMinutes(): number | null {
+		const start = timeStringToMinutes(bookingObject.time);
+		const end = timeStringToMinutes(bookingObject.endTime);
+		if (start === null || end === null || end <= start) return null;
+		return end - start;
+	}
 
-	if (startMinutes !== null && (endMinutes === null || endMinutes <= startMinutes)) {
-		if (duration !== null) {
-			endMinutes = startMinutes + duration;
-			endCandidate = minutesToTimeString(endMinutes);
-		} else if (bookingObject.endTime && bookingObject.endTime > week.selectedTime) {
-			endCandidate = bookingObject.endTime;
-			endMinutes = timeStringToMinutes(endCandidate);
-		} else if (startMinutes !== null) {
-			endMinutes = startMinutes + 30;
-			endCandidate = minutesToTimeString(endMinutes);
+	function clampWeekTimes(week: any) {
+		if (!week) return;
+		if (!week.selectedTime) {
+			week.selectedTime = week.time ?? bookingObject.time;
 		}
-	}
 
-	const boundaryMinutes = timeStringToMinutes(week.nextBoundary);
-	if (boundaryMinutes !== null && endMinutes !== null && endMinutes > boundaryMinutes) {
-		endMinutes = boundaryMinutes;
-		endCandidate = minutesToTimeString(endMinutes);
-	}
+		const duration = getBaseDurationMinutes();
+		let startMinutes = timeStringToMinutes(week.selectedTime);
+		if (startMinutes === null) {
+			week.selectedTime = bookingObject.time;
+			startMinutes = timeStringToMinutes(week.selectedTime);
+		}
 
-	if (startMinutes !== null && endMinutes !== null && endMinutes <= startMinutes) {
-		if (boundaryMinutes !== null && boundaryMinutes > startMinutes) {
+		let endCandidate = week.selectedEndTime ?? bookingObject.endTime;
+		let endMinutes = timeStringToMinutes(endCandidate);
+
+		if (startMinutes !== null && (endMinutes === null || endMinutes <= startMinutes)) {
+			if (duration !== null) {
+				endMinutes = startMinutes + duration;
+				endCandidate = minutesToTimeString(endMinutes);
+			} else if (bookingObject.endTime && bookingObject.endTime > week.selectedTime) {
+				endCandidate = bookingObject.endTime;
+				endMinutes = timeStringToMinutes(endCandidate);
+			} else if (startMinutes !== null) {
+				endMinutes = startMinutes + 30;
+				endCandidate = minutesToTimeString(endMinutes);
+			}
+		}
+
+		const boundaryMinutes = timeStringToMinutes(week.nextBoundary);
+		if (boundaryMinutes !== null && endMinutes !== null && endMinutes > boundaryMinutes) {
 			endMinutes = boundaryMinutes;
 			endCandidate = minutesToTimeString(endMinutes);
-		} else if (duration !== null) {
-			endMinutes = startMinutes + duration;
-			endCandidate = minutesToTimeString(endMinutes);
 		}
+
+		if (startMinutes !== null && endMinutes !== null && endMinutes <= startMinutes) {
+			if (boundaryMinutes !== null && boundaryMinutes > startMinutes) {
+				endMinutes = boundaryMinutes;
+				endCandidate = minutesToTimeString(endMinutes);
+			} else if (duration !== null) {
+				endMinutes = startMinutes + duration;
+				endCandidate = minutesToTimeString(endMinutes);
+			}
+		}
+
+		if (endCandidate && week.selectedEndTime !== endCandidate) {
+			week.selectedEndTime = endCandidate;
+		}
+
+		week.boundaryConflict =
+			boundaryMinutes !== null && startMinutes !== null && boundaryMinutes <= startMinutes;
 	}
 
-	if (endCandidate && week.selectedEndTime !== endCandidate) {
-		week.selectedEndTime = endCandidate;
+	function handleWeekTimeChange(week: any) {
+		clampWeekTimes(week);
 	}
-
-	week.boundaryConflict =
-		boundaryMinutes !== null && startMinutes !== null && boundaryMinutes <= startMinutes;
-}
-
-function handleWeekTimeChange(week: any) {
-	clampWeekTimes(week);
-}
 
 	if (!bookingObject.repeatWeeks) {
 		bookingObject.repeatWeeks = 4;
@@ -351,48 +351,47 @@ function handleWeekTimeChange(week: any) {
 		}
 	}
 
-onDestroy(() => {
-	boundaryAbortController?.abort();
-});
+	onDestroy(() => {
+		boundaryAbortController?.abort();
+	});
 
-$: {
-	const userIds = collectRelevantUserIds();
-	const hasInputs = bookingObject.date && bookingObject.time && userIds.length > 0;
-	const nextKey = hasInputs
-		? JSON.stringify([bookingObject.date, bookingObject.time, userIds])
-		: null;
+	$: {
+		const userIds = collectRelevantUserIds();
+		const hasInputs = bookingObject.date && bookingObject.time && userIds.length > 0;
+		const nextKey = hasInputs
+			? JSON.stringify([bookingObject.date, bookingObject.time, userIds])
+			: null;
 
-	if (nextKey === boundaryKey) {
-		// no-op
-	} else {
-		boundaryKey = nextKey;
-		if (!nextKey) {
-			endTimeLimit = null;
-			endTimeLimitMessage = null;
-			boundaryAbortController?.abort();
-			boundaryAbortController = null;
+		if (nextKey === boundaryKey) {
+			// no-op
 		} else {
-			updateEndTimeLimit(userIds, nextKey);
+			boundaryKey = nextKey;
+			if (!nextKey) {
+				endTimeLimit = null;
+				endTimeLimitMessage = null;
+				boundaryAbortController?.abort();
+				boundaryAbortController = null;
+			} else {
+				updateEndTimeLimit(userIds, nextKey);
+			}
 		}
 	}
-}
 
-$: {
-	if (endTimeLimit && bookingObject.endTime && bookingObject.endTime > endTimeLimit) {
-		bookingObject.endTime = endTimeLimit;
+	$: {
+		if (endTimeLimit && bookingObject.endTime && bookingObject.endTime > endTimeLimit) {
+			bookingObject.endTime = endTimeLimit;
+		}
 	}
-}
 
-afterUpdate(() => {
-	if (!bookingObject.repeat || repeatedBookings.length === 0) return;
-	repeatedBookings.forEach((week) => clampWeekTimes(week));
-});
-
+	afterUpdate(() => {
+		if (!bookingObject.repeat || repeatedBookings.length === 0) return;
+		repeatedBookings.forEach((week) => clampWeekTimes(week));
+	});
 </script>
 
 <!-- Booking Meeting UI -->
 <div
-	class="flex flex-col gap-4 rounded-sm border border-dashed border-gray-bright bg-gray-bright/10 p-6"
+	class="border-gray-bright bg-gray-bright/10 flex flex-col gap-4 rounded-sm border border-dashed p-6"
 >
 	<!-- Name Input -->
 	<Input
@@ -443,12 +442,12 @@ afterUpdate(() => {
 	<!-- Date & Time -->
 	<div class="grid grid-cols-2 gap-4">
 		<div>
-			<label for="date" class="text-sm font-medium text-gray">Datum</label>
+			<label for="date" class="text-gray text-sm font-medium">Datum</label>
 			<input
 				type="date"
 				id="date"
 				bind:value={bookingObject.date}
-				class={`w-full rounded-sm border p-2 text-gray ${errors.date ? 'border-red-500' : ''}`}
+				class={`text-gray w-full rounded-sm border p-2 ${errors.date ? 'border-red-500' : ''}`}
 			/>
 			{#if errors.date}
 				<p class="mt-1 text-sm text-red-500">{errors.date}</p>
@@ -458,30 +457,30 @@ afterUpdate(() => {
 
 	<div class="grid grid-cols-2 gap-4">
 		<div>
-			<label for="time" class="text-sm font-medium text-gray">Starttid</label>
+			<label for="time" class="text-gray text-sm font-medium">Starttid</label>
 			<input
 				type="time"
 				id="time"
 				bind:value={bookingObject.time}
-				class={`w-full rounded-sm border p-2 text-gray ${errors.time ? 'border-red-500' : ''}`}
+				class={`text-gray w-full rounded-sm border p-2 ${errors.time ? 'border-red-500' : ''}`}
 			/>
 			{#if errors.time}
 				<p class="mt-1 text-sm text-red-500">{errors.time}</p>
 			{/if}
 		</div>
 		<div>
-			<label for="endTime" class="text-sm font-medium text-gray">Sluttid</label>
+			<label for="endTime" class="text-gray text-sm font-medium">Sluttid</label>
 			<input
 				type="time"
 				id="endTime"
 				bind:value={bookingObject.endTime}
 				max={endTimeLimit ?? undefined}
-				class={`w-full rounded-sm border p-2 text-gray ${errors.endTime ? 'border-red-500' : ''}`}
+				class={`text-gray w-full rounded-sm border p-2 ${errors.endTime ? 'border-red-500' : ''}`}
 			/>
 			{#if errors.endTime}
 				<p class="mt-1 text-sm text-red-500">{errors.endTime}</p>
 			{:else if endTimeLimitMessage}
-				<p class="mt-1 text-xs text-gray">
+				<p class="text-gray mt-1 text-xs">
 					{#if isBoundaryLoading}
 						Kollar krockar...
 					{:else}
@@ -494,7 +493,7 @@ afterUpdate(() => {
 
 	<!-- Repeat Booking -->
 	<div class="flex flex-col gap-2">
-		<label class="flex items-center gap-2 text-sm font-medium text-gray">
+		<label class="text-gray flex items-center gap-2 text-sm font-medium">
 			<input type="checkbox" bind:checked={bookingObject.repeat} class="h-4 w-4" />
 			{#if isMeeting}
 				Upprepa detta möte
@@ -539,7 +538,7 @@ afterUpdate(() => {
 
 					<!-- Conflicts -->
 					{#each repeatedBookings.filter((b) => b.conflict) as week}
-						<div class="mb-2 rounded-sm border border-red bg-red/10 p-3">
+						<div class="border-red bg-red/10 mb-2 rounded-sm border p-3">
 							<div class="flex flex-col gap-1">
 								<span class="font-semibold">
 									{week.date}, kl {week.selectedTime}
@@ -576,26 +575,26 @@ afterUpdate(() => {
 
 								<div class="mt-2 grid grid-cols-2 gap-2">
 									<div>
-										<label class="text-xs font-semibold text-gray">Starttid</label>
+										<label class="text-gray text-xs font-semibold">Starttid</label>
 										<input
 											type="time"
-											class="w-full rounded border p-2 text-gray"
+											class="text-gray w-full rounded border p-2"
 											bind:value={week.selectedTime}
 											on:change={() => handleWeekTimeChange(week)}
 										/>
 									</div>
 									<div>
-										<label class="text-xs font-semibold text-gray">Sluttid</label>
+										<label class="text-gray text-xs font-semibold">Sluttid</label>
 										<input
 											type="time"
-											class="w-full rounded border p-2 text-gray"
+											class="text-gray w-full rounded border p-2"
 											min={week.selectedTime}
 											max={week.nextBoundary ?? undefined}
 											bind:value={week.selectedEndTime}
 											on:change={() => handleWeekTimeChange(week)}
 										/>
 										{#if week.nextBoundary}
-											<p class="mt-1 text-[11px] text-gray">Senast {week.nextBoundary}</p>
+											<p class="text-gray mt-1 text-[11px]">Senast {week.nextBoundary}</p>
 										{/if}
 									</div>
 								</div>
@@ -614,7 +613,7 @@ afterUpdate(() => {
 										on:click={() => resolveConflict(week.week)}
 									/>
 									<Button
-										text="Ta bort vecka"
+										text="Avboka vecka"
 										variant="secondary"
 										small
 										on:click={() => ignoreConflict(week.week)}
@@ -627,7 +626,7 @@ afterUpdate(() => {
 					<!-- Ready bookings -->
 					<h3 class="text-lg font-semibold">Bokningar klara att bokas:</h3>
 					{#each repeatedBookings.filter((b) => !b.conflict) as week}
-						<div class="mb-1 rounded-sm border border-green bg-green-bright/10 p-2">
+						<div class="border-green bg-green-bright/10 mb-1 rounded-sm border p-2">
 							{week.date}, kl {week.selectedTime}
 							{#if week.selectedEndTime}
 								&ndash; {week.selectedEndTime}

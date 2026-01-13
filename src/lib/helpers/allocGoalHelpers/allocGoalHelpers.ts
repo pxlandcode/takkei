@@ -4,6 +4,13 @@ export function daysInMonth(year: number, m1to12: number) {
 	return new Date(year, m1to12, 0).getDate();
 }
 
+function formatDateLocal(date: Date): string {
+	const y = date.getFullYear();
+	const m = String(date.getMonth() + 1).padStart(2, '0');
+	const d = String(date.getDate()).padStart(2, '0');
+	return `${y}-${m}-${d}`;
+}
+
 function largestRemainderInt(
 	totals: number[],
 	fracs: number[],
@@ -138,7 +145,7 @@ export function splitMonthToWeeks({
 	}
 
 	const weeks = frames.map((f) => {
-		const key = `${f.start.toISOString().slice(0, 10)}|${f.end.toISOString().slice(0, 10)}`;
+		const key = `${formatDateLocal(f.start)}|${formatDateLocal(f.end)}`;
 		const anch = anchorMap.get(key) ?? 0;
 		return { key, start: f.start, end: f.end, days: f.days, anch };
 	});
@@ -169,8 +176,8 @@ export function splitMonthToWeeks({
 
 	return {
 		weeks: weeks.map((w, i) => ({
-			week_start: w.start.toISOString().slice(0, 10),
-			week_end: w.end.toISOString().slice(0, 10),
+			week_start: formatDateLocal(w.start),
+			week_end: formatDateLocal(w.end),
 			value: values[i],
 			isAnchor: w.anch > 0
 		}))

@@ -1,17 +1,8 @@
 import type { RequestHandler } from '@sveltejs/kit';
 import { query } from '$lib/db';
+import { respondJsonWithEtag } from '$lib/server/http-cache';
 import { isAdministrator, json, resolveUserWithRoles } from '../helpers';
 import { mapHolidayPayRow, normalizeAmount, parseTimestamp, type HolidayPayRow } from './helpers';
-
-async function latestUpdatedMs(): Promise<number | undefined> {
-	const [row] = await query<{ last_updated: string | null }>(
-		`SELECT GREATEST(
-                        COALESCE((SELECT MAX(updated_at) FROM holiday_pay), 'epoch'::timestamptz),
-                        COALESCE((SELECT MAX(updated_at) FROM users), 'epoch'::timestamptz)
-                ) AS last_updated`
-	);
-	return parseTimestamp(row?.last_updated);
-}
 
 export const GET: RequestHandler = async ({ locals, request }) => {
 	const { authUser, roleAwareUser } = await resolveUserWithRoles(locals);
@@ -24,22 +15,6 @@ export const GET: RequestHandler = async ({ locals, request }) => {
 	}
 
 	try {
-		const ifModifiedSince = request.headers.get('if-modified-since');
-		if (ifModifiedSince) {
-			const latestMs = await latestUpdatedMs();
-			const since = Date.parse(ifModifiedSince);
-			if (Number.isFinite(latestMs) && Number.isFinite(since) && since >= (latestMs as number)) {
-				const rounded = Math.floor((latestMs as number) / 1000) * 1000;
-				return new Response(null, {
-					status: 304,
-					headers: {
-						'content-type': 'application/json',
-						'last-modified': new Date(rounded).toUTCString()
-					}
-				});
-			}
-		}
-
 		const rows = await query<HolidayPayRow>(
 			`SELECT
                                 u.id AS user_id,
@@ -54,25 +29,7 @@ export const GET: RequestHandler = async ({ locals, request }) => {
 		);
 
 		const data = rows.map(mapHolidayPayRow);
-
-		let maxUpdatedMs = data
-			.map((row) => parseTimestamp(row.updatedAt ?? row.createdAt))
-			.filter((n): n is number => Number.isFinite(n))
-			.sort((a, b) => b - a)[0];
-
-		if (!Number.isFinite(maxUpdatedMs)) {
-			maxUpdatedMs = (await latestUpdatedMs()) ?? 0;
-		}
-
-		const roundedMs = Number.isFinite(maxUpdatedMs) ? Math.floor((maxUpdatedMs as number) / 1000) * 1000 : 0;
-
-		return new Response(JSON.stringify({ data }), {
-			status: 200,
-			headers: {
-				'content-type': 'application/json',
-				'last-modified': new Date(roundedMs).toUTCString()
-			}
-		});
+		return respondJsonWithEtag(request, { data });
 	} catch (error) {
 		console.error('Failed to fetch holiday pay', error);
 		return new Response('Internal Server Error', { status: 500 });

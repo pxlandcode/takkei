@@ -20,7 +20,7 @@ export const GET: RequestHandler = async ({ locals }) => {
                          ORDER BY created_at DESC, id DESC`
 		);
 
-		return json({ data: rows.map(mapGreetingRow) });
+		return json({ data: rows.map((row) => mapGreetingRow(row)) });
 	} catch (error) {
 		console.error('Failed to fetch greetings', error);
 		return new Response('Internal Server Error', { status: 500 });

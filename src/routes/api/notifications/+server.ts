@@ -1,5 +1,4 @@
 import { json } from '@sveltejs/kit';
-import { query } from '$lib/db';
 import type { RequestHandler } from './$types';
 import {
 	getNotificationsForUser,
@@ -7,19 +6,7 @@ import {
 	markNotificationAsDone,
 	unmarkNotificationAsDone
 } from '$lib/services/api/notificationService';
-
-function parseTimestamp(value: any): number | undefined {
-	if (!value) return undefined;
-	if (value instanceof Date && !Number.isNaN(value.getTime())) return value.getTime();
-	if (typeof value === 'string') {
-		const normalized = value.replace(' ', 'T');
-		const withZone = /([zZ]|[+-]\d{2}:?\d{2})$/.test(normalized) ? normalized : `${normalized}Z`;
-		const ms = Date.parse(withZone);
-		if (!Number.isNaN(ms)) return ms;
-	}
-	const ms = Date.parse(String(value));
-	return Number.isNaN(ms) ? undefined : ms;
-}
+import { respondJsonWithEtag } from '$lib/server/http-cache';
 
 /**
  * GET /api/notifications?user_id=2&type=1
@@ -40,61 +27,8 @@ export const GET: RequestHandler = async ({ url, request }) => {
 		return json({ error: 'Invalid type parameter' }, { status: 400 });
 	}
 
-	const ifModifiedSince = request.headers.get('if-modified-since');
-	if (ifModifiedSince) {
-		const params: any[] = [userId];
-		let latestQuery = `
-			SELECT MAX(updated_at) AS last_updated
-			FROM events
-			WHERE $1 = ANY(user_ids)
-			  AND active = true
-			  AND id NOT IN (SELECT event_id FROM events_done WHERE user_id = $1)
-		`;
-		if (type) {
-			params.push(type);
-			latestQuery += ` AND event_type_id = $2`;
-		}
-		const [row] = await query<{ last_updated: string | null }>(latestQuery, params);
-		let latestMs = parseTimestamp(row?.last_updated);
-		if (!Number.isFinite(latestMs)) {
-			// Fallback to any event change if no per-user data
-			const [fallback] = await query<{ last_updated: string | null }>(
-				`SELECT MAX(updated_at) AS last_updated FROM events`
-			);
-			latestMs = parseTimestamp(fallback?.last_updated);
-		}
-		const since = Date.parse(ifModifiedSince);
-		const roundedLatestMs =
-			Number.isFinite(latestMs) && latestMs !== undefined
-				? Math.floor(latestMs / 1000) * 1000
-				: undefined;
-		if (Number.isFinite(roundedLatestMs) && Number.isFinite(since) && since >= roundedLatestMs) {
-			const headers: Record<string, string> = { 'content-type': 'application/json' };
-			headers['last-modified'] = new Date(roundedLatestMs!).toUTCString();
-			return new Response(null, { status: 304, headers });
-		}
-	}
-
 	const events = await getNotificationsForUser(userId, type);
-
-	let maxUpdatedMs = events
-		.map((row: any) => row?.updated_at || row?.updatedAt || row?.created_at || row?.createdAt)
-		.map((ts: any) => parseTimestamp(ts))
-		.filter((n: number | undefined): n is number => Number.isFinite(n))
-		.sort((a: number, b: number) => b - a)[0];
-
-	if (!Number.isFinite(maxUpdatedMs)) {
-		const [row] = await query<{ last_updated: string | null }>(
-			`SELECT MAX(updated_at) AS last_updated FROM events`
-		);
-		maxUpdatedMs = parseTimestamp(row?.last_updated) ?? 0;
-	}
-
-	const headers: Record<string, string> = { 'content-type': 'application/json' };
-	const roundedMs = Number.isFinite(maxUpdatedMs) ? Math.floor(maxUpdatedMs / 1000) * 1000 : 0;
-	headers['last-modified'] = new Date(roundedMs).toUTCString();
-
-	return new Response(JSON.stringify(events), { status: 200, headers });
+	return respondJsonWithEtag(request, events);
 };
 
 /**

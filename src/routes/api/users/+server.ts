@@ -1,17 +1,5 @@
 import { query } from '$lib/db';
-
-function parseTimestamp(value: any): number | undefined {
-	if (!value) return undefined;
-	if (value instanceof Date && !Number.isNaN(value.getTime())) return value.getTime();
-	if (typeof value === 'string') {
-		const normalized = value.replace(' ', 'T');
-		const withZone = /([zZ]|[+-]\d{2}:?\d{2})$/.test(normalized) ? normalized : `${normalized}Z`;
-		const ms = Date.parse(withZone);
-		if (!Number.isNaN(ms)) return ms;
-	}
-	const ms = Date.parse(String(value));
-	return Number.isNaN(ms) ? undefined : ms;
-}
+import { respondJsonWithEtag } from '$lib/server/http-cache';
 
 export async function GET({ request }) {
 	const queryStr = `
@@ -27,44 +15,8 @@ export async function GET({ request }) {
     `;
 
 	try {
-		const ifModifiedSince = request.headers.get('if-modified-since');
-		if (ifModifiedSince) {
-			const [row] = await query<{ last_updated: string | null }>(
-				`SELECT MAX(updated_at) AS last_updated FROM users`
-			);
-			const latestMsRaw = parseTimestamp(row?.last_updated);
-			const latestMs =
-				Number.isFinite(latestMsRaw) && latestMsRaw !== undefined
-					? Math.floor(latestMsRaw / 1000) * 1000
-					: undefined;
-			const since = Date.parse(ifModifiedSince);
-			if (Number.isFinite(latestMs) && Number.isFinite(since) && since >= latestMs) {
-				const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-				headers['Last-Modified'] = new Date(latestMs as number).toUTCString();
-				return new Response(null, { status: 304, headers });
-			}
-		}
-
 		const result = await query(queryStr);
-
-		let maxUpdatedMs = result
-			.map((row) => row?.updated_at || row?.created_at || row?.updatedAt || row?.createdAt)
-			.map((ts) => parseTimestamp(ts))
-			.filter((n): n is number => Number.isFinite(n))
-			.sort((a, b) => b - a)[0];
-
-		if (!Number.isFinite(maxUpdatedMs)) {
-			const [row] = await query<{ last_updated: string | null }>(
-				`SELECT MAX(updated_at) AS last_updated FROM users`
-			);
-			maxUpdatedMs = parseTimestamp(row?.last_updated) ?? 0;
-		}
-
-		const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-		const roundedMs = Number.isFinite(maxUpdatedMs) ? Math.floor(maxUpdatedMs / 1000) * 1000 : 0;
-		headers['Last-Modified'] = new Date(roundedMs).toUTCString();
-
-		return new Response(JSON.stringify(result), { status: 200, headers });
+		return respondJsonWithEtag(request, result);
 	} catch (error) {
 		console.error('Error fetching users:', error);
 		return new Response(JSON.stringify({ error: 'Internal Server Error' }), { status: 500 });

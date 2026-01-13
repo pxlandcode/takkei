@@ -5,6 +5,7 @@
 	import Icon from '../icon-component/Icon.svelte';
 	import { IconArrowDown } from '$icons';
 	import { createEventDispatcher } from 'svelte';
+	import { tooltip } from '$lib/actions/tooltip';
 
 	const dispatch = createEventDispatcher();
 
@@ -25,6 +26,7 @@
 
 	let sortedColumn: string | null = null;
 	let sortOrder: 'asc' | 'desc' = 'asc';
+	let titleHeaderIndex = 0;
 
 	const sortedData = writable([...data]);
 
@@ -153,6 +155,11 @@
 		sortedData.set(baseData);
 	}
 
+	$: {
+		const labeledIndex = headers.findIndex((header) => Boolean(header.label));
+		titleHeaderIndex = labeledIndex >= 0 ? labeledIndex : 0;
+	}
+
 	function sortTable(columnKey: string) {
 		if (sortedColumn === columnKey) {
 			sortOrder = sortOrder === 'asc' ? 'desc' : 'asc';
@@ -224,14 +231,53 @@
 								>
 									{#each row[header.key] as item}
 										{#if item.type === 'button'}
-											<Button
-												on:click={item.action}
-												text={item.label}
-												iconLeft={item.label ? item.icon : undefined}
-												iconLeftSize="14px"
-												variant={item.variant}
-												icon={item.label ? undefined : item.icon}
-											/>
+											{#if item.tooltip}
+												<span use:tooltip={{ content: item.tooltip }} class="inline-flex">
+													{#if item.confirmOptions}
+														<Button
+															confirmOptions={item.confirmOptions}
+															text={item.label}
+															iconLeft={item.label ? item.icon : undefined}
+															iconLeftSize="14px"
+															variant={item.variant}
+															icon={item.label ? undefined : item.icon}
+															disabled={Boolean(item.disabled)}
+														/>
+													{:else}
+														<Button
+															on:click={item.action}
+															text={item.label}
+															iconLeft={item.label ? item.icon : undefined}
+															iconLeftSize="14px"
+															variant={item.variant}
+															icon={item.label ? undefined : item.icon}
+															disabled={Boolean(item.disabled)}
+														/>
+													{/if}
+												</span>
+											{:else}
+												{#if item.confirmOptions}
+													<Button
+														confirmOptions={item.confirmOptions}
+														text={item.label}
+														iconLeft={item.label ? item.icon : undefined}
+														iconLeftSize="14px"
+														variant={item.variant}
+														icon={item.label ? undefined : item.icon}
+														disabled={Boolean(item.disabled)}
+													/>
+												{:else}
+													<Button
+														on:click={item.action}
+														text={item.label}
+														iconLeft={item.label ? item.icon : undefined}
+														iconLeftSize="14px"
+														variant={item.variant}
+														icon={item.label ? undefined : item.icon}
+														disabled={Boolean(item.disabled)}
+													/>
+												{/if}
+											{/if}
 										{:else if item.type === 'link'}
 											<button
 												type="button"
@@ -240,6 +286,22 @@
 											>
 												{item.label}
 											</button>
+										{:else if item.type === 'status'}
+											<span
+												class="inline-flex items-center"
+												title={item.label ?? ''}
+											>
+												<span
+													class={`h-3 w-3 rounded-full ${
+														item.status === 'inactive'
+															? 'border border-yellow-500'
+															: 'bg-green-500'
+													}`}
+												></span>
+												{#if item.label}
+													<span class="sr-only">{item.label}</span>
+												{/if}
+											</span>
 										{:else}
 											<p class="text-gray-700">{item.content}</p>
 										{/if}
@@ -260,9 +322,9 @@
 		{#each $sortedData as row}
 			<div class="border-gray rounded-sm border p-4 shadow-md">
 				<div class="flex items-center justify-between">
-					{#if Array.isArray(row[headers[0].key])}
+					{#if Array.isArray(row[headers[titleHeaderIndex].key])}
 						<div class="flex flex-col gap-1">
-							{#each row[headers[0].key] as item}
+							{#each row[headers[titleHeaderIndex].key] as item}
 								{#if item.type === 'link'}
 									<button
 										type="button"
@@ -277,29 +339,70 @@
 							{/each}
 						</div>
 					{:else}
-						<h3 class="text-lg font-semibold">{formatCellDisplay(row[headers[0].key])}</h3>
+						<h3 class="text-lg font-semibold">
+							{formatCellDisplay(row[headers[titleHeaderIndex].key])}
+						</h3>
 					{/if}
 					{#if !noSelect}
 						<input type="checkbox" class="border-gray h-5 w-5 rounded-sm" />
 					{/if}
 				</div>
 				{#each headers as header, i}
-					{#if i > 0}
-						<!-- Skip first column since it's shown as title -->
+					{#if i !== titleHeaderIndex}
+						<!-- Skip the title column since it's shown as heading -->
 						<div class="mt-2">
 							<p class="text-sm text-gray-600"><strong>{header.label}:</strong></p>
 							{#if Array.isArray(row[header.key])}
 								<div class="flex flex-row flex-wrap gap-2">
 									{#each row[header.key] as item}
 										{#if item.type === 'button'}
-											<Button
-												on:click={item.action}
-												text={item.label}
-												iconLeft={item.label ? item.icon : undefined}
-												iconLeftSize="14px"
-												variant={item.variant}
-												icon={item.label ? undefined : item.icon}
-											/>
+											{#if item.tooltip}
+												<span use:tooltip={{ content: item.tooltip }} class="inline-flex">
+													{#if item.confirmOptions}
+														<Button
+															confirmOptions={item.confirmOptions}
+															text={item.label}
+															iconLeft={item.label ? item.icon : undefined}
+															iconLeftSize="14px"
+															variant={item.variant}
+															icon={item.label ? undefined : item.icon}
+															disabled={Boolean(item.disabled)}
+														/>
+													{:else}
+														<Button
+															on:click={item.action}
+															text={item.label}
+															iconLeft={item.label ? item.icon : undefined}
+															iconLeftSize="14px"
+															variant={item.variant}
+															icon={item.label ? undefined : item.icon}
+															disabled={Boolean(item.disabled)}
+														/>
+													{/if}
+												</span>
+											{:else}
+												{#if item.confirmOptions}
+													<Button
+														confirmOptions={item.confirmOptions}
+														text={item.label}
+														iconLeft={item.label ? item.icon : undefined}
+														iconLeftSize="14px"
+														variant={item.variant}
+														icon={item.label ? undefined : item.icon}
+														disabled={Boolean(item.disabled)}
+													/>
+												{:else}
+													<Button
+														on:click={item.action}
+														text={item.label}
+														iconLeft={item.label ? item.icon : undefined}
+														iconLeftSize="14px"
+														variant={item.variant}
+														icon={item.label ? undefined : item.icon}
+														disabled={Boolean(item.disabled)}
+													/>
+												{/if}
+											{/if}
 										{:else if item.type === 'link'}
 											<button
 												type="button"
@@ -308,6 +411,22 @@
 											>
 												{item.label}
 											</button>
+										{:else if item.type === 'status'}
+											<span
+												class="inline-flex items-center"
+												title={item.label ?? ''}
+											>
+												<span
+													class={`h-3 w-3 rounded-full ${
+														item.status === 'inactive'
+															? 'border border-yellow-500'
+															: 'bg-green-500'
+													}`}
+												></span>
+												{#if item.label}
+													<span class="sr-only">{item.label}</span>
+												{/if}
+											</span>
 										{:else}
 											<p class="text-gray-700">{item.content}</p>
 										{/if}

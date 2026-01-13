@@ -302,6 +302,15 @@
 	);
 
 	const hourHeight = 50;
+	const hourLineOffsets = $derived.by(() =>
+		Array.from({ length: totalHours + 1 }, (_, i) => i * hourHeight)
+	);
+	const halfHourLineOffsets = $derived.by(() =>
+		Array.from({ length: totalHours }, (_, i) => i * hourHeight + hourHeight / 2)
+	);
+	const hourBandOffsets = $derived.by(() =>
+		Array.from({ length: totalHours }, (_, i) => i * hourHeight + hourHeight / 2)
+	);
 
 	const dayDateStrings = $derived(weekDays.map(({ fullDate }) => ymdLocal(fullDate)));
 
@@ -1241,7 +1250,6 @@
 			<div
 				class="border-gray-bright relative flex flex-col gap-1 border-l"
 				class:gap-0.5={isCompactWeek}
-				class:pt-8={dayInfo.isHoliday}
 			>
 				{#if pinnedSlotForDay && pinnedSlotBooking && !suppressPinnedSlotRender}
 					<BookingSlot
@@ -1275,7 +1283,7 @@
 				{/each}
 
 				{#if shouldSplitByLocation}
-					<div class="flex h-full gap-1">
+					<div class="flex h-full">
 						{#each locationColumnsByDay[dayIndex] ?? [] as column, columnIndex (column.locationId ?? `unknown-${columnIndex}`)}
 							{@const locationHeaderLabel = getLocationShortLabel(column.locationName)}
 							{@const locationHeaderTitle = column.locationName ?? 'Plats'}
@@ -1296,6 +1304,23 @@
 									</div>
 								{/if}
 								<div class="relative flex-1">
+									<div class="calendar-time-bands">
+										{#each hourBandOffsets as top, index}
+											<div
+												class="calendar-hour-band"
+												class:calendar-hour-band--alt={index % 2 === 1}
+												style={`top: ${top}px; height: ${hourHeight}px;`}
+											/>
+										{/each}
+									</div>
+									<div class="calendar-time-lines">
+										{#each hourLineOffsets as top}
+											<div class="calendar-hour-line" style={`top: ${top}px;`} />
+										{/each}
+										{#each halfHourLineOffsets as top}
+											<div class="calendar-half-hour-line" style={`top: ${top}px;`} />
+										{/each}
+									</div>
 									{#each column.emptySlots as slot}
 										<button
 											class="hover:bg-orange/20 absolute right-0 left-0 cursor-pointer"
@@ -1342,6 +1367,23 @@
 									</div>
 								{/if}
 								<div class="relative flex-1">
+									<div class="calendar-time-bands">
+										{#each hourBandOffsets as top, index}
+											<div
+												class="calendar-hour-band"
+												class:calendar-hour-band--alt={index % 2 === 1}
+												style={`top: ${top}px; height: ${hourHeight}px;`}
+											/>
+										{/each}
+									</div>
+									<div class="calendar-time-lines">
+										{#each hourLineOffsets as top}
+											<div class="calendar-hour-line" style={`top: ${top}px;`} />
+										{/each}
+										{#each halfHourLineOffsets as top}
+											<div class="calendar-half-hour-line" style={`top: ${top}px;`} />
+										{/each}
+									</div>
 									{#each column.emptySlots as slot}
 										<button
 											class="hover:bg-orange/20 absolute right-0 left-0 cursor-pointer"
@@ -1372,6 +1414,23 @@
 						{/each}
 					</div>
 				{:else}
+					<div class="calendar-time-bands">
+						{#each hourBandOffsets as top, index}
+							<div
+								class="calendar-hour-band"
+								class:calendar-hour-band--alt={index % 2 === 1}
+								style={`top: ${top}px; height: ${hourHeight}px;`}
+							/>
+						{/each}
+					</div>
+					<div class="calendar-time-lines">
+						{#each hourLineOffsets as top}
+							<div class="calendar-hour-line" style={`top: ${top}px;`} />
+						{/each}
+						{#each halfHourLineOffsets as top}
+							<div class="calendar-half-hour-line" style={`top: ${top}px;`} />
+						{/each}
+					</div>
 					{#each emptySlotBlocksByDay[dayIndex] ?? [] as slot}
 						<button
 							class="hover:bg-orange/20 absolute right-0 left-0 cursor-pointer"
@@ -1435,6 +1494,47 @@
 			transparent 10px
 		);
 		pointer-events: none;
+	}
+
+	.calendar-time-bands {
+		position: absolute;
+		inset: 0;
+		pointer-events: none;
+		z-index: 0;
+		overflow: hidden;
+	}
+
+	.calendar-hour-band {
+		position: absolute;
+		left: 0;
+		right: 0;
+		background: transparent;
+	}
+
+	.calendar-hour-band--alt {
+		background-color: rgba(61, 61, 61, 0.065);
+	}
+
+	.calendar-time-lines {
+		position: absolute;
+		inset: 0;
+		pointer-events: none;
+		z-index: 1;
+	}
+
+	.calendar-hour-line,
+	.calendar-half-hour-line {
+		position: absolute;
+		left: 0;
+		right: 0;
+	}
+
+	.calendar-hour-line {
+		/* border-top: 1px dashed rgba(148, 163, 184, 0.35); */
+	}
+
+	.calendar-half-hour-line {
+		border-top: 1px solid rgba(148, 163, 184, 0.2);
 	}
 
 	.calendar-location-header {

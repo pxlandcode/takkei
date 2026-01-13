@@ -62,7 +62,7 @@
 </script>
 
 <div
-	class="flex flex-col gap-6 rounded-sm border border-dashed border-gray-bright bg-gray-bright/10 p-6"
+	class="border-gray-bright bg-gray-bright/10 flex flex-col gap-6 rounded-sm border border-dashed p-6"
 >
 	<!-- Name -->
 	<Input
@@ -95,7 +95,7 @@
 	<!-- Date & Time -->
 	<div class="grid grid-cols-2 gap-4">
 		<div>
-			<label class="text-sm font-medium text-gray" for="date">Datum</label>
+			<label class="text-gray text-sm font-medium" for="date">Datum</label>
 			<input
 				type="date"
 				id="date"
@@ -104,21 +104,21 @@
 			/>
 		</div>
 		<div>
-			<label class="text-sm font-medium text-gray" for="time">Starttid</label>
+			<label class="text-gray text-sm font-medium" for="time">Starttid</label>
 			<input
 				type="time"
 				id="time"
 				bind:value={bookingObject.time}
-				class="w-full rounded-sm border p-2 text-gray"
+				class="text-gray w-full rounded-sm border p-2"
 			/>
 		</div>
 		<div>
-			<label class="text-sm font-medium text-gray" for="endTime">Sluttid</label>
+			<label class="text-gray text-sm font-medium" for="endTime">Sluttid</label>
 			<input
 				type="time"
 				id="endTime"
 				bind:value={bookingObject.endTime}
-				class="w-full rounded-sm border p-2 text-gray"
+				class="text-gray w-full rounded-sm border p-2"
 			/>
 		</div>
 	</div>
@@ -163,7 +163,7 @@
 				{/if}
 
 				{#each repeatedBookings.filter((b) => b.conflict) as week}
-					<div class="mb-2 rounded-sm border border-red bg-red/10 p-3">
+					<div class="border-red bg-red/10 mb-2 rounded-sm border p-3">
 						<div class="flex flex-col gap-1">
 							<span class="font-semibold">
 								{week.date}, kl {week.selectedTime}
@@ -187,7 +187,7 @@
 									on:click={() => resolveConflict(week.week)}
 								/>
 								<Button
-									text="Ta bort vecka"
+									text="Avboka vecka"
 									variant="secondary"
 									small
 									on:click={() => ignoreConflict(week.week)}
@@ -199,7 +199,7 @@
 
 				<h3 class="text-lg font-semibold">Bokningar klara att bokas:</h3>
 				{#each repeatedBookings.filter((b) => !b.conflict) as week}
-					<div class="mb-1 rounded-sm border border-green bg-green-bright/10 p-2">
+					<div class="border-green bg-green-bright/10 mb-1 rounded-sm border p-2">
 						{week.date}, kl {week.selectedTime}
 					</div>
 				{/each}

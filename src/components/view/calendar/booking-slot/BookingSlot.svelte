@@ -356,11 +356,11 @@
 
 			debounceTimer = setTimeout(() => {
 				if (!booking) return;
-					if (booking.isPersonalBooking) {
-						void measurePersonalText(personalDisplayText);
-					} else {
-						checkNameWidths();
-					}
+				if (booking.isPersonalBooking) {
+					void measurePersonalText(personalDisplayText);
+				} else {
+					checkNameWidths();
+				}
 			}, 100);
 		});
 
@@ -399,10 +399,10 @@
 			: 'bg-gray-300/40'
 		: ''}"
 	class:selected-slot={isSelectedVariant}
-	style:top={`${topOffset}px`}
-	style:height={`${meetingHeight - 4}px`}
-	style:left={`calc(${colLeft}% + 2px)`}
-	style:width={`calc(${colWidth}% - 4px)`}
+	style:top={`${topOffset + 1}px`}
+	style:height={`${meetingHeight - 2}px`}
+	style:left={`calc(${colLeft}% + 1px)`}
+	style:width={`calc(${colWidth}% - 2px)`}
 	style:background-color={!booking.isPersonalBooking
 		? isSelectedVariant
 			? SELECTED_BG_COLOR
