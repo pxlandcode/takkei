@@ -154,9 +154,9 @@
 	$: confirmDeleteOptions = requiresCancelReason
 		? null
 		: {
-				title: 'Ta bort bokning',
-				description: 'Är du säker på att du vill ta bort den här bokningen?',
-				actionLabel: 'Ta bort',
+				title: 'Avboka',
+				description: 'Är du säker på att du vill avboka den här bokningen?',
+				actionLabel: 'Avboka',
 				action: () => {
 					void performCancellation({});
 				}
@@ -861,7 +861,7 @@
 					<Button
 						iconLeft="Trash"
 						iconColor="error"
-						text="Ta bort"
+						text="Avboka"
 						variant="danger-outline"
 						small
 						cancelConfirmOptions={cancelOptions}

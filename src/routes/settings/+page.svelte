@@ -3,6 +3,7 @@
 	import CustomerSettings from '../../components/ui/customerSettings/CustomerSettings.svelte';
 	import LocationSettings from '../../components/ui/locationSettings/LocationSettings.svelte';
 	import PackagesSettings from '../../components/ui/packagesSettings/PackagesSettings.svelte';
+	import ArticlesSettings from '../../components/ui/articlesSettings/ArticlesSettings.svelte';
 	import TargetsSettings from '../../components/ui/targetsSettings/TargetsSettings.svelte';
 	import SchedulingSettings from '../../components/ui/schedulingSettings/SchedulingSettings.svelte';
 	import ObSettings from '../../components/ui/obSettings/ObSettings.svelte';
@@ -24,6 +25,12 @@
 			component: CustomerSettings
 		},
 		{ label: 'Paket', icon: 'Package', component: PackagesSettings },
+		{
+			label: 'Artiklar',
+			icon: 'Package',
+			component: ArticlesSettings,
+			requiredRoles: ['Administrator', 'Economy', 'Economy Admin']
+		},
 		{ label: 'Mailutskick', icon: 'Mail', component: MailComponent },
 		{ label: 'Mailhistorik', icon: 'HistoryList', component: MailHistory },
 		{
