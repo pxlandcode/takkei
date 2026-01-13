@@ -76,11 +76,13 @@
 <div
 	class="fixed right-4 bottom-4 z-10 w-[280px] rounded-sm border border-gray-200 bg-white/95 p-4 text-sm text-gray-900 shadow-xl backdrop-blur"
 >
-	<p class="mb-2 font-semibold">Problem att logga in?</p>
+	<p class="mb-2 font-semibold">Nya uppdateringar kräver att du rensar dina kakor</p>
+	<p class="mb-3 text-gray-600">Vi har gjort uppdateringar som kräver att du rensar dina kakor.</p>
 	<p class="mb-3 text-gray-600">
-		Vi har uppdaterat inloggningen och gamla kakor kan göra att du fastnar. Rensa kakorna här och
-		försök igen.
+		Vi har gjort uppdateringar som kräver att du rensar dina kakor. Uppdateringarna gjordes den 14
+		januari. Och har du gjort detta efter det datumet behöver du inte göra det igen.
 	</p>
+	<p class="mb-3 text-gray-600">Tack för ditt tålamod!</p>
 	<button
 		class="w-full rounded-xl bg-black px-4 py-2 text-white transition hover:bg-gray-900 active:translate-y-px"
 		on:click={handleClearCookies}

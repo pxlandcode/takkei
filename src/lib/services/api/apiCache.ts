@@ -26,6 +26,12 @@ function cacheDisabledExplicitly(options?: CachedFetchInit) {
 	return typeof options?.cache === 'boolean' ? options.cache === false : false;
 }
 
+function stripBooleanCache(options?: CachedFetchInit): CachedFetchInit | undefined {
+	if (!options || typeof options.cache !== 'boolean') return options;
+	const { cache: _cache, ...rest } = options;
+	return rest;
+}
+
 function logCache(message: string, meta?: Record<string, unknown>) {
 	if (!CACHE_DEBUG_ENABLED) return;
 	if (meta) {
@@ -257,22 +263,24 @@ function resolveRequestInfo(
 	input: RequestInfo | URL,
 	init?: CachedFetchInit
 ): { url: string; method: string; init: CachedFetchInit; headers: Headers } {
+	const normalizedInit = stripBooleanCache(init);
 	if (input instanceof Request) {
 		const headers = new Headers(input.headers);
-		if (init?.headers) new Headers(init.headers).forEach((value, key) => headers.set(key, value));
+		if (normalizedInit?.headers)
+			new Headers(normalizedInit.headers).forEach((value, key) => headers.set(key, value));
 		return {
 			url: input.url,
-			method: init?.method ?? input.method ?? 'GET',
-			init: { ...init, headers },
+			method: normalizedInit?.method ?? input.method ?? 'GET',
+			init: { ...normalizedInit, headers },
 			headers
 		};
 	}
 
-	const headers = new Headers(init?.headers);
+	const headers = new Headers(normalizedInit?.headers);
 	return {
 		url: typeof input === 'string' ? input : input.toString(),
-		method: init?.method ?? 'GET',
-		init: { ...init, headers },
+		method: normalizedInit?.method ?? 'GET',
+		init: { ...normalizedInit, headers },
 		headers
 	};
 }
@@ -286,13 +294,14 @@ export async function cachedFetch(
 	input: RequestInfo | URL,
 	options?: CachedFetchInit
 ): Promise<Response> {
-	const { url, method, init, headers } = resolveRequestInfo(input, options);
+	const sanitizedOptions = stripBooleanCache(options);
+	const { url, method, init, headers } = resolveRequestInfo(input, sanitizedOptions);
 
 	const normalizedUrl = normalizeUrl(url);
 
 	if (!cacheableMethod(method)) {
 		logCache('skip (non-cacheable method)', { method, url: normalizedUrl });
-		return fetchLike(input as any, options);
+		return fetchLike(input as any, sanitizedOptions);
 	}
 
 	if (!isBrowser()) {
@@ -303,7 +312,7 @@ export async function cachedFetch(
 	const bypassReason = cacheBypassReason(url, options);
 	if (bypassReason) {
 		logCache('bypass cache', { method, url: normalizedUrl, reason: bypassReason });
-		return fetchLike(input as any, options);
+		return fetchLike(input as any, sanitizedOptions);
 	}
 
 	const key = buildCacheKey(method, url);

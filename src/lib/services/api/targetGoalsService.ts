@@ -131,7 +131,7 @@ export async function getWeekGoals(
 		month: String(month),
 		targetKindId: String(targetKindId)
 	});
-	const res = await wrapFetch(fetch)(`/api/targets/week?${qs.toString()}`);
+	const res = await wrapFetch(fetch)(`/api/targets/week?${qs.toString()}`, { cache: false });
 	if (!res.ok) throw new Error('Failed to fetch week goals');
 	return res.json();
 }

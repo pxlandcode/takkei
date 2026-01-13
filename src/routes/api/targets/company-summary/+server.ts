@@ -7,6 +7,13 @@ function yymmFromDate(dateISO: string) {
 	return { year: y, month: m };
 }
 
+function formatDateLocal(date: Date): string {
+	const y = date.getFullYear();
+	const m = String(date.getMonth() + 1).padStart(2, '0');
+	const d = String(date.getDate()).padStart(2, '0');
+	return `${y}-${m}-${d}`;
+}
+
 function getWeekRange(date: Date): { start: Date; end: Date } {
 	const d = new Date(date);
 	const day = d.getDay();
@@ -69,8 +76,8 @@ export async function GET({ url, request }) {
 	// Achieved WEEK (current week containing the date)
 	const inputDate = new Date(date);
 	const weekRange = getWeekRange(inputDate);
-	const weekStart = weekRange.start.toISOString().slice(0, 10);
-	const weekEnd = weekRange.end.toISOString().slice(0, 10);
+	const weekStart = formatDateLocal(weekRange.start);
+	const weekEnd = formatDateLocal(weekRange.end);
 
 	const weekRows = await query(
 		`SELECT COUNT(*)::int AS c
