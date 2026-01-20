@@ -252,7 +252,8 @@
 			const loc = locationList.find((l) => l.id === payload.locationId);
 			cloned.location = loc ? { id: loc.id, name: loc.name, color: loc.color } : null;
 
-			const room = loc?.rooms?.find((r) => r.id === payload.roomId);
+			const resolvedRoomId = apiRecord?.room_id ?? payload.roomId ?? null;
+			const room = loc?.rooms?.find((r) => r.id === resolvedRoomId);
 			cloned.room = room ? { id: room.id, name: room.name } : null;
 		} else {
 			const attendeeIds = payload.user_ids ?? payload.attendees ?? [];
