@@ -10,6 +10,7 @@
 	import { bookingContents } from '$lib/stores/bookingContentStore';
 	import { calendarStore } from '$lib/stores/calendarStore';
 	import { addToast } from '$lib/stores/toastStore';
+	import { handleBookingEmail } from '$lib/helpers/bookingHelpers/bookingHelpers';
 	import {
 		cancelBooking,
 		deleteMeetingBooking,
@@ -103,6 +104,7 @@
 	let bookingComponentType: BookingComponentType = 'training';
 	let bookingTypeLabel = componentLabels[bookingComponentType];
 	type QuickEditField = 'trainer' | 'location' | 'time' | null;
+	type BookedDateLine = { date: string; time: string; locationName?: string };
 
 	let activeQuickEdit: QuickEditField = null;
 	let trainerSwapOptions: { label: string; value: number }[] = [];
@@ -121,6 +123,7 @@
 	let bookingNotes: any[] = [];
 	let isLoadingBookingNotes = false;
 	let lastLoadedBookingNotesId: number | null = null;
+	let canSendConfirmation = false;
 
 	function normalizeKind(kind?: string | null) {
 		if (!kind) return '';
@@ -166,6 +169,8 @@
 		(currentBooking.booking.status &&
 			currentBooking.booking.status.toLowerCase() === 'cancelled') ||
 		!!currentBooking.booking.cancelTime;
+	$: canSendConfirmation =
+		!isCancelled && !currentBooking.isPersonalBooking && Boolean(currentBooking.client?.id);
 	$: showTraineeParticipant =
 		!currentBooking.isPersonalBooking &&
 		(currentBooking.booking.internalEducation || currentBooking.additionalInfo?.education);
@@ -270,6 +275,107 @@
 		showEditor = true;
 	}
 
+	async function resolveClientRecipients(clientId: number, inlineEmail?: string | null) {
+		let emails = getClientEmails(clientId);
+
+		if (!emails.length && inlineEmail) {
+			emails = [inlineEmail];
+		}
+
+		if (!emails.length) {
+			try {
+				await fetchClients();
+				emails = getClientEmails(clientId);
+			} catch (error) {
+				console.error('Failed to fetch clients for booking email', error);
+			}
+		}
+
+		return emails;
+	}
+
+	function buildBookedDatesForConfirmation(): BookedDateLine[] {
+		const bookingDate = toDateInputValue(startTime);
+		const bookingTime = formatTime(startTime.toISOString());
+		const locationName = currentBooking.location?.name;
+		return [{ date: bookingDate, time: bookingTime, locationName }];
+	}
+
+	function buildConfirmationBody(bookedDates: BookedDateLine[], currentUser: { firstname: string }) {
+		const lines = bookedDates
+			.map((b) => `${b.date} kl. ${b.time}${b.locationName ? ` på ${b.locationName}` : ''}`)
+			.join('<br>');
+
+		return `
+			Hej!<br><br>
+			Jag har bokat in dig följande tider:<br>
+			${lines}<br><br>
+			Du kan boka av eller om din träningstid senast klockan 12.00 dagen innan träning genom att kontakta någon i ditt tränarteam via sms, e‑post eller telefon.<br><br>
+			Hälsningar,<br>
+			${currentUser.firstname}<br>
+			Takkei Trainingsystems
+		`;
+	}
+
+	function openConfirmationPopup(
+		recipients: string[],
+		bookedDates: BookedDateLine[],
+		currentUser: { firstname: string }
+	) {
+		openPopup({
+			header: `Maila bokningsbekräftelse till ${recipients.join(', ')}`,
+			icon: 'Mail',
+			component: MailComponent,
+			maxWidth: '900px',
+			props: {
+				prefilledRecipients: recipients,
+				subject: 'Bokningsbekräftelse',
+				header: 'Bekräftelse på dina bokningar',
+				subheader: 'Tack för din bokning!',
+				body: buildConfirmationBody(bookedDates, currentUser),
+				lockedFields: ['recipients'],
+				autoFetchUsersAndClients: false
+			}
+		});
+	}
+
+	async function handleBookingConfirmation(behavior: 'send' | 'edit') {
+		const clientId = currentBooking.client?.id;
+		if (!clientId) return;
+
+		const currentUser = get(user);
+		if (!currentUser) {
+			addToast({
+				type: AppToastType.CANCEL,
+				message: 'Saknar användare',
+				description: 'Kunde inte skicka bekräftelsemail.'
+			});
+			return;
+		}
+
+		const recipients = await resolveClientRecipients(clientId, currentBooking.client?.email);
+		if (!recipients.length) {
+			addToast({
+				type: AppToastType.CANCEL,
+				message: 'Ingen e-postadress',
+				description: 'Kunden saknar e-postadress, så inget mail skickades.'
+			});
+			return;
+		}
+
+		const bookedDates = buildBookedDatesForConfirmation();
+		const emailResult = await handleBookingEmail({
+			emailBehavior: behavior,
+			clientEmail: recipients,
+			fromUser: currentUser,
+			bookedDates
+		});
+
+		if (emailResult === 'edit') {
+			openConfirmationPopup(recipients, bookedDates, currentUser);
+		}
+	}
+
 	async function performCancellation({
 		reason,
 		time,
@@ -289,27 +395,7 @@
 			const clientId = currentBooking.client?.id;
 			if (!clientId) return;
 
-			const resolveRecipients = async () => {
-				let emails = getClientEmails(clientId);
-
-				if (!emails.length) {
-					const inlineEmail = currentBooking.client?.email;
-					if (inlineEmail) emails = [inlineEmail];
-				}
-
-				if (!emails.length) {
-					try {
-						await fetchClients();
-						emails = getClientEmails(clientId);
-					} catch (error) {
-						console.error('Failed to fetch clients for cancellation email', error);
-					}
-				}
-
-				return emails;
-			};
-
-			const recipients = await resolveRecipients();
+			const recipients = await resolveClientRecipients(clientId, currentBooking.client?.email);
 			if (!recipients.length) {
 				addToast({
 					type: AppToastType.CANCEL,
@@ -858,6 +944,26 @@
 			<div class="flex flex-wrap gap-2 sm:flex-nowrap sm:justify-end sm:gap-3">
 				{#if !isCancelled}
 					<Button iconLeft="Edit" text="Redigera" variant="primary" small on:click={handleEdit} />
+					{#if canSendConfirmation}
+						<Button
+							iconLeft="Mail"
+							text="Skicka bekräftelse"
+							variant="secondary"
+							small
+							multipleActionsOptions={{
+								title: 'Skicka bekräftelse?',
+								description: 'Välj hur bekräftelsen ska skickas.',
+								primaryLabel: 'Skicka direkt',
+								primaryAction: () => {
+									void handleBookingConfirmation('send');
+								},
+								secondaryLabel: 'Redigera innan',
+								secondaryAction: () => {
+									void handleBookingConfirmation('edit');
+								}
+							}}
+						/>
+					{/if}
 					<Button
 						iconLeft="Trash"
 						iconColor="error"

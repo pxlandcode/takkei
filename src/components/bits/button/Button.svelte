@@ -3,6 +3,7 @@
 	import Icon from '../icon-component/Icon.svelte';
 	import { confirm } from '$lib/actions/confirm';
 	import { cancelConfirm } from '$lib/actions/cancelConfirm';
+	import { multipleActions } from '$lib/actions/multipleActions';
 	import { loadingStore } from '$lib/stores/loading';
 
 	// Props
@@ -27,6 +28,15 @@
 		description?: string;
 		action?: () => void;
 		actionLabel?: string;
+	} | null = null;
+	export let multipleActionsOptions: {
+		title?: string;
+		description?: string;
+		primaryAction?: () => void;
+		primaryLabel?: string;
+		secondaryAction?: () => void;
+		secondaryLabel?: string;
+		cancelLabel?: string;
 	} | null = null;
 	export let cancelConfirmOptions: {
 		onConfirm: (reason: string, time: string, emailBehavior: 'send' | 'edit' | 'none') => void;
@@ -101,6 +111,26 @@ const DEFAULT_ICON_RIGHT_SIZE_SMALL = '15px';
 			aria-disabled={isDisabled}
 			disabled={isDisabled}
 			use:cancelConfirm={cancelConfirmOptions}
+			{type}
+			class={buttonClasses}
+		>
+			{#if icon && !text}
+				<Icon {icon} size={iconSize} color={iconColor} />
+			{:else}
+				{#if iconLeft}
+					<Icon icon={iconLeft} size={resolvedIconLeftSize} color={iconColor} />
+				{/if}
+				{text}
+				{#if iconRight}
+					<Icon icon={iconRight} size={resolvedIconRightSize} color={iconColor} />
+				{/if}
+			{/if}
+		</button>
+	{:else if multipleActionsOptions}
+		<button
+			aria-disabled={isDisabled}
+			disabled={isDisabled}
+			use:multipleActions={multipleActionsOptions}
 			{type}
 			class={buttonClasses}
 		>

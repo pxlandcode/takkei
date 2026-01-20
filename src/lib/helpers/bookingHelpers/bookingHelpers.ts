@@ -258,11 +258,15 @@ export async function handleBookingEmail({
 	bookedDates
 }: {
 	emailBehavior: 'send' | 'edit' | 'none';
-	clientEmail: string;
+	clientEmail: string | string[];
 	fromUser: { firstname: string; lastname: string; email: string };
 	bookedDates: BookedDateLine[];
 }): Promise<'sent' | 'edit' | 'skipped'> {
-	if (!clientEmail || emailBehavior === 'none') return 'skipped';
+	const recipients = (Array.isArray(clientEmail) ? clientEmail : [clientEmail]).filter(
+		(email): email is string => Boolean(email)
+	);
+	if (recipients.length === 0 || emailBehavior === 'none') return 'skipped';
+	const recipientLabel = recipients.join(', ');
 
 	if (emailBehavior === 'send') {
 		const lines = bookedDates
@@ -272,7 +276,7 @@ export async function handleBookingEmail({
 			.join('<br>');
 
 		const result = await sendMail({
-			to: clientEmail,
+			to: recipients,
 			subject: 'Bokningsbekräftelse',
 			header: 'Bekräftelse på dina bokningar',
 			subheader: 'Tack för din bokning!',
@@ -295,14 +299,14 @@ export async function handleBookingEmail({
 			addToast({
 				type: AppToastType.SUCCESS,
 				message: 'Bekräftelsemail skickat',
-				description: `Ett bekräftelsemail skickades till ${clientEmail}.`
+				description: `Ett bekräftelsemail skickades till ${recipientLabel}.`
 			});
 			return 'sent';
 		} else {
 			addToast({
 				type: AppToastType.CANCEL,
 				message: 'Fel vid utskick',
-				description: `Kunde inte skicka bekräftelsemail till ${clientEmail}.`
+				description: `Kunde inte skicka bekräftelsemail till ${recipientLabel}.`
 			});
 			return 'skipped';
 		}
