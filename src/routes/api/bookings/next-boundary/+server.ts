@@ -27,6 +27,10 @@ export const POST: RequestHandler = async ({ request }) => {
 		.filter((id) => Number.isFinite(id));
 
 	const { date, time, endTime } = body;
+	const ignoreBookingIdRaw = body?.ignoreBookingId;
+	const ignoreBookingId = Number.isFinite(Number(ignoreBookingIdRaw))
+		? Number(ignoreBookingIdRaw)
+		: null;
 
 	if (!date || !time || userIds.length === 0) {
 		return new Response(JSON.stringify({ error: 'Missing parameters' }), { status: 400 });
@@ -39,7 +43,9 @@ export const POST: RequestHandler = async ({ request }) => {
 		return new Response(JSON.stringify({ error: 'Invalid time' }), { status: 400 });
 	}
 
-	const busyBlocks = await fetchBusyBlocksForUsers(date, userIds);
+	const busyBlocks = await fetchBusyBlocksForUsers(date, userIds, {
+		ignorePersonalBookingId: ignoreBookingId ?? undefined
+	});
 
 	const conflictingUserIds = new Set<number>();
 	if (slotEnd !== null && slotEnd > slotStart) {

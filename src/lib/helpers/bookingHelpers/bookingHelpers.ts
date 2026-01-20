@@ -157,10 +157,13 @@ export async function handleMeetingOrPersonalBooking(
 				successCount++;
 				bookedDates.push({ date: repeated.date, time: chosenTime });
 			} else {
+				const errorDetails = result.error ?? result.message;
 				addToast({
 					type: AppToastType.CANCEL,
 					message: `Fel vid bokning`,
-					description: `Misslyckades: ${singleBooking.date} kl ${singleBooking.time}.`
+					description: errorDetails
+						? `${errorDetails} (${singleBooking.date} kl ${singleBooking.time}).`
+						: `Misslyckades: ${singleBooking.date} kl ${singleBooking.time}.`
 				});
 			}
 		}
@@ -196,10 +199,11 @@ export async function handleMeetingOrPersonalBooking(
 		const bookedDates: BookedDateLine[] = [{ date: bookingObject.date, time: bookingObject.time }];
 		return { success: true, bookedDates };
 	} else {
+		const errorDetails = result.error ?? result.message;
 		addToast({
 			type: AppToastType.CANCEL,
 			message: 'Något gick fel',
-			description: 'Något gick fel, försök igen eller kontakta IT.'
+			description: errorDetails ?? 'Något gick fel, försök igen eller kontakta IT.'
 		});
 		return { success: false };
 	}
@@ -243,12 +247,13 @@ export async function updateMeetingOrPersonalBooking(
 		return { success: true, booking: response.booking };
 	}
 
+	const errorMessage = response.error ?? response.message;
 	addToast({
 		type: AppToastType.CANCEL,
 		message: 'Uppdatering misslyckades',
-		description: response.message ?? 'Bokningen kunde inte uppdateras. Försök igen.'
+		description: errorMessage ?? 'Bokningen kunde inte uppdateras. Försök igen.'
 	});
-	return { success: false, message: response.message };
+	return { success: false, message: errorMessage };
 }
 
 export async function handleBookingEmail({
@@ -258,11 +263,15 @@ export async function handleBookingEmail({
 	bookedDates
 }: {
 	emailBehavior: 'send' | 'edit' | 'none';
-	clientEmail: string;
+	clientEmail: string | string[];
 	fromUser: { firstname: string; lastname: string; email: string };
 	bookedDates: BookedDateLine[];
 }): Promise<'sent' | 'edit' | 'skipped'> {
-	if (!clientEmail || emailBehavior === 'none') return 'skipped';
+	const recipients = (Array.isArray(clientEmail) ? clientEmail : [clientEmail]).filter(
+		(email): email is string => Boolean(email)
+	);
+	if (recipients.length === 0 || emailBehavior === 'none') return 'skipped';
+	const recipientLabel = recipients.join(', ');
 
 	if (emailBehavior === 'send') {
 		const lines = bookedDates
@@ -272,7 +281,7 @@ export async function handleBookingEmail({
 			.join('<br>');
 
 		const result = await sendMail({
-			to: clientEmail,
+			to: recipients,
 			subject: 'Bokningsbekräftelse',
 			header: 'Bekräftelse på dina bokningar',
 			subheader: 'Tack för din bokning!',
@@ -295,14 +304,14 @@ export async function handleBookingEmail({
 			addToast({
 				type: AppToastType.SUCCESS,
 				message: 'Bekräftelsemail skickat',
-				description: `Ett bekräftelsemail skickades till ${clientEmail}.`
+				description: `Ett bekräftelsemail skickades till ${recipientLabel}.`
 			});
 			return 'sent';
 		} else {
 			addToast({
 				type: AppToastType.CANCEL,
 				message: 'Fel vid utskick',
-				description: `Kunde inte skicka bekräftelsemail till ${clientEmail}.`
+				description: `Kunde inte skicka bekräftelsemail till ${recipientLabel}.`
 			});
 			return 'skipped';
 		}

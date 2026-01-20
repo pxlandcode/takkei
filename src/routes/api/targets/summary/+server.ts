@@ -1,5 +1,6 @@
 import { json } from '@sveltejs/kit';
 import { query } from '$lib/db';
+import { respondJsonWithEtag } from '$lib/server/http-cache';
 
 function yymmFromDate(dateISO: string) {
 	const [y, m] = dateISO.split('-').map(Number);
@@ -9,7 +10,7 @@ function yymmFromDate(dateISO: string) {
 	return { year, month, monthStr };
 }
 
-export async function GET({ url }) {
+export async function GET({ url, request }) {
 	const ownerType = url.searchParams.get('ownerType') as 'trainer' | 'location';
 	const ownerId = Number(url.searchParams.get('ownerId'));
 	const date = url.searchParams.get('date')!; // YYYY-MM-DD
@@ -148,11 +149,5 @@ export async function GET({ url }) {
 
 	if (debug) console.log('[targets/summary] payload', payload);
 
-	return new Response(JSON.stringify(payload), {
-		status: 200,
-		headers: {
-			'Content-Type': 'application/json',
-			'Cache-Control': 'no-store'
-		}
-	});
+	return respondJsonWithEtag(request, payload, { headers: { 'Cache-Control': 'no-store' } });
 }

@@ -117,7 +117,12 @@
 		if (!booking.isPersonalBooking) return false;
 		const personalKind = normalizeKind(booking.personalBooking?.kind ?? null);
 		const contentKind = normalizeKind(booking.additionalInfo?.bookingContent?.kind ?? null);
-		return personalKind.includes('corporate') || contentKind.includes('corporate');
+		return (
+			personalKind.includes('meeting') ||
+			personalKind.includes('mote') ||
+			contentKind.includes('meeting') ||
+			contentKind.includes('mote')
+		);
 	});
 
 	function getPersonalDisplayText() {
@@ -389,15 +394,16 @@
 	type="button"
 	bind:this={bookingSlot}
 	on:click={onbookingselected}
-	class="text-gray absolute z-20 flex cursor-pointer flex-col gap-[2px] p-1 text-xs shadow-xs {showIcon
+	class="absolute z-20 flex cursor-pointer flex-col gap-[2px] p-1 text-xs shadow-xs {showIcon
 		? 'items-start'
 		: 'items-center'} {booking.trainer?.id === $user?.id
 		? 'border-2'
 		: ''} {booking.isPersonalBooking
 		? isMeetingSlot()
-			? 'bg-gray-600/40'
-			: 'bg-gray-300/40'
+			? 'bg-gray-300/80 text-black'
+			: 'bg-black/60 text-white'
 		: ''}"
+	class:text-gray={!booking.isPersonalBooking}
 	class:selected-slot={isSelectedVariant}
 	style:top={`${topOffset + 1}px`}
 	style:height={`${meetingHeight - 2}px`}

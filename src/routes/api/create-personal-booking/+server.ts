@@ -1,5 +1,21 @@
 import { query } from '$lib/db';
+import { findConflictingUsersForTimeRange } from '$lib/server/meetingBusyHelper';
 import type { RequestHandler } from '@sveltejs/kit';
+
+function collectUserIds(primaryId: unknown, list: unknown): number[] {
+	const ids = new Set<number>();
+	const add = (value: unknown) => {
+		const parsed = Number(value);
+		if (Number.isFinite(parsed)) ids.add(parsed);
+	};
+
+	add(primaryId);
+	if (Array.isArray(list)) {
+		list.forEach(add);
+	}
+
+	return Array.from(ids);
+}
 
 export const POST: RequestHandler = async ({ request }) => {
 	try {
@@ -15,6 +31,27 @@ export const POST: RequestHandler = async ({ request }) => {
 		const kind = data.kind ?? 'Personal';
 		const repeat_of = data.repeat_of ?? null;
 		const booked_by_id = data.booked_by_id ?? null;
+
+		const userIds = collectUserIds(user_id, user_ids);
+		if (userIds.length > 0) {
+			const conflictingUserIds = await findConflictingUsersForTimeRange({
+				startTime: start_time,
+				endTime: end_time,
+				userIds
+			});
+			if (conflictingUserIds === null) {
+				return new Response(JSON.stringify({ error: 'Invalid time range.' }), { status: 422 });
+			}
+			if (conflictingUserIds.length > 0) {
+				return new Response(
+					JSON.stringify({
+						error: 'Booking overlaps with existing bookings.',
+						conflictingUserIds
+					}),
+					{ status: 409 }
+				);
+			}
+		}
 
 		// Insert personal booking into the database
 		const result = await query(

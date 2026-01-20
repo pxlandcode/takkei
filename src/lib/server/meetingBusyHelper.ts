@@ -1,5 +1,5 @@
 import { query } from '$lib/db';
-import { extractStockholmMinutes } from '$lib/server/stockholm-time';
+import { extractStockholmMinutes, extractStockholmTimeParts } from '$lib/server/stockholm-time';
 
 export type BusyBlock = { start: number; end: number; userIds: number[] };
 
@@ -9,17 +9,41 @@ function normalizeUserIds(userIds: number[] = []): number[] {
 	return Array.from(new Set(userIds.filter((id) => Number.isFinite(id))));
 }
 
+function pad2(value: number): string {
+	return String(value).padStart(2, '0');
+}
+
+function overlaps(startA: number, endA: number, startB: number, endB: number): boolean {
+	return startA < endB && startB < endA;
+}
+
 export async function fetchBusyBlocksForUsers(
 	dateString: string,
-	userIds: number[]
+	userIds: number[],
+	options: { ignorePersonalBookingId?: number } = {}
 ): Promise<BusyBlock[]> {
 	const normalizedIds = normalizeUserIds(userIds);
 	if (normalizedIds.length === 0) return [];
 
+	const ignorePersonalBookingId =
+		typeof options.ignorePersonalBookingId === 'number' &&
+		Number.isFinite(options.ignorePersonalBookingId)
+			? options.ignorePersonalBookingId
+			: null;
+
 	const dayStart = `${dateString} 00:00:00`;
 	const dayEnd = `${dateString} 23:59:59`;
-	const placeholders = normalizedIds.map((_, idx) => `$${idx + 3}`).join(',');
-	const values = [dayStart, dayEnd, ...normalizedIds];
+	const standardPlaceholders = normalizedIds.map((_, idx) => `$${idx + 3}`).join(',');
+	const standardValues = [dayStart, dayEnd, ...normalizedIds];
+
+	let personalValues = standardValues;
+	let personalPlaceholders = standardPlaceholders;
+	let ignoreClause = '';
+	if (ignorePersonalBookingId !== null) {
+		ignoreClause = `AND id <> $3`;
+		personalPlaceholders = normalizedIds.map((_, idx) => `$${idx + 4}`).join(',');
+		personalValues = [dayStart, dayEnd, ignorePersonalBookingId, ...normalizedIds];
+	}
 
 	const [personalBookings, standardBookings] = await Promise.all([
 		query(
@@ -27,12 +51,13 @@ export async function fetchBusyBlocksForUsers(
         SELECT id, user_id, user_ids, start_time, end_time
         FROM personal_bookings
         WHERE (start_time < $2 AND end_time > $1)
+        ${ignoreClause}
         AND (
-          user_id = ANY(ARRAY[${placeholders}]::int[]) OR
-          ARRAY[${placeholders}]::int[] && user_ids
+          user_id = ANY(ARRAY[${personalPlaceholders}]::int[]) OR
+          ARRAY[${personalPlaceholders}]::int[] && user_ids
         )
       `,
-			values
+			personalValues
 		),
 		query(
 			`
@@ -41,11 +66,11 @@ export async function fetchBusyBlocksForUsers(
         WHERE start_time BETWEEN $1 AND $2
         AND LOWER(status) NOT IN ('cancelled', 'late_cancelled')
         AND (
-          trainer_id = ANY(ARRAY[${placeholders}]::int[])
-          OR user_id = ANY(ARRAY[${placeholders}]::int[])
+          trainer_id = ANY(ARRAY[${standardPlaceholders}]::int[])
+          OR user_id = ANY(ARRAY[${standardPlaceholders}]::int[])
         )
       `,
-			values
+			standardValues
 		)
 	]);
 
@@ -99,4 +124,41 @@ export async function fetchBusyBlocksForUsers(
 	}
 
 	return busyBlocks;
+}
+
+export async function findConflictingUsersForTimeRange({
+	startTime,
+	endTime,
+	userIds,
+	ignorePersonalBookingId
+}: {
+	startTime: string;
+	endTime: string;
+	userIds: number[];
+	ignorePersonalBookingId?: number;
+}): Promise<number[] | null> {
+	const normalizedIds = normalizeUserIds(userIds);
+	if (normalizedIds.length === 0) return [];
+
+	const startParts = extractStockholmTimeParts(startTime);
+	const startMinutes = extractStockholmMinutes(startTime);
+	const endMinutes = extractStockholmMinutes(endTime);
+
+	if (!startParts || startMinutes === null || endMinutes === null || endMinutes <= startMinutes) {
+		return null;
+	}
+
+	const dateString = `${startParts.year}-${pad2(startParts.month)}-${pad2(startParts.day)}`;
+	const busyBlocks = await fetchBusyBlocksForUsers(dateString, normalizedIds, {
+		ignorePersonalBookingId
+	});
+
+	const conflictingUserIds = new Set<number>();
+	for (const block of busyBlocks) {
+		if (overlaps(startMinutes, endMinutes, block.start, block.end)) {
+			block.userIds.forEach((uid) => conflictingUserIds.add(uid));
+		}
+	}
+
+	return Array.from(conflictingUserIds);
 }
