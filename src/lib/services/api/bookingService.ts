@@ -4,11 +4,13 @@ import { invalidateByPrefix } from '$lib/services/api/apiCache';
 const BOOKINGS_PREFIX = '/api/bookings';
 const PERSONAL_BOOKINGS_PREFIX = '/api/fetch-personal-bookings';
 const NOTIFICATIONS_PREFIX = '/api/notifications';
+const TARGETS_PREFIX = '/api/targets';
 
 function invalidateBookingRelatedCaches() {
 	invalidateByPrefix(BOOKINGS_PREFIX);
 	invalidateByPrefix(PERSONAL_BOOKINGS_PREFIX);
 	invalidateByPrefix(NOTIFICATIONS_PREFIX);
+	invalidateByPrefix(TARGETS_PREFIX);
 }
 
 async function notify(data) {

@@ -1,5 +1,6 @@
 import { json } from '@sveltejs/kit';
 import { query } from '$lib/db';
+import { respondJsonWithEtag } from '$lib/server/http-cache';
 
 function yymmFromDate(dateISO: string) {
 	const [y, m] = dateISO.split('-').map(Number);
@@ -25,7 +26,7 @@ function getWeekRange(date: Date): { start: Date; end: Date } {
 	return { start, end };
 }
 
-export async function GET({ url }) {
+export async function GET({ url, request }) {
 	const ownerType = url.searchParams.get('ownerType') as 'trainer' | 'location';
 	const ownerId = Number(url.searchParams.get('ownerId'));
 	const date = url.searchParams.get('date')!; // YYYY-MM-DD
@@ -131,7 +132,8 @@ export async function GET({ url }) {
 		}
 	}
 
-	return json(
+	return respondJsonWithEtag(
+		request,
 		{
 			year,
 			month,
