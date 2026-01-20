@@ -29,6 +29,10 @@ export const POST: RequestHandler = async ({ request }) => {
 		: [];
 
 	const { date, time, repeatWeeks, endTime } = raw;
+	const ignoreBookingIdRaw = raw?.ignoreBookingId;
+	const ignoreBookingId = Number.isFinite(Number(ignoreBookingIdRaw))
+		? Number(ignoreBookingIdRaw)
+		: null;
 
 	if (!date || !time || !user_ids.length || !repeatWeeks || !endTime) {
 		console.error('❌ Missing or invalid parameters:', {
@@ -56,7 +60,9 @@ export const POST: RequestHandler = async ({ request }) => {
 		checkDate.setDate(baseDate.getDate() + i * 7);
 		const dateString = checkDate.toISOString().split('T')[0];
 
-		const busyBlocks = await fetchBusyBlocksForUsers(dateString, user_ids);
+		const busyBlocks = await fetchBusyBlocksForUsers(dateString, user_ids, {
+			ignorePersonalBookingId: ignoreBookingId ?? undefined
+		});
 
 		const conflictingUserIds = new Set<number>();
 

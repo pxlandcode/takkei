@@ -11,6 +11,7 @@
 	import { capitalizeFirstLetter } from '$lib/helpers/generic/genericHelpers';
 
 	export let bookingObject: {
+		id?: number | null;
 		name?: string;
 		text?: string;
 		user_id?: number | null;
@@ -174,16 +175,24 @@
 		bookingObject.user_id = null;
 	}
 	async function checkRepeatAvailability() {
+		const payload: Record<string, any> = {
+			date: bookingObject.date,
+			time: bookingObject.time,
+			endTime: bookingObject.endTime, // ✅ ADD THIS
+			user_ids: bookingObject.user_ids,
+			repeatWeeks: bookingObject.repeatWeeks
+		};
+		if (isEditing) {
+			const parsedId = Number(bookingObject.id);
+			if (Number.isFinite(parsedId)) {
+				payload.ignoreBookingId = parsedId;
+			}
+		}
+
 		const res = await fetch('/api/bookings/check-repeat-meeting', {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({
-				date: bookingObject.date,
-				time: bookingObject.time,
-				endTime: bookingObject.endTime, // ✅ ADD THIS
-				user_ids: bookingObject.user_ids,
-				repeatWeeks: bookingObject.repeatWeeks
-			})
+			body: JSON.stringify(payload)
 		});
 
 		const data = await res.json();
@@ -306,14 +315,22 @@
 
 		isBoundaryLoading = true;
 		try {
+			const payload: Record<string, any> = {
+				date: bookingObject.date,
+				time: bookingObject.time,
+				user_ids: userIds
+			};
+			if (isEditing) {
+				const parsedId = Number(bookingObject.id);
+				if (Number.isFinite(parsedId)) {
+					payload.ignoreBookingId = parsedId;
+				}
+			}
+
 			const res = await fetch('/api/bookings/next-boundary', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					date: bookingObject.date,
-					time: bookingObject.time,
-					user_ids: userIds
-				}),
+				body: JSON.stringify(payload),
 				signal: controller.signal
 			});
 

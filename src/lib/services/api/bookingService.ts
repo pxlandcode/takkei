@@ -278,10 +278,11 @@ export async function updatePersonalBooking(bookingObject: any, kind: string) {
 		};
 	} catch (error) {
 		console.error('Error Updating Personal Booking:', error);
+		const message = error?.message ?? 'Error updating personal booking';
 		return {
 			success: false,
-			message: 'Error updating personal booking',
-			error: error.message
+			message,
+			error: message
 		};
 	}
 }

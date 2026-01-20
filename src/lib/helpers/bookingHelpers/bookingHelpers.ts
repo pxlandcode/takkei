@@ -157,10 +157,13 @@ export async function handleMeetingOrPersonalBooking(
 				successCount++;
 				bookedDates.push({ date: repeated.date, time: chosenTime });
 			} else {
+				const errorDetails = result.error ?? result.message;
 				addToast({
 					type: AppToastType.CANCEL,
 					message: `Fel vid bokning`,
-					description: `Misslyckades: ${singleBooking.date} kl ${singleBooking.time}.`
+					description: errorDetails
+						? `${errorDetails} (${singleBooking.date} kl ${singleBooking.time}).`
+						: `Misslyckades: ${singleBooking.date} kl ${singleBooking.time}.`
 				});
 			}
 		}
@@ -196,10 +199,11 @@ export async function handleMeetingOrPersonalBooking(
 		const bookedDates: BookedDateLine[] = [{ date: bookingObject.date, time: bookingObject.time }];
 		return { success: true, bookedDates };
 	} else {
+		const errorDetails = result.error ?? result.message;
 		addToast({
 			type: AppToastType.CANCEL,
 			message: 'Något gick fel',
-			description: 'Något gick fel, försök igen eller kontakta IT.'
+			description: errorDetails ?? 'Något gick fel, försök igen eller kontakta IT.'
 		});
 		return { success: false };
 	}
@@ -243,12 +247,13 @@ export async function updateMeetingOrPersonalBooking(
 		return { success: true, booking: response.booking };
 	}
 
+	const errorMessage = response.error ?? response.message;
 	addToast({
 		type: AppToastType.CANCEL,
 		message: 'Uppdatering misslyckades',
-		description: response.message ?? 'Bokningen kunde inte uppdateras. Försök igen.'
+		description: errorMessage ?? 'Bokningen kunde inte uppdateras. Försök igen.'
 	});
-	return { success: false, message: response.message };
+	return { success: false, message: errorMessage };
 }
 
 export async function handleBookingEmail({
