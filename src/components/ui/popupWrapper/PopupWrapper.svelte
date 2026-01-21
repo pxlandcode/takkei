@@ -174,9 +174,9 @@
 						<h2 class="text-text text-2xl font-semibold md:text-3xl">{header}</h2>
 					</div>
 					<div class="flex items-center gap-1">
-						{#if minimizable}
+						<!-- {#if minimizable}
 							<IconButton on:click={minimizeFromUser} size="18px" icon="Minimize" transparent />
-						{/if}
+						{/if} -->
 						{#if !noClose}
 							<IconButton on:click={closeFromUser} size="18px" icon="Close" transparent />
 						{/if}
