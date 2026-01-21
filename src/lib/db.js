@@ -35,10 +35,37 @@ export const pool = new Pool({
         max: Number(process.env.DATABASE_POOL_MAX ?? defaultPoolSize)
 });
 
-const APP_TZ = 'Europe/Stockholm';
-
 // Detects strings like 'YYYY-MM-DD HH:mm' or 'YYYY-MM-DD HH:mm:ss' or 'YYYY-MM-DD'
 const DATE_LIKE_RE = /^\d{4}-\d{2}-\d{2}(?:[ T]\d{2}:\d{2}(?::\d{2}(?:\.\d{1,6})?)?)?$/;
+
+function getLastSundayOfMonth(year, monthIndex) {
+	const lastDay = new Date(Date.UTC(year, monthIndex + 1, 0));
+	const day = lastDay.getUTCDay();
+	lastDay.setUTCDate(lastDay.getUTCDate() - day);
+	return lastDay.getUTCDate();
+}
+
+function isStockholmDst(year, month, day, hour) {
+	if (month < 3 || month > 10) return false;
+	if (month > 3 && month < 10) return true;
+
+	const marchLastSunday = getLastSundayOfMonth(year, 2);
+	const octoberLastSunday = getLastSundayOfMonth(year, 9);
+
+	if (month === 3) {
+		if (day > marchLastSunday) return true;
+		if (day < marchLastSunday) return false;
+		return hour >= 2;
+	}
+
+	if (day < octoberLastSunday) return true;
+	if (day > octoberLastSunday) return false;
+	return hour < 3;
+}
+
+function getStockholmOffsetMinutes(year, month, day, hour) {
+	return isStockholmDst(year, month, day, hour) ? 120 : 60;
+}
 
 // Convert a Stockholm local wall time to a UTC Date
 function stockholmLocalStringToUtcDate(localStr) {
@@ -56,40 +83,9 @@ function stockholmLocalStringToUtcDate(localStr) {
 	const [secStr, msStr = '0'] = secStrWithMs.split('.');
 	const sec = Number(secStr || 0);
 	const ms = Number((msStr + '000').slice(0, 3));
-
-	// Create a UTC date with same components
-	const asIfUtc = new Date(Date.UTC(Y, M - 1, D, h, m, sec || 0, ms));
-
-	// Ask: what wall time would that UTC instant be in Stockholm?
-	const parts = new Intl.DateTimeFormat('en-GB', {
-		timeZone: APP_TZ,
-		year: 'numeric',
-		month: '2-digit',
-		day: '2-digit',
-		hour: '2-digit',
-		minute: '2-digit',
-		second: '2-digit',
-		hour12: false,
-		fractionalSecondDigits: 3
-	})
-		.formatToParts(asIfUtc)
-		.reduce((acc, p) => ((acc[p.type] = p.value), acc), {});
-
-	const tzY = +parts.year,
-		tzM = +parts.month,
-		tzD = +parts.day;
-	const tzH = +parts.hour,
-		tzMin = +parts.minute,
-		tzS = +parts.second;
-	const tzMs = parts.fractionalSecond ? Number(parts.fractionalSecond) : 0;
-
-	// Compute the DST offset by comparing components
+	const offsetMinutes = getStockholmOffsetMinutes(Y, M, D, h);
 	const intendedUTC = Date.UTC(Y, M - 1, D, h, m, sec || 0, ms);
-	const stockholmEvaluatedUTC = Date.UTC(tzY, tzM - 1, tzD, tzH, tzMin, tzS, tzMs);
-	const offsetMs = stockholmEvaluatedUTC - intendedUTC;
-
-	// Real UTC instant for the intended Stockholm wall time
-	return new Date(asIfUtc.getTime() - offsetMs);
+	return new Date(intendedUTC - offsetMinutes * 60 * 1000);
 }
 
 function timestampStringToUtcDate(timestampStr) {
