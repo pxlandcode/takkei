@@ -1,9 +1,16 @@
 <script lang="ts">
 	import { onMount, tick } from 'svelte';
-	import { tooltip } from '$lib/actions/tooltip';
+	import { bookingTooltip } from '$lib/actions/bookingTooltip';
 	import { getMeetingHeight, getTopOffset } from '$lib/helpers/calendarHelpers/calendar-utils';
 
-	import { IconTraining, IconShiningStar, IconGraduationCap, IconPlane } from '$lib/icons';
+	import {
+		IconTraining,
+		IconShiningStar,
+		IconGraduationCap,
+		IconPlane,
+		IconGymnastics,
+		IconMobility
+	} from '$lib/icons';
 
 	import type { FullBooking } from '$lib/types/calendarTypes';
 	import { user } from '$lib/stores/userStore';
@@ -15,7 +22,6 @@
 		booking: FullBooking;
 		startHour: number;
 		hourHeight: number;
-		toolTipText?: string;
 		columnIndex?: number;
 		columnCount?: number;
 		onbookingselected: (event: MouseEvent) => void;
@@ -28,7 +34,6 @@
 		booking,
 		startHour,
 		hourHeight,
-		toolTipText,
 		columnIndex = 0,
 		columnCount = 1,
 		onbookingselected,
@@ -184,6 +189,15 @@
 		if (booking.booking.internalEducation) return IconWrench;
 		if (booking.additionalInfo?.education) return IconGraduationCap;
 		if (booking.additionalInfo?.internal) return IconPlane;
+
+		// Check for specific training types
+		const kind = booking.additionalInfo?.bookingContent?.kind?.toLowerCase();
+		if (kind) {
+			if (kind.includes('gymnastics') || kind.includes('gymnastik')) return IconGymnastics;
+			if (kind.includes('mobility') || kind.includes('mobilitet')) return IconMobility;
+			// Weightlifting uses the default training icon
+		}
+
 		return IconTraining;
 	});
 
@@ -420,7 +434,7 @@
 			: bookingColor
 		: null}
 	style:color={isSelectedVariant ? SELECTED_TEXT_COLOR : null}
-	use:tooltip={{ content: toolTipText }}
+	use:bookingTooltip={{ booking }}
 >
 	{#if !booking.isPersonalBooking}
 		<div class="flex flex-row">
