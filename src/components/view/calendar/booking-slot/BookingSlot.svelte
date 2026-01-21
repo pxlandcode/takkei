@@ -400,7 +400,7 @@
 		? 'border-2'
 		: ''} {booking.isPersonalBooking
 		? isMeetingSlot()
-			? 'bg-gray-300/80 text-black'
+			? 'bg-gray-400/80 text-black'
 			: 'bg-black/60 text-white'
 		: ''}"
 	class:text-gray={!booking.isPersonalBooking}
