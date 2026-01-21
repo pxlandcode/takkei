@@ -25,6 +25,14 @@
 
 	let errors: Record<string, string> = {};
 
+	function normalizeOptional(value: string) {
+		return value.trim();
+	}
+
+	function isValidEmail(value: string) {
+		return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(value);
+	}
+
 	onMount(async () => {
 		const url = customerId
 			? `/api/clients?customerId=${customerId}&available=true&short=true`
@@ -45,7 +53,17 @@
 	async function handleSubmit() {
 		errors = {}; // reset
 
-		if (!name) errors.name = 'Namn krävs';
+		const trimmedName = name.trim();
+		const trimmedEmail = email.trim();
+
+		if (!trimmedName) errors.name = 'Namn krävs';
+		if (!trimmedEmail) {
+			errors.email = 'E-post krävs';
+		} else if (!isValidEmail(trimmedEmail)) {
+			errors.email = 'Ogiltig e-postadress';
+		}
+
+		if (Object.keys(errors).length > 0) return;
 
 		try {
 			loadingStore.loading(true, 'Skapar kund...');
@@ -54,13 +72,13 @@
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
-					name,
-					email,
-					phone,
-					invoice_address,
-					invoice_zip,
-					invoice_city,
-					organization_number,
+					name: trimmedName,
+					email: trimmedEmail,
+					phone: normalizeOptional(phone),
+					invoice_address: normalizeOptional(invoice_address),
+					invoice_zip: normalizeOptional(invoice_zip),
+					invoice_city: normalizeOptional(invoice_city),
+					organization_number: normalizeOptional(organization_number),
 					clientIds: selectedClients.map((c) => c.id)
 				})
 			});
@@ -80,7 +98,7 @@
 			addToast({
 				type: AppToastType.SUCCESS,
 				message: 'Kund skapad',
-				description: `${name} skapades korrekt.`
+				description: `${trimmedName} skapades korrekt.`
 			});
 
 			// Clear form
@@ -118,7 +136,7 @@
 	</div>
 
 	<div class="grid grid-cols-1 gap-4 xl:grid-cols-2">
-		<Input label="E-post" name="email" bind:value={email} {errors} />
+		<Input label="E-post" name="email" type="email" bind:value={email} {errors} />
 		<Input label="Telefon" name="phone" bind:value={phone} {errors} />
 	</div>
 
@@ -154,6 +172,6 @@
 		text="Skapa kund"
 		variant="primary"
 		on:click={handleSubmit}
-		disabled={loadingStore.loading}
+		disabled={isLoading}
 	/>
 </div>

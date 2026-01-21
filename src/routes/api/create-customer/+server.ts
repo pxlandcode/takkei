@@ -1,30 +1,50 @@
 import { query } from '$lib/db';
 
+function sanitizeString(value: unknown) {
+	if (value === undefined || value === null) return '';
+	if (typeof value !== 'string') return value;
+	const trimmed = value.trim();
+	return trimmed;
+}
+
+function isValidEmail(email: string | null) {
+	if (!email) return false;
+	return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email);
+}
+
 export async function POST({ request }) {
 	try {
-		const {
-			name,
-			email,
-			phone,
-			invoice_address,
-			invoice_zip,
-			invoice_city,
-			organization_number,
-			clientIds = []
-		} = await request.json();
+		const body = await request.json();
+
+		const payload = {
+			name: sanitizeString(body?.name),
+			email: sanitizeString(body?.email),
+			phone: sanitizeString(body?.phone),
+			invoice_address: sanitizeString(body?.invoice_address),
+			invoice_zip: sanitizeString(body?.invoice_zip),
+			invoice_city: sanitizeString(body?.invoice_city),
+			organization_number: sanitizeString(body?.organization_number)
+		};
+
+		const clientIds = Array.isArray(body?.clientIds) ? body.clientIds : [];
 
 		// Validation
-		const errors = {};
+		const errors: Record<string, string> = {};
 
-		if (!name) {
+		if (!payload.name) {
 			errors.name = 'Namn krävs';
+		}
+		if (!payload.email) {
+			errors.email = 'E-post krävs';
+		} else if (!isValidEmail(payload.email as string | null)) {
+			errors.email = 'Ogiltig e-postadress';
 		}
 
 		// Check if organization_number exists (if provided)
-		if (organization_number) {
+		if (payload.organization_number) {
 			const existing = await query(
 				`SELECT id FROM customers WHERE organization_number = $1 LIMIT 1`,
-				[organization_number]
+				[payload.organization_number]
 			);
 
 			if (existing.length > 0) {
@@ -44,7 +64,15 @@ export async function POST({ request }) {
 			)
 			VALUES ($1, $2, $3, $4, $5, $6, $7, true, NOW(), NOW())
 			RETURNING id`,
-			[name, email, phone, invoice_address, invoice_zip, invoice_city, organization_number]
+			[
+				payload.name,
+				payload.email,
+				payload.phone,
+				payload.invoice_address,
+				payload.invoice_zip,
+				payload.invoice_city,
+				payload.organization_number
+			]
 		);
 
 		const customerId = customerResult[0]?.id;
