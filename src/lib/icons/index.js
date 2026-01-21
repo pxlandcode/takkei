@@ -73,6 +73,8 @@ import IconHistoryList from './IconHistoryList.svelte';
 import IconMoney from './IconMoney.svelte';
 import IconCalendarCross from './IconCalendarCross.svelte';
 import IconTakkei from './IconTakkei.svelte';
+import IconMinimize from './IconMinimize.svelte';
+import IconWindows from './IconWindows.svelte';
 
 export {
 	IconClose,
@@ -149,5 +151,7 @@ export {
 	IconHistoryList,
 	IconMoney,
 	IconCalendarCross,
-	IconTakkei
+	IconTakkei,
+	IconMinimize,
+	IconWindows
 };

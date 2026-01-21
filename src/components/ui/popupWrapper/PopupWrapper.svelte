@@ -16,14 +16,29 @@
 	export let variant: 'modal' | 'right' | 'left' | 'top' | 'bottom' = 'modal';
 	export let open = true;
 	export let dismissable = true;
+	export let draggable = true;
+	export let minimizable = true;
+	export let initialPosition: { x: number; y: number } | undefined = undefined;
 
 	const dispatch = createEventDispatcher();
+
+	// Drag state
+	let isDragging = false;
+	let dragStartX = 0;
+	let dragStartY = 0;
+	let translateX = initialPosition?.x ?? 0;
+	let translateY = initialPosition?.y ?? 0;
+	let headerEl: HTMLElement;
 	let dialogEl: HTMLDialogElement;
 	let mounted = false;
 
 	function closeFromUser() {
 		open = false;
 		dispatch('close');
+	}
+
+	function minimizeFromUser() {
+		dispatch('minimize', { position: { x: translateX, y: translateY } });
 	}
 
 	function onCancel(e: Event) {
@@ -33,8 +48,32 @@
 
 	function onDialogClick(e: MouseEvent) {
 		// backdrop click is when target === dialog element
-		if (noClose || !dismissable) return;
+		if (noClose || !dismissable || isDragging) return;
 		if (e.target === dialogEl) closeFromUser();
+	}
+
+	// Drag handlers
+	function onHeaderMouseDown(e: MouseEvent) {
+		if (!draggable || variant !== 'modal') return;
+		e.preventDefault();
+		isDragging = true;
+		dragStartX = e.clientX - translateX;
+		dragStartY = e.clientY - translateY;
+
+		document.addEventListener('mousemove', onMouseMove);
+		document.addEventListener('mouseup', onMouseUp);
+	}
+
+	function onMouseMove(e: MouseEvent) {
+		if (!isDragging) return;
+		translateX = e.clientX - dragStartX;
+		translateY = e.clientY - dragStartY;
+	}
+
+	function onMouseUp() {
+		isDragging = false;
+		document.removeEventListener('mousemove', onMouseMove);
+		document.removeEventListener('mouseup', onMouseUp);
 	}
 
 	function t(): FlyParams {
@@ -73,6 +112,9 @@
 		if (applyHeight) style += `height:${height};`;
 		if (maxWidth) style += `max-width:${maxWidth};`;
 		if (maxHeight) style += `max-height:${maxHeight};`;
+		if (variant === 'modal' && draggable) {
+			style += `transform: translate(${translateX}px, ${translateY}px);`;
+		}
 		return style;
 	})();
 
@@ -93,6 +135,8 @@
 		try {
 			dialogEl?.close();
 		} catch {}
+		document.removeEventListener('mousemove', onMouseMove);
+		document.removeEventListener('mouseup', onMouseUp);
 	});
 </script>
 
@@ -114,7 +158,13 @@
 					}
 				}}
 			>
-				<div class="flex items-center justify-between border-b-2 px-6 py-4">
+				<div
+					bind:this={headerEl}
+					class="flex items-center justify-between border-b-2 px-6 py-4"
+					class:cursor-move={draggable && variant === 'modal'}
+					on:mousedown={onHeaderMouseDown}
+					role="banner"
+				>
 					<div class="ml-1 flex items-center gap-2">
 						{#if icon}
 							<div class="bg-text flex h-7 w-7 items-center justify-center rounded-full text-white">
@@ -123,9 +173,14 @@
 						{/if}
 						<h2 class="text-text text-2xl font-semibold md:text-3xl">{header}</h2>
 					</div>
-					{#if !noClose}
-						<IconButton on:click={closeFromUser} size="18px" icon="Close" transparent />
-					{/if}
+					<div class="flex items-center gap-1">
+						{#if minimizable}
+							<IconButton on:click={minimizeFromUser} size="18px" icon="Minimize" transparent />
+						{/if}
+						{#if !noClose}
+							<IconButton on:click={closeFromUser} size="18px" icon="Close" transparent />
+						{/if}
+					</div>
 				</div>
 
 				<div class="popup-scroll p-6">
@@ -174,6 +229,11 @@
 		to {
 			opacity: 1;
 		}
+	}
+
+	.cursor-move {
+		cursor: move;
+		user-select: none;
 	}
 
 	/* Scrollbar styling */

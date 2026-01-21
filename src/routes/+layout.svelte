@@ -17,8 +17,9 @@
 	import PopupWrapper from '../components/ui/popupWrapper/PopupWrapper.svelte';
 	import PopupContentHost from '../components/ui/popupWrapper/PopupContentHost.svelte';
 	import Icon from '../components/bits/icon-component/Icon.svelte';
+	import MinimizedPopupsButton from '../components/ui/minimizedPopupsButton/MinimizedPopupsButton.svelte';
 
-	import { popupStore, closePopup, type PopupState } from '$lib/stores/popupStore';
+	import { popupStore, closePopup, minimizePopup, type PopupState } from '$lib/stores/popupStore';
 	import { get } from 'svelte/store';
 	import { loadingStore } from '$lib/stores/loading';
 	import { headerState } from '$lib/stores/headerState.svelte';
@@ -177,6 +178,19 @@
 		}
 	}
 
+	function handlePopupMinimize(event: CustomEvent<any>, target?: PopupState | null) {
+		const snapshot = target ?? get(popupStore);
+		if (!snapshot) return;
+
+		// Update position if provided
+		const position = event.detail?.position;
+		if (position) {
+			snapshot.position = position;
+		}
+
+		minimizePopup(snapshot);
+	}
+
 	$: popup = $popupStore;
 	$: popupListeners = buildListeners(popup);
 	$: popupProps = popup?.props ? { ...popup.props } : {};
@@ -306,11 +320,17 @@
 		height={popup.height}
 		maxWidth={popup.maxWidth}
 		maxHeight={popup.maxHeight}
+		draggable={popup.draggable ?? true}
+		minimizable={popup.minimizable ?? true}
+		initialPosition={popup.position}
 		on:close={(event) => handlePopupClose(event, popup)}
+		on:minimize={(event) => handlePopupMinimize(event, popup)}
 	>
 		<PopupContentHost component={popup.component} props={popupProps} listeners={popupListeners} />
 	</PopupWrapper>
 {/if}
+
+<MinimizedPopupsButton />
 
 <style>
 	.top-loading-bar {
