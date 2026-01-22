@@ -50,7 +50,7 @@ export async function fetchBusyBlocksForUsers(
 			`
         SELECT id, user_id, user_ids, start_time, end_time
         FROM personal_bookings
-        WHERE (start_time < $2 AND end_time > $1)
+        WHERE (start_time <= $2 AND end_time >= $1)
         ${ignoreClause}
         AND (
           user_id = ANY(ARRAY[${personalPlaceholders}]::int[]) OR
