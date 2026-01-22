@@ -8,6 +8,19 @@
 	export let placeholder = 'Skriv ditt meddelande här...';
 
 	const dispatch = createEventDispatcher();
+	let lastHtml = '';
+
+	function syncEditorContent(nextContent: string) {
+		if (!editor) return;
+		const html = nextContent ?? '';
+		if (html === lastHtml) return;
+
+		editor.setContents([], 'silent');
+		if (html) {
+			editor.clipboard.dangerouslyPasteHTML(html, 'silent');
+		}
+		lastHtml = html;
+	}
 
 	onMount(async () => {
 		// ✅ SSR safety check
@@ -31,18 +44,24 @@
 			}
 		});
 
-		// ✅ Set initial content
-		if (content) editor.root.innerHTML = content;
+		syncEditorContent(content);
 
 		// ✅ Handle changes
 		editor.on('text-change', () => {
-			dispatch('change', editor.root.innerHTML);
+			const html = editor.root.innerHTML;
+			if (html === lastHtml) return;
+			lastHtml = html;
+			dispatch('change', html);
 		});
 	});
 
 	onDestroy(() => {
 		if (editor) editor.off('text-change');
 	});
+
+	$: if (editor) {
+		syncEditorContent(content);
+	}
 </script>
 
 <div class="quill-container">
