@@ -6,6 +6,26 @@ export type TargetGoalsResponse = {
 	months: Array<{ month: number; goal_value: number | null; is_anchor?: boolean }>;
 };
 
+async function readErrorMessage(res: Response): Promise<string | null> {
+	try {
+		const data = await res.clone().json();
+		const err = data?.error ?? data?.message;
+		if (err) return String(err);
+	} catch {
+		// ignore
+	}
+
+	try {
+		const text = await res.clone().text();
+		const trimmed = text.trim();
+		return trimmed ? trimmed.slice(0, 300) : null;
+	} catch {
+		// ignore
+	}
+
+	return null;
+}
+
 function buildQuery(params: {
 	ownerType: OwnerType;
 	ownerId: number;
@@ -87,7 +107,10 @@ export async function setMonthGoal(args: {
 		headers: { 'Content-Type': 'application/json' },
 		body: JSON.stringify(args)
 	});
-	if (!res.ok) throw new Error('Failed to set month goal');
+	if (!res.ok) {
+		const detail = await readErrorMessage(res);
+		throw new Error(detail ? `Failed to set month goal: ${detail}` : 'Failed to set month goal');
+	}
 	invalidateByPrefix('/api/targets');
 	return res.json();
 }
@@ -109,7 +132,10 @@ export async function setYearGoal(args: {
 		headers: { 'Content-Type': 'application/json' },
 		body: JSON.stringify(args)
 	});
-	if (!res.ok) throw new Error('Failed to set year goal');
+	if (!res.ok) {
+		const detail = await readErrorMessage(res);
+		throw new Error(detail ? `Failed to set year goal: ${detail}` : 'Failed to set year goal');
+	}
 	invalidateByPrefix('/api/targets');
 	return res.json();
 }
@@ -155,7 +181,10 @@ export async function setWeekGoal(args: {
 		headers: { 'Content-Type': 'application/json' },
 		body: JSON.stringify(args)
 	});
-	if (!res.ok) throw new Error('Failed to set week goal');
+	if (!res.ok) {
+		const detail = await readErrorMessage(res);
+		throw new Error(detail ? `Failed to set week goal: ${detail}` : 'Failed to set week goal');
+	}
 	invalidateByPrefix('/api/targets');
 	return res.json();
 }

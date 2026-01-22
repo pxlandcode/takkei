@@ -324,7 +324,9 @@
 			isEditing = false;
 			addToast({ type: AppToastType.SUCCESS, message: 'Mål sparade' });
 		} catch (err) {
-			addToast({ type: AppToastType.ERROR, message: 'Kunde inte spara mål' });
+			const detail = err instanceof Error ? err.message : '';
+			const message = detail ? `Kunde inte spara mål: ${detail}` : 'Kunde inte spara mål';
+			addToast({ type: AppToastType.ERROR, message });
 			console.error(err);
 		}
 	}
