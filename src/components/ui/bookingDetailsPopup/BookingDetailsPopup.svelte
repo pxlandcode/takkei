@@ -301,7 +301,10 @@
 		return [{ date: bookingDate, time: bookingTime, locationName }];
 	}
 
-	function buildConfirmationBody(bookedDates: BookedDateLine[], currentUser: { firstname: string }) {
+	function buildConfirmationBody(
+		bookedDates: BookedDateLine[],
+		currentUser: { firstname: string }
+	) {
 		const lines = bookedDates
 			.map((b) => `${b.date} kl. ${b.time}${b.locationName ? ` på ${b.locationName}` : ''}`)
 			.join('<br>');
@@ -1266,7 +1269,7 @@
 						class="flex items-center gap-2 text-xs font-semibold tracking-wide text-gray-500 uppercase"
 					>
 						<Icon icon="Clock" size="16px" />
-						<span>Tid</span>
+						<span>Tid och Datum</span>
 					</div>
 					{#if canQuickSwap}
 						<Button
@@ -1280,7 +1283,9 @@
 				</div>
 				{#if activeQuickEdit !== 'time'}
 					<p class="text-base font-semibold text-gray-900">
-						{formatTime(startTime.toISOString())} – {formatTime(endTime.toISOString())}
+						{startTime.toLocaleDateString('sv-SE')}, {formatTime(startTime.toISOString())} – {formatTime(
+							endTime.toISOString()
+						)}
 					</p>
 				{/if}
 
