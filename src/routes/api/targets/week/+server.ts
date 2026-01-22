@@ -1,6 +1,24 @@
 import { json } from '@sveltejs/kit';
 import { query } from '$lib/db';
 
+function isOwnerType(value: unknown): value is 'trainer' | 'location' {
+	return value === 'trainer' || value === 'location';
+}
+
+function toInt(value: unknown): number | null {
+	const n = Number(value);
+	return Number.isFinite(n) ? Math.trunc(n) : null;
+}
+
+function toNumber(value: unknown): number | null {
+	const n = Number(value);
+	return Number.isFinite(n) ? n : null;
+}
+
+function fallbackTargetKindId(ownerType: 'trainer' | 'location'): number {
+	return ownerType === 'location' ? 2 : 1;
+}
+
 function formatDateLocal(date: Date): string {
 	const y = date.getFullYear();
 	const m = String(date.getMonth() + 1).padStart(2, '0');
@@ -106,37 +124,62 @@ export async function GET({ url }) {
 }
 
 export async function POST({ request }) {
-	const {
-		ownerType,
-		ownerId,
-		year,
-		month,
-		week_start,
-		week_end,
-		targetKindId,
-		goalValue,
-		isAnchor = false,
-		title = '',
-		description = ''
-	} = await request.json();
-	await query(
-		`INSERT INTO target_goals_week (target_owner_type, target_owner_id, year, month, week_start, week_end, target_kind_id, goal_value, is_anchor, title, description)
+	const body = await request.json();
+
+	const ownerType = body?.ownerType;
+	if (!isOwnerType(ownerType)) {
+		return json({ error: 'Invalid ownerType' }, { status: 400 });
+	}
+
+	const ownerId = toInt(body?.ownerId);
+	const year = toInt(body?.year);
+	const month = toInt(body?.month);
+	const week_start = typeof body?.week_start === 'string' ? body.week_start : '';
+	const week_end = typeof body?.week_end === 'string' ? body.week_end : '';
+	const goalValue = toNumber(body?.goalValue);
+	const targetKindRaw = toInt(body?.targetKindId);
+	const targetKindId =
+		targetKindRaw && targetKindRaw > 0 ? targetKindRaw : fallbackTargetKindId(ownerType);
+	const isAnchor = Boolean(body?.isAnchor ?? false);
+	const title = typeof body?.title === 'string' ? body.title : '';
+	const description = typeof body?.description === 'string' ? body.description : '';
+
+	if (!ownerId || ownerId <= 0 || !year || year <= 0 || !month || month < 1 || month > 12) {
+		return json({ error: 'Missing or invalid body fields' }, { status: 400 });
+	}
+	if (!week_start || !week_end) {
+		return json({ error: 'Missing or invalid week_start/week_end' }, { status: 400 });
+	}
+	if (goalValue == null) {
+		return json({ error: 'Missing or invalid goalValue' }, { status: 400 });
+	}
+
+	try {
+		await query(
+			`INSERT INTO target_goals_week (target_owner_type, target_owner_id, year, month, week_start, week_end, target_kind_id, goal_value, is_anchor, title, description)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
      ON CONFLICT (target_owner_type, target_owner_id, week_start, target_kind_id, month)
      DO UPDATE SET goal_value=EXCLUDED.goal_value, is_anchor=EXCLUDED.is_anchor, title=EXCLUDED.title, description=EXCLUDED.description, updated_at=now()`,
-		[
-			ownerType,
-			ownerId,
-			year,
-			month,
-			week_start,
-			week_end,
-			targetKindId,
-			goalValue,
-			isAnchor,
-			title,
-			description
-		]
-	);
-	return json({ ok: true });
+			[
+				ownerType,
+				ownerId,
+				year,
+				month,
+				week_start,
+				week_end,
+				targetKindId,
+				goalValue,
+				isAnchor,
+				title,
+				description
+			]
+		);
+		return json({ ok: true });
+	} catch (error) {
+		console.error('Error saving week goal', error);
+		return json(
+			{ error: error instanceof Error ? error.message : 'Failed to save week goal' },
+			{ status: 500 }
+		);
+	}
 }

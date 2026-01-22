@@ -362,9 +362,7 @@
 		}
 
 		const trainerIds =
-			singleFilterMode && selectedEntity !== 'trainer'
-				? []
-				: selectedUsers.map((user) => user.id);
+			singleFilterMode && selectedEntity !== 'trainer' ? [] : selectedUsers.map((user) => user.id);
 		const locationIds =
 			singleFilterMode && selectedEntity !== 'location'
 				? []
@@ -374,14 +372,14 @@
 				? []
 				: selectedClients.map((client) => client.id);
 
-	calendarStore.updateFilters(
-		{
-			trainerIds,
-			locationIds,
-			clientIds
-		},
-		fetch
-	);
+		calendarStore.updateFilters(
+			{
+				trainerIds,
+				locationIds,
+				clientIds
+			},
+			fetch
+		);
 
 		addToast({
 			type: AppToastType.NOTE,
@@ -399,7 +397,9 @@
 <div class="flex max-h-dvh min-h-[450px] w-full max-w-full flex-col bg-white p-4 sm:max-w-[600px]">
 	<div class="flex flex-col gap-4">
 		{#if singleFilterMode}
-			<div class="border-gray-200 bg-gray-50 text-gray flex flex-col gap-3 rounded-sm border p-3 text-sm">
+			<div
+				class="text-gray flex flex-col gap-3 rounded-sm border border-gray-200 bg-gray-50 p-3 text-sm"
+			>
 				<p>
 					Välj en filtertyp för att visa veckan. Endast en tränare, plats eller kund kan vara aktiv
 					åt gången på mobilens veckovy.
@@ -504,7 +504,12 @@
 						iconColor="green"
 					/>
 
-					<Button icon="Trash" iconColor="error" variant="secondary" on:click={onDeSelectAllUsers} />
+					<Button
+						icon="Trash"
+						iconColor="error"
+						variant="secondary"
+						on:click={onDeSelectAllUsers}
+					/>
 				</div>
 			</div>
 
@@ -549,53 +554,58 @@
 				</div>
 			</div>
 		{/if}
+		{#if !singleFilterMode}
+			<div class="flex flex-col gap-2 sm:flex-row">
+				<div class="flex-1">
+					<DropdownCheckbox
+						label="Kunder"
+						placeholder="Välj kunder"
+						id="clients"
+						options={($clients || []).map((client) => ({
+							name: `${client.firstname} ${client.lastname}`,
+							value: client
+						}))}
+						search
+						maxNumberOfSuggestions={15}
+						infiniteScroll={true}
+						bind:selectedValues={selectedClients}
+						on:change={handleClientSelection}
+					/>
+				</div>
+
+				<div class="mt-4 flex flex-wrap gap-2 sm:mt-7 sm:flex-nowrap">
+					<Button
+						icon="MultiCheck"
+						variant="secondary"
+						on:click={onSelectAllClients}
+						iconColor="green"
+					/>
+
+					<Button
+						icon="Trash"
+						iconColor="error"
+						variant="secondary"
+						on:click={onDeSelectAllClients}
+					/>
+				</div>
+			</div>
+
+			<div class="mt-4">
+				<FilterBox
+					{selectedUsers}
+					{selectedLocations}
+					{selectedClients}
+					on:removeFilter={(event) => {
+						const { type, id } = event.detail;
+						if (type === 'trainer') selectedUsers = selectedUsers.filter((u) => u.id !== id);
+						if (type === 'location')
+							selectedLocations = selectedLocations.filter((l) => l.id !== id);
+						if (type === 'client') selectedClients = selectedClients.filter((c) => c.id !== id);
+					}}
+				/>
+			</div>
+		{/if}
 	</div>
-
-	{#if !singleFilterMode}
-		<div class="flex flex-col gap-2 sm:flex-row">
-			<div class="flex-1">
-				<DropdownCheckbox
-					label="Kunder"
-					placeholder="Välj kunder"
-					id="clients"
-					options={($clients || []).map((client) => ({
-						name: `${client.firstname} ${client.lastname}`,
-						value: client
-					}))}
-					search
-					maxNumberOfSuggestions={15}
-					infiniteScroll={true}
-					bind:selectedValues={selectedClients}
-					on:change={handleClientSelection}
-				/>
-			</div>
-
-			<div class="mt-4 flex flex-wrap gap-2 sm:mt-7 sm:flex-nowrap">
-				<Button
-					icon="MultiCheck"
-					variant="secondary"
-					on:click={onSelectAllClients}
-					iconColor="green"
-				/>
-
-				<Button icon="Trash" iconColor="error" variant="secondary" on:click={onDeSelectAllClients} />
-			</div>
-		</div>
-
-		<div class="mt-4">
-			<FilterBox
-				{selectedUsers}
-				{selectedLocations}
-				{selectedClients}
-				on:removeFilter={(event) => {
-					const { type, id } = event.detail;
-					if (type === 'trainer') selectedUsers = selectedUsers.filter((u) => u.id !== id);
-					if (type === 'location') selectedLocations = selectedLocations.filter((l) => l.id !== id);
-					if (type === 'client') selectedClients = selectedClients.filter((c) => c.id !== id);
-				}}
-			/>
-		</div>
-	{/if}
 
 	<div class="mt-auto flex flex-col gap-4">
 		<Button

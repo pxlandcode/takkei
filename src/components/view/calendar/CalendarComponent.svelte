@@ -1259,7 +1259,6 @@
 						columnIndex={pinnedSlotForDay.columnIndex ?? 0}
 						columnCount={pinnedSlotForDay.columnCount ?? 1}
 						variant="selected"
-						toolTipText={`Vald tid ${pinnedSlotForDay.slot.time ?? ''}`}
 						clearLabel="Rensa vald tid"
 						onclear={handlePinnedSlotClear}
 						onbookingselected={(event) => {
@@ -1339,9 +1338,6 @@
 											{hourHeight}
 											columnIndex={layoutItem.columnIndex}
 											columnCount={layoutItem.columnCount}
-											toolTipText={layoutItem.booking.booking.startTime
-												? `${new Date(layoutItem.booking.booking.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} ${layoutItem.booking.booking.endTime ? ` - ${new Date(layoutItem.booking.booking.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''}`
-												: ''}
 											onbookingselected={(event) =>
 												handleBookingSlotClick(event, layoutItem.booking)}
 										/>
@@ -1402,9 +1398,6 @@
 											{hourHeight}
 											columnIndex={layoutItem.columnIndex}
 											columnCount={layoutItem.columnCount}
-											toolTipText={layoutItem.booking.booking.startTime
-												? `${new Date(layoutItem.booking.booking.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} ${layoutItem.booking.booking.endTime ? ` - ${new Date(layoutItem.booking.booking.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''}`
-												: ''}
 											onbookingselected={(event) =>
 												handleBookingSlotClick(event, layoutItem.booking)}
 										/>
@@ -1449,9 +1442,6 @@
 							{hourHeight}
 							columnIndex={layoutItem.columnIndex}
 							columnCount={layoutItem.columnCount}
-							toolTipText={layoutItem.booking.booking.startTime
-								? `${new Date(layoutItem.booking.booking.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} ${layoutItem.booking.booking.endTime ? ` - ${new Date(layoutItem.booking.booking.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''}`
-								: ''}
 							onbookingselected={(event) => handleBookingSlotClick(event, layoutItem.booking)}
 						/>
 					{/each}

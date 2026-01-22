@@ -1,6 +1,24 @@
 import { json } from '@sveltejs/kit';
 import { query } from '$lib/db';
 
+function isOwnerType(value: unknown): value is 'trainer' | 'location' {
+	return value === 'trainer' || value === 'location';
+}
+
+function toInt(value: unknown): number | null {
+	const n = Number(value);
+	return Number.isFinite(n) ? Math.trunc(n) : null;
+}
+
+function toNumber(value: unknown): number | null {
+	const n = Number(value);
+	return Number.isFinite(n) ? n : null;
+}
+
+function fallbackTargetKindId(ownerType: 'trainer' | 'location'): number {
+	return ownerType === 'location' ? 2 : 1;
+}
+
 export async function GET({ url }) {
 	const ownerType = url.searchParams.get('ownerType') as 'trainer' | 'location';
 	const ownerId = Number(url.searchParams.get('ownerId'));
@@ -66,20 +84,29 @@ export async function GET({ url }) {
 }
 
 export async function POST({ request }) {
-	const {
-		ownerType,
-		ownerId,
-		year,
-		month,
-		targetKindId,
-		goalValue,
-		title = '',
-		description = '',
-		isAnchor = true
-	} = await request.json();
+	const body = await request.json();
 
-	if (!ownerType || !ownerId || !year || !month) {
-		return json({ error: 'Missing required body fields' }, { status: 400 });
+	const ownerType = body?.ownerType;
+	if (!isOwnerType(ownerType)) {
+		return json({ error: 'Invalid ownerType' }, { status: 400 });
+	}
+
+	const ownerId = toInt(body?.ownerId);
+	const year = toInt(body?.year);
+	const month = toInt(body?.month);
+	const goalValue = toNumber(body?.goalValue);
+	const targetKindRaw = toInt(body?.targetKindId);
+	const targetKindId =
+		targetKindRaw && targetKindRaw > 0 ? targetKindRaw : fallbackTargetKindId(ownerType);
+	const title = typeof body?.title === 'string' ? body.title : '';
+	const description = typeof body?.description === 'string' ? body.description : '';
+	const isAnchor = Boolean(body?.isAnchor ?? true);
+
+	if (!ownerId || ownerId <= 0 || !year || year <= 0 || !month || month < 1 || month > 12) {
+		return json({ error: 'Missing or invalid body fields' }, { status: 400 });
+	}
+	if (goalValue == null) {
+		return json({ error: 'Missing or invalid goalValue' }, { status: 400 });
 	}
 
 	const normalizedDescription =
@@ -89,8 +116,9 @@ export async function POST({ request }) {
 				? 'anchor'
 				: 'auto';
 
-	await query(
-		`INSERT INTO target_goals_month (target_owner_type, target_owner_id, year, month, target_kind_id, goal_value, title, description)
+	try {
+		await query(
+			`INSERT INTO target_goals_month (target_owner_type, target_owner_id, year, month, target_kind_id, goal_value, title, description)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
      ON CONFLICT (target_owner_type, target_owner_id, year, month, target_kind_id)
      DO UPDATE
@@ -98,7 +126,14 @@ export async function POST({ request }) {
             title=EXCLUDED.title,
             description=EXCLUDED.description,
             updated_at=now()`,
-		[ownerType, ownerId, year, month, targetKindId, goalValue, title, normalizedDescription]
-	);
-	return json({ ok: true });
+			[ownerType, ownerId, year, month, targetKindId, goalValue, title, normalizedDescription]
+		);
+		return json({ ok: true });
+	} catch (error) {
+		console.error('Error saving month goal', error);
+		return json(
+			{ error: error instanceof Error ? error.message : 'Failed to save month goal' },
+			{ status: 500 }
+		);
+	}
 }

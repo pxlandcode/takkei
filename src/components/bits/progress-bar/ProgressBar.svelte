@@ -18,14 +18,16 @@
 
 	<div class="relative mx-2 h-[3px] flex-1 bg-black/50">
 		<div
-			class="absolute inset-y-0 left-0 bg-orange transition-all duration-500"
+			class="{exceedMax
+				? 'bg-[#24A691]'
+				: 'bg-orange'} absolute inset-y-0 left-0 transition-all duration-500"
 			style="width: {progress}%"
 		></div>
 
 		<div class="absolute -translate-y-1/2 transform" style="left: calc({progress}% - 0.5rem);">
 			{#if icon && !exceedMax}
 				<Icon {icon} color={iconColor} size="20px" />
-			{:else if exceedMax}
+			{:else if icon && exceedMax}
 				<Icon icon="Check" color={iconColor} size="20px" />
 			{/if}
 		</div>

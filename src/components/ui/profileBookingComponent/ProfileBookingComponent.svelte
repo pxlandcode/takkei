@@ -2,6 +2,11 @@
 	import { onMount } from 'svelte';
 	import { fetchBookings } from '$lib/services/api/calendarService';
 	import { writable, get } from 'svelte/store';
+	import { cancelBooking } from '$lib/services/api/bookingService';
+	import { fetchClients, getClientEmails } from '$lib/stores/clientsStore';
+	import { sendMail } from '$lib/services/mail/mailClientService';
+	import { addToast } from '$lib/stores/toastStore';
+	import { AppToastType } from '$lib/types/toastTypes';
 
 	import ProfileBookingSlot from '../profileBookingSlot/ProfileBookingSlot.svelte';
 	import OptionButton from '../../bits/optionButton/OptionButton.svelte';
@@ -24,6 +29,11 @@
 	let selectAllChecked = false;
 
 	let selectedBookings = writable([]);
+	let cancelableSelected = [];
+	let cancelConfirmStartTimeISO = new Date().toISOString();
+	let cancelConfirmOptions = null;
+
+	const CANCELLED_STATUSES = new Set(['cancelled', 'late_cancelled']);
 
 	let currentUser = get(user);
 
@@ -70,6 +80,27 @@
 		selectedBookings.set([]);
 	}
 
+	function isCancelledBooking(booking) {
+		const status = String(booking?.booking?.status ?? '').toLowerCase();
+		return CANCELLED_STATUSES.has(status) || Boolean(booking?.booking?.cancelTime);
+	}
+
+	function getEarliestStartTime(bookings) {
+		let earliest = Number.POSITIVE_INFINITY;
+		let earliestIso: string | null = null;
+
+		for (const booking of bookings) {
+			const startTime = new Date(booking?.booking?.startTime ?? '');
+			const startMs = startTime.getTime();
+			if (!Number.isNaN(startMs) && startMs < earliest) {
+				earliest = startMs;
+				earliestIso = booking.booking.startTime;
+			}
+		}
+
+		return earliestIso;
+	}
+
 	function toggleSelectAllLoaded(checked: boolean) {
 		const loaded = get(bookings);
 		if (loaded.length === 0) return;
@@ -96,6 +127,19 @@
 		// checked when ALL loaded are selected (and there are some loaded)
 		selectAllChecked = all.length > 0 && all.every((b) => selIds.has(b.booking.id));
 	}
+
+	$: cancelableSelected = $selectedBookings.filter((booking) => !isCancelledBooking(booking));
+	$: cancelConfirmStartTimeISO =
+		getEarliestStartTime(cancelableSelected) ?? new Date().toISOString();
+	$: cancelConfirmOptions = cancelableSelected.length
+		? {
+				onConfirm: (reason: string, time: string, emailBehavior: 'send' | 'edit' | 'none') => {
+					void cancelSelectedBookings({ reason, time, emailBehavior });
+				},
+				startTimeISO: cancelConfirmStartTimeISO,
+				defaultEmailBehavior: 'none'
+			}
+		: null;
 	// ✅ Fetch initial bookings when mounted
 	onMount(() => {
 		loadMoreBookings(true);
@@ -217,6 +261,196 @@
 		});
 	}
 
+	async function resolveClientRecipients() {
+		if (!clientId) return [];
+		let emails = client?.email ? [client.email] : getClientEmails(clientId);
+
+		if (!emails.length) {
+			try {
+				await fetchClients();
+				emails = getClientEmails(clientId);
+			} catch (error) {
+				console.error('Failed to fetch clients for cancellation email', error);
+			}
+		}
+
+		return emails;
+	}
+
+	function buildCancellationBody(bookedDates, fromUser) {
+		const lines = bookedDates
+			.map((b) => `${b.date} kl. ${b.time}${b.locationName ? ` på ${b.locationName}` : ''}`)
+			.join('<br>');
+
+		return [
+			'Hej!',
+			'',
+			'Följande bokningar har avbokats:',
+			lines,
+			'',
+			'Hälsningar,',
+			`${fromUser.firstname}, Takkei Trainingsystems`
+		].join('<br>');
+	}
+
+	async function handleCancellationEmail(behavior, bookings) {
+		if (behavior === 'none') return;
+		const current = get(user);
+
+		if (!current) {
+			addToast({
+				type: AppToastType.CANCEL,
+				message: 'Saknar användare',
+				description: 'Kunde inte skicka avbokningsbekräftelse.'
+			});
+			return;
+		}
+
+		const recipients = await resolveClientRecipients();
+		if (!recipients.length) {
+			addToast({
+				type: AppToastType.CANCEL,
+				message: 'Ingen e-postadress',
+				description: 'Kunden saknar e-postadress, så inget mail skickades.'
+			});
+			return;
+		}
+
+		const bookedDates = bookings.map((b) => {
+			const start = new Date(b.booking.startTime);
+			const time = start.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' });
+			const date = start.toLocaleDateString('sv-SE');
+			const locationName = b.location?.name || undefined;
+			return { date, time, locationName };
+		});
+
+		const body = buildCancellationBody(bookedDates, current);
+		const mailConfig = {
+			to: recipients,
+			subject: 'Avbokningsbekräftelse',
+			header: 'Dina bokningar har avbokats',
+			subheader: 'Vi har noterat din avbokning',
+			body,
+			from: {
+				name: `${current.firstname} ${current.lastname}`,
+				email: current.email
+			}
+		};
+
+		if (behavior === 'send') {
+			try {
+				await sendMail(mailConfig);
+				addToast({
+					type: AppToastType.SUCCESS,
+					message: 'Bekräftelsemail skickat',
+					description: `Ett bekräftelsemail skickades till ${recipients.join(', ')}.`
+				});
+			} catch (error) {
+				console.error('Failed to send cancellation email', error);
+				addToast({
+					type: AppToastType.CANCEL,
+					message: 'Mail kunde inte skickas',
+					description: 'Avbokningsbekräftelsen kunde inte skickas automatiskt.'
+				});
+			}
+			return;
+		}
+
+		if (behavior === 'edit') {
+			openPopup({
+				header: `Maila avbokningsbekräftelse till ${recipients.join(', ')}`,
+				icon: 'Mail',
+				component: MailComponent,
+				maxWidth: '900px',
+				props: {
+					prefilledRecipients: recipients,
+					subject: mailConfig.subject,
+					header: mailConfig.header,
+					subheader: mailConfig.subheader,
+					body,
+					lockedFields: ['recipients'],
+					autoFetchUsersAndClients: false
+				}
+			});
+		}
+	}
+
+	async function cancelSelectedBookings({
+		reason,
+		time,
+		emailBehavior = 'none'
+	}: {
+		reason?: string;
+		time?: string;
+		emailBehavior?: 'send' | 'edit' | 'none';
+	}) {
+		const selected = get(selectedBookings);
+		const cancelable = selected.filter((booking) => !isCancelledBooking(booking));
+		const skipped = selected.length - cancelable.length;
+
+		if (!cancelable.length) {
+			addToast({
+				type: AppToastType.NOTE,
+				message: 'Inga bokningar att avboka',
+				description: 'Alla valda bokningar är redan avbokade.'
+			});
+			return;
+		}
+
+		if (!reason) {
+			addToast({
+				type: AppToastType.CANCEL,
+				message: 'Orsak saknas',
+				description: 'Vänligen välj en avbokningsorsak.'
+			});
+			return;
+		}
+
+		const cancelTime = time ?? new Date().toISOString().slice(0, 16);
+		const results = await Promise.all(
+			cancelable.map((booking) => cancelBooking(booking.booking.id, reason, cancelTime))
+		);
+
+		const successful = [];
+		const failed = [];
+
+		results.forEach((result, index) => {
+			if (result.success) {
+				successful.push(cancelable[index]);
+			} else {
+				failed.push(cancelable[index]);
+			}
+		});
+
+		if (successful.length) {
+			addToast({
+				type: AppToastType.SUCCESS,
+				message: 'Bokningar avbokade',
+				description: `${successful.length} av ${cancelable.length} bokningar avbokades.`
+			});
+			await handleCancellationEmail(emailBehavior, successful);
+			loadMoreBookings(true);
+		}
+
+		if (failed.length) {
+			addToast({
+				type: AppToastType.CANCEL,
+				message: 'Avbokning misslyckades',
+				description: `${failed.length} bokningar kunde inte avbokas.`
+			});
+		}
+
+		if (skipped > 0) {
+			addToast({
+				type: AppToastType.NOTE,
+				message: 'Bokningar redan avbokade',
+				description: `${skipped} valda bokningar var redan avbokade.`
+			});
+		}
+
+		clearAllSelected();
+	}
+
 	// ✅ Handle Infinite Scroll
 	function handleScroll(event) {
 		const bottom =
@@ -328,6 +562,16 @@
 					small
 					class="bg-orange! text-white disabled:cursor-not-allowed disabled:opacity-50"
 					on:click={sendBookingConfirmations}
+				/>
+
+				<Button
+					disabled={cancelableSelected.length === 0}
+					text="Avboka valda"
+					iconLeft="Trash"
+					iconColor="error"
+					variant="danger-outline"
+					small
+					cancelConfirmOptions={cancelConfirmOptions}
 				/>
 			</div>
 		</div>
