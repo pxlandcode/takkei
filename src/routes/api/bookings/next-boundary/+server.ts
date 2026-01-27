@@ -59,8 +59,7 @@ export const POST: RequestHandler = async ({ request }) => {
 	const futureStarts = busyBlocks
 		.filter((block) => block.start >= slotStart)
 		.map((block) => block.start);
-	const nextBoundary =
-		futureStarts.length > 0 ? minutesToTime(Math.min(...futureStarts)) : null;
+	const nextBoundary = futureStarts.length > 0 ? minutesToTime(Math.min(...futureStarts)) : null;
 
 	return new Response(
 		JSON.stringify({

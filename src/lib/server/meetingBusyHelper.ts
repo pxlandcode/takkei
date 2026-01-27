@@ -50,7 +50,7 @@ export async function fetchBusyBlocksForUsers(
 			`
         SELECT id, user_id, user_ids, start_time, end_time
         FROM personal_bookings
-        WHERE (start_time <= $2 AND end_time >= $1)
+        WHERE (start_time < $2 AND end_time > $1)
         ${ignoreClause}
         AND (
           user_id = ANY(ARRAY[${personalPlaceholders}]::int[]) OR
@@ -155,7 +155,10 @@ export async function findConflictingUsersForTimeRange({
 
 	const conflictingUserIds = new Set<number>();
 	for (const block of busyBlocks) {
-		if (overlaps(startMinutes, endMinutes, block.start, block.end)) {
+		const isAdjacent =
+			Math.abs(endMinutes - block.start) <= 1 || Math.abs(startMinutes - block.end) <= 1;
+
+		if (!isAdjacent && overlaps(startMinutes, endMinutes, block.start, block.end)) {
 			block.userIds.forEach((uid) => conflictingUserIds.add(uid));
 		}
 	}
