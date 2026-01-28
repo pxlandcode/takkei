@@ -13,6 +13,17 @@ function pad2(value: number): string {
 	return String(value).padStart(2, '0');
 }
 
+// Parse time string directly without timezone conversion
+// Input: "2026-03-20T16:30:00" or "16:30"
+function parseTimeDirectly(timeStr: string): number | null {
+	const timeMatch = timeStr.match(/(\d{1,2}):(\d{2})/);
+	if (!timeMatch) return null;
+	const hours = parseInt(timeMatch[1], 10);
+	const minutes = parseInt(timeMatch[2], 10);
+	if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) return null;
+	return hours * 60 + minutes;
+}
+
 function overlaps(startA: number, endA: number, startB: number, endB: number): boolean {
 	return startA < endB && startB < endA;
 }
@@ -145,26 +156,25 @@ export async function findConflictingUsersForTimeRange({
 	console.log('  Input endTime:', endTime);
 	console.log('  userIds:', userIds);
 
+	// Try to parse times directly first (for timestamps from frontend like "2026-03-20T16:30:00")
+	let startMinutes = parseTimeDirectly(startTime);
+	let endMinutes = parseTimeDirectly(endTime);
+
+	// If direct parsing worked, we have the times in the correct timezone
+	if (startMinutes !== null && endMinutes !== null) {
+		console.log('  ✅ Parsed times directly (no timezone conversion)');
+		console.log('  Extracted startMinutes:', startMinutes, '(', Math.floor(startMinutes / 60) + ':' + (startMinutes % 60).toString().padStart(2, '0'), ')');
+		console.log('  Extracted endMinutes:', endMinutes, '(', Math.floor(endMinutes / 60) + ':' + (endMinutes % 60).toString().padStart(2, '0'), ')');
+	} else {
+		// Fallback to Stockholm extraction for database timestamps
+		console.log('  Using Stockholm time extraction for database timestamps');
+		startMinutes = extractStockholmMinutes(startTime);
+		endMinutes = extractStockholmMinutes(endTime);
+		console.log('  Extracted startMinutes:', startMinutes, '(', Math.floor(startMinutes / 60) + ':' + (startMinutes % 60).toString().padStart(2, '0'), ')');
+		console.log('  Extracted endMinutes:', endMinutes, '(', Math.floor(endMinutes / 60) + ':' + (endMinutes % 60).toString().padStart(2, '0'), ')');
+	}
+
 	const startParts = extractStockholmTimeParts(startTime);
-	const startMinutes = extractStockholmMinutes(startTime);
-	const endMinutes = extractStockholmMinutes(endTime);
-
-	console.log(
-		'  Extracted startMinutes:',
-		startMinutes,
-		'(',
-		Math.floor(startMinutes / 60) + ':' + (startMinutes % 60).toString().padStart(2, '0'),
-		')'
-	);
-	console.log(
-		'  Extracted endMinutes:',
-		endMinutes,
-		'(',
-		Math.floor(endMinutes / 60) + ':' + (endMinutes % 60).toString().padStart(2, '0'),
-		')'
-	);
-
-	if (!startParts || startMinutes === null || endMinutes === null || endMinutes <= startMinutes) {
 		console.log('  ❌ Invalid time range');
 		return null;
 	}
