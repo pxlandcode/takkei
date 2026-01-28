@@ -40,7 +40,7 @@ export const POST: RequestHandler = async ({ request }) => {
 
 		const userIds = collectUserIds(user_id, user_ids);
 		console.log('  Collected userIds:', userIds);
-		
+
 		if (userIds.length > 0) {
 			console.log('  Checking for conflicts...');
 			const conflictingUserIds = await findConflictingUsersForTimeRange({
@@ -48,9 +48,9 @@ export const POST: RequestHandler = async ({ request }) => {
 				endTime: end_time,
 				userIds
 			});
-			
+
 			console.log('  Conflict check result:', conflictingUserIds);
-			
+
 			if (conflictingUserIds === null) {
 				console.log('  ❌ Invalid time range returned from conflict check');
 				return new Response(JSON.stringify({ error: 'Invalid time range.' }), { status: 422 });
