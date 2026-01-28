@@ -21,6 +21,12 @@ export const POST: RequestHandler = async ({ request }) => {
 	try {
 		const data = await request.json();
 
+		console.log('📝 create-personal-booking POST received');
+		console.log('  start_time:', data.start_time);
+		console.log('  end_time:', data.end_time);
+		console.log('  user_id:', data.user_id);
+		console.log('  user_ids:', data.user_ids);
+
 		// Extract personal booking details
 		const name = data.name ?? null;
 		const text = data.text ?? null;
@@ -33,16 +39,24 @@ export const POST: RequestHandler = async ({ request }) => {
 		const booked_by_id = data.booked_by_id ?? null;
 
 		const userIds = collectUserIds(user_id, user_ids);
+		console.log('  Collected userIds:', userIds);
+		
 		if (userIds.length > 0) {
+			console.log('  Checking for conflicts...');
 			const conflictingUserIds = await findConflictingUsersForTimeRange({
 				startTime: start_time,
 				endTime: end_time,
 				userIds
 			});
+			
+			console.log('  Conflict check result:', conflictingUserIds);
+			
 			if (conflictingUserIds === null) {
+				console.log('  ❌ Invalid time range returned from conflict check');
 				return new Response(JSON.stringify({ error: 'Invalid time range.' }), { status: 422 });
 			}
 			if (conflictingUserIds.length > 0) {
+				console.log('  ❌ Conflicts found:', conflictingUserIds);
 				return new Response(
 					JSON.stringify({
 						error: 'Booking overlaps with existing bookings.',
@@ -51,6 +65,7 @@ export const POST: RequestHandler = async ({ request }) => {
 					{ status: 409 }
 				);
 			}
+			console.log('  ✅ No conflicts found');
 		}
 
 		// Insert personal booking into the database
@@ -66,6 +81,7 @@ export const POST: RequestHandler = async ({ request }) => {
 		);
 
 		const bookingId = result[0].id;
+		console.log('  ✅ Booking created with ID:', bookingId);
 
 		return new Response(
 			JSON.stringify({ message: 'Personal booking created successfully', bookingId }),

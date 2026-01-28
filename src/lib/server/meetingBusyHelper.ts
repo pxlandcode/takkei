@@ -140,17 +140,51 @@ export async function findConflictingUsersForTimeRange({
 	const normalizedIds = normalizeUserIds(userIds);
 	if (normalizedIds.length === 0) return [];
 
+	console.log('🔍 findConflictingUsersForTimeRange called');
+	console.log('  Input startTime:', startTime);
+	console.log('  Input endTime:', endTime);
+	console.log('  userIds:', userIds);
+
 	const startParts = extractStockholmTimeParts(startTime);
 	const startMinutes = extractStockholmMinutes(startTime);
 	const endMinutes = extractStockholmMinutes(endTime);
 
+	console.log(
+		'  Extracted startMinutes:',
+		startMinutes,
+		'(',
+		Math.floor(startMinutes / 60) + ':' + (startMinutes % 60).toString().padStart(2, '0'),
+		')'
+	);
+	console.log(
+		'  Extracted endMinutes:',
+		endMinutes,
+		'(',
+		Math.floor(endMinutes / 60) + ':' + (endMinutes % 60).toString().padStart(2, '0'),
+		')'
+	);
+
 	if (!startParts || startMinutes === null || endMinutes === null || endMinutes <= startMinutes) {
+		console.log('  ❌ Invalid time range');
 		return null;
 	}
 
 	const dateString = `${startParts.year}-${pad2(startParts.month)}-${pad2(startParts.day)}`;
+	console.log('  dateString:', dateString);
+
 	const busyBlocks = await fetchBusyBlocksForUsers(dateString, normalizedIds, {
 		ignorePersonalBookingId
+	});
+
+	console.log('  Found', busyBlocks.length, 'busy blocks');
+	busyBlocks.forEach((block, idx) => {
+		const blockStartTime =
+			Math.floor(block.start / 60) + ':' + (block.start % 60).toString().padStart(2, '0');
+		const blockEndTime =
+			Math.floor(block.end / 60) + ':' + (block.end % 60).toString().padStart(2, '0');
+		console.log(
+			`    Block ${idx}: ${blockStartTime}-${blockEndTime} (${block.start}-${block.end} mins), userIds: ${block.userIds}`
+		);
 	});
 
 	const conflictingUserIds = new Set<number>();
@@ -158,10 +192,26 @@ export async function findConflictingUsersForTimeRange({
 		const isAdjacent =
 			Math.abs(endMinutes - block.start) <= 1 || Math.abs(startMinutes - block.end) <= 1;
 
-		if (!isAdjacent && overlaps(startMinutes, endMinutes, block.start, block.end)) {
+		const overlapsCheck = overlaps(startMinutes, endMinutes, block.start, block.end);
+
+		console.log(
+			`    Checking block [${block.start}-${block.end}]: overlaps=${overlapsCheck}, isAdjacent=${isAdjacent}`
+		);
+		console.log(
+			`      endMinutes(${endMinutes}) - block.start(${block.start}) = ${Math.abs(endMinutes - block.start)}`
+		);
+		console.log(
+			`      startMinutes(${startMinutes}) - block.end(${block.end}) = ${Math.abs(startMinutes - block.end)}`
+		);
+
+		if (!isAdjacent && overlapsCheck) {
+			console.log(`      ❌ CONFLICT found for users: ${block.userIds}`);
 			block.userIds.forEach((uid) => conflictingUserIds.add(uid));
+		} else if (isAdjacent && overlapsCheck) {
+			console.log(`      ✅ Adjacent bookings allowed (no conflict)`);
 		}
 	}
 
+	console.log('  Final conflicting users:', Array.from(conflictingUserIds));
 	return Array.from(conflictingUserIds);
 }
