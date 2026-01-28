@@ -86,6 +86,8 @@
 	}
 
 	async function checkRepeatAvailability() {
+		const filterHalfHourTimes = (times?: string[]) =>
+			(times ?? []).filter((time) => time.split(':')[1] === '30');
 		const res = await fetch('/api/bookings/check-repeat', {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
@@ -102,11 +104,14 @@
 		const data = await res.json();
 
 		if (data.success && data.repeatedBookings) {
-			repeatedBookings = data.repeatedBookings.map((week) => ({
-				...week,
-				selectedTime:
-					week.conflict && week.suggestedTimes.length > 0 ? week.suggestedTimes[0] : week.time
-			}));
+			repeatedBookings = data.repeatedBookings.map((week) => {
+				const suggestedTimes = filterHalfHourTimes(week.suggestedTimes);
+				return {
+					...week,
+					suggestedTimes,
+					selectedTime: week.conflict && suggestedTimes.length > 0 ? suggestedTimes[0] : week.time
+				};
+			});
 		} else {
 			repeatedBookings = [];
 		}

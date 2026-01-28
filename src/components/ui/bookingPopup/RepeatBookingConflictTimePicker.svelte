@@ -13,12 +13,15 @@
 	export let showDropdownWhenEmpty = false;
 	export let noOptionsMessage = 'Ingen tillgänglig tid denna dag. Konflikten kan inte lösas.';
 
+	const isHalfHour = (time: string) => time.split(':')[1] === '30';
 	let suggestedOptions: { label: string; value: string }[] = [];
 	let hasSuggestions = false;
-	$: suggestedOptions = (week?.suggestedTimes ?? []).map((t: string) => ({
-		label: t,
-		value: t
-	}));
+	$: suggestedOptions = (week?.suggestedTimes ?? [])
+		.filter(isHalfHour)
+		.map((t: string) => ({
+			label: t,
+			value: t
+		}));
 	$: hasSuggestions = suggestedOptions.length > 0;
 </script>
 

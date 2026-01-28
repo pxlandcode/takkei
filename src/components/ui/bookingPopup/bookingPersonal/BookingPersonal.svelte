@@ -41,11 +41,13 @@
 		const data = await res.json();
 
 		if (data.success && data.repeatedBookings) {
-			repeatedBookings = data.repeatedBookings.map((week) => ({
-				...week,
-				selectedTime:
-					week.conflict && week.suggestedTimes.length > 0 ? week.suggestedTimes[0] : week.time
-			}));
+			repeatedBookings = data.repeatedBookings.map((week) => {
+				return {
+					...week,
+					selectedTime:
+						week.conflict && week.suggestedTimes.length > 0 ? week.suggestedTimes[0] : week.time
+				};
+			});
 		} else {
 			repeatedBookings = [];
 		}
