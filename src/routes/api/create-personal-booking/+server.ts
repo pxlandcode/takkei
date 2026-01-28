@@ -43,14 +43,16 @@ export const POST: RequestHandler = async ({ request }) => {
 
 		if (userIds.length > 0) {
 			console.log('  Checking for conflicts...');
-			const conflictingUserIds = await findConflictingUsersForTimeRange({
-				startTime: start_time,
-				endTime: end_time,
-				userIds
-			});
-
-			console.log('  Conflict check result:', conflictingUserIds);
-
+		
+		// Fix timezone issue: remove 'Z' from timestamps to prevent UTC conversion
+		const fixedStartTime = start_time.replace('Z', '');
+		const fixedEndTime = end_time.replace('Z', '');
+		console.log('  Fixed start_time:', fixedStartTime);
+		console.log('  Fixed end_time:', fixedEndTime);
+		
+		const conflictingUserIds = await findConflictingUsersForTimeRange({
+			startTime: fixedStartTime,
+			endTime: fixedEndTime,
 			if (conflictingUserIds === null) {
 				console.log('  ❌ Invalid time range returned from conflict check');
 				return new Response(JSON.stringify({ error: 'Invalid time range.' }), { status: 422 });
