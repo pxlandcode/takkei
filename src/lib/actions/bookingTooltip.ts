@@ -17,10 +17,11 @@ export function bookingTooltip(node: HTMLElement, params: BookingTooltipParams |
 	let preferred: BookingTooltipParams['preferred'] = 'bottom';
 	let delay = 0;
 	let enabled = false;
+	let destroyed = false;
 
 	// Event Handlers
 	function onMouseEnter() {
-		if (!enabled) return;
+		if (!enabled || destroyed) return;
 
 		if (!visible) {
 			showTimer = setTimeout(() => {
@@ -30,6 +31,7 @@ export function bookingTooltip(node: HTMLElement, params: BookingTooltipParams |
 	}
 
 	function onMouseLeave() {
+		if (destroyed) return;
 		if (showTimer) {
 			clearTimeout(showTimer);
 			showTimer = null;
@@ -42,7 +44,7 @@ export function bookingTooltip(node: HTMLElement, params: BookingTooltipParams |
 
 	// Show Tooltip
 	function show() {
-		if (!enabled || !booking) return;
+		if (!enabled || !booking || destroyed) return;
 
 		visible = true;
 		createTooltip();
@@ -50,6 +52,7 @@ export function bookingTooltip(node: HTMLElement, params: BookingTooltipParams |
 
 	// Hide Tooltip
 	function hide() {
+		if (destroyed) return;
 		if (showTimer) {
 			clearTimeout(showTimer);
 			showTimer = null;
@@ -61,7 +64,8 @@ export function bookingTooltip(node: HTMLElement, params: BookingTooltipParams |
 
 	// Create Tooltip
 	async function createTooltip() {
-		if (!visible || tooltipEl || !booking) return;
+		if (!visible || tooltipEl || !booking || destroyed) return;
+		if (!node.isConnected) return;
 
 		tooltipEl = document.createElement('div');
 		tooltipEl.className =
@@ -78,6 +82,10 @@ export function bookingTooltip(node: HTMLElement, params: BookingTooltipParams |
 		document.body.appendChild(tooltipEl);
 
 		await tick();
+		if (destroyed || !visible || !tooltipEl || !node.isConnected) {
+			removeTooltip();
+			return;
+		}
 		positionTooltip();
 		tooltipEl.style.opacity = '1';
 	}
@@ -311,7 +319,7 @@ export function bookingTooltip(node: HTMLElement, params: BookingTooltipParams |
 
 	// Position Tooltip (with clamping)
 	function positionTooltip() {
-		if (!tooltipEl) return;
+		if (!tooltipEl || destroyed || !node.isConnected) return;
 
 		const margin = 8;
 		const anchorRect = node.getBoundingClientRect();
@@ -387,6 +395,7 @@ export function bookingTooltip(node: HTMLElement, params: BookingTooltipParams |
 	}
 
 	function applyParams(newParams?: BookingTooltipParams | null) {
+		if (destroyed) return;
 		booking = newParams?.booking ?? null;
 		preferred = newParams?.preferred ?? 'bottom';
 		delay = newParams?.delay ?? 300;
@@ -408,6 +417,14 @@ export function bookingTooltip(node: HTMLElement, params: BookingTooltipParams |
 	}
 
 	function destroy() {
+		destroyed = true;
+		enabled = false;
+		visible = false;
+		booking = null;
+		if (showTimer) {
+			clearTimeout(showTimer);
+			showTimer = null;
+		}
 		node.removeEventListener('mouseenter', onMouseEnter);
 		node.removeEventListener('mouseleave', onMouseLeave);
 		removeTooltip();
