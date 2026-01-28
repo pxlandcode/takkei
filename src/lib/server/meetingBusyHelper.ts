@@ -163,18 +163,44 @@ export async function findConflictingUsersForTimeRange({
 	// If direct parsing worked, we have the times in the correct timezone
 	if (startMinutes !== null && endMinutes !== null) {
 		console.log('  ✅ Parsed times directly (no timezone conversion)');
-		console.log('  Extracted startMinutes:', startMinutes, '(', Math.floor(startMinutes / 60) + ':' + (startMinutes % 60).toString().padStart(2, '0'), ')');
-		console.log('  Extracted endMinutes:', endMinutes, '(', Math.floor(endMinutes / 60) + ':' + (endMinutes % 60).toString().padStart(2, '0'), ')');
+		console.log(
+			'  Extracted startMinutes:',
+			startMinutes,
+			'(',
+			Math.floor(startMinutes / 60) + ':' + (startMinutes % 60).toString().padStart(2, '0'),
+			')'
+		);
+		console.log(
+			'  Extracted endMinutes:',
+			endMinutes,
+			'(',
+			Math.floor(endMinutes / 60) + ':' + (endMinutes % 60).toString().padStart(2, '0'),
+			')'
+		);
 	} else {
 		// Fallback to Stockholm extraction for database timestamps
 		console.log('  Using Stockholm time extraction for database timestamps');
 		startMinutes = extractStockholmMinutes(startTime);
 		endMinutes = extractStockholmMinutes(endTime);
-		console.log('  Extracted startMinutes:', startMinutes, '(', Math.floor(startMinutes / 60) + ':' + (startMinutes % 60).toString().padStart(2, '0'), ')');
-		console.log('  Extracted endMinutes:', endMinutes, '(', Math.floor(endMinutes / 60) + ':' + (endMinutes % 60).toString().padStart(2, '0'), ')');
+		console.log(
+			'  Extracted startMinutes:',
+			startMinutes,
+			'(',
+			Math.floor(startMinutes / 60) + ':' + (startMinutes % 60).toString().padStart(2, '0'),
+			')'
+		);
+		console.log(
+			'  Extracted endMinutes:',
+			endMinutes,
+			'(',
+			Math.floor(endMinutes / 60) + ':' + (endMinutes % 60).toString().padStart(2, '0'),
+			')'
+		);
 	}
 
 	const startParts = extractStockholmTimeParts(startTime);
+
+	if (!startParts || startMinutes === null || endMinutes === null || endMinutes <= startMinutes) {
 		console.log('  ❌ Invalid time range');
 		return null;
 	}
