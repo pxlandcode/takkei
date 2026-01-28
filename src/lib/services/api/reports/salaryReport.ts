@@ -539,7 +539,7 @@ export async function getSalaryReport(params: SalaryReportParams): Promise<Salar
                 const weekdayMaskIndex = weekdayIndexFromUtcDay(weekdayUtc);
 
                 let obMinutes = 0;
-                if (category === 'weekday' && startMinutes !== null && endMinutes !== null) {
+                if (startMinutes !== null && endMinutes !== null) {
                         for (const window of obWindows) {
                                 const maskMatch = (window.weekday_mask & (1 << weekdayMaskIndex)) !== 0;
                                 if (!maskMatch) continue;
@@ -595,11 +595,12 @@ export async function getSalaryReport(params: SalaryReportParams): Promise<Salar
                         default:
                                 trainer.weekdayMinutes += durationMinutes;
                                 trainer.weekday.push(detail);
-                                if (obMinutes > 0) {
-                                        trainer.obMinutes += obMinutes;
-                                        trainer.ob.push(detail);
-                                }
                                 break;
+                }
+
+                if (obMinutes > 0) {
+                        trainer.obMinutes += obMinutes;
+                        trainer.ob.push(detail);
                 }
         }
 

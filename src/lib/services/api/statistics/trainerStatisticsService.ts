@@ -42,15 +42,16 @@ type RangeDescriptor = {
 };
 
 type ProcessedBooking = {
-        id: number;
-        startIso: string;
-        stockholmStart: string;
-        category: TableCategory;
-        durationMinutes: number;
-        obMinutes: number;
-        isLateCancellation: boolean;
-        status: string | null;
-        isTryOut: boolean;
+	id: number;
+	startIso: string;
+	stockholmStart: string;
+	stockholmEnd: string;
+	category: TableCategory;
+	durationMinutes: number;
+	obMinutes: number;
+	isLateCancellation: boolean;
+	status: string | null;
+	isTryOut: boolean;
 };
 
 type TableCategory =
@@ -128,11 +129,15 @@ export async function getTrainerStatisticsService(
         const processedActive = processBookings(activeBookings, obWindows, holidaySet);
         const processedCancelled = processBookings(cancelledBookings, obWindows, holidaySet);
 
-        const previousWeekSummary = summarizeBookings(processedActive, ranges.previousWeek);
-        const currentWeekSummary = summarizeBookings(processedActive, ranges.currentWeek);
-        const nextWeekSummary = summarizeBookings(processedActive, ranges.nextWeek);
-        const currentMonthSummary = summarizeBookings(processedActive, ranges.currentMonth);
-        const previousMonthSummary = summarizeBookings(processedActive, ranges.previousMonth);
+        const debiterbaraBookings = processedActive.concat(
+                processedCancelled.filter((booking) => booking.isLateCancellation)
+        );
+
+        const previousWeekSummary = summarizeBookings(debiterbaraBookings, ranges.previousWeek);
+        const currentWeekSummary = summarizeBookings(debiterbaraBookings, ranges.currentWeek);
+        const nextWeekSummary = summarizeBookings(debiterbaraBookings, ranges.nextWeek);
+        const currentMonthSummary = summarizeBookings(debiterbaraBookings, ranges.currentMonth);
+        const previousMonthSummary = summarizeBookings(debiterbaraBookings, ranges.previousMonth);
 
         const debiterbaraBokningar: TrainerStatisticsResponse['debiterbaraBokningar'] = {
                 currentWeek: {
@@ -158,33 +163,61 @@ export async function getTrainerStatisticsService(
                 }
         };
 
-        const weekMinutes = sumMinutes(processedActive, ranges.currentWeek);
-        const monthMinutes = sumMinutes(processedActive, ranges.currentMonth);
-        const previousWeekMinutes = sumMinutes(processedActive, ranges.previousWeek);
-        const previousMonthMinutes = sumMinutes(processedActive, ranges.previousMonth);
-        const weekHours = minutesToHours(weekMinutes);
-        const monthHours = minutesToHours(monthMinutes);
-        const previousWeekHours = minutesToHours(previousWeekMinutes);
-        const previousMonthHours = minutesToHours(previousMonthMinutes);
+        const billableWeekMinutes = sumMinutes(debiterbaraBookings, ranges.currentWeek);
+        const billableMonthMinutes = sumMinutes(debiterbaraBookings, ranges.currentMonth);
+        const billablePreviousMonthMinutes = sumMinutes(debiterbaraBookings, ranges.previousMonth);
+        const billableWeekHours = minutesToHours(billableWeekMinutes);
+        const billableMonthHours = minutesToHours(billableMonthMinutes);
+        const billablePreviousMonthHours = minutesToHours(billablePreviousMonthMinutes);
+
+        const nowStockholm = `${formatDate(stockholmtParts)} ${formatTime(stockholmtParts)}`;
+        const debiteradeBookings = processedActive.concat(
+                processedCancelled.filter((booking) => booking.isLateCancellation)
+        );
+
+        const debiteradeWeekMinutes = sumMinutes(debiteradeBookings, ranges.currentWeek, nowStockholm);
+        const debiteradeMonthMinutes = sumMinutes(
+                debiteradeBookings,
+                ranges.currentMonth,
+                nowStockholm
+        );
+        const debiteradePreviousWeekMinutes = sumMinutes(
+                debiteradeBookings,
+                ranges.previousWeek,
+                nowStockholm
+        );
+        const debiteradePreviousMonthMinutes = sumMinutes(
+                debiteradeBookings,
+                ranges.previousMonth,
+                nowStockholm
+        );
+        const debiteradeWeekHours = minutesToHours(debiteradeWeekMinutes);
+        const debiteradeMonthHours = minutesToHours(debiteradeMonthMinutes);
+        const debiteradePreviousWeekHours = minutesToHours(debiteradePreviousWeekMinutes);
+        const debiteradePreviousMonthHours = minutesToHours(debiteradePreviousMonthMinutes);
 
         const debiteradePass: TrainerStatisticsResponse['debiteradePass'] = {
-                monthHours,
-                deltaLabel: formatDeltaLabel(monthHours - previousMonthHours, 'prevMonth', 'h'),
+                monthHours: debiteradeMonthHours,
+                deltaLabel: formatDeltaLabel(
+                        debiteradeMonthHours - debiteradePreviousMonthHours,
+                        'prevMonth',
+                        'h'
+                ),
                 periods: {
                         week: {
                                 label: STOCKHOLM_DAY_LABELS.currentWeek,
-                                hours: weekHours,
+                                hours: debiteradeWeekHours,
                                 deltaLabel: formatDeltaLabel(
-                                        weekHours - previousWeekHours,
+                                        debiteradeWeekHours - debiteradePreviousWeekHours,
                                         'prevWeek',
                                         'h'
                                 )
                         },
                         month: {
                                 label: STOCKHOLM_DAY_LABELS.currentMonth,
-                                hours: monthHours,
+                                hours: debiteradeMonthHours,
                                 deltaLabel: formatDeltaLabel(
-                                        monthHours - previousMonthHours,
+                                        debiteradeMonthHours - debiteradePreviousMonthHours,
                                         'prevMonth',
                                         'h'
                                 )
@@ -223,7 +256,7 @@ export async function getTrainerStatisticsService(
                 }
         };
 
-        const table = buildTable(processedActive, processedCancelled, customRange);
+        const table = buildTable(debiterbaraBookings, processedCancelled, customRange);
 
         return {
                 debiterbaraBokningar,
@@ -236,9 +269,13 @@ export async function getTrainerStatisticsService(
                         )
                 },
                 debiterbaraTimmar: {
-                        weekHours,
-                        monthHours,
-                        deltaLabel: formatDeltaLabel(monthHours - previousMonthHours, 'prevMonth', 'h')
+                        weekHours: billableWeekHours,
+                        monthHours: billableMonthHours,
+                        deltaLabel: formatDeltaLabel(
+                                billableMonthHours - billablePreviousMonthHours,
+                                'prevMonth',
+                                'h'
+                        )
                 },
                 avbokningar,
                 table
@@ -463,8 +500,8 @@ function processBookingRow(
         const stockholmParts = extractStockholmTimeParts(row.start_time);
         if (!stockholmParts) return null;
 
-        const stockholmStart = `${formatDate(stockholmParts)} ${formatTime(stockholmParts)}`;
-        const dateKey = formatDate(stockholmParts);
+	const stockholmStart = `${formatDate(stockholmParts)} ${formatTime(stockholmParts)}`;
+	const dateKey = formatDate(stockholmParts);
 
         const weekdayUtc = new Date(
                 Date.UTC(stockholmParts.year, stockholmParts.month - 1, stockholmParts.day)
@@ -472,8 +509,11 @@ function processBookingRow(
         const isWeekend = weekdayUtc === 0 || weekdayUtc === 6;
         const isHoliday = holidaySet.has(dateKey);
 
-        const { endTime, durationMinutes } = resolveBookingTiming(startTime, row.end_time);
-        if (!endTime || durationMinutes <= 0) return null;
+	const { endTime, durationMinutes } = resolveBookingTiming(startTime, row.end_time);
+	if (!endTime || durationMinutes <= 0) return null;
+	const endParts = extractStockholmTimeParts(endTime);
+	if (!endParts) return null;
+	const stockholmEnd = `${formatDate(endParts)} ${formatTime(endParts)}`;
 
         const category = determineCategory(row, { isWeekend, isHoliday });
 
@@ -482,10 +522,10 @@ function processBookingRow(
         const weekdayMaskIndex = weekdayIndexFromUtcDay(weekdayUtc);
 
         let obMinutes = 0;
-        if (category === 'weekday' && startMinutes !== null && endMinutes !== null) {
-                        for (const window of obWindows) {
-                                const maskMatch = (window.weekday_mask & (1 << weekdayMaskIndex)) !== 0;
-                                if (!maskMatch) continue;
+        if (startMinutes !== null && endMinutes !== null) {
+                for (const window of obWindows) {
+                        const maskMatch = (window.weekday_mask & (1 << weekdayMaskIndex)) !== 0;
+                        if (!maskMatch) continue;
                                 if (isHoliday && !window.include_holidays) continue;
 
                                 const overlap = computeOverlapMinutes(
@@ -500,17 +540,18 @@ function processBookingRow(
                         }
         }
 
-        return {
-                id: row.id,
-                startIso: startTime.toISOString(),
-                stockholmStart,
-                category,
-                durationMinutes,
-                obMinutes,
-                isLateCancellation: row.status === 'Late_cancelled',
-                status: row.status,
-                isTryOut: row.try_out === true
-        };
+	return {
+		id: row.id,
+		startIso: startTime.toISOString(),
+		stockholmStart,
+		stockholmEnd,
+		category,
+		durationMinutes,
+		obMinutes,
+		isLateCancellation: row.status === 'Late_cancelled',
+		status: row.status,
+		isTryOut: row.try_out === true
+	};
 }
 
 function determineCategory(
@@ -537,10 +578,11 @@ function summarizeBookings(bookings: ProcessedBooking[], range: RangeDescriptor)
         };
 }
 
-function sumMinutes(bookings: ProcessedBooking[], range: RangeDescriptor) {
-        return bookings
-                .filter((booking) => isWithinRange(booking.stockholmStart, range))
-                .reduce((sum, booking) => sum + booking.durationMinutes, 0);
+function sumMinutes(bookings: ProcessedBooking[], range: RangeDescriptor, endLimit?: string) {
+	return bookings
+		.filter((booking) => isWithinRange(booking.stockholmStart, range))
+		.filter((booking) => (endLimit ? booking.stockholmEnd <= endLimit : true))
+		.reduce((sum, booking) => sum + booking.durationMinutes, 0);
 }
 
 function countTryOut(bookings: ProcessedBooking[], range: RangeDescriptor) {
@@ -576,11 +618,11 @@ function describeDeltaContext(context: DeltaContext) {
 }
 
 function buildTable(
-        activeBookings: ProcessedBooking[],
+        billableBookings: ProcessedBooking[],
         cancelledBookings: ProcessedBooking[],
         range: RangeDescriptor
 ) {
-        const activeInRange = activeBookings.filter((booking) =>
+        const billableInRange = billableBookings.filter((booking) =>
                 isWithinRange(booking.stockholmStart, range)
         );
         const cancelledInRange = cancelledBookings.filter((booking) =>
@@ -589,7 +631,7 @@ function buildTable(
 
         const rows = Object.entries(TABLE_CATEGORY_LABELS).map(([category, label]) => {
                 const categoryKey = category as TableCategory;
-                const categoryBookings = activeInRange.filter((booking) => booking.category === categoryKey);
+                const categoryBookings = billableInRange.filter((booking) => booking.category === categoryKey);
                 const categoryCancelled = cancelledInRange.filter(
                         (booking) => booking.category === categoryKey && booking.isLateCancellation
                 );
@@ -610,7 +652,7 @@ function buildTable(
                 };
         });
 
-        const totalObMinutes = activeInRange.reduce((sum, booking) => sum + booking.obMinutes, 0);
+        const totalObMinutes = billableInRange.reduce((sum, booking) => sum + booking.obMinutes, 0);
         rows.splice(2, 0, {
                 type: OB_ROW.type,
                 hours: 0,
