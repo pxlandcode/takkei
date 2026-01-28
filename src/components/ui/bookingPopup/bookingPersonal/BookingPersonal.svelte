@@ -7,6 +7,7 @@
 	import TextArea from '../../../bits/textarea/TextArea.svelte';
 	import Dropdown from '../../../bits/dropdown/Dropdown.svelte';
 	import Button from '../../../bits/button/Button.svelte';
+	import RepeatBookingSection from '../RepeatBookingSection.svelte';
 
 	export let bookingObject: any;
 	export let locations: { label: string; value: string }[] = [];
@@ -40,11 +41,13 @@
 		const data = await res.json();
 
 		if (data.success && data.repeatedBookings) {
-			repeatedBookings = data.repeatedBookings.map((week) => ({
-				...week,
-				selectedTime:
-					week.conflict && week.suggestedTimes.length > 0 ? week.suggestedTimes[0] : week.time
-			}));
+			repeatedBookings = data.repeatedBookings.map((week) => {
+				return {
+					...week,
+					selectedTime:
+						week.conflict && week.suggestedTimes.length > 0 ? week.suggestedTimes[0] : week.time
+				};
+			});
 		} else {
 			repeatedBookings = [];
 		}
@@ -55,6 +58,8 @@
 	}
 
 	function resolveConflict(weekNumber: number) {
+		const targetWeek = repeatedBookings.find((w) => w.week === weekNumber);
+		if (!targetWeek?.suggestedTimes || targetWeek.suggestedTimes.length === 0) return;
 		repeatedBookings = repeatedBookings.map((w) =>
 			w.week === weekNumber ? { ...w, conflict: false } : w
 		);
@@ -124,86 +129,56 @@
 	</div>
 
 	<!-- Repeat -->
-	<label class="flex items-center gap-2 text-sm font-medium text-gray-700">
-		<input type="checkbox" bind:checked={bookingObject.repeat} class="h-4 w-4" />
-		Upprepa denna bokning
-	</label>
+	<RepeatBookingSection
+		checkboxVariant="native"
+		label="Upprepa denna bokning"
+		labelClass="flex items-center gap-2 text-sm font-medium text-gray-700"
+		bind:repeat={bookingObject.repeat}
+		bind:repeatWeeks={bookingObject.repeatWeeks}
+		{repeatedBookings}
+		weeksPlaceholder="Ex: 4"
+		on:check={checkRepeatAvailability}
+	>
+		<div slot="conflict" let:week class="border-red bg-red/10 mb-2 rounded-sm border p-3">
+			<div class="flex flex-col gap-1">
+				<span class="font-semibold">
+					{week.date}, kl {week.selectedTime}
+				</span>
 
-	{#if bookingObject.repeat}
-		<Input
-			label="Antal veckor framåt"
-			name="repeatWeeks"
-			type="number"
-			bind:value={bookingObject.repeatWeeks}
-			placeholder="Ex: 4"
-			min="1"
-			max="52"
-		/>
-
-		<Button
-			text="Kontrollera"
-			iconRight="MultiCheck"
-			iconRightSize="16"
-			variant="primary"
-			full
-			on:click={checkRepeatAvailability}
-			disabled={!bookingObject.repeatWeeks}
-		/>
-
-		{#if repeatedBookings.length > 0}
-			<div class="flex flex-col gap-2 rounded-sm border border-gray-300 bg-gray-50 p-4">
-				{#if repeatedBookings.filter((b) => b.conflict).length > 0}
-					<h3 class="flex items-center justify-between text-lg font-semibold">
-						Konflikter
-						<span class="text-sm text-gray-600">
-							{repeatedBookings.filter((b) => b.conflict).length} konflikter /
-							{repeatedBookings.length} veckor
-						</span>
-					</h3>
+				{#if week.suggestedTimes?.length > 0}
+					<Dropdown
+						label="Välj alternativ tid"
+						placeholder="Tillgängliga tider"
+						id={`week-${week.week}-time`}
+						options={week.suggestedTimes.map((t) => ({ label: t, value: t }))}
+						bind:selectedValue={week.selectedTime}
+					/>
+				{:else}
+					<p class="mt-2 text-xs text-red-600">
+						Ingen tillgänglig tid denna dag. Konflikten kan inte lösas.
+					</p>
 				{/if}
 
-				{#each repeatedBookings.filter((b) => b.conflict) as week}
-					<div class="border-red bg-red/10 mb-2 rounded-sm border p-3">
-						<div class="flex flex-col gap-1">
-							<span class="font-semibold">
-								{week.date}, kl {week.selectedTime}
-							</span>
-
-							{#if week.suggestedTimes?.length > 0}
-								<Dropdown
-									label="Välj alternativ tid"
-									placeholder="Tillgängliga tider"
-									id={`week-${week.week}-time`}
-									options={week.suggestedTimes.map((t) => ({ label: t, value: t }))}
-									bind:selectedValue={week.selectedTime}
-								/>
-							{/if}
-
-							<div class="mt-2 flex gap-2">
-								<Button
-									text="Lös"
-									variant="primary"
-									small
-									on:click={() => resolveConflict(week.week)}
-								/>
-								<Button
-									text="Avboka vecka"
-									variant="secondary"
-									small
-									on:click={() => ignoreConflict(week.week)}
-								/>
-							</div>
-						</div>
-					</div>
-				{/each}
-
-				<h3 class="text-lg font-semibold">Bokningar klara att bokas:</h3>
-				{#each repeatedBookings.filter((b) => !b.conflict) as week}
-					<div class="border-green bg-green-bright/10 mb-1 rounded-sm border p-2">
-						{week.date}, kl {week.selectedTime}
-					</div>
-				{/each}
+				<div class="mt-2 flex gap-2">
+					<Button
+						text="Lös"
+						variant="primary"
+						small
+						disabled={!week.suggestedTimes || week.suggestedTimes.length === 0}
+						on:click={() => resolveConflict(week.week)}
+					/>
+					<Button
+						text="Avboka vecka"
+						variant="secondary"
+						small
+						on:click={() => ignoreConflict(week.week)}
+					/>
+				</div>
 			</div>
-		{/if}
-	{/if}
+		</div>
+
+		<div slot="ready" let:week class="border-green bg-green-bright/10 mb-1 rounded-sm border p-2">
+			{week.date}, kl {week.selectedTime}
+		</div>
+	</RepeatBookingSection>
 </div>

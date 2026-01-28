@@ -13,8 +13,6 @@ function pad2(value: number): string {
 	return String(value).padStart(2, '0');
 }
 
-// Parse time string directly without timezone conversion
-// Input: "2026-03-20T16:30:00" or "16:30"
 function parseTimeDirectly(timeStr: string): number | null {
 	const timeMatch = timeStr.match(/(\d{1,2}):(\d{2})/);
 	if (!timeMatch) return null;

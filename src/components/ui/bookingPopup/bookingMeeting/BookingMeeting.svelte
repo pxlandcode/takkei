@@ -9,6 +9,7 @@
 	import { user } from '$lib/stores/userStore';
 	import OptionButton from '../../../bits/optionButton/OptionButton.svelte';
 	import { capitalizeFirstLetter } from '$lib/helpers/generic/genericHelpers';
+	import RepeatBookingSection from '../RepeatBookingSection.svelte';
 
 	export let bookingObject: {
 		id?: number | null;
@@ -509,151 +510,103 @@
 	</div>
 
 	<!-- Repeat Booking -->
-	<div class="flex flex-col gap-2">
-		<label class="text-gray flex items-center gap-2 text-sm font-medium">
-			<input type="checkbox" bind:checked={bookingObject.repeat} class="h-4 w-4" />
-			{#if isMeeting}
-				Upprepa detta möte
-			{:else}
-				Upprepa denna bokning
-			{/if}
-		</label>
+	<RepeatBookingSection
+		checkboxVariant="native"
+		label={isMeeting ? 'Upprepa detta möte' : 'Upprepa denna bokning'}
+		labelClass="text-gray flex items-center gap-2 text-sm font-medium"
+		bind:repeat={bookingObject.repeat}
+		bind:repeatWeeks={bookingObject.repeatWeeks}
+		{repeatedBookings}
+		weeksPlaceholder="Ex: 4"
+		{errors}
+		on:check={checkRepeatAvailability}
+	>
+		<div slot="conflict" let:week class="border-red bg-red/10 mb-2 rounded-sm border p-3">
+			<div class="flex flex-col gap-1">
+				<span class="font-semibold">
+					{week.date}, kl {week.selectedTime}
+				</span>
 
-		{#if bookingObject.repeat}
-			<Input
-				label="Antal veckor framåt"
-				name="repeatWeeks"
-				type="number"
-				bind:value={bookingObject.repeatWeeks}
-				placeholder="Ex: 4"
-				min="1"
-				max="52"
-				{errors}
-			/>
-
-			<Button
-				text="Kontrollera"
-				iconRight="MultiCheck"
-				iconRightSize="16"
-				variant="primary"
-				full
-				on:click={checkRepeatAvailability}
-				disabled={!bookingObject.repeatWeeks}
-			/>
-
-			{#if repeatedBookings.length > 0}
-				<div class="flex flex-col gap-2 rounded-sm border border-gray-300 bg-gray-50 p-4">
-					{#if repeatedBookings.filter((b) => b.conflict).length > 0}
-						<h3 class="flex items-center justify-between text-lg font-semibold">
-							Konflikter
-							<span class="text-sm text-gray-600">
-								{repeatedBookings.filter((b) => b.conflict).length} konflikter /
-								{repeatedBookings.length} veckor
-							</span>
-						</h3>
-					{/if}
-
-					<!-- Conflicts -->
-					{#each repeatedBookings.filter((b) => b.conflict) as week}
-						<div class="border-red bg-red/10 mb-2 rounded-sm border p-3">
-							<div class="flex flex-col gap-1">
-								<span class="font-semibold">
-									{week.date}, kl {week.selectedTime}
-								</span>
-
-								{#if week.conflictingUserIds?.length > 0}
-									<div class="mt-1 text-sm text-red-700">
-										Konflikt med:
-										<ul class="ml-4 list-disc">
-											{#each week.conflictingUserIds as userId}
-												<li class="flex items-center gap-2">
-													{getUserName(userId)}
-													<Button
-														icon="Check"
-														small
-														variant="secondary"
-														iconColor="success"
-														iconSize="16"
-														on:click={() => ignoreUserConflict(week.week, userId)}
-													/>
-													<Button
-														icon="Close"
-														small
-														variant="cancel"
-														iconColor="red"
-														iconSize="16"
-														on:click={() => removeUserFromWeekConflict(week.week, userId)}
-													/>
-												</li>
-											{/each}
-										</ul>
-									</div>
-								{/if}
-
-								<div class="mt-2 grid grid-cols-2 gap-2">
-									<div>
-										<label class="text-gray text-xs font-semibold">Starttid</label>
-										<input
-											type="time"
-											class="text-gray w-full rounded border p-2"
-											bind:value={week.selectedTime}
-											on:change={() => handleWeekTimeChange(week)}
-										/>
-									</div>
-									<div>
-										<label class="text-gray text-xs font-semibold">Sluttid</label>
-										<input
-											type="time"
-											class="text-gray w-full rounded border p-2"
-											min={week.selectedTime}
-											max={week.nextBoundary ?? undefined}
-											bind:value={week.selectedEndTime}
-											on:change={() => handleWeekTimeChange(week)}
-										/>
-										{#if week.nextBoundary}
-											<p class="text-gray mt-1 text-[11px]">Senast {week.nextBoundary}</p>
-										{/if}
-									</div>
-								</div>
-
-								{#if week.boundaryConflict}
-									<p class="text-xs text-red-600">
-										Starttid ligger efter nästa bokning {week.nextBoundary}. Välj en tidigare tid.
-									</p>
-								{/if}
-
-								<div class="mt-2 flex gap-2">
+				{#if week.conflictingUserIds?.length > 0}
+					<div class="mt-1 text-sm text-red-700">
+						Konflikt med:
+						<ul class="ml-4 list-disc">
+							{#each week.conflictingUserIds as userId}
+								<li class="flex items-center gap-2">
+									{getUserName(userId)}
 									<Button
-										text="Lös"
-										variant="primary"
+										icon="Check"
 										small
-										on:click={() => resolveConflict(week.week)}
-									/>
-									<Button
-										text="Avboka vecka"
 										variant="secondary"
-										small
-										on:click={() => ignoreConflict(week.week)}
+										iconColor="success"
+										iconSize="16"
+										on:click={() => ignoreUserConflict(week.week, userId)}
 									/>
-								</div>
-							</div>
-						</div>
-					{/each}
+									<Button
+										icon="Close"
+										small
+										variant="cancel"
+										iconColor="red"
+										iconSize="16"
+										on:click={() => removeUserFromWeekConflict(week.week, userId)}
+									/>
+								</li>
+							{/each}
+						</ul>
+					</div>
+				{/if}
 
-					<!-- Ready bookings -->
-					<h3 class="text-lg font-semibold">Bokningar klara att bokas:</h3>
-					{#each repeatedBookings.filter((b) => !b.conflict) as week}
-						<div class="border-green bg-green-bright/10 mb-1 rounded-sm border p-2">
-							{week.date}, kl {week.selectedTime}
-							{#if week.selectedEndTime}
-								&ndash; {week.selectedEndTime}
-							{/if}
-						</div>
-					{/each}
+				<div class="mt-2 grid grid-cols-2 gap-2">
+					<div>
+						<label class="text-gray text-xs font-semibold">Starttid</label>
+						<input
+							type="time"
+							class="text-gray w-full rounded border p-2"
+							bind:value={week.selectedTime}
+							on:change={() => handleWeekTimeChange(week)}
+						/>
+					</div>
+					<div>
+						<label class="text-gray text-xs font-semibold">Sluttid</label>
+						<input
+							type="time"
+							class="text-gray w-full rounded border p-2"
+							min={week.selectedTime}
+							max={week.nextBoundary ?? undefined}
+							bind:value={week.selectedEndTime}
+							on:change={() => handleWeekTimeChange(week)}
+						/>
+						{#if week.nextBoundary}
+							<p class="text-gray mt-1 text-[11px]">Senast {week.nextBoundary}</p>
+						{/if}
+					</div>
 				</div>
+
+				{#if week.boundaryConflict}
+					<p class="text-xs text-red-600">
+						Starttid ligger efter nästa bokning {week.nextBoundary}. Välj en tidigare tid.
+					</p>
+				{/if}
+
+				<div class="mt-2 flex gap-2">
+					<Button text="Lös" variant="primary" small on:click={() => resolveConflict(week.week)} />
+					<Button
+						text="Avboka vecka"
+						variant="secondary"
+						small
+						on:click={() => ignoreConflict(week.week)}
+					/>
+				</div>
+			</div>
+		</div>
+
+		<div slot="ready" let:week class="border-green bg-green-bright/10 mb-1 rounded-sm border p-2">
+			{week.date}, kl {week.selectedTime}
+			{#if week.selectedEndTime}
+				&ndash; {week.selectedEndTime}
 			{/if}
-		{/if}
-	</div>
+		</div>
+	</RepeatBookingSection>
 
 	{#if isMeeting}
 		<OptionButton
