@@ -72,9 +72,8 @@
 			repeatWeeks: bookingObject.repeatWeeks
 		};
 
-		// Only block on trainee conflicts if we actually have one selected
+		payload.checkUsersBusy = true;
 		if (bookingObject.user_id) {
-			payload.checkUsersBusy = true;
 			payload.userId = bookingObject.user_id;
 		}
 

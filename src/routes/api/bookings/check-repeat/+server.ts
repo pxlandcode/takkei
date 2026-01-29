@@ -27,7 +27,8 @@ export const POST: RequestHandler = async ({ request }) => {
 		time,
 		repeatWeeks,
 		checkUsersBusy = false,
-		userId = null
+		userId = null,
+		clientId = null
 	} = body;
 
 	if (!date || !trainerId || !locationId || !time || !repeatWeeks) {
@@ -103,6 +104,7 @@ export const POST: RequestHandler = async ({ request }) => {
 		let trainerBookingIntervals: Interval[] = [];
 		let traineePersonalIntervals: Interval[] = [];
 		let traineeBookingIntervals: Interval[] = [];
+		let clientBookingIntervals: Interval[] = [];
 
 		if (checkUsersBusy) {
 			// Trainer's existing client/practice bookings
@@ -163,6 +165,26 @@ export const POST: RequestHandler = async ({ request }) => {
 					})
 					.filter(isNotNull);
 			}
+
+			if (clientId) {
+				const clientBookings = await query(
+					`
+            SELECT start_time
+            FROM bookings
+            WHERE start_time BETWEEN $1 AND $2
+              AND LOWER(status) NOT IN ('cancelled', 'late_cancelled')
+              AND client_id = $3
+          `,
+					[dayStart, dayEnd, clientId]
+				);
+				clientBookingIntervals = clientBookings
+					.map((b: any): Interval | null => {
+						const start = extractStockholmMinutes(b.start_time);
+						if (start === null) return null;
+						return { start, end: start + SLOT_LENGTH_MINUTES };
+					})
+					.filter(isNotNull);
+			}
 		}
 
 		// room conflicts
@@ -175,7 +197,7 @@ export const POST: RequestHandler = async ({ request }) => {
 
 		// user conflicts
 		const trainerBusy = [...trainerPersonalIntervals, ...trainerBookingIntervals];
-		const traineeBusy = [...traineePersonalIntervals, ...traineeBookingIntervals];
+		const traineeBusy = [...traineePersonalIntervals, ...traineeBookingIntervals, ...clientBookingIntervals];
 
 		const trainerConflict = trainerBusy.some((b) => overlaps(slotStart, slotEnd, b.start, b.end));
 		const traineeConflict = traineeBusy.some((b) => overlaps(slotStart, slotEnd, b.start, b.end));

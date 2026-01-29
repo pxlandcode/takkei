@@ -97,7 +97,9 @@
 				locationId: bookingObject.locationId,
 				roomId: bookingObject.roomId,
 				time: bookingObject.time,
-				repeatWeeks: bookingObject.repeatWeeks
+				repeatWeeks: bookingObject.repeatWeeks,
+				checkUsersBusy: true,
+				clientId: bookingObject.clientId ?? null
 			})
 		});
 

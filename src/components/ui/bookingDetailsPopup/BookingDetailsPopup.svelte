@@ -105,9 +105,15 @@
 	let bookingTypeLabel = componentLabels[bookingComponentType];
 	type QuickEditField = 'trainer' | 'location' | 'time' | null;
 	type BookedDateLine = { date: string; time: string; locationName?: string };
+	type SwapOption = {
+		label: string;
+		value: number;
+		unavailable?: boolean;
+		icons?: { icon: string; size?: string }[];
+	};
 
 	let activeQuickEdit: QuickEditField = null;
-	let trainerSwapOptions: { label: string; value: number }[] = [];
+	let trainerSwapOptions: SwapOption[] = [];
 	let locationSwapOptions: { label: string; value: number }[] = [];
 	let quickEditOptionsLoading = false;
 	let quickEditSavingField: QuickEditField = null;
@@ -634,18 +640,31 @@
 						userId: traineeUserId ?? undefined,
 						ignoreBookingId
 					});
-					if ((result.availableSlots ?? []).includes(time)) {
+					const availableSlots = result.availableSlots ?? [];
+					const outsideAvailabilitySlots = result.outsideAvailabilitySlots ?? [];
+
+					if (availableSlots.includes(time)) {
 						return {
 							label: `${candidate.firstname} ${candidate.lastname}`,
 							value: candidate.id
 						};
 					}
+
+					if (outsideAvailabilitySlots.includes(time)) {
+						return {
+							label: `${candidate.firstname} ${candidate.lastname}`,
+							value: candidate.id,
+							unavailable: true,
+							icons: [{ icon: 'CalendarCross', size: '14px' }]
+						};
+					}
+
 					return null;
 				})
 			);
 
 			trainerSwapOptions = availabilityChecks.filter(
-				(option): option is { label: string; value: number } => Boolean(option)
+				(option): option is SwapOption => Boolean(option)
 			);
 
 			if (trainerSwapOptions.length === 0) {
