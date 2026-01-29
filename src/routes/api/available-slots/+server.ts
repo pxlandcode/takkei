@@ -280,10 +280,6 @@ export const POST: RequestHandler = async ({ request }) => {
 			const insideAvailability = availability.some((a) =>
 				overlaps(slotStart, slotEnd, a.from, a.to)
 			);
-			if (!insideAvailability) {
-				outsideAvailabilitySlots.push(label);
-				continue;
-			}
 
 			const trainerClientBookingConflict = trainerBookingIntervals.some((interval) =>
 				overlaps(slotStart, slotEnd, interval.start, interval.end)
@@ -336,7 +332,11 @@ export const POST: RequestHandler = async ({ request }) => {
 			});
 			if (travelConflict) continue;
 
-			availableSlots.push(label);
+			if (insideAvailability) {
+				availableSlots.push(label);
+			} else {
+				outsideAvailabilitySlots.push(label);
+			}
 		}
 	}
 
