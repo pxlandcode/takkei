@@ -1329,6 +1329,9 @@
 												content: `${slot.start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - ${new Date(slot.start.getTime() + 60 * 60 * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
 											}}
 										>
+											<span class="empty-slot-time">
+												{slot.start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+											</span>
 										</button>
 									{/each}
 									{#each column.layout ?? [] as layoutItem (layoutItem.booking.booking.id)}
@@ -1389,6 +1392,9 @@
 												content: `${slot.start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - ${new Date(slot.start.getTime() + 60 * 60 * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
 											}}
 										>
+											<span class="empty-slot-time">
+												{slot.start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+											</span>
 										</button>
 									{/each}
 									{#each column.layout ?? [] as layoutItem (layoutItem.booking.booking.id)}
@@ -1433,6 +1439,9 @@
 								content: `${slot.start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - ${new Date(slot.start.getTime() + 60 * 60 * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
 							}}
 						>
+							<span class="empty-slot-time">
+								{slot.start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+							</span>
 						</button>
 					{/each}
 					{#each layoutByDay[dayIndex] ?? [] as layoutItem (layoutItem.booking.booking.id)}
@@ -1532,5 +1541,16 @@
 		top: 0;
 		z-index: 5;
 		backdrop-filter: blur(2px);
+	}
+
+	.empty-slot-time {
+		position: absolute;
+		top: 2px;
+		left: 4px;
+		font-size: 10px;
+		color: rgba(100, 116, 139, 0.6);
+		pointer-events: none;
+		font-weight: 500;
+		letter-spacing: 0.02em;
 	}
 </style>
