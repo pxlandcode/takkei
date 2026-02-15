@@ -32,15 +32,23 @@
 	export let errors: Record<string, string> = {};
 
 	let availableRooms = [];
-	let eligibleTrialClients = [];
+	let trialEligibleClients = [];
 	let trainerOptions = [];
+	let clientLookup = [];
 
 	// Client scope toggle
-	let clientScope = { value: 'trainer', label: 'Tränarens klienter' };
-	const clientScopeOptions = [
+	const baseClientScopeOptions = [
 		{ value: 'trainer', label: 'Tränarens klienter' },
 		{ value: 'all', label: 'Alla klienter' }
 	];
+	const trialClientScopeOptions = [
+		{ value: 'inactive-eligible', label: 'Inaktiva provfria' },
+		{ value: 'trainer', label: 'Tränarens klienter' },
+		{ value: 'all', label: 'Alla klienter' }
+	];
+	let clientScopeOptions = isTrial ? trialClientScopeOptions : baseClientScopeOptions;
+	let clientScope = isTrial ? trialClientScopeOptions[0] : baseClientScopeOptions[0];
+	let lastIsTrial = isTrial;
 
 	$: if (isTrial) {
 		bookingObject.repeat = false;
@@ -61,22 +69,30 @@
 	}
 
 	$: if (isTrial) {
-		const tid = bookingObject.trainerId || undefined;
-		fetchTrialEligibleClients({ trainerId: tid, lookbackDays: 365, short: true })
+		fetchTrialEligibleClients({ lookbackDays: 365, short: false, limit: 5000 })
 			.then((list) => {
-				eligibleTrialClients = list;
+				trialEligibleClients = list;
 			})
 			.catch((e) => {
 				console.error('Trial clients fetch failed', e);
-				eligibleTrialClients = [];
+				trialEligibleClients = [];
 			});
 	} else {
-		eligibleTrialClients = [];
+		trialEligibleClients = [];
 	}
 
 	let filteredClients = [];
 	let locationOptions = [];
 	let selectedLocationIcons: { icon: string; size?: string }[] = [];
+	$: clientScopeOptions = isTrial ? trialClientScopeOptions : baseClientScopeOptions;
+	$: if (isTrial !== lastIsTrial) {
+		clientScope = isTrial ? trialClientScopeOptions[0] : baseClientScopeOptions[0];
+		lastIsTrial = isTrial;
+	}
+	$: if (!clientScopeOptions.some((opt) => opt.value === clientScope?.value)) {
+		clientScope = clientScopeOptions[0];
+	}
+	$: clientLookup = isTrial && $clients.length === 0 ? trialEligibleClients : $clients;
 	$: trainerOptions = $users
 		.filter((u) => u.active)
 		.map((u) => ({ label: `${u.firstname} ${u.lastname}`, value: u.id }));
@@ -133,7 +149,7 @@
 
 	onMount(async () => {
 		if (get(locations).length === 0) await fetchLocations();
-		if (get(clients).length === 0 && !isTrial) await fetchClients();
+		if (get(clients).length === 0) await fetchClients();
 		if (get(users).length === 0) await fetchUsers();
 	});
 
@@ -151,29 +167,37 @@
 	}
 
 	$: {
-		let base = isTrial ? eligibleTrialClients : $clients;
+		const base = isTrial ? trialEligibleClients : $clients;
 		let newFiltered = [];
 
 		if (clientScope?.value === 'all') {
-			newFiltered = base.map(formatClient);
-		} else if (clientScope?.value === 'trainer' && bookingObject.trainerId) {
-			newFiltered = base
-				.filter(
-					(c) =>
-						c.trainer?.id === bookingObject.trainerId ||
-						c.primary_trainer_id === bookingObject.trainerId
-				)
-				.map(formatClient);
+			newFiltered = $clients.map(formatClient);
+		} else if (clientScope?.value === 'trainer') {
+			if (bookingObject.trainerId) {
+				const source = isTrial ? trialEligibleClients : $clients;
+				newFiltered = source
+					.filter(
+						(c) =>
+							c.trainer?.id === bookingObject.trainerId ||
+							c.primary_trainer_id === bookingObject.trainerId
+					)
+					.map(formatClient);
+			} else {
+				newFiltered = [];
+			}
+		} else if (clientScope?.value === 'inactive-eligible') {
+			newFiltered = base.filter((c) => !c.isActive).map(formatClient);
 		}
 
 		if (
 			bookingObject.clientId !== null &&
+			bookingObject.clientId !== undefined &&
 			!newFiltered.some((c) => c.value === bookingObject.clientId)
 		) {
 			if (clientScope?.value !== 'all') {
-				clientScope = clientScopeOptions.find((opt) => opt.value === 'all')!;
+				clientScope = clientScopeOptions.find((opt) => opt.value === 'all') ?? clientScope;
 			}
-			newFiltered = base.map(formatClient);
+			newFiltered = $clients.map(formatClient);
 		}
 
 		filteredClients = newFiltered;
@@ -184,7 +208,7 @@
 			? Number(bookingObject.trainerId)
 			: null;
 		const trainer = $users.find((u) => Number(u.id) === selectedTrainerId);
-		const allClients = isTrial ? eligibleTrialClients : $clients;
+		const allClients = clientLookup;
 		const selectedClientId =
 			bookingObject.clientId === null || bookingObject.clientId === undefined
 				? null
@@ -226,7 +250,7 @@
 
 	// If no location is chosen, fall back to the client's primary location (when available)
 	$: {
-		const allClients = isTrial ? eligibleTrialClients : $clients;
+		const allClients = clientLookup;
 		const selectedClient = allClients.find((c) => c.id === bookingObject.clientId);
 		if (!bookingObject.locationId && selectedClient?.primary_location_id) {
 			bookingObject.locationId = selectedClient.primary_location_id;
@@ -279,10 +303,13 @@
 	}
 
 	// Scope switch resets client selection
-	function handleClientScopeSelect(event: CustomEvent<string>) {
+	async function handleClientScopeSelect(event: CustomEvent<string>) {
 		const selectedValue = event.detail;
 		clientScope =
 			clientScopeOptions.find((opt) => opt.value === selectedValue) ?? clientScopeOptions[0];
+		if (selectedValue === 'all' && get(clients).length === 0) {
+			await fetchClients();
+		}
 		bookingObject.clientId = null;
 	}
 
@@ -297,7 +324,7 @@
 		if (!browser || !canViewAvailability) return;
 
 		const trainer = $users.find((u) => u.id === bookingObject?.trainerId);
-		const allClients = isTrial ? eligibleTrialClients : $clients;
+		const allClients = clientLookup;
 		const clientRecord = allClients.find((c) => c.id === bookingObject?.clientId);
 		const client = filteredClients.find((c) => c.value === bookingObject?.clientId);
 		const location = $locations.find((loc) => loc.id === bookingObject?.locationId);
