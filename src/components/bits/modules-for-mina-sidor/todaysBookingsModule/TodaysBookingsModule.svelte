@@ -13,6 +13,20 @@
 	let bookings: FullBooking[] = [];
 	let isLoading = true;
 	let selectedDate = new Date();
+	let showCancelled = false;
+
+	const cancelledStatuses = new Set(['Cancelled', 'Late_cancelled', 'CancelledLate']);
+
+	function isCancelledStatus(status?: string | null): boolean {
+		if (!status) return false;
+		return cancelledStatuses.has(status);
+	}
+
+	$: cancelledBookings = bookings.filter((b) => isCancelledStatus(b.booking.status));
+	$: activeBookings = bookings.filter((b) => !isCancelledStatus(b.booking.status));
+	$: cancelledCount = cancelledBookings.length;
+	$: lateCancelledCount = bookings.filter((b) => b.booking.status === 'Late_cancelled').length;
+	$: visibleBookings = showCancelled ? cancelledBookings : activeBookings;
 
 	$: $user;
 	$: if (browser && $user && selectedDate) loadBookings();
@@ -66,7 +80,8 @@
 				personalBookings: true
 			};
 
-			bookings = await fetchBookings(filters, fetch);
+			// Pass fetchAllStatuses=true to include cancelled bookings
+			bookings = await fetchBookings(filters, fetch, undefined, 0, true);
 		} catch (error) {
 			console.error('Error loading bookings:', error);
 		} finally {
@@ -93,16 +108,19 @@
 	// Navigation
 	function onPrevious() {
 		selectedDate = addDays(selectedDate, -1);
+		showCancelled = false;
 	}
 	function onNext() {
 		selectedDate = addDays(selectedDate, 1);
+		showCancelled = false;
 	}
 	function onToday() {
 		selectedDate = new Date();
+		showCancelled = false;
 	}
 </script>
 
-<div class="rounded-sm border border-gray-200 bg-white p-4 shadow-md">
+<div class="module-container rounded-sm border border-gray-200 bg-white p-4 shadow-md">
 	<!-- Header -->
 	<div class="mb-3 flex items-center justify-between gap-2">
 		<div class="flex items-center gap-2">
@@ -121,14 +139,19 @@
 	</div>
 
 	<!-- Content -->
-	<p class="mb-2 text-sm font-medium text-gray-500">{formatDateLabel(selectedDate)}</p>
+	<p class="mb-2 text-sm font-medium text-gray-500">
+		{formatDateLabel(selectedDate)}{#if showCancelled}
+			<span class="text-red ml-2">(visar avbokade)</span>{/if}
+	</p>
 	{#if isLoading}
 		<p class="text-sm text-gray-500">Laddar bokningar...</p>
-	{:else if bookings.length === 0}
-		<p class="text-sm text-gray-400 italic">Inga bokningar denna dag 🧘</p>
+	{:else if visibleBookings.length === 0}
+		<p class="text-sm text-gray-400 italic">
+			{showCancelled ? 'Inga avbokningar denna dag' : 'Inga bokningar denna dag 🧘'}
+		</p>
 	{:else}
-		<div class="custom-scrollbar max-h-[280px] space-y-2 overflow-y-auto pr-1">
-			{#each bookings as booking}
+		<div class="custom-scrollbar scroll-area flex-1 space-y-2 overflow-y-auto pr-1">
+			{#each visibleBookings as booking}
 				<ProfileBookingSlot
 					{booking}
 					isClient={false}
@@ -137,4 +160,72 @@
 			{/each}
 		</div>
 	{/if}
+
+	<!-- Cancelled toggle in bottom right -->
+	{#if cancelledCount > 0}
+		<button
+			type="button"
+			class="cancelled-toggle"
+			class:active={showCancelled}
+			on:click={() => (showCancelled = !showCancelled)}
+			title={showCancelled ? 'Visa aktiva bokningar' : 'Visa avbokningar'}
+		>
+			<Icon icon="Cancel" size="12px" />
+			<span>{cancelledCount} avbokade</span>
+			{#if lateCancelledCount > 0}
+				<span class="late-badge"
+					>({lateCancelledCount} {lateCancelledCount === 1 ? 'debiterbar' : 'debiterbara'})</span
+				>
+			{/if}
+		</button>
+	{/if}
 </div>
+
+<style>
+	.module-container {
+		display: flex;
+		flex-direction: column;
+		height: 100%;
+		min-height: 0;
+		overflow: hidden;
+	}
+
+	.scroll-area {
+		flex: 1;
+		min-height: 0;
+		overflow-y: auto;
+	}
+
+	.cancelled-toggle {
+		display: flex;
+		align-items: center;
+		gap: 0.3rem;
+		padding: 0.35rem 0.6rem;
+		border-radius: 0.25rem;
+		background: #f4f6ff;
+		color: #c04c3d;
+		font-size: 0.7rem;
+		font-weight: 500;
+		border: 1px solid #e87979;
+		cursor: pointer;
+		transition: all 0.15s ease;
+		align-self: flex-end;
+		margin-top: 0.75rem;
+		flex-shrink: 0;
+	}
+
+	.cancelled-toggle:hover {
+		background: #fce8e8;
+		border-color: #c04c3d;
+	}
+
+	.cancelled-toggle.active {
+		background: #c04c3d;
+		color: white;
+		border-color: #c04c3d;
+	}
+
+	.late-badge {
+		opacity: 0.8;
+	}
+</style>
