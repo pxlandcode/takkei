@@ -1,12 +1,38 @@
 <script lang="ts">
 	import { onMount, createEventDispatcher } from 'svelte';
+	import OptionButton from '../../../bits/optionButton/OptionButton.svelte';
+	import Button from '../../../bits/button/Button.svelte';
+	import { openPopup } from '$lib/stores/popupStore';
+	import { fetchBookingById } from '$lib/services/api/calendarService';
+	import BookingDetailsPopup from '../../bookingDetailsPopup/BookingDetailsPopup.svelte';
+	import PackageBookingSlot from './PackageBookingSlot.svelte';
+
+	type PackageBooking = {
+		id: number;
+		date: string;
+		datetime?: string | null;
+		is_saldojustering: boolean;
+		trainer_name?: string | null;
+		client_name?: string | null;
+	};
+
 	export let packageId: number;
 	export let showClientColumn: boolean;
+	export let isAdmin: boolean = false;
+
 	const dispatch = createEventDispatcher();
 
-	let bookings: any[] = [];
+	let bookings: PackageBooking[] = [];
 	let loading = false;
 	let err: string | null = null;
+
+	// Filter options
+	const filterOptions = [
+		{ value: 'all', label: 'Alla' },
+		{ value: 'upcoming', label: 'Kommande' },
+		{ value: 'past', label: 'Passerade' }
+	];
+	let selectedFilter = filterOptions[0];
 
 	async function fetchBookings() {
 		loading = true;
@@ -23,8 +49,7 @@
 	}
 
 	async function removeFromPackage(bookingId: number) {
-		if (!confirm('Är du säker?')) return;
-		const res = await fetch(`/api/bookings/${bookingId}/remove-from-package`, { method: 'POST' });
+		const res = await fetch(`/api/packages/${bookingId}/remove-from-package`, { method: 'POST' });
 		if (!res.ok) {
 			const t = await res.text();
 			let msg = t;
@@ -37,56 +62,133 @@
 			throw new Error(msg);
 		}
 		await fetchBookings();
-		dispatch('changed'); // tell parent to refresh pkg counters
+		dispatch('changed');
+	}
+
+	async function handleBookingClick(bookingId: number) {
+		const booking = await fetchBookingById(bookingId, fetch);
+		if (!booking) return;
+
+		openPopup({
+			header: 'Bokningsdetaljer',
+			icon: 'CircleInfo',
+			component: BookingDetailsPopup,
+			props: { booking },
+			maxWidth: '650px',
+			height: '850px',
+			listeners: {
+				updated: () => {
+					fetchBookings();
+					dispatch('changed');
+				}
+			}
+		});
 	}
 
 	onMount(fetchBookings);
+
+	const today = new Date().toISOString().slice(0, 10);
+
+	$: filteredBookings = (() => {
+		if (selectedFilter.value === 'upcoming') {
+			return bookings.filter((b) => b.date >= today);
+		}
+		if (selectedFilter.value === 'past') {
+			return bookings.filter((b) => b.date < today);
+		}
+		return bookings;
+	})();
 </script>
 
-{#if loading}
-	<p>Laddar bokningar…</p>
-{:else if err}
-	<p class="text-red-600">{err}</p>
-{:else if bookings.length === 0}
-	<p>Det finns inga bokningar för detta paket</p>
-{:else}
-	<div class="overflow-auto">
-		<table class="min-w-[720px] table-auto">
-			<thead>
-				<tr class="border-b text-left">
-					<th class="py-2 pr-4">Datum / tid</th>
-					<th class="py-2 pr-4">Tränare</th>
-					{#if showClientColumn}<th class="py-2 pr-4">Klient</th>{/if}
-					<th class="py-2 pr-4"></th>
-				</tr>
-			</thead>
-			<tbody>
-				{#each bookings as b}
-					<tr class="border-b">
-						<td class="py-2 pr-4">
-							{#if b.is_saldojustering}
-								<a class="text-blue-600 underline" href={`/settings/bookings/${b.id}`}>{b.date}</a><br />
-								<span class="rounded-sm bg-red-100 px-2 py-0.5 text-xs text-red-700">
-									Saldojustering / {b.trainer_name}
-								</span>
-							{:else}
-								<a class="text-blue-600 underline" href={`/settings/bookings/${b.id}`}>{b.datetime}</a>
-							{/if}
-						</td>
-						<td class="py-2 pr-4">{b.is_saldojustering ? '–' : b.trainer_name}</td>
-						{#if showClientColumn}<td class="py-2 pr-4">{b.client_name}</td>{/if}
-						<td class="py-2 pr-4 text-right">
-							<div class="flex justify-end gap-2">
-								<a class="text-gray-700 underline" href={`/settings/bookings/${b.id}`}>Detaljer</a>
-								<button class="text-red-600 underline" on:click={() => removeFromPackage(b.id)}
-									>Ta bort från paketet</button
-								>
-							</div>
-						</td>
-					</tr>
-				{/each}
-			</tbody>
-		</table>
-		<div class="mt-2 text-sm">Antal: {bookings.length}</div>
+<div class="space-y-3">
+	<div class="controls">
+		<div class="filters">
+			<div class="filter-toggle">
+				<OptionButton
+					options={filterOptions}
+					bind:selectedOption={selectedFilter}
+					size="small"
+					full
+				/>
+			</div>
+		</div>
+		<div class="text-sm text-gray-500">
+			{#if !loading}
+				{filteredBookings.length} bokningar
+			{/if}
+		</div>
 	</div>
-{/if}
+
+	{#if loading}
+		<p class="text-sm text-gray-500">Laddar bokningar…</p>
+	{:else if err}
+		<div class="rounded-sm border border-red-200 bg-red-50 p-4 text-red-700">
+			<p>{err}</p>
+		</div>
+	{:else if filteredBookings.length === 0}
+		<p class="text-sm text-gray-500">Inga bokningar hittades.</p>
+	{:else}
+		{#each filteredBookings as b (b.id)}
+			<PackageBookingSlot
+				booking={b}
+				{showClientColumn}
+				showActions={isAdmin}
+				on:bookingClick={(event) => handleBookingClick(event.detail.id)}
+			>
+				<svelte:fragment slot="actions">
+					{#if isAdmin}
+						<Button
+							text="Ta bort"
+							iconLeft="Trash"
+							iconColor="error"
+							variant="danger-outline"
+							small
+							confirmOptions={{
+								title: 'Ta bort från paketet?',
+								description: 'Bokningen kopplas bort från paketet men tas inte bort.',
+								actionLabel: 'Ta bort',
+								action: () => removeFromPackage(b.id)
+							}}
+						/>
+					{/if}
+				</svelte:fragment>
+			</PackageBookingSlot>
+		{/each}
+	{/if}
+</div>
+
+<style>
+	.controls {
+		display: flex;
+		flex-direction: column;
+		gap: 0.75rem;
+	}
+
+	@media (min-width: 768px) {
+		.controls {
+			flex-direction: row;
+			align-items: center;
+			justify-content: space-between;
+		}
+	}
+
+	.filters {
+		display: flex;
+		flex-direction: column;
+		gap: 0.75rem;
+		width: 100%;
+	}
+
+	@media (min-width: 768px) {
+		.filters {
+			flex-direction: row;
+			align-items: center;
+			gap: 1rem;
+		}
+	}
+
+	.filter-toggle {
+		width: 100%;
+		max-width: 420px;
+	}
+</style>

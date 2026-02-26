@@ -288,7 +288,7 @@
 				confirmOptions={{
 					title: 'Räkna om paket?',
 					description:
-						'Detta kopplar bort överflödiga eller paketfria bokningar från paketet. De tidigaste chargeable bokningarna behålls.',
+						'Detta kopplar bort överflödiga eller paketfria bokningar från paketet. De tidigaste debiterbara bokningarna behålls.',
 					actionLabel: 'Räkna om',
 					action: recalculatePackage
 				}}
@@ -329,7 +329,8 @@
 	{/if}
 	{#if recalcErr}
 		<div class="rounded-sm border border-red-300 bg-red-50 p-3 text-red-800">
-			<strong>Omräkning misslyckades:</strong> {recalcErr}
+			<strong>Omräkning misslyckades:</strong>
+			{recalcErr}
 		</div>
 	{/if}
 	{#if error}
@@ -376,7 +377,7 @@
 			{fmtKr}
 			{fmtDate}
 			{packageId}
-			isAdmin={isAdmin}
+			{isAdmin}
 			showClientColumn={!pkg.client}
 			on:addinvoice={() => {
 				if (isAdmin) showInvoice = true;
@@ -386,7 +387,7 @@
 	</Navigation>
 {/if}
 <!-- Freeze modal -->
-	{#if showFreeze && isAdmin}
+{#if showFreeze && isAdmin}
 	<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
 		<div class="w-full max-w-md rounded-sm bg-white p-5 shadow-xl">
 			<div class="mb-3 flex items-center gap-2">
@@ -415,7 +416,7 @@
 {/if}
 
 <!-- Add invoice number modal -->
-	{#if showInvoice && isAdmin}
+{#if showInvoice && isAdmin}
 	<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
 		<div class="w-full max-w-md rounded-sm bg-white p-5 shadow-xl">
 			<div class="mb-3 flex items-center gap-2">
@@ -440,7 +441,7 @@
 {/if}
 
 <!-- Delete confirm modal -->
-	{#if showDelete && isAdmin}
+{#if showDelete && isAdmin}
 	<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
 		<div class="w-full max-w-md rounded-sm bg-white p-5 shadow-xl">
 			<div class="mb-3 flex items-center gap-2">
