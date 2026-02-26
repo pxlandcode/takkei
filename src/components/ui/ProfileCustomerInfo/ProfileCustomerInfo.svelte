@@ -11,6 +11,9 @@
 	export let onCustomerChange: (value: any) => void = () => {};
 	export let refreshCustomer: (() => Promise<void> | void) | null = null;
 	let isEditing = false;
+	let recalcPending = false;
+	let recalcInfo: string | null = null;
+	let recalcError: string | null = null;
 
 	function handleClientsUpdated(event) {
 		const updatedClients = event.detail ?? [];
@@ -39,8 +42,7 @@ const packageHeaders = [
 	const packageTable = customer.packages?.map((pkg) => {
 		const totalSessions = pkg.total_sessions ?? null;
 		const usedSessions = pkg.used_sessions_total ?? 0;
-		const saldoValue =
-			pkg.remaining_sessions_today != null ? String(pkg.remaining_sessions_today) : '—';
+		const saldoValue = pkg.remaining_sessions != null ? String(pkg.remaining_sessions) : '—';
 		const bookingsValue =
 			totalSessions != null ? `${usedSessions}/${totalSessions}` : String(usedSessions);
 
@@ -63,9 +65,9 @@ const packageHeaders = [
 							attrs: { 'data-sveltekit-preload-data': 'hover' },
 							action: () => goto(`/clients/${pkg.client.id}`)
 					}
-					: { type: 'text', label: '—' }
+					: { type: 'text', content: 'Delat (ingen klient)' }
 			],
-			frozen: pkg.frozen_from_date ? 'Ja' : 'Nej',
+			frozen: pkg.frozen_from_date ? `Ja (${String(pkg.frozen_from_date).slice(0, 10)})` : 'Nej',
 			autogiro: pkg.autogiro ? 'Ja' : 'Nej',
 			invoice_no:
 				Array.isArray(pkg.invoice_numbers) && pkg.invoice_numbers.length
@@ -98,6 +100,41 @@ function openPackagePopup() {
 			onSave: handleCreatePackage
 		}
 	});
+}
+
+async function recalculateCustomerPackages() {
+	recalcPending = true;
+	recalcInfo = null;
+	recalcError = null;
+	try {
+		const res = await fetch(`/api/customers/${customer.id}/packages/recalculate`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({})
+		});
+
+		const text = await res.text();
+		let payload: any = null;
+		try {
+			payload = text ? JSON.parse(text) : null;
+		} catch {
+			payload = null;
+		}
+
+		if (!res.ok) throw new Error(payload?.error || text || 'Kunde inte räkna om paket');
+
+		recalcInfo =
+			payload?.message ||
+			`Räknade om ${payload?.processedPackages ?? 0} paket och kopplade bort ${payload?.totalDetachedCount ?? 0} bokningar.`;
+
+		if (typeof refreshCustomer === 'function') {
+			await refreshCustomer();
+		}
+	} catch (error: any) {
+		recalcError = error?.message ?? 'Kunde inte räkna om paket';
+	} finally {
+		recalcPending = false;
+	}
 }
 </script>
 
@@ -141,14 +178,41 @@ function openPackagePopup() {
 	<div class="rounded-sm bg-white p-6 shadow-md">
 		<div class="mb-4 flex items-center justify-between">
 			<h4 class="text-xl font-semibold">Paket</h4>
-		<Button
-			text="Lägg till paket"
-			variant="secondary"
-			iconLeft="Plus"
-			iconLeftSize="14px"
-			on:click={openPackagePopup}
-		/>
-	</div>
+			<div class="flex flex-wrap gap-2">
+				<Button
+					text="Räkna om alla paket"
+					variant="secondary"
+					iconLeft="Refresh"
+					iconLeftSize="14px"
+					disabled={recalcPending}
+					confirmOptions={{
+						title: 'Räkna om kundens paket?',
+						description:
+							'Detta kopplar bort överflödiga eller paketfria bokningar från alla paket på kunden.',
+						actionLabel: 'Räkna om',
+						action: recalculateCustomerPackages
+					}}
+				/>
+				<Button
+					text="Lägg till paket"
+					variant="secondary"
+					iconLeft="Plus"
+					iconLeftSize="14px"
+					on:click={openPackagePopup}
+				/>
+			</div>
+		</div>
+
+		{#if recalcInfo}
+			<div class="mb-4 rounded-sm border border-green-300 bg-green-50 p-3 text-green-900">
+				{recalcInfo}
+			</div>
+		{/if}
+		{#if recalcError}
+			<div class="mb-4 rounded-sm border border-red-300 bg-red-50 p-3 text-red-800">
+				<strong>Omräkning misslyckades:</strong> {recalcError}
+			</div>
+		{/if}
 
 		{#if packageTable?.length > 0}
 			<Table headers={packageHeaders} data={packageTable} />

@@ -2,12 +2,14 @@
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import Table from '../../bits/table/Table.svelte';
+	import Button from '../../bits/button/Button.svelte';
 
 	interface ClientPackage {
 		id: number;
 		article: { id: number | null; name: string };
 		customer: { id: number; name: string };
 		is_personal: boolean;
+		is_shared?: boolean;
 		autogiro: boolean;
 		frozen_from_date: string | null;
 		invoice_numbers: (string | number)[];
@@ -15,8 +17,11 @@
 		remaining_sessions_today: number | null;
 		remaining_sessions: number | null;
 		used_sessions_total: number;
+		used_sessions_until_today?: number;
 		total_sessions: number | null;
 		is_active: boolean;
+		shared_warning?: boolean;
+		shared_training_client_count?: number;
 	}
 
 	export let clientId: number;
@@ -24,6 +29,9 @@
 	let loading = true;
 	let error: string | null = null;
 	let packages: ClientPackage[] = [];
+	let recalcPending = false;
+	let recalcInfo: string | null = null;
+	let recalcError: string | null = null;
 
 	const headers = [
 		{ label: 'Aktivt', key: 'active', width: '90px' },
@@ -31,7 +39,7 @@
 		{ label: 'Kund', key: 'customer' },
 		{ label: 'Fryst', key: 'frozen' },
 		{ label: 'Personligt', key: 'personal' },
-		{ label: 'Autogiro', key: 'autogiro' },
+		// { label: 'Autogiro', key: 'autogiro' },
 		{ label: 'Fakturanummer', key: 'invoices' },
 		{ label: 'Saldo', key: 'saldo_today' },
 		{ label: 'Bokningar', key: 'bookings' }
@@ -39,7 +47,7 @@
 
 	let tableData = [];
 
-	onMount(async () => {
+	async function loadPackages() {
 		if (!clientId) {
 			loading = false;
 			return;
@@ -56,7 +64,43 @@
 		} finally {
 			loading = false;
 		}
-	});
+	}
+
+	onMount(loadPackages);
+
+	async function recalculateAllClientPackages() {
+		if (!clientId) return;
+		recalcPending = true;
+		recalcInfo = null;
+		recalcError = null;
+		try {
+			const res = await fetch(`/api/clients/${clientId}/packages/recalculate`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({})
+			});
+
+			const text = await res.text();
+			let payload: any = null;
+			try {
+				payload = text ? JSON.parse(text) : null;
+			} catch {
+				payload = null;
+			}
+
+			if (!res.ok) throw new Error(payload?.error || text || 'Kunde inte räkna om paket');
+
+			recalcInfo =
+				payload?.message ||
+				`Räknade om ${payload?.processedPackages ?? 0} paket och kopplade bort ${payload?.totalDetachedCount ?? 0} bokningar.`;
+
+			await loadPackages();
+		} catch (err: any) {
+			recalcError = err?.message ?? 'Kunde inte räkna om paket';
+		} finally {
+			recalcPending = false;
+		}
+	}
 
 	function formatBoolean(value: boolean): string {
 		return value ? 'Ja' : 'Nej';
@@ -99,7 +143,10 @@
 		customer: [
 			{
 				type: 'link',
-				label: pkg.customer.name,
+				label:
+					pkg.shared_warning && !pkg.is_personal
+						? `${pkg.customer.name} (Delat: ${pkg.shared_training_client_count ?? 0})`
+						: pkg.customer.name,
 				attrs: { 'data-sveltekit-preload-data': 'hover' },
 				action: () => goToCustomer(pkg.customer.id)
 			}
@@ -109,6 +156,7 @@
 		autogiro: formatBoolean(pkg.autogiro),
 		invoices: invoiceLabel(pkg.invoice_numbers),
 		saldo_today: formatSaldo(pkg.remaining_sessions_today),
+		saldo: formatSaldo(pkg.remaining_sessions),
 		bookings:
 			pkg.total_sessions != null
 				? `${pkg.used_sessions_total}/${pkg.total_sessions}`
@@ -119,7 +167,31 @@
 <div class="rounded-sm bg-white p-6 shadow-md">
 	<div class="mb-4 flex items-center justify-between">
 		<h4 class="text-xl font-semibold">Paket</h4>
+		<Button
+			text="Räkna om alla paket"
+			icon="Refresh"
+			variant="secondary"
+			disabled={recalcPending || loading}
+			confirmOptions={{
+				title: 'Räkna om klientens paket?',
+				description:
+					'Detta kopplar bort överflödiga eller paketfria bokningar från alla paket som visas i listan.',
+				actionLabel: 'Räkna om',
+				action: recalculateAllClientPackages
+			}}
+		/>
 	</div>
+
+	{#if recalcInfo}
+		<div class="mb-4 rounded-sm border border-green-300 bg-green-50 p-3 text-green-900">
+			{recalcInfo}
+		</div>
+	{/if}
+	{#if recalcError}
+		<div class="mb-4 rounded-sm border border-red-300 bg-red-50 p-3 text-red-800">
+			<strong>Omräkning misslyckades:</strong> {recalcError}
+		</div>
+	{/if}
 
 	{#if loading}
 		<p class="text-gray-600">Laddar paket…</p>
