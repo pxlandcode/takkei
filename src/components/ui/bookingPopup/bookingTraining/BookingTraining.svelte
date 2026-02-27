@@ -159,10 +159,12 @@
 
 	function formatClient(c) {
 		const fullName = `${c.firstname} ${c.lastname}`;
+		const isInactive = c?.isActive === false;
 		return {
 			value: c.id,
 			label: fullName,
-			name: fullName
+			name: fullName,
+			icons: isInactive ? [{ icon: 'Inactive', size: '16px' }] : []
 		};
 	}
 
@@ -215,9 +217,7 @@
 				: Number(bookingObject.clientId);
 		const clientRecord = allClients.find((c) => Number(c.id) === selectedClientId);
 
-		const trainerDefaultLocationId = Number.isFinite(
-			Number(trainer?.default_location_id ?? NaN)
-		)
+		const trainerDefaultLocationId = Number.isFinite(Number(trainer?.default_location_id ?? NaN))
 			? Number(trainer?.default_location_id)
 			: null;
 		const clientPrimaryLocationId = Number.isFinite(
@@ -229,8 +229,10 @@
 		locationOptions = $locations.map((loc) => {
 			const locId = Number(loc.id);
 			const icons: { icon: string; size?: string }[] = [];
-			const isTrainerDefault = trainer && trainerDefaultLocationId !== null && trainerDefaultLocationId === locId;
-			const isClientPrimary = clientRecord && clientPrimaryLocationId !== null && clientPrimaryLocationId === locId;
+			const isTrainerDefault =
+				trainer && trainerDefaultLocationId !== null && trainerDefaultLocationId === locId;
+			const isClientPrimary =
+				clientRecord && clientPrimaryLocationId !== null && clientPrimaryLocationId === locId;
 
 			if (isClientPrimary) icons.push({ icon: 'Clients', size: '19px' });
 			if (isTrainerDefault) icons.push({ icon: 'Person', size: '14px' });
