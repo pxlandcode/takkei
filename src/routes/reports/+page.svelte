@@ -9,6 +9,7 @@
 	import PackageReport from '../../components/ui/reports/packageReport/PackageReport.svelte';
 	import TargetsReport from '../../components/ui/reports/targets/TargetsReport.svelte';
 	import SalaryReport from '../../components/ui/reports/salaryReport/SalaryReport.svelte';
+	import NewClientsReport from '../../components/ui/reports/newClientsReport/NewClientsReport.svelte';
 
 	const menuItems = [
 		{
@@ -21,6 +22,12 @@
 			label: 'Bokningar',
 			icon: 'Calendar',
 			component: BookingReport,
+			requiredRoles: ['Administrator', 'Economy', 'Trainer', 'LocationAdmin']
+		},
+		{
+			label: 'Nya klienter',
+			icon: 'Person',
+			component: NewClientsReport,
 			requiredRoles: ['Administrator', 'Economy', 'Trainer', 'LocationAdmin']
 		},
 		{
