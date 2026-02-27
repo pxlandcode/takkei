@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { formatTime } from '$lib/helpers/calendarHelpers/calendar-utils';
+	import { bookingTooltip } from '$lib/actions/bookingTooltip';
 
 	import { IconCancel, IconTraining, IconShiningStar, IconGraduationCap, IconPlane } from '$lib/icons';
 	import IconWrench from '$icons/IconWrench.svelte';
@@ -21,14 +22,22 @@
 const dispatch = createEventDispatcher();
 
 	let showTraineeAsClient = false;
-	let participant: { id?: number | null; firstname?: string | null; lastname?: string | null } | null =
-		null;
+	let participant:
+		| {
+				id?: number | null;
+				firstname?: string | null;
+				lastname?: string | null;
+				active?: boolean;
+		  }
+		| null = null;
 
 	$: bookingColor = booking.location?.color ? booking.location.color : '#4B5563';
 	$: isPersonalBooking = booking.isPersonalBooking;
 	$: showTraineeAsClient =
-		!isPersonalBooking && (booking.booking.internalEducation || booking.additionalInfo?.education);
-	$: participant = showTraineeAsClient ? booking.trainee : booking.client;
+		!isPersonalBooking &&
+		Boolean(booking.booking.internalEducation || booking.additionalInfo?.education);
+	$: participant = (showTraineeAsClient ? booking.trainee : booking.client) ?? null;
+	$: participantIsInactive = !isPersonalBooking && participant?.active === false;
 
 	// ✅ Compute end time
 	$: endTime =
@@ -83,9 +92,19 @@ const dispatch = createEventDispatcher();
 	{booking.booking.status === 'Cancelled' ? 'cancelled' : ''}
 		{booking.booking.status === 'Late_cancelled' ? 'late-cancelled' : ''}"
 	style="background-color: {bookingColor}20; border-color: {bookingColor};"
+	use:bookingTooltip={{ booking }}
 >
+	{#if participantIsInactive}
+		<span
+			class="pointer-events-none absolute top-0 right-0 z-0 h-3 w-3 bg-error"
+			style="clip-path: polygon(100% 0, 0 0, 100% 100%);"
+			title="Inaktiv deltagare"
+			aria-label="Inaktiv deltagare"
+		></span>
+	{/if}
+
 	{#if (booking.linkedNoteCount ?? 0) > 0}
-		<div class="absolute right-2 top-1 flex items-center gap-1 text-[11px] font-semibold text-emerald-700">
+		<div class="absolute right-2 top-1 z-20 flex items-center gap-1 text-[11px] font-semibold text-emerald-700">
 			<Icon icon="Notes" size="12px" />
 			<span>{booking.linkedNoteCount}</span>
 		</div>
@@ -98,7 +117,7 @@ const dispatch = createEventDispatcher();
 		<div class="late-cancelled-overlay"></div>
 	{/if}
 
-	<div class="flex items-center gap-2 text-gray-700">
+	<div class="relative z-10 flex items-center gap-2 text-gray-700">
 		<!-- ✅ Select Checkbox -->
 		{#if showSelect}
 			<div class="relative">
@@ -133,7 +152,7 @@ const dispatch = createEventDispatcher();
 	</div>
 
 	<!-- ✅ Trainer Info -->
-	<div class="flex items-center text-sm">
+	<div class="relative z-10 flex items-center text-sm">
 		{#if isPersonalBooking}
 			<span class="font-medium text-gray-700">Visa detaljer</span>
 		{:else if isClient}

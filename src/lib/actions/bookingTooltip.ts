@@ -241,17 +241,23 @@ export function bookingTooltip(node: HTMLElement, params: BookingTooltipParams |
 
 		let participantLabel = 'Klient';
 		let participantName = 'Klient saknas';
+		let participantIsInactive = false;
 
 		if (booking.booking.internalEducation || booking.additionalInfo?.education) {
 			participantLabel = 'Trainee';
 			if (booking.trainee) {
 				participantName = `${escapeHtml(booking.trainee.firstname)} ${escapeHtml(booking.trainee.lastname)}`;
+				participantIsInactive = booking.trainee.active === false;
 			} else {
 				participantName = 'Trainee saknas';
 			}
 		} else if (booking.client) {
 			participantName = `${escapeHtml(booking.client.firstname)} ${escapeHtml(booking.client.lastname)}`;
+			participantIsInactive = booking.client.active === false;
 		}
+		const participantInactiveLabel = participantIsInactive
+			? ' <span class="text-error">(Ej aktiv)</span>'
+			: '';
 
 		const locationName = escapeHtml(booking.location?.name) || 'Ingen plats';
 		const locationColor = booking.location?.color || '#000000';
@@ -283,7 +289,7 @@ export function bookingTooltip(node: HTMLElement, params: BookingTooltipParams |
 				<div class="flex items-start gap-2">
 				${svgIcon.clients}
 				<div class="text-sm">
-					<p class="font-medium text-gray-700">${participantName}</p>
+					<p class="font-medium text-gray-700">${participantName}${participantInactiveLabel}</p>
 				</div>
 				</div>
 

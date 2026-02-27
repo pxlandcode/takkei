@@ -139,10 +139,29 @@
 	</div>
 
 	<!-- Content -->
-	<p class="mb-2 text-sm font-medium text-gray-500">
-		{formatDateLabel(selectedDate)}{#if showCancelled}
-			<span class="text-red ml-2">(visar avbokade)</span>{/if}
-	</p>
+	<div class="mb-2 flex items-center justify-between">
+		<p class="text-sm font-medium text-gray-500">
+			{formatDateLabel(selectedDate)}{#if showCancelled}
+				<span class="text-red ml-2">(visar avbokade)</span>{/if}
+		</p>
+		{#if cancelledCount > 0}
+			<button
+				type="button"
+				class="cancelled-toggle"
+				class:active={showCancelled}
+				on:click={() => (showCancelled = !showCancelled)}
+				title={showCancelled ? 'Visa aktiva bokningar' : 'Visa avbokningar'}
+			>
+				<Icon icon="Cancel" size="12px" />
+				<span>{cancelledCount} avbokade</span>
+				{#if lateCancelledCount > 0}
+					<span class="late-badge"
+						>({lateCancelledCount} {lateCancelledCount === 1 ? 'debiterbar' : 'debiterbara'})</span
+					>
+				{/if}
+			</button>
+		{/if}
+	</div>
 	{#if isLoading}
 		<p class="text-sm text-gray-500">Laddar bokningar...</p>
 	{:else if visibleBookings.length === 0}
@@ -150,7 +169,7 @@
 			{showCancelled ? 'Inga avbokningar denna dag' : 'Inga bokningar denna dag 🧘'}
 		</p>
 	{:else}
-		<div class="custom-scrollbar scroll-area flex-1 space-y-2 overflow-y-auto pr-1">
+		<div class="custom-scrollbar scroll-area flex-1 space-y-2 overflow-y-auto">
 			{#each visibleBookings as booking}
 				<ProfileBookingSlot
 					{booking}
@@ -159,25 +178,6 @@
 				/>
 			{/each}
 		</div>
-	{/if}
-
-	<!-- Cancelled toggle in bottom right -->
-	{#if cancelledCount > 0}
-		<button
-			type="button"
-			class="cancelled-toggle"
-			class:active={showCancelled}
-			on:click={() => (showCancelled = !showCancelled)}
-			title={showCancelled ? 'Visa aktiva bokningar' : 'Visa avbokningar'}
-		>
-			<Icon icon="Cancel" size="12px" />
-			<span>{cancelledCount} avbokade</span>
-			{#if lateCancelledCount > 0}
-				<span class="late-badge"
-					>({lateCancelledCount} {lateCancelledCount === 1 ? 'debiterbar' : 'debiterbara'})</span
-				>
-			{/if}
-		</button>
 	{/if}
 </div>
 
@@ -209,8 +209,6 @@
 		border: 1px solid #e87979;
 		cursor: pointer;
 		transition: all 0.15s ease;
-		align-self: flex-end;
-		margin-top: 0.75rem;
 		flex-shrink: 0;
 	}
 

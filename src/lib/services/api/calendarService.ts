@@ -146,7 +146,8 @@ export function transformBooking(raw: any): FullBooking {
 			? {
 					id: raw.trainee_id,
 					firstname: raw.trainee_firstname ?? '',
-					lastname: raw.trainee_lastname ?? ''
+					lastname: raw.trainee_lastname ?? '',
+					active: raw.trainee_active == null ? undefined : Boolean(raw.trainee_active)
 				}
 			: null;
 
@@ -177,7 +178,8 @@ export function transformBooking(raw: any): FullBooking {
 		client: {
 			id: raw.client_id ?? null,
 			firstname: raw.client_firstname,
-			lastname: raw.client_lastname
+			lastname: raw.client_lastname,
+			active: raw.client_active == null ? undefined : Boolean(raw.client_active)
 		},
 		location: {
 			id: raw.location_id,
