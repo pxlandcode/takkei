@@ -435,14 +435,26 @@
 </script>
 
 <div class="custom-scrollbar m-4 h-full overflow-x-auto">
-	<div class="mb-4 flex items-center gap-2">
-		<div class="bg-text flex h-7 w-7 items-center justify-center rounded-full text-white">
-			<Icon icon="Package" size="14px" />
+	<div class="mb-4 flex items-center justify-between gap-3">
+		<div class="flex items-center gap-2">
+			<div class="bg-text flex h-7 w-7 items-center justify-center rounded-full text-white">
+				<Icon icon="Package" size="14px" />
+			</div>
+			<h2 class="text-text text-3xl font-semibold">Paketbokningar</h2>
 		</div>
-		<h2 class="text-text text-3xl font-semibold">Paketbokningar</h2>
+		<div class="flex justify-end">
+			<Button
+				text="Exportera"
+				variant="primary"
+				iconLeft="Download"
+				iconColor="white"
+				iconSize="12px"
+				on:click={exportExcel}
+			/>
+		</div>
 	</div>
 
-	<div class="mb-6 grid gap-6 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
+	<div class="mb-6">
 		<div class="flex flex-col gap-3">
 			<div class="flex flex-col gap-3">
 				<label class="flex flex-col gap-1">
@@ -497,17 +509,6 @@
 					/>
 				</label>
 			</div>
-		</div>
-
-		<div class="flex justify-end">
-			<Button
-				text="Exportera"
-				variant="primary"
-				iconLeft="Download"
-				iconColor="white"
-				iconSize="12px"
-				on:click={exportExcel}
-			/>
 		</div>
 	</div>
 

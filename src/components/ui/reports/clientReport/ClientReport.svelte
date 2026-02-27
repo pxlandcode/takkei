@@ -11,16 +11,31 @@
 	import Button from '../../../bits/button/Button.svelte';
 	import OptionButton from '../../../bits/optionButton/OptionButton.svelte';
 	import Icon from '../../../bits/icon-component/Icon.svelte';
+	import Dropdown from '../../../bits/dropdown/Dropdown.svelte';
+	import Input from '../../../bits/Input/Input.svelte';
+	import { Datepicker } from '@pixelcode_/blocks/components';
 	import MailComponent from '../../mailComponent/MailComponent.svelte';
 
 	type ActiveOption = { value: 'all' | 'active' | 'inactive'; label: string };
+	type QuickRangeValue = 'this_month' | 'this_week' | 'last_week' | 'last_month' | 'custom';
+	type QuickRangeOption = { value: QuickRangeValue; label: string };
+	type Option = { id: number; label: string };
+	type DropdownOption = { value: string; label: string };
 
 	type Summary = {
 		total: number;
 		active: number;
 		inactive: number;
 		activeWithRecentBooking: number;
+		activeWithBookingInPeriod: number;
+		clientsWithBookingInPeriod: number;
+		bookingsInPeriod: number;
+		lateCancelledInPeriod: number;
+		cancelledInPeriod: number;
+		newClientsInPeriod: number;
 		generatedAt: string;
+		periodStart: string;
+		periodEnd: string;
 		lateCancelledLast90Days: number;
 		lateCancelledLast30Days: number;
 		cancelledLast90Days: number;
@@ -39,13 +54,18 @@
 		active: boolean;
 		primaryTrainerId: number | null;
 		primaryTrainerName: string | null;
+		primaryLocationId: number | null;
+		primaryLocationName: string | null;
 		totalBookings: number;
 		bookingsLast90Days: number;
 		bookingsLast30Days: number;
+		bookingsInPeriod: number;
 		lateCancelledLast90Days: number;
 		lateCancelledLast30Days: number;
+		lateCancelledInPeriod: number;
 		cancelledLast90Days: number;
 		cancelledLast30Days: number;
+		cancelledInPeriod: number;
 		firstBookingAt: string | null;
 		lastBookingAt: string | null;
 		nextBookingAt: string | null;
@@ -64,6 +84,11 @@
 		rows: ApiRow[];
 		summary: Summary;
 		filteredSummary: Summary;
+	};
+
+	type OptionsResponse = {
+		trainers: Option[];
+		locations: Option[];
 	};
 
 	type Header = {
@@ -93,21 +118,51 @@
 		{ value: 'active', label: 'Aktiva' },
 		{ value: 'inactive', label: 'Inaktiva' }
 	];
-	let activeFilter: ActiveOption = activeOptions[0];
 
-	let headers: Header[] = [
+	const quickRangeOptions: QuickRangeOption[] = [
+		{ value: 'this_month', label: 'Denna månad' },
+		{ value: 'this_week', label: 'Denna vecka' },
+		{ value: 'last_week', label: 'Förra veckan' },
+		{ value: 'last_month', label: 'Förra månaden' },
+		{ value: 'custom', label: 'Eget val' }
+	];
+
+	const datePickerOptions = {
+		dateFormat: 'yyyy-MM-dd'
+	} as const;
+
+	let activeFilter: ActiveOption = activeOptions[0];
+	let quickRange: QuickRangeValue = 'this_month';
+	let selectedQuickRange: QuickRangeOption = quickRangeOptions[0];
+	$: selectedQuickRange =
+		quickRangeOptions.find((option) => option.value === quickRange) ?? quickRangeOptions[0];
+
+	let trainers: Option[] = [];
+	let locations: Option[] = [];
+	let trainerId = '';
+	let locationId = '';
+	let trainerFilterOptions: DropdownOption[] = [{ value: '', label: 'Alla tränare' }];
+	let locationFilterOptions: DropdownOption[] = [{ value: '', label: 'Alla studios' }];
+
+	let dateFrom = '';
+	let dateTo = '';
+	let searchQuery = '';
+
+	let headers: Header[] = [];
+	$: periodLabel = dateFrom && dateTo ? `${dateFrom} - ${dateTo}` : 'vald period';
+	$: headers = [
 		{ label: 'Namn', key: 'name', sort: true, isSearchable: true },
 		{ label: 'Aktiv', key: 'active', sort: true },
 		{ label: 'Primär tränare', key: 'primaryTrainer', sort: true, isSearchable: true },
+		{ label: 'Primär studio', key: 'primaryLocation', sort: true, isSearchable: true },
 		{ label: 'E-post', key: 'email', isSearchable: true },
 		{ label: 'Telefon', key: 'phone', isSearchable: true },
 		{ label: 'Tot. bokningar', key: 'totalBookings', sort: true },
+		{ label: `Bokningar (${periodLabel})`, key: 'bookingsPeriod', sort: true },
 		{ label: 'Bokningar 90d', key: 'bookings90', sort: true },
 		{ label: 'Bokningar 30d', key: 'bookings30', sort: true },
-		{ label: 'Sen avb. 90d', key: 'lateCancelled90', sort: true },
-		{ label: 'Sen avb. 30d', key: 'lateCancelled30', sort: true },
-		{ label: 'Avbokningar 90d', key: 'cancelled90', sort: true },
-		{ label: 'Avbokningar 30d', key: 'cancelled30', sort: true },
+		{ label: `Sen avb. (${periodLabel})`, key: 'lateCancelledPeriod', sort: true },
+		{ label: `Avbokningar (${periodLabel})`, key: 'cancelledPeriod', sort: true },
 		{ label: 'Första bokning', key: 'firstBooking', sort: true },
 		{ label: 'Senaste bokning', key: 'lastBooking', sort: true },
 		{ label: 'Nästa bokning', key: 'nextBooking', sort: true },
@@ -126,7 +181,6 @@
 	let page = 0;
 	let hasMore = true;
 	let loading = false;
-	let searchQuery = '';
 	let filtersReady = false;
 	let summary: Summary | null = null;
 	let filteredSummary: Summary | null = null;
@@ -137,6 +191,58 @@
 	let sentinelObserved = false;
 	let lastActiveValue: ActiveOption['value'] = activeFilter.value;
 	let pendingReset = false;
+	let dateFiltersInitialized = false;
+	let lastDateRangeSignature = '';
+	let ignoreDateFilterSync = 0;
+
+	function pad2(value: number) {
+		return String(value).padStart(2, '0');
+	}
+
+	function formatDateInput(date: Date) {
+		return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
+	}
+
+	function startOfWeek(date: Date) {
+		const d = new Date(date);
+		const day = d.getDay();
+		const diffToMonday = day === 0 ? -6 : 1 - day;
+		d.setDate(d.getDate() + diffToMonday);
+		d.setHours(0, 0, 0, 0);
+		return d;
+	}
+
+	function applyQuickRange(value: QuickRangeValue, shouldFetch = true) {
+		quickRange = value;
+		if (value === 'custom') return;
+
+		const today = new Date();
+		const end = new Date(today);
+		let start = new Date(today);
+
+		if (value === 'this_month') {
+			start = new Date(today.getFullYear(), today.getMonth(), 1);
+			end.setFullYear(today.getFullYear(), today.getMonth() + 1, 0);
+		} else if (value === 'this_week') {
+			start = startOfWeek(today);
+			end.setTime(start.getTime());
+			end.setDate(end.getDate() + 6);
+		} else if (value === 'last_week') {
+			const thisWeekStart = startOfWeek(today);
+			start = new Date(thisWeekStart);
+			start.setDate(start.getDate() - 7);
+			end.setTime(start.getTime());
+			end.setDate(end.getDate() + 6);
+		} else if (value === 'last_month') {
+			start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+			end.setFullYear(start.getFullYear(), start.getMonth() + 1, 0);
+		}
+
+		ignoreDateFilterSync += 1;
+		dateFrom = formatDateInput(start);
+		dateTo = formatDateInput(end);
+		if (shouldFetch) fetchReport(true);
+	}
 
 	function formatDate(value: string | null, includeTime = false) {
 		if (!value) return '—';
@@ -224,15 +330,15 @@
 			name: nameCell,
 			active: row.active ? 'Ja' : 'Nej',
 			primaryTrainer: trainerCell,
+			primaryLocation: row.primaryLocationName ?? '—',
 			email: emailCell,
 			phone: row.phone ?? '—',
 			totalBookings: row.totalBookings,
+			bookingsPeriod: row.bookingsInPeriod,
 			bookings90: row.bookingsLast90Days,
 			bookings30: row.bookingsLast30Days,
-			lateCancelled90: row.lateCancelledLast90Days,
-			lateCancelled30: row.lateCancelledLast30Days,
-			cancelled90: row.cancelledLast90Days,
-			cancelled30: row.cancelledLast30Days,
+			lateCancelledPeriod: row.lateCancelledInPeriod,
+			cancelledPeriod: row.cancelledInPeriod,
 			firstBooking: formatDate(row.firstBookingAt, true),
 			lastBooking: formatDate(row.lastBookingAt, true),
 			nextBooking: formatDate(row.nextBookingAt, true),
@@ -269,8 +375,12 @@
 		try {
 			const params = new URLSearchParams();
 			params.set('active', activeFilter.value);
+			params.set('dateFrom', dateFrom);
+			params.set('dateTo', dateTo);
 			params.set('limit', String(pageSize));
 			params.set('offset', String(page * pageSize));
+			if (trainerId) params.set('trainerId', trainerId);
+			if (locationId) params.set('locationId', locationId);
 			const trimmedSearch = searchQuery.trim();
 			if (trimmedSearch) params.set('search', trimmedSearch);
 			const res = await fetch(`/api/reports/client-summary?${params.toString()}`);
@@ -304,10 +414,39 @@
 		}
 	}
 
+	async function fetchOptions() {
+		try {
+			const res = await fetch('/api/reports/client-summary/options');
+			if (!res.ok) throw new Error('Kunde inte hämta filteralternativ');
+			const json: OptionsResponse = await res.json();
+			trainers = json.trainers;
+			locations = json.locations;
+		} catch (error) {
+			addToast({
+				type: AppToastType.CANCEL,
+				message: 'Kunde inte ladda filter',
+				description: (error as Error).message
+			});
+		}
+	}
+
 	const debouncedSearch = debounce(() => fetchReport(true), 300);
 
+	function onQuickRangeSelect(event: CustomEvent<QuickRangeValue>) {
+		applyQuickRange(event.detail, true);
+	}
+
+	function onSelectFilterChange() {
+		fetchReport(true);
+	}
+
 	onMount(() => {
+		applyQuickRange('this_month', false);
+		lastDateRangeSignature = `${dateFrom}|${dateTo}`;
+		dateFiltersInitialized = true;
 		filtersReady = true;
+
+		fetchOptions();
 		fetchReport(true);
 
 		observer = new IntersectionObserver(
@@ -336,15 +475,42 @@
 		sentinelObserved = false;
 	}
 
+	$: trainerFilterOptions = [
+		{ value: '', label: 'Alla tränare' },
+		...trainers.map((option) => ({ value: String(option.id), label: option.label }))
+	];
+
+	$: locationFilterOptions = [
+		{ value: '', label: 'Alla studios' },
+		...locations.map((option) => ({ value: String(option.id), label: option.label }))
+	];
+
 	$: if (filtersReady && activeFilter.value !== lastActiveValue) {
 		lastActiveValue = activeFilter.value;
 		fetchReport(true);
 	}
 
+	$: dateRangeSignature = `${dateFrom}|${dateTo}`;
+	$: if (filtersReady && dateFiltersInitialized && dateRangeSignature !== lastDateRangeSignature) {
+		lastDateRangeSignature = dateRangeSignature;
+		if (ignoreDateFilterSync > 0) {
+			ignoreDateFilterSync -= 1;
+		} else {
+			quickRange = 'custom';
+			fetchReport(true);
+		}
+	}
+
 	async function exportExcel() {
 		let success = false;
 		try {
-			const params = new URLSearchParams({ active: activeFilter.value });
+			const params = new URLSearchParams({
+				active: activeFilter.value,
+				dateFrom,
+				dateTo
+			});
+			if (trainerId) params.set('trainerId', trainerId);
+			if (locationId) params.set('locationId', locationId);
 			const trimmedSearch = searchQuery.trim();
 			if (trimmedSearch) params.set('search', trimmedSearch);
 			const res = await fetch(`/api/reports/client-summary/export?${params.toString()}`);
@@ -353,7 +519,7 @@
 			const url = URL.createObjectURL(blob);
 			const a = document.createElement('a');
 			a.href = url;
-			a.download = `klientrapport_${activeFilter.value}.xlsx`;
+			a.download = `klientrapport_${dateFrom}_${dateTo}.xlsx`;
 			document.body.appendChild(a);
 			a.click();
 			a.remove();
@@ -378,36 +544,12 @@
 </script>
 
 <div class="custom-scrollbar m-4 h-full overflow-x-auto">
-	<div class="mb-4 flex items-center gap-2">
-		<div class="bg-text flex h-7 w-7 items-center justify-center rounded-full text-white">
-			<Icon icon="Person" size="14px" />
-		</div>
-		<h2 class="text-text text-3xl font-semibold">Klientrapport</h2>
-	</div>
-
-	<div class="mb-6 grid gap-6 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
-		<div class="flex flex-col gap-3">
-			<div class="grid gap-3 sm:grid-cols-2">
-				<label class="flex flex-col gap-1">
-					<span class="text-text/70 text-sm">Status</span>
-					<OptionButton
-						options={activeOptions}
-						bind:selectedOption={activeFilter}
-						size="small"
-						full
-					/>
-				</label>
-				<label class="flex flex-col gap-1">
-					<span class="text-text/70 text-sm">Sök</span>
-					<input
-						type="text"
-						bind:value={searchQuery}
-						on:input={debouncedSearch}
-						placeholder="Sök namn, e-post, tränare, kund..."
-						class="w-full rounded-sm border border-gray-300 p-2 focus:border-blue-500 focus:outline-hidden"
-					/>
-				</label>
+	<div class="mb-4 flex items-center justify-between gap-3">
+		<div class="flex items-center gap-2">
+			<div class="bg-text flex h-7 w-7 items-center justify-center rounded-full text-white">
+				<Icon icon="Person" size="14px" />
 			</div>
+			<h2 class="text-text text-3xl font-semibold">Klientrapport</h2>
 		</div>
 		<div class="flex justify-end">
 			<Button
@@ -421,8 +563,71 @@
 		</div>
 	</div>
 
+	<div class="mb-6">
+		<div class="flex flex-col gap-3">
+			<label class="flex flex-col gap-1">
+				<span class="text-text/70 text-sm">Snabbval period</span>
+				<OptionButton
+					options={quickRangeOptions}
+					selectedOption={selectedQuickRange}
+					on:select={onQuickRangeSelect}
+					size="small"
+					full
+				/>
+			</label>
+
+			<div class="grid gap-3 sm:grid-cols-2">
+				<label class="flex flex-col gap-1">
+					<span class="text-text/70 text-sm">Från datum</span>
+					<Datepicker bind:value={dateFrom} options={datePickerOptions} placeholder="Välj datum" />
+				</label>
+				<label class="flex flex-col gap-1">
+					<span class="text-text/70 text-sm">Till datum</span>
+					<Datepicker bind:value={dateTo} options={datePickerOptions} placeholder="Välj datum" />
+				</label>
+			</div>
+		</div>
+	</div>
+
+	<div class="mb-3 grid gap-3 md:grid-cols-3">
+
+		<Dropdown
+			id="client-report-trainer"
+			label="Tränare"
+			options={trainerFilterOptions}
+			search
+			maxNumberOfSuggestions={15}
+			infiniteScroll
+			bind:selectedValue={trainerId}
+			on:change={onSelectFilterChange}
+		/>
+
+		<Dropdown
+			id="client-report-location"
+			label="Studio"
+			options={locationFilterOptions}
+			search
+			maxNumberOfSuggestions={15}
+			infiniteScroll
+			bind:selectedValue={locationId}
+			on:change={onSelectFilterChange}
+		/>
+
+		<Input
+			label="Sök"
+			name="client-report-search"
+			placeholder="Sök namn, e-post, tränare, kund..."
+			bind:value={searchQuery}
+			on:input={debouncedSearch}
+		/>
+	</div>
+
+	<div class="mb-6">
+		<OptionButton label="Klienter" options={activeOptions} bind:selectedOption={activeFilter} size="small" />
+	</div>
+
 	{#if filteredSummary}
-		<div class="mb-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+		<div class="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
 			<div class="rounded-sm border border-gray-200 bg-white p-4 shadow-sm">
 				<p class="text-text/70 text-sm">Visade klienter</p>
 				<p class="text-text text-2xl font-semibold">{filteredSummary.total}</p>
@@ -436,40 +641,26 @@
 				<p class="text-text text-2xl font-semibold">{filteredSummary.inactive}</p>
 			</div>
 			<div class="rounded-sm border border-gray-200 bg-white p-4 shadow-sm">
-				<p class="text-text/70 text-sm">Aktiva med bokning (90 d)</p>
-				<p class="text-text text-2xl font-semibold">{filteredSummary.activeWithRecentBooking}</p>
-			</div>
-			<!-- <div class="rounded-sm border border-gray-200 bg-white p-4 shadow-sm">
-				<p class="text-text/70 text-sm">Sent avbokade (90 d)</p>
-				<p class="text-text text-2xl font-semibold">{filteredSummary.lateCancelledLast90Days}</p>
+				<p class="text-text/70 text-sm">Aktiva med bokning i period</p>
+				<p class="text-text text-2xl font-semibold">{filteredSummary.activeWithBookingInPeriod}</p>
 			</div>
 			<div class="rounded-sm border border-gray-200 bg-white p-4 shadow-sm">
-				<p class="text-text/70 text-sm">Sent avbokade (30 d)</p>
-				<p class="text-text text-2xl font-semibold">{filteredSummary.lateCancelledLast30Days}</p>
+				<p class="text-text/70 text-sm">Klienter med bokning i period</p>
+				<p class="text-text text-2xl font-semibold">{filteredSummary.clientsWithBookingInPeriod}</p>
 			</div>
 			<div class="rounded-sm border border-gray-200 bg-white p-4 shadow-sm">
-				<p class="text-text/70 text-sm">Avbokade (90 d)</p>
-				<p class="text-text text-2xl font-semibold">{filteredSummary.cancelledLast90Days}</p>
+				<p class="text-text/70 text-sm">Nya klienter i period</p>
+				<p class="text-text text-2xl font-semibold">{filteredSummary.newClientsInPeriod}</p>
 			</div>
-			<div class="rounded-sm border border-gray-200 bg-white p-4 shadow-sm">
-				<p class="text-text/70 text-sm">Avbokade (30 d)</p>
-				<p class="text-text text-2xl font-semibold">{filteredSummary.cancelledLast30Days}</p>
-			</div> -->
 		</div>
 	{/if}
 
 	{#if summary}
 		<p class="text-text/60 mb-2 text-sm">
 			Totalt i databasen: <strong>{summary.total}</strong> klienter (aktiva: {summary.active},
-			inaktiva:
-			{summary.inactive}). Uppdaterad {formatDate(summary.generatedAt, true)}.
+			inaktiva: {summary.inactive}). Period: <strong>{summary.periodStart}</strong> till
+			<strong>{summary.periodEnd}</strong>. Uppdaterad {formatDate(summary.generatedAt, true)}.
 		</p>
-		<!-- <p class="text-text/60 mb-4 text-sm">
-			Sen avbokade (90 d): <strong>{summary.lateCancelledLast90Days}</strong>, 30 d:
-			<strong>{summary.lateCancelledLast30Days}</strong>. Avbokade (90 d):
-			<strong>{summary.cancelledLast90Days}</strong>, 30 d:
-			<strong>{summary.cancelledLast30Days}</strong>.
-		</p> -->
 	{/if}
 
 	{#if rows.length === 0 && loading}
