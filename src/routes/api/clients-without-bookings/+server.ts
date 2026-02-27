@@ -38,6 +38,12 @@ export async function GET({ url, request }) {
         FROM clients
         WHERE active = true AND primary_trainer_id = $1
     ),
+    last_booking AS (
+        SELECT client_id, MAX(start_time) AS last_booking_date
+        FROM bookings
+        WHERE cancel_time IS NULL
+        GROUP BY client_id
+    ),
     booked_this_week AS (
         SELECT DISTINCT client_id
         FROM bookings
@@ -60,6 +66,7 @@ export async function GET({ url, request }) {
         tc.id,
         tc.firstname,
         tc.lastname,
+        lb.last_booking_date,
         CASE
             WHEN btw.client_id IS NULL THEN 'thisWeek'
             ELSE NULL
@@ -73,6 +80,7 @@ export async function GET({ url, request }) {
             ELSE NULL
         END AS no_booking_week2
     FROM trainer_clients tc
+    LEFT JOIN last_booking lb ON tc.id = lb.client_id
     LEFT JOIN booked_this_week btw ON tc.id = btw.client_id
     LEFT JOIN booked_week1 bw1 ON tc.id = bw1.client_id
     LEFT JOIN booked_week2 bw2 ON tc.id = bw2.client_id
@@ -86,7 +94,8 @@ export async function GET({ url, request }) {
 		.map((r) => ({
 			id: r.id,
 			firstname: r.firstname,
-			lastname: r.lastname
+			lastname: r.lastname,
+			lastBookingDate: r.last_booking_date
 		}));
 
 	const week1 = results
@@ -94,7 +103,8 @@ export async function GET({ url, request }) {
 		.map((r) => ({
 			id: r.id,
 			firstname: r.firstname,
-			lastname: r.lastname
+			lastname: r.lastname,
+			lastBookingDate: r.last_booking_date
 		}));
 
 	const week2 = results
@@ -102,7 +112,8 @@ export async function GET({ url, request }) {
 		.map((r) => ({
 			id: r.id,
 			firstname: r.firstname,
-			lastname: r.lastname
+			lastname: r.lastname,
+			lastBookingDate: r.last_booking_date
 		}));
 
 	return respondJsonWithEtag(request, { thisWeek, week1, week2 });

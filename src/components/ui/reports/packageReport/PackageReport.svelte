@@ -142,6 +142,9 @@
 	let hasMore = true;
 	let loading = false;
 	let pendingReset = false;
+	let sentinel: HTMLDivElement | null = null;
+	let observer: IntersectionObserver | null = null;
+	let sentinelObserved = false;
 
 	let summary: Summary | null = null;
 	let filteredSummary: Summary | null = null;
@@ -384,13 +387,37 @@
 
 	onMount(() => {
 		const today = new Date();
-		const start = new Date(today);
-		start.setDate(start.getDate() - 90);
+		const start = new Date(today.getFullYear(), today.getMonth(), 1);
 
 		dateFrom = formatDateInput(start);
 		dateTo = formatDateInput(today);
 		fetchReport(true);
+
+		observer = new IntersectionObserver(
+			(entries) => {
+				if (entries.some((entry) => entry.isIntersecting)) {
+					fetchReport();
+				}
+			},
+			{ rootMargin: '200px 0px', threshold: 0 }
+		);
+
+		if (sentinel) {
+			observer.observe(sentinel);
+			sentinelObserved = true;
+		}
+
+		return () => observer?.disconnect();
 	});
+
+	$: if (observer && sentinel && !sentinelObserved) {
+		observer.observe(sentinel);
+		sentinelObserved = true;
+	}
+
+	$: if (!sentinel) {
+		sentinelObserved = false;
+	}
 
 	function onPackageStatusSelect(event: CustomEvent<PackageStatusOption['value']>) {
 		packageStatus = event.detail;
@@ -412,7 +439,7 @@
 		<div class="bg-text flex h-7 w-7 items-center justify-center rounded-full text-white">
 			<Icon icon="Package" size="14px" />
 		</div>
-		<h2 class="text-text text-3xl font-semibold">Paketrapport</h2>
+		<h2 class="text-text text-3xl font-semibold">Paketbokningar</h2>
 	</div>
 
 	<div class="mb-6 grid gap-6 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
@@ -523,17 +550,14 @@
 	{/if}
 
 	{#if rows.length > 0}
-		<div class="mt-4 flex justify-center">
-			{#if hasMore}
-				<Button
-					text={loading ? 'Laddar…' : 'Ladda fler'}
-					variant="secondary"
-					on:click={() => fetchReport(false)}
-					disabled={loading}
-				/>
-			{:else}
-				<p class="text-text/60 py-2 text-sm">Inga fler rader att visa.</p>
-			{/if}
-		</div>
+		<div bind:this={sentinel} class="h-1 w-full"></div>
+	{/if}
+
+	{#if loading && rows.length > 0}
+		<p class="text-text/60 py-4 text-center text-sm">Laddar fler rader…</p>
+	{/if}
+
+	{#if !hasMore && rows.length > 0 && !loading}
+		<p class="text-text/60 py-4 text-center text-sm">Inga fler rader att visa.</p>
 	{/if}
 </div>

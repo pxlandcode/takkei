@@ -3,10 +3,18 @@
 	import { user } from '$lib/stores/userStore';
 	import Icon from '../../icon-component/Icon.svelte';
 	import { cacheFirstJson } from '$lib/services/api/apiCache';
+	import { tooltip } from '$lib/actions/tooltip';
 
-	let clientsThisWeek: any[] = [];
-	let clientsNextWeek: any[] = [];
-	let clientsWeekAfter: any[] = [];
+	interface Client {
+		id: number;
+		firstname: string;
+		lastname: string;
+		lastBookingDate?: string | null;
+	}
+
+	let clientsThisWeek: Client[] = [];
+	let clientsNextWeek: Client[] = [];
+	let clientsWeekAfter: Client[] = [];
 	let isLoading = true;
 	let thisWeekStart: Date;
 	let thisWeekEnd: Date;
@@ -23,6 +31,20 @@
 			day: 'numeric',
 			month: 'long'
 		});
+	}
+
+	function isOverSixWeeksAgo(dateStr?: string | null): boolean {
+		if (!dateStr) return true; // Never booked counts as over 6 weeks
+		const lastDate = new Date(dateStr);
+		const sixWeeksAgo = new Date();
+		sixWeeksAgo.setDate(sixWeeksAgo.getDate() - 42);
+		return lastDate < sixWeeksAgo;
+	}
+
+	function getLastBookedText(dateStr?: string | null): string {
+		if (!dateStr) return 'Har aldrig bokats';
+		const date = new Date(dateStr);
+		return `Senast bokad ${date.toLocaleDateString('sv-SE', { day: 'numeric', month: 'long', year: 'numeric' })}`;
 	}
 
 	function getDateRanges() {
@@ -70,19 +92,19 @@
 			isLoading = false;
 		}
 
-	fresh
-		.then((data) => {
-			clientsThisWeek = data.thisWeek ?? [];
-			clientsNextWeek = data.week1 ?? [];
-			clientsWeekAfter = data.week2 ?? [];
-		})
-		.catch(() => {})
-		.finally(() => {
-			isLoading = false;
-		});
-}
+		fresh
+			.then((data) => {
+				clientsThisWeek = data.thisWeek ?? [];
+				clientsNextWeek = data.week1 ?? [];
+				clientsWeekAfter = data.week2 ?? [];
+			})
+			.catch(() => {})
+			.finally(() => {
+				isLoading = false;
+			});
+	}
 
-onMount(fetchClientsWithoutBookings);
+	onMount(fetchClientsWithoutBookings);
 </script>
 
 <div class="rounded-sm border border-gray-200 bg-white p-4 shadow-md">
@@ -110,10 +132,18 @@ onMount(fetchClientsWithoutBookings);
 
 				<ul class="space-y-1">
 					{#each clientsThisWeek as client}
-						<li>
+						<li class="flex items-center gap-1">
 							<a class="text-orange hover:underline" href={`/clients/${client.id}`}
 								>{client.firstname} {client.lastname}</a
 							>
+							{#if isOverSixWeeksAgo(client.lastBookingDate)}
+								<span
+									use:tooltip={{ content: getLastBookedText(client.lastBookingDate) }}
+									class="text-red cursor-help"
+								>
+									<Icon icon="CircleAlert" size="14px" />
+								</span>
+							{/if}
 						</li>
 					{/each}
 					{#if clientsThisWeek.length === 0}
@@ -131,10 +161,18 @@ onMount(fetchClientsWithoutBookings);
 
 				<ul class="space-y-1">
 					{#each clientsNextWeek as client}
-						<li>
+						<li class="flex items-center gap-1">
 							<a class="text-orange hover:underline" href={`/clients/${client.id}`}
 								>{client.firstname} {client.lastname}</a
 							>
+							{#if isOverSixWeeksAgo(client.lastBookingDate)}
+								<span
+									use:tooltip={{ content: getLastBookedText(client.lastBookingDate) }}
+									class="text-red cursor-help"
+								>
+									<Icon icon="CircleAlert" size="14px" />
+								</span>
+							{/if}
 						</li>
 					{/each}
 					{#if clientsNextWeek.length === 0}
@@ -151,10 +189,18 @@ onMount(fetchClientsWithoutBookings);
 				</div>
 				<ul class="space-y-1">
 					{#each clientsWeekAfter as client}
-						<li>
+						<li class="flex items-center gap-1">
 							<a class="text-orange hover:underline" href={`/clients/${client.id}`}
 								>{client.firstname} {client.lastname}</a
 							>
+							{#if isOverSixWeeksAgo(client.lastBookingDate)}
+								<span
+									use:tooltip={{ content: getLastBookedText(client.lastBookingDate) }}
+									class="text-red cursor-help"
+								>
+									<Icon icon="CircleAlert" size="14px" />
+								</span>
+							{/if}
 						</li>
 					{/each}
 					{#if clientsWeekAfter.length === 0}

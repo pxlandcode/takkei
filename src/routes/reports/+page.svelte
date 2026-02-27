@@ -23,7 +23,7 @@
 			requiredRoles: ['Administrator', 'Economy']
 		},
 		{
-			label: 'Paket',
+			label: 'Paketbokningar',
 			icon: 'Package',
 			component: PackageReport,
 			requiredRoles: ['Administrator', 'Economy', 'Trainer']
