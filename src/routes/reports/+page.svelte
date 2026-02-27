@@ -5,6 +5,7 @@
 	import Button from '../../components/bits/button/Button.svelte';
 	import CustomersCreditReport from '../../components/ui/reports/customersCreditReport/CustomersCreditReport.svelte';
 	import ClientReport from '../../components/ui/reports/clientReport/ClientReport.svelte';
+	import BookingReport from '../../components/ui/reports/bookingReport/BookingReport.svelte';
 	import PackageReport from '../../components/ui/reports/packageReport/PackageReport.svelte';
 	import TargetsReport from '../../components/ui/reports/targets/TargetsReport.svelte';
 	import SalaryReport from '../../components/ui/reports/salaryReport/SalaryReport.svelte';
@@ -15,6 +16,12 @@
 			icon: 'Person',
 			component: ClientReport,
 			requiredRoles: ['Administrator', 'Economy', 'Trainer']
+		},
+		{
+			label: 'Bokningar',
+			icon: 'Calendar',
+			component: BookingReport,
+			requiredRoles: ['Administrator', 'Economy', 'Trainer', 'LocationAdmin']
 		},
 		{
 			label: 'Tillgodo',
