@@ -98,9 +98,10 @@
 	<div class="flex flex-col gap-4 xl:grid xl:grid-cols-2">
 		<NotificationsModule />
 		<NoBookingsClientModule />
-		<TodaysBookingsModule />
-
-		<GoalsAndAchievementsModule />
+		<div class="col-span-2 grid grid-cols-1 gap-4 xl:h-[500px] xl:grid-cols-2">
+			<TodaysBookingsModule />
+			<GoalsAndAchievementsModule />
+		</div>
 		<div class="w-full xl:col-span-2">
 			<MyStatisticsModule />
 		</div>
@@ -126,11 +127,11 @@
 					{#if holidayPayLoading && !hasLoadedHolidayPay}
 						<p class="text-sm text-gray-500">Laddar...</p>
 					{:else if holidayPayError}
-						<button class="text-sm text-primary underline" on:click={loadHolidayPay}>
+						<button class="text-primary text-sm underline" on:click={loadHolidayPay}>
 							Försök igen
 						</button>
 					{:else}
-						<p class="text-lg font-semibold text-text">
+						<p class="text-text text-lg font-semibold">
 							{formatCurrency(holidayPayAmount)}
 						</p>
 					{/if}

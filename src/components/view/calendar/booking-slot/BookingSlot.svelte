@@ -105,9 +105,16 @@
 		);
 	}
 
-	function getParticipant(): { firstname?: string | null; lastname?: string | null } | null {
+	function getParticipant():
+		| { firstname?: string | null; lastname?: string | null; active?: boolean }
+		| null {
 		if (booking.isPersonalBooking) return null;
 		return isTraineeParticipant() ? (booking.trainee ?? null) : (booking.client ?? null);
+	}
+
+	function isParticipantInactive() {
+		const participant = getParticipant();
+		return participant?.active === false;
 	}
 
 	function normalizeKind(kind?: string | null) {
@@ -140,6 +147,7 @@
 	}
 
 	const personalDisplayText = $derived(getPersonalDisplayText());
+	const participantIsInactive = $derived(!booking.isPersonalBooking && isParticipantInactive());
 
 	function getTrainerLastName() {
 		const last = booking.trainer?.lastname?.trim();
@@ -436,8 +444,17 @@
 	style:color={isSelectedVariant ? SELECTED_TEXT_COLOR : null}
 	use:bookingTooltip={{ booking }}
 >
+	{#if participantIsInactive}
+		<span
+			class="pointer-events-none absolute top-0 right-0 z-0 h-3 w-3 bg-error"
+			style="clip-path: polygon(100% 0, 0 0, 100% 100%);"
+			title="Inaktiv deltagare"
+			aria-label="Inaktiv deltagare"
+		></span>
+	{/if}
+
 	{#if !booking.isPersonalBooking}
-		<div class="flex flex-row">
+		<div class="relative z-10 flex flex-row">
 			<div
 				class="relative flex items-center justify-center gap-2 rounded-xs px-1"
 				style="color: {bookingColor}"
@@ -459,7 +476,7 @@
 			</div>
 		</div>
 	{:else}
-		<div class="flex w-full flex-col text-xs">
+		<div class="relative z-10 flex w-full flex-col text-xs">
 			<p
 				class={`personal-text ${isMeetingSlot() ? 'personal-text--single' : ''}`}
 				bind:this={personalTextElement}

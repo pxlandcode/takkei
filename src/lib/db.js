@@ -150,10 +150,14 @@ function normalizeParam(p) {
 export const query = async (text, params = []) => {
         const client = await pool.connect();
 	try {
-		const norm = Array.isArray(params) ? params.map(normalizeParam) : params;
-		const res = await client.query(text, norm);
-		return res.rows;
+		return await queryWithClient(client, text, params);
 	} finally {
 		client.release();
 	}
+};
+
+export const queryWithClient = async (client, text, params = []) => {
+	const norm = Array.isArray(params) ? params.map(normalizeParam) : params;
+	const res = await client.query(text, norm);
+	return res.rows;
 };

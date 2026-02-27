@@ -31,11 +31,13 @@ export const GET: RequestHandler = async ({ params }) => {
              users.lastname AS trainer_lastname,
              clients.firstname AS client_firstname,
              clients.lastname AS client_lastname,
+             clients.active AS client_active,
              booking_contents.id AS booking_content_id,
              booking_contents.kind AS booking_content_kind,
              trainee.id AS trainee_id,
              trainee.firstname AS trainee_firstname,
-             trainee.lastname AS trainee_lastname
+             trainee.lastname AS trainee_lastname,
+             trainee.active AS trainee_active
       FROM bookings
       LEFT JOIN (
         SELECT booking_id, COUNT(*) AS notes_count

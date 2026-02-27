@@ -75,6 +75,7 @@ import IconCalendarCross from './IconCalendarCross.svelte';
 import IconTakkei from './IconTakkei.svelte';
 import IconMinimize from './IconMinimize.svelte';
 import IconWindows from './IconWindows.svelte';
+import IconInactive from './IconInactive.svelte';
 
 export {
 	IconClose,
@@ -153,5 +154,6 @@ export {
 	IconCalendarCross,
 	IconTakkei,
 	IconMinimize,
-	IconWindows
+	IconWindows,
+	IconInactive
 };

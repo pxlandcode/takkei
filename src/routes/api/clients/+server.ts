@@ -57,7 +57,7 @@ export async function GET({ url, request }) {
       SELECT 1
       FROM bookings b
       WHERE b.client_id = clients.id
-        AND COALESCE(b.try_out, false) = false
+        AND COALESCE(b.try_out, false) = true
         AND b.status NOT IN ('Cancelled','CancelledLate') -- adjust if needed
         AND b.start_time >= $${paramIndex}::timestamptz
 
@@ -71,7 +71,7 @@ export async function GET({ url, request }) {
       SELECT 1
       FROM bookings b
       WHERE b.client_id = clients.id
-        AND COALESCE(b.try_out, false) = false
+        AND COALESCE(b.try_out, false) = true
         AND b.status NOT IN ('Cancelled','CancelledLate')
         AND b.start_time >= $${paramIndex}::timestamptz
 

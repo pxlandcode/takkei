@@ -433,14 +433,27 @@
 </script>
 
 <div class="custom-scrollbar m-4 flex flex-col gap-6 overflow-x-auto">
-	<div class="flex items-center gap-2">
-		<div class="bg-text flex h-7 w-7 items-center justify-center rounded-full text-white">
-			<Icon icon="Money" size="14px" />
+	<div class="flex items-center justify-between gap-3">
+		<div class="flex items-center gap-2">
+			<div class="bg-text flex h-7 w-7 items-center justify-center rounded-full text-white">
+				<Icon icon="Money" size="14px" />
+			</div>
+			<h2 class="text-text text-3xl font-semibold">Löneunderlag</h2>
 		</div>
-		<h2 class="text-text text-3xl font-semibold">Löneunderlag</h2>
+		<div class="flex justify-end">
+			<Button
+				text="Exportera"
+				variant="primary"
+				iconLeft="Download"
+				iconColor="white"
+				iconSize="12px"
+				disabled={isExporting || loading}
+				on:click={exportReport}
+			/>
+		</div>
 	</div>
 
-	<div class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+	<div class="grid gap-6">
 		<div class="flex flex-col gap-4">
 			<label class="flex flex-col gap-1">
 				<span class="text-text/70 text-sm">Månad</span>
@@ -469,17 +482,6 @@
 					</div>
 				</div>
 			{/if}
-		</div>
-		<div class="flex justify-end">
-			<Button
-				text="Exportera"
-				variant="primary"
-				iconLeft="Download"
-				iconColor="white"
-				iconSize="12px"
-				disabled={isExporting || loading}
-				on:click={exportReport}
-			/>
 		</div>
 	</div>
 

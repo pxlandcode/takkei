@@ -1,8 +1,15 @@
 // /api/customers/[id]/+server.ts (list view payload)
 import { query } from '$lib/db';
+import { chargeablePackageBookingSql, getNextStockholmDayStartLocal } from '$lib/server/packageSemantics';
 
 export async function GET({ params }) {
 	const id = params.id;
+	const nextDayStartLocal = getNextStockholmDayStartLocal(new Date());
+	if (!nextDayStartLocal) {
+		return new Response(JSON.stringify({ error: 'Failed to determine business date' }), {
+			status: 500
+		});
+	}
 
 	// customer
 	const [customer] = await query(
@@ -35,30 +42,30 @@ export async function GET({ params }) {
      LEFT JOIN articles a ON a.id = p.article_id
      LEFT JOIN clients  cl ON cl.id = p.client_id
      WHERE p.customer_id = $1
-     ORDER BY p.id ASC`,
+     ORDER BY p.client_id ASC NULLS FIRST, p.id ASC`,
 		[id]
 	);
 
-	// chargeable bookings used up to now per package
+	// chargeable bookings (future-inclusive + through end of today) per package
 	const ids = rawPackages.map((p: any) => p.id);
-	let bookingCounts: Record<number, { total: number; usedUntilNow: number }> = {};
+	let bookingCounts: Record<number, { total: number; usedUntilToday: number }> = {};
 	if (ids.length) {
 		const rows = await query(
 			`SELECT
 			    package_id,
 			    COUNT(*)::int AS total_cnt,
-			    SUM(CASE WHEN start_time < NOW() THEN 1 ELSE 0 END)::int AS used_until_now
+			    (COUNT(*) FILTER (WHERE start_time < $2))::int AS used_until_today
 			  FROM bookings
 			  WHERE package_id = ANY($1::int[])
-			    AND (status IS NULL OR LOWER(status) <> 'cancelled')
+			    AND ${chargeablePackageBookingSql('bookings')}
 			  GROUP BY package_id`,
-			[ids]
+			[ids, nextDayStartLocal]
 		);
 		bookingCounts = rows.reduce(
-			(acc: Record<number, { total: number; usedUntilNow: number }>, row: any) => {
+			(acc: Record<number, { total: number; usedUntilToday: number }>, row: any) => {
 				acc[row.package_id] = {
-					total: row.total_cnt ?? 0,
-					usedUntilNow: row.used_until_now ?? 0
+					total: Number(row.total_cnt ?? 0),
+					usedUntilToday: Number(row.used_until_today ?? 0)
 				};
 				return acc;
 			},
@@ -69,11 +76,11 @@ export async function GET({ params }) {
 	const packages = rawPackages.map((p: any) => {
 		const hasSessions = p.article_sessions !== null && p.article_sessions !== undefined;
 		const sessions = hasSessions ? Number(p.article_sessions) : null;
-		const counts = bookingCounts[p.id] ?? { total: 0, usedUntilNow: 0 };
+		const counts = bookingCounts[p.id] ?? { total: 0, usedUntilToday: 0 };
 		const usedTotal = counts.total ?? 0;
-		const usedUntilNow = counts.usedUntilNow ?? 0;
-		const remaining = sessions != null ? Math.max(0, sessions - usedTotal) : null;
-		const remainingToday = sessions != null ? Math.max(0, sessions - usedUntilNow) : null;
+		const usedUntilToday = counts.usedUntilToday ?? 0;
+		const remaining = sessions != null ? sessions - usedTotal : null;
+		const remainingToday = sessions != null ? sessions - usedUntilToday : null;
 
 		return {
 			id: p.id,
@@ -88,10 +95,12 @@ export async function GET({ params }) {
 			autogiro: !!p.autogiro,
 			frozen_from_date: p.frozen_from_date,
 			invoice_numbers: p.invoice_numbers || [],
+			is_shared: p.client_id == null,
 			remaining_sessions: remaining, // <-- Saldo in the old UI
 			remaining_sessions_today: remainingToday,
 			used_sessions_total: usedTotal,
-			used_sessions_until_now: usedUntilNow,
+			used_sessions_until_today: usedUntilToday,
+			used_sessions_until_now: usedUntilToday,
 			total_sessions: sessions
 		};
 	});

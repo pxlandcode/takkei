@@ -100,6 +100,7 @@
 		id?: number | null;
 		firstname?: string | null;
 		lastname?: string | null;
+		active?: boolean;
 	} | null = null;
 	let bookingComponentType: BookingComponentType = 'training';
 	let bookingTypeLabel = componentLabels[bookingComponentType];
@@ -179,11 +180,9 @@
 		!isCancelled && !currentBooking.isPersonalBooking && Boolean(currentBooking.client?.id);
 	$: showTraineeParticipant =
 		!currentBooking.isPersonalBooking &&
-		(currentBooking.booking.internalEducation || currentBooking.additionalInfo?.education);
+		Boolean(currentBooking.booking.internalEducation || currentBooking.additionalInfo?.education);
 	$: participantLabel = showTraineeParticipant ? 'Trainee' : 'Kund';
-	$: participantEntry = showTraineeParticipant
-		? currentBooking.trainee
-		: (currentBooking.client ?? null);
+	$: participantEntry = (showTraineeParticipant ? currentBooking.trainee : currentBooking.client) ?? null;
 	$: bookingComponentType = determineBookingComponent(currentBooking);
 	$: bookingTypeLabel = componentLabels[bookingComponentType];
 	$: canQuickSwap = !currentBooking.isPersonalBooking && !isMeetingBooking(currentBooking);
@@ -1096,6 +1095,9 @@
 										{participantEntry.firstname}
 										{participantEntry.lastname}
 									</a>
+								{/if}
+								{#if participantEntry.active === false}
+									<span class="ml-1 text-error font-medium">(Ej aktiv)</span>
 								{/if}
 							{:else}
 								<span>{showTraineeParticipant ? 'Trainee saknas' : 'Kund saknas'}</span>

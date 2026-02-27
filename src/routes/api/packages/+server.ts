@@ -1,5 +1,10 @@
 import { query } from '$lib/db';
 import { normalizeDate, serializeInstallments, type InstallmentInput } from '$lib/server/packageUtils';
+import {
+	chargeablePackageBookingSql,
+	packageFreeExclusionSql,
+	trainingRelationshipSql
+} from '$lib/server/packageSemantics';
 
 async function attachEligibleBookings({
         packageId,
@@ -28,10 +33,19 @@ async function attachEligibleBookings({
                 clientIds = [clientId];
         } else if (customerId) {
                 const rows = await query(
-                        `SELECT client_id FROM client_customer_relationships WHERE customer_id = $1 AND active = TRUE`,
+                        `SELECT client_id
+                         FROM client_customer_relationships
+                         WHERE customer_id = $1
+                           AND ${trainingRelationshipSql('client_customer_relationships')}`,
                         [customerId]
                 );
-                clientIds = rows.map((r: any) => r.client_id).filter((id: any) => typeof id === 'number');
+                clientIds = Array.from(
+                        new Set(
+                                rows
+                                        .map((r: any) => r.client_id)
+                                        .filter((id: any) => typeof id === 'number')
+                        )
+                );
         }
 
         if (!clientIds.length) return;
@@ -41,7 +55,8 @@ async function attachEligibleBookings({
                  FROM bookings
                  WHERE package_id IS NULL
                    AND client_id = ANY($1::int[])
-                   AND (status IS NULL OR status NOT IN ('Cancelled','Canceled'))
+                   AND ${chargeablePackageBookingSql('bookings')}
+                   AND ${packageFreeExclusionSql('bookings')}
                    AND ($3::date IS NULL OR start_time::date >= $3::date)
                    AND ($4::date IS NULL OR start_time::date <= $4::date)
                  ORDER BY start_time ASC

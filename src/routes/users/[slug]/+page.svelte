@@ -8,6 +8,7 @@
 	import ProfileInfo from '../../../components/ui/ProfileInfo/ProfileInfo.svelte';
 	import ProfileBookingComponent from '../../../components/ui/profileBookingComponent/ProfileBookingComponent.svelte';
 	import ProfileNotesComponent from '../../../components/ui/profileNotesComponent/ProfileNotesComponent.svelte';
+	import ProfileTrainerClients from '../../../components/ui/ProfileTrainerClients/ProfileTrainerClients.svelte';
 	import MailComponent from '../../../components/ui/mailComponent/MailComponent.svelte';
 	import { openPopup } from '$lib/stores/popupStore';
 	import { goto } from '$app/navigation';
@@ -42,7 +43,8 @@
 		{
 			label: 'Klienter',
 			icon: 'Clients',
-			component: null
+			component: ProfileTrainerClients,
+			props: () => (trainerId ? { trainerId } : {})
 		},
 		{
 			label: 'Anteckningar',

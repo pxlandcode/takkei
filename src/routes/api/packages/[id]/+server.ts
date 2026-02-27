@@ -1,5 +1,6 @@
 import { query } from '$lib/db';
 import { normalizeDate, serializeInstallments, type InstallmentInput } from '$lib/server/packageUtils';
+import { chargeablePackageBookingSql } from '$lib/server/packageSemantics';
 
 // --- tiny YAML-ish parser for Rails :payment_installments_per_date ---
 // Accepts the serialized hash and returns [{ date: 'YYYY-MM-DD', sum: number, invoice_no?: string }]
@@ -71,13 +72,13 @@ export async function GET({ params }) {
   SELECT COUNT(*)::int AS used
   FROM bookings
   WHERE package_id = $1
-    AND (status IS NULL OR status NOT IN ('Cancelled','Canceled'))
+    AND ${chargeablePackageBookingSql('bookings')}
 `;
 	const usedRes = await query(usedSql, [id]);
 	const used_sessions: number = usedRes[0]?.used ?? 0;
 
 	const total_sessions: number = Number(row.article_sessions ?? 0);
-	const remaining_sessions = Math.max(0, total_sessions - used_sessions);
+	const remaining_sessions = total_sessions - used_sessions;
 
 	// Parse installments
 	const installments = parseInstallments(row.payment_installments_per_date);
@@ -308,7 +309,7 @@ export async function DELETE({ params }) {
 		`SELECT COUNT(*)::int AS cnt
      FROM bookings
      WHERE package_id = $1
-       AND (status IS NULL OR status NOT IN ('Cancelled','Canceled'))`,
+       AND ${chargeablePackageBookingSql('bookings')}`,
 		[id]
 	);
 

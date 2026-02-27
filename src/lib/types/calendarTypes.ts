@@ -20,6 +20,7 @@ export interface Trainer {
 	id: number;
 	firstname: string;
 	lastname: string;
+	active?: boolean;
 }
 
 export interface Client {
@@ -28,6 +29,7 @@ export interface Client {
 	lastname: string;
 	email?: string | null;
 	phone?: string | null;
+	active?: boolean;
 }
 
 export interface RoomDetails {

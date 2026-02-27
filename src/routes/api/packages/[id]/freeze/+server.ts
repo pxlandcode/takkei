@@ -1,4 +1,5 @@
 import { query } from '$lib/db';
+import { chargeablePackageBookingSql } from '$lib/server/packageSemantics';
 
 // Reuse the tiny YAML-ish parser to read installments
 function parseInstallments(text: string | null | undefined) {
@@ -47,7 +48,7 @@ export async function POST({ params, request }) {
        (SELECT COUNT(*)::int
           FROM bookings b
           WHERE b.package_id = p.id
-            AND (b.status IS NULL OR b.status NOT IN ('Cancelled','Canceled'))
+            AND ${chargeablePackageBookingSql('b')}
             AND b.start_time <= NOW()
        ) AS used_up
      FROM packages p

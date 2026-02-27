@@ -35,6 +35,11 @@
 	let deleteErr: string | null = null;
 	let deletePending = false;
 
+	// Recalculate state
+	let recalcErr: string | null = null;
+	let recalcInfo: string | null = null;
+	let recalcPending = false;
+
 	$: isAdmin = hasRole('Administrator');
 
 	$: packageId = Number($page.params.id);
@@ -151,6 +156,46 @@
 		}
 	}
 
+	async function recalculatePackage() {
+		if (!isAdmin) return;
+		recalcErr = null;
+		recalcInfo = null;
+		recalcPending = true;
+		try {
+			const res = await fetch(`/api/packages/${packageId}/recalculate`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({})
+			});
+
+			const text = await res.text();
+			let payload: any = null;
+			try {
+				payload = text ? JSON.parse(text) : null;
+			} catch {
+				payload = null;
+			}
+
+			if (!res.ok) {
+				throw new Error(payload?.error || text || 'Kunde inte räkna om paketet');
+			}
+
+			const detachedCount = Number(payload?.detachedCount ?? 0);
+			const overflow = Number(payload?.detachedOverflowChargeableCount ?? 0);
+			const packageFree = Number(payload?.detachedPackageFreeChargeableCount ?? 0);
+			recalcInfo =
+				detachedCount > 0
+					? `Paketet räknades om. ${detachedCount} bokningar kopplades bort (överfullt: ${overflow}, paketfria: ${packageFree}).`
+					: 'Paketet räknades om. Inga ändringar behövdes.';
+
+			await fetchPkg();
+		} catch (e: any) {
+			recalcErr = e?.message ?? 'Något gick fel vid omräkning';
+		} finally {
+			recalcPending = false;
+		}
+	}
+
 	async function moveToCustomer() {
 		if (!isAdmin) return;
 		const res = await fetch(`/api/packages/${packageId}/move-to-customer`, { method: 'POST' });
@@ -234,6 +279,21 @@
 				on:click={moveToCustomer}
 			/>
 		{/if}
+		{#if isAdmin}
+			<Button
+				text="Räkna om paket"
+				icon="Refresh"
+				variant="secondary"
+				disabled={recalcPending}
+				confirmOptions={{
+					title: 'Räkna om paket?',
+					description:
+						'Detta kopplar bort överflödiga eller paketfria bokningar från paketet. De tidigaste debiterbara bokningarna behålls.',
+					actionLabel: 'Räkna om',
+					action: recalculatePackage
+				}}
+			/>
+		{/if}
 		{#if pkg?.frozen_from_date && isAdmin}
 			<Button
 				text="Ta bort frysning"
@@ -262,6 +322,17 @@
 </div>
 
 <div class="m-4 flex flex-col gap-3">
+	{#if recalcInfo}
+		<div class="rounded-sm border border-green-300 bg-green-50 p-3 text-green-900">
+			{recalcInfo}
+		</div>
+	{/if}
+	{#if recalcErr}
+		<div class="rounded-sm border border-red-300 bg-red-50 p-3 text-red-800">
+			<strong>Omräkning misslyckades:</strong>
+			{recalcErr}
+		</div>
+	{/if}
 	{#if error}
 		<p class="text-red-600">{error}</p>
 	{:else if loading}
@@ -306,7 +377,7 @@
 			{fmtKr}
 			{fmtDate}
 			{packageId}
-			isAdmin={isAdmin}
+			{isAdmin}
 			showClientColumn={!pkg.client}
 			on:addinvoice={() => {
 				if (isAdmin) showInvoice = true;
@@ -316,7 +387,7 @@
 	</Navigation>
 {/if}
 <!-- Freeze modal -->
-	{#if showFreeze && isAdmin}
+{#if showFreeze && isAdmin}
 	<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
 		<div class="w-full max-w-md rounded-sm bg-white p-5 shadow-xl">
 			<div class="mb-3 flex items-center gap-2">
@@ -345,7 +416,7 @@
 {/if}
 
 <!-- Add invoice number modal -->
-	{#if showInvoice && isAdmin}
+{#if showInvoice && isAdmin}
 	<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
 		<div class="w-full max-w-md rounded-sm bg-white p-5 shadow-xl">
 			<div class="mb-3 flex items-center gap-2">
@@ -370,7 +441,7 @@
 {/if}
 
 <!-- Delete confirm modal -->
-	{#if showDelete && isAdmin}
+{#if showDelete && isAdmin}
 	<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
 		<div class="w-full max-w-md rounded-sm bg-white p-5 shadow-xl">
 			<div class="mb-3 flex items-center gap-2">
