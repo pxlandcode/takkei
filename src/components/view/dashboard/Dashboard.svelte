@@ -1,36 +1,38 @@
 <script lang="ts">
-import CalendarModule from '../../ui/calendarModule/CalendarModule.svelte';
-import DashboardHeader from '../../ui/dashboardHeader/DashboardHeader.svelte';
-import ClientDashboardHeader from '../../ui/dashboardHeader/ClientDashboardHeader.svelte';
-	import { calendarStore, getWeekStartAndEnd } from '$lib/stores/calendarStore';
-	import type { CalendarFilters } from '$lib/stores/calendarStore';
+	import type { ComponentType } from 'svelte';
+	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
+	import { get } from 'svelte/store';
+	import CalendarModule from '../../ui/calendarModule/CalendarModule.svelte';
+	import DashboardHeader from '../../ui/dashboardHeader/DashboardHeader.svelte';
+	import ClientDashboardHeader from '../../ui/dashboardHeader/ClientDashboardHeader.svelte';
 	import TargetModule from '../../ui/targetModule/TargetModule.svelte';
 	import DashboardButton from '../../bits/dashboardButton/DashboardButton.svelte';
 	import DashboardIcon from './DashboardIcon.svelte';
-import { notificationStore } from '$lib/stores/notificationStore';
-	import { onMount } from 'svelte';
+	import AlertPopup from '../../ui/alertPopup/AlertPopup.svelte';
+	import { calendarStore, getWeekStartAndEnd } from '$lib/stores/calendarStore';
+	import type { CalendarFilters } from '$lib/stores/calendarStore';
+	import { notificationStore } from '$lib/stores/notificationStore';
 	import { user } from '$lib/stores/userStore';
-import { popupStore, openPopup, closePopup } from '$lib/stores/popupStore';
-import AlertPopup from '../../ui/alertPopup/AlertPopup.svelte';
-import { get } from 'svelte/store';
-import { getCalendarUrl } from '$lib/helpers/calendarHelpers/calendarNavigation';
+	import { popupStore, openPopup, closePopup } from '$lib/stores/popupStore';
+	import { getCalendarUrl } from '$lib/helpers/calendarHelpers/calendarNavigation';
 
-export let clientMode = false;
+	export let clientMode = false;
 
-onMount(() => {
-	if (clientMode) return;
-	const currentUser = get(user);
-	if (currentUser) {
-		notificationStore.updateFromServer(currentUser.id);
-	}
-});
+	onMount(() => {
+		if (clientMode) return;
+
+		const currentUser = get(user);
+		if (currentUser) {
+			notificationStore.updateFromServer(currentUser.id);
+		}
+	});
 
 	async function handleDateSelect(date: Date) {
 		date.setHours(2, 0, 0, 0);
 		calendarStore.goToWeek(date, fetch);
 
-const { weekStart, weekEnd } = getWeekStartAndEnd(date);
+		const { weekStart, weekEnd } = getWeekStartAndEnd(date);
 		const filters: Partial<CalendarFilters> = {
 			from: weekStart,
 			to: weekEnd,
@@ -39,54 +41,57 @@ const { weekStart, weekEnd } = getWeekStartAndEnd(date);
 		goto(getCalendarUrl(filters));
 	}
 
-$: clientNotifications = clientMode ? 0 : $notificationStore.byType.client ?? 0;
-$: alertNotifications = clientMode ? 0 : $notificationStore.byType.alert ?? 0;
-
-$: activePopup = $popupStore;
-
-$: if (!clientMode) {
-	if (alertNotifications > 0 && activePopup?.id !== 'alert') {
-		openAlertPopup();
-	} else if (alertNotifications === 0 && activePopup?.id === 'alert') {
-		closePopup();
+	function openAlertPopup() {
+		openPopup({
+			id: 'alert',
+			header: 'Viktigt meddelande',
+			icon: 'CircleAlert',
+			component: AlertPopup as unknown as ComponentType,
+			dismissable: false,
+			noClose: true,
+			closeOn: ['finished']
+		});
 	}
-}
+
+	$: clientNotifications = clientMode ? 0 : ($notificationStore.byType.client ?? 0);
+	$: alertNotifications = clientMode ? 0 : ($notificationStore.byType.alert ?? 0);
+	$: activePopup = $popupStore;
+
+	$: if (!clientMode) {
+		if (
+			alertNotifications > 0 &&
+			activePopup?.id !== 'alert' &&
+			activePopup?.id !== 'absence-return'
+		) {
+			openAlertPopup();
+		} else if (alertNotifications === 0 && activePopup?.id === 'alert') {
+			closePopup();
+		}
+	}
 
 	$: buttons = clientMode
 		? [
 				{ label: 'Profil', icon: 'Person', href: '/client/home' },
 				{ label: 'Bokningar', icon: 'Calendar', href: '/client/bookings' },
 				{ label: 'Logga ut', icon: 'Logout', href: '/logout' }
-		  ]
+			]
 		: [
 				{ label: 'Kalender', icon: 'Calendar', href: '/calendar' },
-		{ label: 'Tränare', icon: 'Person', href: '/users' },
-		{
-			label: 'Klienter',
-			icon: 'Clients',
-			href: '/clients',
-			notificationCount: clientNotifications
-		},
-		{ label: 'Nyheter', icon: 'Newspaper', href: '/news' },
-		{ label: 'Rapporter', icon: 'Charts', href: '/reports' },
-		{ label: 'Inställningar', icon: 'Settings', href: '/settings' }
-	  ];
-
-function openAlertPopup() {
-	openPopup({
-		id: 'alert',
-		header: 'Viktigt meddelande',
-		icon: 'CircleAlert',
-		component: AlertPopup,
-		dismissable: false,
-		noClose: true,
-		closeOn: ['finished']
-	});
-}
+				{ label: 'Tränare', icon: 'Person', href: '/users' },
+				{
+					label: 'Klienter',
+					icon: 'Clients',
+					href: '/clients',
+					notificationCount: clientNotifications
+				},
+				{ label: 'Nyheter', icon: 'Newspaper', href: '/news' },
+				{ label: 'Rapporter', icon: 'Charts', href: '/reports' },
+				{ label: 'Inställningar', icon: 'Settings', href: '/settings' }
+			];
 </script>
 
 <div class="hide-scrollbar flex h-full w-[320px] flex-col justify-between gap-4 overflow-scroll">
-	<div class=" flex flex-col gap-4 pt-4">
+	<div class="flex flex-col gap-4 pt-4">
 		{#if clientMode}
 			<ClientDashboardHeader />
 		{:else}
@@ -108,6 +113,6 @@ function openAlertPopup() {
 	</div>
 
 	<div class="mb-2 pb-4">
-		<DashboardIcon></DashboardIcon>
+		<DashboardIcon />
 	</div>
 </div>

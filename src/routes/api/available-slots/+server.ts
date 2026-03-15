@@ -68,11 +68,10 @@ export const POST: RequestHandler = async ({ request }) => {
 	// 1. Absences
 	const absences = await query(
 		`SELECT 1 FROM absences
-       WHERE user_id = $1 AND (
-         (start_time <= $2 AND end_time >= $2)
-         OR (start_time <= $2 AND end_time IS NULL)
-       )`,
-		[trainerIdNumber, date]
+       WHERE user_id = $1
+         AND start_time <= $3
+         AND (end_time IS NULL OR end_time >= $2)`,
+		[trainerIdNumber, dayStart, dayEnd]
 	);
 	if (absences.length > 0) {
 		return jsonResponse([], [], 'absence');

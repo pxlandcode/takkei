@@ -11,6 +11,7 @@
 	import ToastContainer from '../components/ui/toast-container/ToastContainer.svelte';
 
 	import { onMount, onDestroy } from 'svelte';
+	import type { ComponentType } from 'svelte';
 	import { browser, dev } from '$app/environment';
 	import { goto } from '$app/navigation';
 	import Button from '../components/bits/button/Button.svelte';
@@ -19,10 +20,26 @@
 	import Icon from '../components/bits/icon-component/Icon.svelte';
 	import MinimizedPopupsButton from '../components/ui/minimizedPopupsButton/MinimizedPopupsButton.svelte';
 
-	import { popupStore, closePopup, minimizePopup, type PopupState } from '$lib/stores/popupStore';
+	import {
+		popupStore,
+		openPopup,
+		closePopup,
+		minimizePopup,
+		type PopupState
+	} from '$lib/stores/popupStore';
 	import { get } from 'svelte/store';
 	import { loadingStore } from '$lib/stores/loading';
 	import { headerState } from '$lib/stores/headerState.svelte';
+	import AbsenceReturnPopup from '../components/ui/absenceReturnPopup/AbsenceReturnPopup.svelte';
+	import { fetchAvailability } from '$lib/services/api/availabilityService';
+	import {
+		acknowledgeAbsencePrompt,
+		absencePromptAcknowledgedKey,
+		buildCurrentAbsenceKey,
+		clearAcknowledgedAbsencePrompt,
+		resolveCurrentAbsence,
+		type CurrentAbsence
+	} from '$lib/helpers/availability/currentAbsence';
 
 	export let data;
 	$user = data.user;
@@ -44,6 +61,9 @@
 	let popup: PopupState | null = null;
 	let popupListeners: Record<string, (event: CustomEvent<any>) => void> = {};
 	let popupProps: Record<string, unknown> = {};
+	let currentAbsencePrompt: CurrentAbsence | null = null;
+	let absencePromptLoadedForUserId: number | null = null;
+	let absencePromptLoadToken = 0;
 
 	$: currentRoute = $page.url.pathname;
 
@@ -141,6 +161,60 @@
 		goto(isTrainer ? '/' : '/client');
 	}
 
+	async function loadCurrentAbsencePrompt(userId: number) {
+		const token = ++absencePromptLoadToken;
+
+		try {
+			const availability = await fetchAvailability(userId, { cache: false });
+			if (token !== absencePromptLoadToken) return;
+
+			const absences = Array.isArray(availability?.absences)
+				? (availability.absences as CurrentAbsence[])
+				: [];
+			currentAbsencePrompt = resolveCurrentAbsence(absences);
+
+			if (!currentAbsencePrompt) {
+				clearAcknowledgedAbsencePrompt();
+			}
+		} catch (error) {
+			if (token !== absencePromptLoadToken) return;
+			console.error('Failed to load absence prompt state', error);
+		}
+	}
+
+	function openAbsenceReturnPopup(userId: number, absence: CurrentAbsence) {
+		openPopup({
+			id: 'absence-return',
+			header: 'Frånvaro',
+			icon: 'CircleAlert',
+			component: AbsenceReturnPopup as unknown as ComponentType,
+			dismissable: false,
+			noClose: true,
+			draggable: false,
+			minimizable: false,
+			maxWidth: '560px',
+			props: {
+				userId,
+				absence
+			},
+			listeners: {
+				resolved: (event) => {
+					const action = event.detail?.action as 'continued' | 'returned' | undefined;
+					if (action === 'continued') {
+						acknowledgeAbsencePrompt(buildCurrentAbsenceKey(userId, absence));
+						return;
+					}
+
+					if (action === 'returned') {
+						currentAbsencePrompt = null;
+						clearAcknowledgedAbsencePrompt();
+					}
+				}
+			},
+			closeOn: ['resolved']
+		});
+	}
+
 	function buildListeners(state: PopupState | null) {
 		if (!state) return {};
 		const listeners: Record<string, (event: CustomEvent<any>) => void> = {};
@@ -194,6 +268,53 @@
 	$: popup = $popupStore;
 	$: popupListeners = buildListeners(popup);
 	$: popupProps = popup?.props ? { ...popup.props } : {};
+	$: if (
+		!currentAccount &&
+		(currentAbsencePrompt || absencePromptLoadedForUserId !== null || $absencePromptAcknowledgedKey)
+	) {
+		currentAbsencePrompt = null;
+		absencePromptLoadedForUserId = null;
+		absencePromptLoadToken += 1;
+		clearAcknowledgedAbsencePrompt();
+	}
+	$: if (
+		browser &&
+		currentRoute === '/login' &&
+		(currentAbsencePrompt || absencePromptLoadedForUserId !== null || $absencePromptAcknowledgedKey)
+	) {
+		currentAbsencePrompt = null;
+		absencePromptLoadedForUserId = null;
+		absencePromptLoadToken += 1;
+		clearAcknowledgedAbsencePrompt();
+	}
+	$: if (
+		browser &&
+		currentRoute !== '/login' &&
+		currentAccount?.kind === 'trainer' &&
+		currentAccount.id !== absencePromptLoadedForUserId
+	) {
+		absencePromptLoadedForUserId = currentAccount.id;
+		loadCurrentAbsencePrompt(currentAccount.id);
+	}
+	$: currentAbsencePromptKey =
+		currentRoute !== '/login' && currentAccount?.kind === 'trainer' && currentAbsencePrompt
+			? buildCurrentAbsenceKey(currentAccount.id, currentAbsencePrompt)
+			: null;
+	$: shouldShowAbsencePrompt = Boolean(
+		currentRoute !== '/login' &&
+			currentAccount?.kind === 'trainer' &&
+			currentAbsencePrompt &&
+			currentAbsencePromptKey &&
+			$absencePromptAcknowledgedKey !== currentAbsencePromptKey
+	);
+	$: if (shouldShowAbsencePrompt && currentAccount?.kind === 'trainer' && currentAbsencePrompt) {
+		if (popup?.id !== 'absence-return') {
+			openAbsenceReturnPopup(currentAccount.id, currentAbsencePrompt);
+		}
+	}
+	$: if (!shouldShowAbsencePrompt && popup?.id === 'absence-return') {
+		closePopup();
+	}
 </script>
 
 <ParaglideJS {i18n}>

@@ -676,6 +676,14 @@ function resolveAbsenceKind(
 	return { key: toAbsenceKey(raw), label: formatAbsenceLabel(raw) };
 }
 
+function shouldIncludeAbsenceInSalaryReport(description: string | null | undefined) {
+	if (!description?.trim()) return true;
+
+	// Medical appointments should not affect payroll absence totals.
+	const normalized = normalizeAbsenceText(description).replace(/[^a-z0-9]+/g, '');
+	return !normalized.includes('lakarbesok');
+}
+
 function buildOverlappingDateRange(
 	startDate: string,
 	endDate: string,
@@ -912,6 +920,7 @@ export async function getSalaryReport(params: SalaryReportParams): Promise<Salar
 	for (const row of absences) {
 		const trainer = ensureTrainer(trainerMap, row);
 		if (!trainer) continue;
+		if (!shouldIncludeAbsenceInSalaryReport(row.description)) continue;
 
 		const absenceStartDate = stockholmDateOnly(row.start_time);
 		const absenceEndDate = stockholmDateOnly(row.end_time) ?? rangeEndDateOnly;

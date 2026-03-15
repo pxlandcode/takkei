@@ -3,9 +3,10 @@ import { invalidateByPrefix, wrapFetch } from '$lib/services/api/apiCache';
 const baseUrl = '/api/availability';
 
 // ✅ Fix: match server-side param name
-export async function fetchAvailability(userId: number) {
+export async function fetchAvailability(userId: number, options?: { cache?: boolean }) {
 	const fetchWithCache = wrapFetch(fetch);
-	const res = await fetchWithCache(`${baseUrl}?userId=${userId}`);
+	const url = `${baseUrl}?userId=${userId}${options?.cache === false ? '&nocache=1' : ''}`;
+	const res = await fetchWithCache(url);
 	if (!res.ok) throw new Error('Kunde inte hämta tillgänglighet.');
 	return await res.json();
 }
