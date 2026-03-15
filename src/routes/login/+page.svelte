@@ -22,7 +22,7 @@
 	let errorMessage = '';
 	let rememberMe = false;
 
-	// Helper that removes all cookies so stubborn login data does not block users.
+	// Helper that removes all cookies so stubborn login data does not block users
 	// const clearCookies = () => {
 	// 	if (typeof document === 'undefined' || typeof window === 'undefined') {
 	// 		return;
