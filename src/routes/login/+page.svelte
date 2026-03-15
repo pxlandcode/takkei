@@ -23,36 +23,36 @@
 	let rememberMe = false;
 
 	// Helper that removes all cookies so stubborn login data does not block users.
-	const clearCookies = () => {
-		if (typeof document === 'undefined' || typeof window === 'undefined') {
-			return;
-		}
+	// const clearCookies = () => {
+	// 	if (typeof document === 'undefined' || typeof window === 'undefined') {
+	// 		return;
+	// 	}
 
-		const cookies = document.cookie ? document.cookie.split(';') : [];
-		const hostname = window.location.hostname;
-		const hostParts = hostname.split('.');
-		const domainVariants = [hostname];
+	// 	const cookies = document.cookie ? document.cookie.split(';') : [];
+	// 	const hostname = window.location.hostname;
+	// 	const hostParts = hostname.split('.');
+	// 	const domainVariants = [hostname];
 
-		if (hostParts.length > 1) {
-			domainVariants.push(`.${hostParts.slice(-2).join('.')}`);
-		}
+	// 	if (hostParts.length > 1) {
+	// 		domainVariants.push(`.${hostParts.slice(-2).join('.')}`);
+	// 	}
 
-		for (const cookie of cookies) {
-			const eqPos = cookie.indexOf('=');
-			const name = eqPos > -1 ? cookie.slice(0, eqPos).trim() : cookie.trim();
-			if (!name) continue;
-			document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/`;
-			for (const domain of domainVariants) {
-				document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=${domain}`;
-			}
-		}
+	// 	for (const cookie of cookies) {
+	// 		const eqPos = cookie.indexOf('=');
+	// 		const name = eqPos > -1 ? cookie.slice(0, eqPos).trim() : cookie.trim();
+	// 		if (!name) continue;
+	// 		document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/`;
+	// 		for (const domain of domainVariants) {
+	// 			document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=${domain}`;
+	// 		}
+	// 	}
 
-		window.location.reload();
-	};
+	// 	window.location.reload();
+	// };
 
-	const handleClearCookies = () => {
-		clearCookies();
-	};
+	// const handleClearCookies = () => {
+	// 	clearCookies();
+	// };
 </script>
 
 <!-- Fullscreen Container -->
@@ -73,7 +73,7 @@
 	</div>
 </div>
 
-<div
+<!-- <div
 	class="fixed right-4 bottom-4 z-10 w-[280px] rounded-sm border border-gray-200 bg-white/95 p-4 text-sm text-gray-900 shadow-xl backdrop-blur"
 >
 	<p class="mb-2 font-semibold">Nya uppdateringar kräver att du rensar dina kakor</p>
@@ -89,7 +89,7 @@
 	>
 		Rensa kakor
 	</button>
-</div>
+</div> -->
 
 <style>
 	.wrapper {
