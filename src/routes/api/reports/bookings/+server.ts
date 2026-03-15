@@ -11,7 +11,8 @@ function parseStatus(value: string | null): BookingReportStatusFilter {
 	const normalized = value.toLowerCase();
 	if (['all', 'alla'].includes(normalized)) return 'all';
 	if (['booked', 'bokade', 'new'].includes(normalized)) return 'booked';
-	if (['late_cancelled', 'late-cancelled', 'sent_avbokad'].includes(normalized)) return 'late_cancelled';
+	if (['late_cancelled', 'late-cancelled', 'sent_avbokad'].includes(normalized))
+		return 'late_cancelled';
 	if (['cancelled', 'avbokad'].includes(normalized)) return 'cancelled';
 	return 'chargeable';
 }
@@ -43,6 +44,20 @@ function parseSearch(value: string | null): string | undefined {
 	return trimmed.length ? trimmed : undefined;
 }
 
+function parseWeekRanges(values: string[]): { start: string; end: string }[] | undefined {
+	const parsed = values
+		.map((value) => {
+			const [start, end] = value.split(':');
+			if (!start || !end) return null;
+			const normalizedStart = parseDate(start);
+			const normalizedEnd = parseDate(end);
+			if (!normalizedStart || !normalizedEnd) return null;
+			return { start: normalizedStart, end: normalizedEnd };
+		})
+		.filter((range): range is { start: string; end: string } => Boolean(range));
+	return parsed.length ? parsed : undefined;
+}
+
 function parsePositiveInt(value: string | null): number | undefined {
 	if (!value) return undefined;
 	const parsed = Number.parseInt(value, 10);
@@ -54,6 +69,7 @@ export const GET: RequestHandler = async ({ url }) => {
 	const filters: BookingReportFilters = {
 		dateFrom: parseDate(url.searchParams.get('dateFrom')),
 		dateTo: parseDate(url.searchParams.get('dateTo')),
+		weekRanges: parseWeekRanges(url.searchParams.getAll('weekRange')),
 		status: parseStatus(url.searchParams.get('status')),
 		bookingType: parseBookingType(url.searchParams.get('bookingType')),
 		trainerId: parsePositiveInt(url.searchParams.get('trainerId')),
@@ -74,4 +90,3 @@ export const GET: RequestHandler = async ({ url }) => {
 		return json({ error: 'Failed to fetch bookings report' }, { status: 500 });
 	}
 };
-

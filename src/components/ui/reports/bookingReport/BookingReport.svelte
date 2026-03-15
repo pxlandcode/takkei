@@ -18,14 +18,29 @@
 	type QuickRangeOption = { value: QuickRangeValue; label: string };
 	type Option = { id: number; label: string };
 	type DropdownOption = { value: string; label: string };
+	type WeekShortcut = { value: string; label: string; start: Date; end: Date };
+	type DatepickerOptions = {
+		view?: 'days' | 'months' | 'years';
+		minView?: 'days' | 'months' | 'years';
+		dateFormat?: string;
+		maxDate?: Date | string | number;
+	};
 
-	type SummaryLocation = {
-		locationId: number | null;
-		locationName: string;
+	type SummaryBreakdown = {
 		total: number;
 		booked: number;
 		lateCancelled: number;
 		cancelled: number;
+	};
+
+	type SummaryLocation = SummaryBreakdown & {
+		locationId: number | null;
+		locationName: string;
+	};
+
+	type SummaryTrainer = SummaryBreakdown & {
+		trainerId: number | null;
+		trainerName: string;
 	};
 
 	type Summary = {
@@ -38,6 +53,7 @@
 		firstBookingAt: string | null;
 		lastBookingAt: string | null;
 		locationBreakdown: SummaryLocation[];
+		trainerBreakdown: SummaryTrainer[];
 		generatedAt: string;
 	};
 
@@ -111,14 +127,20 @@
 		{ value: 'custom', label: 'Eget val' }
 	];
 
-	const datePickerOptions = {
+	const datePickerOptions: DatepickerOptions = {
 		dateFormat: 'yyyy-MM-dd'
-	} as const;
+	};
 
-	let quickRange: QuickRangeValue = 'this_month';
-	let selectedQuickRange: QuickRangeOption = quickRangeOptions[0];
+	const monthPickerOptions: DatepickerOptions = {
+		view: 'months',
+		minView: 'months',
+		dateFormat: 'yyyy-MM'
+	};
+
+	let quickRange: QuickRangeValue | null = 'this_month';
+	let selectedQuickRange: QuickRangeOption | null = quickRangeOptions[0];
 	$: selectedQuickRange =
-		quickRangeOptions.find((option) => option.value === quickRange) ?? quickRangeOptions[0];
+		(quickRange && quickRangeOptions.find((option) => option.value === quickRange)) ?? null;
 
 	const statusOptions: DropdownOption[] = [
 		{ value: 'chargeable', label: 'Debiterbara' },
@@ -153,13 +175,23 @@
 	let dateFrom = '';
 	let dateTo = '';
 	let searchQuery = '';
+	let selectedWeekShortcut = '';
+	let monthInput = monthString(new Date());
+	let selectedMonth = monthInput;
+	let ignoreMonthPickerSync = 0;
 
 	let headers: Header[] = [
 		{ label: 'Start', key: 'startTime', sort: true, width: '150px' },
 		{ label: 'Status', key: 'status', sort: true, width: '140px' },
 		{ label: 'Markeringar', key: 'markings', isSearchable: true, width: '180px' },
 		{ label: 'Typ av bokning', key: 'bookingType', sort: true, width: '150px' },
-		{ label: 'Typ av träning', key: 'trainingType', sort: true, isSearchable: true, width: '170px' },
+		{
+			label: 'Typ av träning',
+			key: 'trainingType',
+			sort: true,
+			isSearchable: true,
+			width: '170px'
+		},
 		{ label: 'Klient', key: 'client', sort: true, isSearchable: true, width: '170px' },
 		{ label: 'Tränare', key: 'trainer', sort: true, isSearchable: true, width: '170px' },
 		{ label: 'Studio', key: 'location', sort: true, isSearchable: true, width: '150px' },
@@ -185,6 +217,8 @@
 	let locationFilterOptions: DropdownOption[] = [{ value: '', label: 'Alla studios' }];
 	let packageArticleFilterOptions: DropdownOption[] = [{ value: '', label: 'Alla pakettyper' }];
 	let trainingTypeFilterOptions: DropdownOption[] = [{ value: '', label: 'Alla träningstyper' }];
+	let weekShortcutPresets: WeekShortcut[] = [];
+	let weekShortcutOptions: DropdownOption[] = [{ value: '', label: 'Välj vecka' }];
 
 	let summary: Summary | null = null;
 	let filteredSummary: Summary | null = null;
@@ -223,36 +257,122 @@
 		return d;
 	}
 
-	function applyQuickRange(value: QuickRangeValue, shouldFetch = true) {
-		quickRange = value;
-		if (value === 'custom') return;
+	function addDays(date: Date, days: number) {
+		const d = new Date(date);
+		d.setDate(d.getDate() + days);
+		return d;
+	}
 
-		const today = new Date();
-		const end = new Date(today);
-		let start = new Date(today);
+	function startOfMonth(date: Date) {
+		return new Date(date.getFullYear(), date.getMonth(), 1);
+	}
 
-		if (value === 'this_month') {
-			start = new Date(today.getFullYear(), today.getMonth(), 1);
-			end.setFullYear(today.getFullYear(), today.getMonth() + 1, 0);
-		} else if (value === 'this_week') {
-			start = startOfWeek(today);
-			end.setTime(start.getTime());
-			end.setDate(end.getDate() + 6);
-		} else if (value === 'last_week') {
-			const thisWeekStart = startOfWeek(today);
-			start = new Date(thisWeekStart);
-			start.setDate(start.getDate() - 7);
-			end.setTime(start.getTime());
-			end.setDate(end.getDate() + 6);
-		} else if (value === 'last_month') {
-			start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-			end.setFullYear(start.getFullYear(), start.getMonth() + 1, 0);
+	function endOfMonth(date: Date) {
+		return new Date(date.getFullYear(), date.getMonth() + 1, 0);
+	}
+
+	function monthOffset(date: Date, months: number) {
+		return new Date(date.getFullYear(), date.getMonth() + months, 1);
+	}
+
+	function monthString(date: Date) {
+		return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}`;
+	}
+
+	function normalizeMonth(value: string | null | undefined) {
+		return value ? value.slice(0, 7) : '';
+	}
+
+	function parseMonth(value: string | null | undefined) {
+		if (!value || !/^\d{4}-\d{2}$/.test(value)) return null;
+		const [year, month] = value.split('-').map(Number);
+		if (!year || !month || month < 1 || month > 12) return null;
+		return new Date(year, month - 1, 1);
+	}
+
+	function getIsoWeek(date: Date) {
+		const target = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+		const dayNumber = target.getUTCDay() || 7;
+		target.setUTCDate(target.getUTCDate() + 4 - dayNumber);
+		const yearStart = new Date(Date.UTC(target.getUTCFullYear(), 0, 1));
+		return Math.ceil(((target.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
+	}
+
+	function syncMonthInput(value: string) {
+		const normalized = normalizeMonth(value);
+		if (!normalized || normalized === normalizeMonth(monthInput)) return;
+		ignoreMonthPickerSync += 1;
+		monthInput = normalized;
+	}
+
+	function createWeekShortcutPresets(month: string): WeekShortcut[] {
+		const monthStart = parseMonth(month);
+		if (!monthStart) return [];
+
+		const monthEnd = endOfMonth(monthStart);
+		const presets: WeekShortcut[] = [];
+		let cursor = startOfWeek(monthStart);
+
+		while (cursor <= monthEnd) {
+			const weekStart = new Date(cursor);
+			const weekEnd = addDays(weekStart, 6);
+			presets.push({
+				value: `${month}:${formatDateInput(weekStart)}`,
+				label: `v.${getIsoWeek(weekStart)}`,
+				start: weekStart,
+				end: weekEnd
+			});
+			cursor = addDays(cursor, 7);
 		}
 
+		return presets;
+	}
+
+	function applyMonthSelection(month: string, shouldFetch = true) {
+		const monthStart = parseMonth(month);
+		if (!monthStart) return;
+		quickRange = null;
+		selectedWeekShortcut = '';
+		setDateRange(monthStart, endOfMonth(monthStart), shouldFetch);
+	}
+
+	function getSelectedWeekPreset(value: string) {
+		return weekShortcutPresets.find((option) => option.value === value) ?? null;
+	}
+
+	function setDateRange(start: Date, end: Date, shouldFetch = true) {
 		ignoreDateFilterSync += 1;
 		dateFrom = formatDateInput(start);
 		dateTo = formatDateInput(end);
 		if (shouldFetch) fetchReport(true);
+	}
+
+	function applyQuickRange(value: QuickRangeValue, shouldFetch = true) {
+		quickRange = value;
+		selectedWeekShortcut = '';
+		if (value === 'custom') return;
+
+		const today = new Date();
+		let start = new Date(today);
+		let end = new Date(today);
+
+		if (value === 'this_month') {
+			start = startOfMonth(today);
+			end = endOfMonth(today);
+		} else if (value === 'this_week') {
+			start = startOfWeek(today);
+			end = addDays(start, 6);
+		} else if (value === 'last_week') {
+			const thisWeekStart = startOfWeek(today);
+			start = addDays(thisWeekStart, -7);
+			end = addDays(start, 6);
+		} else if (value === 'last_month') {
+			start = monthOffset(today, -1);
+			end = endOfMonth(start);
+		}
+
+		syncMonthInput(monthString(start));
+		setDateRange(start, end, shouldFetch);
 	}
 
 	function onGoToClient(id: number | null) {
@@ -454,6 +574,19 @@
 		applyQuickRange(event.detail, true);
 	}
 
+	function onWeekShortcutChange(event: CustomEvent<{ value: string }>) {
+		selectedWeekShortcut = event.detail.value;
+		quickRange = null;
+
+		const selectedWeek = getSelectedWeekPreset(selectedWeekShortcut);
+		if (!selectedWeek) {
+			applyMonthSelection(selectedMonth, true);
+			return;
+		}
+
+		setDateRange(selectedWeek.start, selectedWeek.end, true);
+	}
+
 	function onSelectFilterChange() {
 		fetchReport(true);
 	}
@@ -514,6 +647,27 @@
 		...trainingTypes.map((option) => ({ value: String(option.id), label: option.label }))
 	];
 
+	$: weekShortcutPresets = createWeekShortcutPresets(selectedMonth);
+
+	$: weekShortcutOptions = [
+		{ value: '', label: 'Välj vecka' },
+		...weekShortcutPresets.map((option) => ({
+			value: option.value,
+			label: option.label
+		}))
+	];
+
+	$: normalizedMonthInput = normalizeMonth(monthInput);
+
+	$: if (normalizedMonthInput && normalizedMonthInput !== selectedMonth) {
+		selectedMonth = normalizedMonthInput;
+		if (ignoreMonthPickerSync > 0) {
+			ignoreMonthPickerSync -= 1;
+		} else {
+			applyMonthSelection(normalizedMonthInput, true);
+		}
+	}
+
 	$: dateRangeSignature = `${dateFrom}|${dateTo}`;
 
 	$: if (!dateFiltersInitialized) {
@@ -525,6 +679,7 @@
 			ignoreDateFilterSync -= 1;
 		} else {
 			quickRange = 'custom';
+			selectedWeekShortcut = '';
 			fetchReport(true);
 		}
 	}
@@ -562,6 +717,28 @@
 					full
 				/>
 			</label>
+
+			<div class="grid gap-3 sm:grid-cols-2">
+				<label class="flex flex-col gap-1">
+					<span class="text-text/70 text-sm">Månad</span>
+					<Datepicker
+						bind:value={monthInput}
+						options={monthPickerOptions}
+						placeholder="Välj månad"
+					/>
+				</label>
+				<label class="flex flex-col gap-1">
+					<span class="text-text/70 text-sm">Veckor</span>
+					<Dropdown
+						id="booking-report-week-shortcut"
+						label="Veckor"
+						noLabel
+						options={weekShortcutOptions}
+						bind:selectedValue={selectedWeekShortcut}
+						on:change={onWeekShortcutChange}
+					/>
+				</label>
+			</div>
 
 			<div class="grid gap-3 sm:grid-cols-2">
 				<label class="flex flex-col gap-1">
@@ -659,50 +836,62 @@
 
 	{#if filteredSummary}
 		<div class="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-			<div class="flex min-h-[110px] flex-col rounded-sm border border-gray-200 bg-white p-4 shadow-sm">
-				<p class="text-text/70 text-sm leading-tight min-h-[48px]">Visade bokningar</p>
+			<div
+				class="flex min-h-[110px] flex-col rounded-sm border border-gray-200 bg-white p-4 shadow-sm"
+			>
+				<p class="text-text/70 min-h-[48px] text-sm leading-tight">Visade bokningar</p>
 				<div class="flex flex-1 items-center justify-center">
-					<p class="text-text text-center text-2xl font-semibold leading-none">
+					<p class="text-text text-center text-2xl leading-none font-semibold">
 						{filteredSummary.total}
 					</p>
 				</div>
 			</div>
-			<div class="flex min-h-[110px] flex-col rounded-sm border border-gray-200 bg-white p-4 shadow-sm">
-				<p class="text-text/70 text-sm leading-tight min-h-[48px]">Bokade</p>
+			<div
+				class="flex min-h-[110px] flex-col rounded-sm border border-gray-200 bg-white p-4 shadow-sm"
+			>
+				<p class="text-text/70 min-h-[48px] text-sm leading-tight">Bokade</p>
 				<div class="flex flex-1 items-center justify-center">
-					<p class="text-text text-center text-2xl font-semibold leading-none">
+					<p class="text-text text-center text-2xl leading-none font-semibold">
 						{filteredSummary.booked}
 					</p>
 				</div>
 			</div>
-			<div class="flex min-h-[110px] flex-col rounded-sm border border-gray-200 bg-white p-4 shadow-sm">
-				<p class="text-text/70 text-sm leading-tight min-h-[48px]">Sent avbokade</p>
+			<div
+				class="flex min-h-[110px] flex-col rounded-sm border border-gray-200 bg-white p-4 shadow-sm"
+			>
+				<p class="text-text/70 min-h-[48px] text-sm leading-tight">Sent avbokade</p>
 				<div class="flex flex-1 items-center justify-center">
-					<p class="text-text text-center text-2xl font-semibold leading-none">
+					<p class="text-text text-center text-2xl leading-none font-semibold">
 						{filteredSummary.lateCancelled}
 					</p>
 				</div>
 			</div>
-			<div class="flex min-h-[110px] flex-col rounded-sm border border-gray-200 bg-white p-4 shadow-sm">
-				<p class="text-text/70 text-sm leading-tight min-h-[48px]">Avbokade</p>
+			<div
+				class="flex min-h-[110px] flex-col rounded-sm border border-gray-200 bg-white p-4 shadow-sm"
+			>
+				<p class="text-text/70 min-h-[48px] text-sm leading-tight">Avbokade</p>
 				<div class="flex flex-1 items-center justify-center">
-					<p class="text-text text-center text-2xl font-semibold leading-none">
+					<p class="text-text text-center text-2xl leading-none font-semibold">
 						{filteredSummary.cancelled}
 					</p>
 				</div>
 			</div>
-			<div class="flex min-h-[110px] flex-col rounded-sm border border-gray-200 bg-white p-4 shadow-sm">
-				<p class="text-text/70 text-sm leading-tight min-h-[48px]">Debiterbara</p>
+			<div
+				class="flex min-h-[110px] flex-col rounded-sm border border-gray-200 bg-white p-4 shadow-sm"
+			>
+				<p class="text-text/70 min-h-[48px] text-sm leading-tight">Debiterbara</p>
 				<div class="flex flex-1 items-center justify-center">
-					<p class="text-text text-center text-2xl font-semibold leading-none">
+					<p class="text-text text-center text-2xl leading-none font-semibold">
 						{filteredSummary.chargeable}
 					</p>
 				</div>
 			</div>
-			<div class="flex min-h-[110px] flex-col rounded-sm border border-gray-200 bg-white p-4 shadow-sm">
-				<p class="text-text/70 text-sm leading-tight min-h-[48px]">Saknar paket</p>
+			<div
+				class="flex min-h-[110px] flex-col rounded-sm border border-gray-200 bg-white p-4 shadow-sm"
+			>
+				<p class="text-text/70 min-h-[48px] text-sm leading-tight">Saknar paket</p>
 				<div class="flex flex-1 items-center justify-center">
-					<p class="text-text text-center text-2xl font-semibold leading-none">
+					<p class="text-text text-center text-2xl leading-none font-semibold">
 						{filteredSummary.missingPackage}
 					</p>
 				</div>
@@ -710,32 +899,106 @@
 		</div>
 	{/if}
 
-	{#if filteredSummary?.locationBreakdown?.length}
-		<div class="mb-5 rounded-sm border border-gray-200 bg-white p-4 shadow-sm">
-			<h3 class="text-text mb-3 text-lg font-semibold">Antal bokningar per studio</h3>
-			<div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-				{#each filteredSummary.locationBreakdown as location (location.locationId ?? location.locationName)}
-					<div class="rounded-sm border border-gray-200 p-3">
-						<p class="text-text text-sm font-medium">{location.locationName}</p>
-						<p class="text-text text-xl font-semibold">{location.total}</p>
-						<div class="mt-2 grid grid-cols-[1fr_auto] items-center gap-x-3 gap-y-1 text-xs">
-							<span class="text-text/60">Bokade</span>
-							<span class="text-text text-right font-medium tabular-nums">{location.booked}</span>
-							<span class="text-text/60">Sent avbokade</span>
-							<span class="text-text text-right font-medium tabular-nums">{location.lateCancelled}</span>
-							<span class="text-text/60">Avbokade</span>
-							<span class="text-text text-right font-medium tabular-nums">{location.cancelled}</span>
+	{#if filteredSummary?.locationBreakdown?.length || filteredSummary?.trainerBreakdown?.length}
+		<div class="mb-5 flex flex-col gap-5">
+			{#if filteredSummary?.locationBreakdown?.length}
+				<details class="rounded-sm border border-gray-200 bg-white shadow-sm">
+					<summary
+						class="booking-report-summary text-text flex cursor-pointer items-center justify-between gap-3 p-4 text-lg font-semibold"
+					>
+						<span class="flex items-center gap-2">
+							<Icon
+								icon="ChevronRight"
+								size="16px"
+								extraClasses="booking-report-summary-chevron shrink-0"
+							/>
+							<span>Antal bokningar per studio</span>
+						</span>
+						<span class="text-text/60 text-sm font-medium">
+							{filteredSummary.locationBreakdown.length} studios
+						</span>
+					</summary>
+					<div class="border-t border-gray-200 p-4">
+						<div class="grid gap-3 sm:grid-cols-2 2xl:grid-cols-3">
+							{#each filteredSummary.locationBreakdown as location (location.locationId ?? location.locationName)}
+								<div class="rounded-sm border border-gray-200 p-3">
+									<div class="text-text flex items-center justify-between gap-3">
+										<span class="text-sm font-medium">{location.locationName}</span>
+										<span class="text-xl font-semibold">{location.total}</span>
+									</div>
+									<div class="mt-2 grid grid-cols-[1fr_auto] items-center gap-x-3 gap-y-1 text-xs">
+										<span class="text-text/60">Bokade</span>
+										<span class="text-text text-right font-medium tabular-nums"
+											>{location.booked}</span
+										>
+										<span class="text-text/60">Sent avbokade</span>
+										<span class="text-text text-right font-medium tabular-nums"
+											>{location.lateCancelled}</span
+										>
+										<span class="text-text/60">Avbokade</span>
+										<span class="text-text text-right font-medium tabular-nums"
+											>{location.cancelled}</span
+										>
+									</div>
+								</div>
+							{/each}
 						</div>
 					</div>
-				{/each}
-			</div>
+				</details>
+			{/if}
+
+			{#if filteredSummary?.trainerBreakdown?.length}
+				<details class="rounded-sm border border-gray-200 bg-white shadow-sm">
+					<summary
+						class="booking-report-summary text-text flex cursor-pointer items-center justify-between gap-3 p-4 text-lg font-semibold"
+					>
+						<span class="flex items-center gap-2">
+							<Icon
+								icon="ChevronRight"
+								size="16px"
+								extraClasses="booking-report-summary-chevron shrink-0"
+							/>
+							<span>Antal bokningar per tränare</span>
+						</span>
+						<span class="text-text/60 text-sm font-medium">
+							{filteredSummary.trainerBreakdown.length} tränare
+						</span>
+					</summary>
+					<div class="border-t border-gray-200 p-4">
+						<div class="grid gap-3 sm:grid-cols-2 2xl:grid-cols-3">
+							{#each filteredSummary.trainerBreakdown as trainer (trainer.trainerId ?? trainer.trainerName)}
+								<div class="rounded-sm border border-gray-200 p-3">
+									<div class="text-text flex items-center justify-between gap-3">
+										<span class="text-sm font-medium">{trainer.trainerName}</span>
+										<span class="text-xl font-semibold">{trainer.total}</span>
+									</div>
+									<div class="mt-2 grid grid-cols-[1fr_auto] items-center gap-x-3 gap-y-1 text-xs">
+										<span class="text-text/60">Bokade</span>
+										<span class="text-text text-right font-medium tabular-nums"
+											>{trainer.booked}</span
+										>
+										<span class="text-text/60">Sent avbokade</span>
+										<span class="text-text text-right font-medium tabular-nums"
+											>{trainer.lateCancelled}</span
+										>
+										<span class="text-text/60">Avbokade</span>
+										<span class="text-text text-right font-medium tabular-nums"
+											>{trainer.cancelled}</span
+										>
+									</div>
+								</div>
+							{/each}
+						</div>
+					</div>
+				</details>
+			{/if}
 		</div>
 	{/if}
 
 	{#if summary}
 		<p class="text-text/60 mb-3 text-sm">
-			I vald period/status finns totalt <strong>{summary.total}</strong> bokningar innan fritextsökning.
-			Uppdaterad {formatDate(summary.generatedAt, true)}.
+			I vald period/status finns totalt <strong>{summary.total}</strong> bokningar innan
+			fritextsökning. Uppdaterad {formatDate(summary.generatedAt, true)}.
 		</p>
 	{/if}
 
@@ -759,3 +1022,17 @@
 		<p class="text-text/60 py-4 text-center text-sm">Inga fler rader att visa.</p>
 	{/if}
 </div>
+
+<style>
+	.booking-report-summary {
+		list-style: none;
+	}
+
+	.booking-report-summary::-webkit-details-marker {
+		display: none;
+	}
+
+	details[open] > .booking-report-summary .booking-report-summary-chevron {
+		transform: rotate(90deg);
+	}
+</style>
