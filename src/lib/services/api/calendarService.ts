@@ -2,6 +2,20 @@ import type { FullBooking, BookingFilters } from '$lib/types/calendarTypes';
 
 import { wrapFetch } from '$lib/services/api/apiCache';
 
+export type AvailabilitySlot = {
+	from: string;
+	to: string;
+};
+
+export type UserAvailabilityMap = Record<string, AvailabilitySlot[] | null>;
+export type UserBlockedDayReason = 'absence' | 'vacation';
+export type UserBlockedDaysMap = Record<string, UserBlockedDayReason>;
+export type UserAvailabilityResponse = {
+	success: boolean;
+	availability: UserAvailabilityMap;
+	blockedDays: UserBlockedDaysMap;
+};
+
 export function buildBookingUrls(
 	filters: BookingFilters,
 	limit?: number,
@@ -256,7 +270,7 @@ export function transformPersonalBooking(raw: any): FullBooking {
 			education: false,
 			internal: false,
 			bookingContent: {
-				id: null,
+				id: 0,
 				kind: raw.kind
 			},
 			addedToPackageBy: null,
@@ -278,7 +292,7 @@ export async function fetchUserAvailability(
 	from: string,
 	to: string,
 	fetchFn: typeof fetch = fetch
-) {
+): Promise<UserAvailabilityResponse> {
 	const res = await fetchFn(
 		`/api/availability/users-availability?userId=${userId}&from=${from}&to=${to}`
 	);

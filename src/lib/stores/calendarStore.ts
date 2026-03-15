@@ -6,6 +6,11 @@ import {
 	transformBooking,
 	transformPersonalBooking
 } from '$lib/services/api/calendarService';
+import type {
+	UserAvailabilityMap,
+	UserBlockedDayReason,
+	UserBlockedDaysMap
+} from '$lib/services/api/calendarService';
 import { fetchHolidays as fetchHolidayRange } from '$lib/services/api/holidayService';
 import type { FullBooking } from '$lib/types/calendarTypes';
 import type { Holiday } from '$lib/types/holiday';
@@ -24,6 +29,7 @@ export type CalendarFilters = {
 	trainerIds?: number[] | null;
 	clientIds?: number[] | null;
 	userIds?: number[] | null;
+	sortAsc?: boolean;
 	personalBookings?: boolean;
 };
 
@@ -58,19 +64,20 @@ function sanitizeFiltersFromCookie(data: unknown): CalendarFilters | null {
 			: undefined;
 	};
 
-	const trainerIds =
-		sanitizeNullableNumberArray(obj.trainerIds) ?? base.trainerIds ?? null;
-	const clientIds =
-		sanitizeNullableNumberArray(obj.clientIds) ?? base.clientIds ?? null;
+	const trainerIds = sanitizeNullableNumberArray(obj.trainerIds) ?? base.trainerIds ?? null;
+	const clientIds = sanitizeNullableNumberArray(obj.clientIds) ?? base.clientIds ?? null;
 	const userIds = sanitizeNullableNumberArray(obj.userIds) ?? base.userIds ?? null;
 
 	return {
 		...base,
-		from: typeof obj.from === 'string' || obj.from === null ? (obj.from as string | null) : base.from,
+		from:
+			typeof obj.from === 'string' || obj.from === null ? (obj.from as string | null) : base.from,
 		to: typeof obj.to === 'string' || obj.to === null ? (obj.to as string | null) : base.to,
 		date: typeof obj.date === 'string' ? obj.date : base.date,
 		roomId:
-			typeof obj.roomId === 'number' || obj.roomId === null ? (obj.roomId as number | null) : base.roomId,
+			typeof obj.roomId === 'number' || obj.roomId === null
+				? (obj.roomId as number | null)
+				: base.roomId,
 		locationIds: Array.isArray(obj.locationIds)
 			? sanitizeNumberArray(obj.locationIds)
 			: base.locationIds,
@@ -128,12 +135,20 @@ function computePersonalBookingsFlag(f: CalendarFilters): boolean {
 /**
  * Calendar Store - Manages filters & bookings
  */
-type CalendarAvailability = Record<string, { from: string; to: string }[] | null>;
+export type CalendarBlockedDayReason = UserBlockedDayReason;
+export type CalendarAvailability = Record<number, UserAvailabilityMap>;
+export type CalendarBlockedDays = Record<number, UserBlockedDaysMap>;
+
+type CalendarAvailabilityPayload = {
+	availability: CalendarAvailability;
+	blockedDays: CalendarBlockedDays;
+};
 
 type CalendarStoreState = {
-        filters: CalendarFilters;
-        bookings: FullBooking[];
+	filters: CalendarFilters;
+	bookings: FullBooking[];
 	availability: CalendarAvailability;
+	blockedDays: CalendarBlockedDays;
 	holidays: Holiday[];
 	holidaySet: Set<string>;
 	isLoading: boolean;
@@ -145,14 +160,15 @@ const createCalendarStore = () => {
 		initialFilters.personalBookings = computePersonalBookingsFlag(initialFilters);
 	}
 
-        const { subscribe, update } = writable<CalendarStoreState>({
-                filters: initialFilters,
-                bookings: [],
-                availability: {},
-                holidays: [],
-                holidaySet: new Set(),
-                isLoading: false
-        });
+	const { subscribe, update } = writable<CalendarStoreState>({
+		filters: initialFilters,
+		bookings: [],
+		availability: {},
+		blockedDays: {},
+		holidays: [],
+		holidaySet: new Set(),
+		isLoading: false
+	});
 
 	let pendingRequests = 0;
 	let latestRequestId = 0;
@@ -187,89 +203,130 @@ const createCalendarStore = () => {
 	 * Fetch & Update Bookings based on current filters
 	 */
 
-        async function refresh(fetchFn: typeof fetch, overrideFilters?: CalendarFilters): Promise<void> {
-                const requestId = ++latestRequestId;
-                const base = { ...(overrideFilters ?? getCurrentFilters()) };
+	async function refresh(fetchFn: typeof fetch, overrideFilters?: CalendarFilters): Promise<void> {
+		const requestId = ++latestRequestId;
+		const base = { ...(overrideFilters ?? getCurrentFilters()) };
 
-                if (!base.from && !base.to) {
-                        const { weekStart, weekEnd } = getWeekStartAndEnd(new Date());
-                        base.from = weekStart;
-                        base.to = weekEnd;
-                }
+		if (!base.from && !base.to) {
+			const { weekStart, weekEnd } = getWeekStartAndEnd(new Date());
+			base.from = weekStart;
+			base.to = weekEnd;
+		}
 
-                if (base.personalBookings === undefined) {
-                        base.personalBookings = computePersonalBookingsFlag(base);
-                }
+		if (base.personalBookings === undefined) {
+			base.personalBookings = computePersonalBookingsFlag(base);
+		}
 
-                update((store) => ({ ...store, holidays: [], holidaySet: new Set() }));
-                startLoading();
+		update((store) => ({
+			...store,
+			availability: {},
+			blockedDays: {},
+			holidays: [],
+			holidaySet: new Set()
+		}));
+		startLoading();
 
-                try {
-                        const urls = buildBookingUrls(base, undefined, 0, false);
-                        // Serve cached bookings immediately if present
-                        const cachedStandard = urls.standardUrl ? getCachedJson<any[]>(urls.standardUrl) : null;
-                        const cachedPersonal = urls.personalUrl ? getCachedJson<any[]>(urls.personalUrl) : null;
-                        if (cachedStandard || cachedPersonal) {
-                                const transformedStandard = (cachedStandard ?? []).map((raw) => transformBooking(raw));
-                                const transformedPersonal = (cachedPersonal ?? []).map((raw) =>
-                                        transformPersonalBooking(raw)
-                                );
-                                const combined = [...transformedStandard, ...transformedPersonal].sort((a, b) => {
-                                        const aTime = new Date(a.booking.startTime).getTime();
-                                        const bTime = new Date(b.booking.startTime).getTime();
-                                        return (base.sortAsc === true ? aTime - bTime : bTime - aTime) || 0;
-                                });
-                                update((store) => ({
-                                        ...store,
-                                        bookings: combined
-                                }));
-                        }
+		try {
+			const urls = buildBookingUrls(base, undefined, 0, false);
+			// Serve cached bookings immediately if present
+			const cachedStandard = urls.standardUrl ? getCachedJson<any[]>(urls.standardUrl) : null;
+			const cachedPersonal = urls.personalUrl ? getCachedJson<any[]>(urls.personalUrl) : null;
+			if (cachedStandard || cachedPersonal) {
+				const transformedStandard = (cachedStandard ?? []).map((raw) => transformBooking(raw));
+				const transformedPersonal = (cachedPersonal ?? []).map((raw) =>
+					transformPersonalBooking(raw)
+				);
+				const combined = [...transformedStandard, ...transformedPersonal].sort((a, b) => {
+					const aTime = new Date(a.booking.startTime).getTime();
+					const bTime = new Date(b.booking.startTime).getTime();
+					return (base.sortAsc === true ? aTime - bTime : bTime - aTime) || 0;
+				});
+				update((store) => ({
+					...store,
+					bookings: combined
+				}));
+			}
 
-                        const bookingsPromise = fetchBookings(base, fetchFn);
-                        const availabilityPromise: Promise<CalendarAvailability> =
-                                base.trainerIds?.length === 1 && base.from && base.to
-                                        ? fetchUserAvailability(base.trainerIds[0], base.from, base.to, fetchFn)
-                                                        .then((res) => res.availability ?? {})
-                                                        .catch((err) => {
-                                                                console.error('❌ Failed to fetch availability:', err);
-                                                                return {} as CalendarAvailability;
-                                                        })
-                                        : Promise.resolve({} as CalendarAvailability);
+			const trainerIds = Array.isArray(base.trainerIds)
+				? base.trainerIds.filter((id): id is number => typeof id === 'number')
+				: [];
 
-                        const rangeFrom = base.from ?? base.date ?? new Date().toISOString().slice(0, 10);
-                        const rangeTo = base.to ?? base.date ?? rangeFrom;
-                        const holidaysPromise: Promise<Holiday[]> = fetchHolidayRange(
-                                { from: rangeFrom, to: rangeTo },
-                                fetchFn
-                        ).catch((err) => {
-                                console.error('❌ Failed to fetch holidays:', err);
-                                return [];
-                        });
+			const bookingsPromise = fetchBookings(base, fetchFn);
+			const availabilityPromise: Promise<CalendarAvailabilityPayload> =
+				trainerIds.length > 0 && base.from && base.to
+					? Promise.all(
+							trainerIds.map(async (trainerId) => {
+								try {
+									const response = await fetchUserAvailability(
+										trainerId,
+										base.from!,
+										base.to!,
+										fetchFn
+									);
+									return { trainerId, response };
+								} catch (err) {
+									console.error(`❌ Failed to fetch availability for trainer ${trainerId}:`, err);
+									return null;
+								}
+							})
+						).then((responses) => {
+							const availability: CalendarAvailability = {};
+							const blockedDays: CalendarBlockedDays = {};
 
-                        const [newBookings, newAvailability, newHolidays] = await Promise.all([
-                                bookingsPromise,
-                                availabilityPromise,
-                                holidaysPromise
-                        ]);
+							for (const entry of responses) {
+								if (!entry) continue;
+								availability[entry.trainerId] = entry.response.availability ?? {};
+								blockedDays[entry.trainerId] = entry.response.blockedDays ?? {};
+							}
 
-                        if (requestId === latestRequestId) {
-                                update((store) => ({
-                                        ...store,
-                                        bookings: newBookings,
-                                        availability: newAvailability,
-                                        holidays: newHolidays,
-                                        holidaySet: new Set(newHolidays.map((holiday) => holiday.date))
-                                }));
-                        }
-                } catch (err) {
-                        if (requestId === latestRequestId) {
-                                console.error('❌ Failed to refresh calendar data:', err);
-                                update((store) => ({ ...store, holidays: [], holidaySet: new Set() }));
-                        }
-                } finally {
-                        stopLoading();
-                }
-        }
+							return { availability, blockedDays };
+						})
+					: Promise.resolve({
+							availability: {},
+							blockedDays: {}
+						} satisfies CalendarAvailabilityPayload);
+
+			const rangeFrom = base.from ?? base.date ?? new Date().toISOString().slice(0, 10);
+			const rangeTo = base.to ?? base.date ?? rangeFrom;
+			const holidaysPromise: Promise<Holiday[]> = fetchHolidayRange(
+				{ from: rangeFrom, to: rangeTo },
+				fetchFn
+			).catch((err) => {
+				console.error('❌ Failed to fetch holidays:', err);
+				return [];
+			});
+
+			const [newBookings, availabilityData, newHolidays] = await Promise.all([
+				bookingsPromise,
+				availabilityPromise,
+				holidaysPromise
+			]);
+
+			if (requestId === latestRequestId) {
+				update((store) => ({
+					...store,
+					bookings: newBookings,
+					availability: availabilityData.availability,
+					blockedDays: availabilityData.blockedDays,
+					holidays: newHolidays,
+					holidaySet: new Set(newHolidays.map((holiday) => holiday.date))
+				}));
+			}
+		} catch (err) {
+			if (requestId === latestRequestId) {
+				console.error('❌ Failed to refresh calendar data:', err);
+				update((store) => ({
+					...store,
+					availability: {},
+					blockedDays: {},
+					holidays: [],
+					holidaySet: new Set()
+				}));
+			}
+		} finally {
+			stopLoading();
+		}
+	}
 
 	function getCurrentFilters(): CalendarFilters {
 		let snapshot: CalendarStoreState | undefined;

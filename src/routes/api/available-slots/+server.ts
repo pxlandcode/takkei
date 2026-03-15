@@ -11,6 +11,7 @@ const TOTAL_BUFFER_BEFORE_BOOKING = SLOT_LENGTH_MINUTES + TRAVEL_BUFFER_MINUTES;
 type Interval = { start: number; end: number };
 type RoomInterval = Interval & { roomId: number | null };
 type LocationInterval = Interval & { locationId: number | null };
+type AvailableSlotsBlockedReason = 'absence' | 'vacation';
 
 function isNotNull<T>(value: T | null | undefined): value is T {
 	return value !== null && value !== undefined;
@@ -23,6 +24,20 @@ function extractTime(timeStr: string): number {
 
 function overlaps(startA: number, endA: number, startB: number, endB: number): boolean {
 	return startA < endB && startB < endA;
+}
+
+function jsonResponse(
+	availableSlots: string[],
+	outsideAvailabilitySlots: string[],
+	blockedReason: AvailableSlotsBlockedReason | null = null
+) {
+	return new Response(
+		JSON.stringify({
+			availableSlots,
+			outsideAvailabilitySlots,
+			blockedReason
+		})
+	);
 }
 
 export const POST: RequestHandler = async ({ request }) => {
@@ -49,23 +64,18 @@ export const POST: RequestHandler = async ({ request }) => {
 	const dayStart = `${date} 00:00:00`;
 	const dayEnd = `${date} 23:59:59`;
 	const targetDate = new Date(date);
-	const today = new Date();
-	const oneWeekAhead = new Date(today);
-	oneWeekAhead.setDate(today.getDate() + 7);
 
-	// 1. Absences (same)
-	if (targetDate <= oneWeekAhead) {
-		const absences = await query(
-			`SELECT 1 FROM absences 
+	// 1. Absences
+	const absences = await query(
+		`SELECT 1 FROM absences
        WHERE user_id = $1 AND (
          (start_time <= $2 AND end_time >= $2)
          OR (start_time <= $2 AND end_time IS NULL)
        )`,
-			[trainerIdNumber, date]
-		);
-		if (absences.length > 0) {
-			return new Response(JSON.stringify({ availableSlots: [], outsideAvailabilitySlots: [] }));
-		}
+		[trainerIdNumber, date]
+	);
+	if (absences.length > 0) {
+		return jsonResponse([], [], 'absence');
 	}
 
 	// 2. Vacations (same)
@@ -75,7 +85,7 @@ export const POST: RequestHandler = async ({ request }) => {
 		[trainerIdNumber, date]
 	);
 	if (vacations.length > 0) {
-		return new Response(JSON.stringify({ availableSlots: [], outsideAvailabilitySlots: [] }));
+		return jsonResponse([], [], 'vacation');
 	}
 
 	// 3. Date or Weekly Availability (same)
@@ -112,7 +122,7 @@ export const POST: RequestHandler = async ({ request }) => {
 	]);
 	const roomIds = rooms.map((r) => r.id);
 	if (roomIds.length === 0) {
-		return new Response(JSON.stringify({ availableSlots: [], outsideAvailabilitySlots: [] }));
+		return jsonResponse([], []);
 	}
 
 	// 5. Bookings in those rooms (same)
@@ -340,10 +350,5 @@ export const POST: RequestHandler = async ({ request }) => {
 		}
 	}
 
-	return new Response(
-		JSON.stringify({
-			availableSlots,
-			outsideAvailabilitySlots
-		})
-	);
+	return jsonResponse(availableSlots, outsideAvailabilitySlots);
 };

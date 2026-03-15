@@ -2,7 +2,12 @@
 	import { onMount, onDestroy, tick } from 'svelte';
 	import { get } from 'svelte/store';
 	import type { FullBooking } from '$lib/types/calendarTypes';
-	import type { CalendarFilters } from '$lib/stores/calendarStore';
+	import type {
+		CalendarFilters,
+		CalendarAvailability,
+		CalendarBlockedDays,
+		CalendarBlockedDayReason
+	} from '$lib/stores/calendarStore';
 	import HourSlot from './hour-slot/HourSlot.svelte';
 	import CurrentTimePill from './current-time-pill/CurrentTimePill.svelte';
 	import BookingSlot from './booking-slot/BookingSlot.svelte';
@@ -33,7 +38,13 @@
 
 	const dispatch = createEventDispatcher();
 
-	type AvailabilityMap = Record<string, { from: string; to: string }[] | null>;
+	type AvailabilitySlots = { from: string; to: string }[] | null;
+	type UnavailableBlock = {
+		top: number;
+		height: number;
+		label?: string;
+		reason?: CalendarBlockedDayReason;
+	};
 	type LayoutInfo = {
 		booking: FullBooking;
 		columnIndex: number;
@@ -48,6 +59,7 @@
 	const bookings = $derived(storeValue.bookings);
 	const filters = $derived(storeValue.filters);
 	const availability = $derived(storeValue.availability);
+	const blockedDays = $derived(storeValue.blockedDays);
 	const calendarIsLoading = $derived(storeValue.isLoading);
 	const holidays = $derived(storeValue.holidays ?? []);
 	const holidayLookup = $derived.by(() => {
@@ -447,12 +459,7 @@
 			const personalIds = booking.personalBooking?.userIds ?? [];
 			if (Array.isArray(personalIds)) {
 				for (const rawId of personalIds) {
-					const numericId =
-						typeof rawId === 'number'
-							? rawId
-							: typeof rawId === 'string' && rawId.trim() !== ''
-								? Number(rawId)
-								: null;
+					const numericId = typeof rawId === 'number' && Number.isFinite(rawId) ? rawId : null;
 					if (numericId != null && Number.isFinite(numericId) && allowedTrainerIds.has(numericId)) {
 						return numericId;
 					}
@@ -568,6 +575,7 @@
 		trainerName: string;
 		trainerColor: string;
 		layout: LayoutInfo[];
+		unavailableBlocks: UnavailableBlock[];
 		emptySlots: { top: number; start: Date }[];
 	};
 
@@ -575,7 +583,7 @@
 		if (!shouldSplitByLocation) return [];
 		return weekDays.map(({ fullDate }, dayIndex) => {
 			const dayBookings = bookingsByDay[dayIndex] ?? [];
-			const columns = selectedLocationSummaries.map((location) => {
+			const columns: LocationColumnView[] = selectedLocationSummaries.map((location) => {
 				const locationBookings = dayBookings.filter(
 					(booking) => (booking.location?.id ?? null) === location.id
 				);
@@ -584,7 +592,13 @@
 					locationName: location.name,
 					locationColor: location.color,
 					layout: layoutDayBookings(locationBookings),
-					emptySlots: computeEmptySlotBlocks(fullDate, locationBookings, filters, availability)
+					emptySlots: computeEmptySlotBlocks(
+						fullDate,
+						locationBookings,
+						filters,
+						availability,
+						blockedDays
+					)
 				};
 			});
 
@@ -631,14 +645,28 @@
 				}
 			}
 
-			const columns = selectedTrainerSummaries.map((trainer) => {
+			const columns: TrainerColumnView[] = selectedTrainerSummaries.map((trainer) => {
 				const trainerBookings = buckets.get(trainer.id) ?? [];
 				return {
 					trainerId: trainer.id,
 					trainerName: trainer.name,
 					trainerColor: trainer.color,
 					layout: layoutDayBookings(trainerBookings),
-					emptySlots: computeEmptySlotBlocks(fullDate, trainerBookings, filters, availability)
+					unavailableBlocks: computeUnavailableBlocks(
+						fullDate,
+						filters,
+						availability,
+						blockedDays,
+						trainer.id
+					),
+					emptySlots: computeEmptySlotBlocks(
+						fullDate,
+						trainerBookings,
+						filters,
+						availability,
+						blockedDays,
+						trainer.id
+					)
 				};
 			});
 
@@ -649,6 +677,7 @@
 					trainerName: 'Övriga',
 					trainerColor: '#94a3b8',
 					layout: layoutDayBookings(leftoverBookings),
+					unavailableBlocks: [],
 					emptySlots: []
 				});
 			}
@@ -659,12 +688,14 @@
 
 	const emptySlotBlocksByDay = $derived.by(() =>
 		weekDays.map(({ fullDate }, idx) =>
-			computeEmptySlotBlocks(fullDate, bookingsByDay[idx] ?? [], filters, availability)
+			computeEmptySlotBlocks(fullDate, bookingsByDay[idx] ?? [], filters, availability, blockedDays)
 		)
 	);
 
 	const unavailableBlocksByDay = $derived.by(() =>
-		weekDays.map(({ fullDate }) => computeUnavailableBlocks(fullDate, filters, availability))
+		weekDays.map(({ fullDate }) =>
+			computeUnavailableBlocks(fullDate, filters, availability, blockedDays)
+		)
 	);
 
 	type SlotDialogActionsConfig = {
@@ -986,22 +1017,84 @@
 		return buckets;
 	}
 
+	function resolveAvailabilityTrainerId(
+		currentFilters: CalendarFilters | undefined,
+		trainerId?: number | null
+	): number | null {
+		if (typeof trainerId === 'number' && Number.isFinite(trainerId)) {
+			return trainerId;
+		}
+
+		const trainerIds = Array.isArray(currentFilters?.trainerIds)
+			? currentFilters.trainerIds.filter((id): id is number => typeof id === 'number')
+			: [];
+
+		return trainerIds.length === 1 ? trainerIds[0] : null;
+	}
+
+	function getBlockedDayLabel(reason: CalendarBlockedDayReason): string {
+		return reason === 'vacation' ? 'Semester' : 'Frånvaro';
+	}
+
+	function getDayAvailabilityState(
+		dayDateInput: Date,
+		currentFilters: CalendarFilters | undefined,
+		availabilityByTrainer: CalendarAvailability,
+		blockedDaysByTrainer: CalendarBlockedDays,
+		trainerId?: number | null
+	): {
+		trainerId: number | null;
+		dayAvailability: AvailabilitySlots | undefined;
+		blockedReason: CalendarBlockedDayReason | null;
+	} {
+		const targetTrainerId = resolveAvailabilityTrainerId(currentFilters, trainerId);
+		if (targetTrainerId == null) {
+			return {
+				trainerId: null,
+				dayAvailability: undefined,
+				blockedReason: null
+			};
+		}
+
+		const dayDate = new Date(dayDateInput);
+		dayDate.setHours(0, 0, 0, 0);
+		const dateStr = ymdLocal(dayDate);
+
+		return {
+			trainerId: targetTrainerId,
+			dayAvailability: availabilityByTrainer?.[targetTrainerId]?.[dateStr],
+			blockedReason: blockedDaysByTrainer?.[targetTrainerId]?.[dateStr] ?? null
+		};
+	}
+
 	function computeEmptySlotBlocks(
 		dayDateInput: Date,
 		dayBookings: FullBooking[],
 		currentFilters: CalendarFilters | undefined,
-		availabilityMap: AvailabilityMap
+		availabilityByTrainer: CalendarAvailability,
+		blockedDaysByTrainer: CalendarBlockedDays,
+		trainerId?: number | null
 	): { top: number; start: Date }[] {
 		if (!dayDateInput) return [];
 		const results: { top: number; start: Date }[] = [];
 
 		const dayDate = new Date(dayDateInput);
 		dayDate.setHours(0, 0, 0, 0);
+		const {
+			trainerId: activeTrainerId,
+			dayAvailability,
+			blockedReason
+		} = getDayAvailabilityState(
+			dayDate,
+			currentFilters,
+			availabilityByTrainer,
+			blockedDaysByTrainer,
+			trainerId
+		);
 
-		const onlyOneTrainer =
-			Array.isArray(currentFilters?.trainerIds) && currentFilters.trainerIds.length === 1;
-		const dateStr = ymdLocal(dayDate);
-		const dayAvailability = onlyOneTrainer ? availabilityMap?.[dateStr] : undefined;
+		if (blockedReason) {
+			return results;
+		}
 
 		for (let i = 1; i < totalHours * 2 - 1; i += 2) {
 			const slotStart = new Date(dayDate);
@@ -1013,7 +1106,7 @@
 			const isOccupied = isTimeSlotOccupied(slotStart, slotEnd, dayBookings);
 
 			let isAvailable = true;
-			if (onlyOneTrainer) {
+			if (activeTrainerId != null) {
 				if (dayAvailability == null) {
 					isAvailable = true;
 				} else if (Array.isArray(dayAvailability) && dayAvailability.length === 0) {
@@ -1044,33 +1137,54 @@
 	function computeUnavailableBlocks(
 		dayDateInput: Date,
 		currentFilters: CalendarFilters | undefined,
-		availabilityMap: AvailabilityMap
-	): { top: number; height: number }[] {
-		if (!currentFilters?.trainerIds || currentFilters.trainerIds.length !== 1) {
-			return [];
-		}
-
+		availabilityByTrainer: CalendarAvailability,
+		blockedDaysByTrainer: CalendarBlockedDays,
+		trainerId?: number | null
+	): UnavailableBlock[] {
 		const date = new Date(dayDateInput);
 		date.setHours(0, 0, 0, 0);
-		const dateStr = ymdLocal(date);
+		const {
+			trainerId: activeTrainerId,
+			dayAvailability,
+			blockedReason
+		} = getDayAvailabilityState(
+			date,
+			currentFilters,
+			availabilityByTrainer,
+			blockedDaysByTrainer,
+			trainerId
+		);
+		const blocks: UnavailableBlock[] = [];
 
-		const dayAvail = availabilityMap?.[dateStr];
-		const blocks: { top: number; height: number }[] = [];
-
-		if (dayAvail == null) {
+		if (activeTrainerId == null) {
 			return blocks;
 		}
 
-		if (Array.isArray(dayAvail) && dayAvail.length === 0) {
+		if (blockedReason) {
+			return [
+				{
+					top: 0,
+					height: totalHours * hourHeight,
+					label: getBlockedDayLabel(blockedReason),
+					reason: blockedReason
+				}
+			];
+		}
+
+		if (dayAvailability == null) {
+			return blocks;
+		}
+
+		if (Array.isArray(dayAvailability) && dayAvailability.length === 0) {
 			blocks.push({ top: 0, height: totalHours * hourHeight });
 			return blocks;
 		}
 
-		if (!Array.isArray(dayAvail)) {
+		if (!Array.isArray(dayAvailability)) {
 			return blocks;
 		}
 
-		const available = [...dayAvail].sort((a, b) =>
+		const available = [...dayAvailability].sort((a, b) =>
 			a.from < b.from ? -1 : a.from > b.from ? 1 : 0
 		);
 
@@ -1274,12 +1388,20 @@
 						}}
 					/>
 				{/if}
-				{#each unavailableBlocksByDay[dayIndex] ?? [] as block}
-					<div
-						class="unavailable-striped absolute right-0 left-0"
-						style="top: {block.top}px; height: {block.height}px; z-index: 0;"
-					/>
-				{/each}
+				{#if !shouldSplitByTrainer}
+					{#each unavailableBlocksByDay[dayIndex] ?? [] as block}
+						<div
+							class="unavailable-striped absolute right-0 left-0"
+							class:unavailable-striped--blocked={Boolean(block.label)}
+							style="top: {block.top}px; height: {block.height}px; z-index: 0;"
+							aria-label={block.label}
+						>
+							{#if block.label}
+								<span class="calendar-unavailable-label">{block.label}</span>
+							{/if}
+						</div>
+					{/each}
+				{/if}
 
 				{#if shouldSplitByLocation}
 					<div class="flex h-full">
@@ -1383,6 +1505,18 @@
 											<div class="calendar-half-hour-line" style={`top: ${top}px;`} />
 										{/each}
 									</div>
+									{#each column.unavailableBlocks ?? [] as block}
+										<div
+											class="unavailable-striped absolute right-0 left-0"
+											class:unavailable-striped--blocked={Boolean(block.label)}
+											style="top: {block.top}px; height: {block.height}px; z-index: 0;"
+											aria-label={block.label}
+										>
+											{#if block.label}
+												<span class="calendar-unavailable-label">{block.label}</span>
+											{/if}
+										</div>
+									{/each}
 									{#each column.emptySlots as slot}
 										<button
 											class="hover:bg-orange/20 absolute right-0 left-0 cursor-pointer"
@@ -1495,6 +1629,26 @@
 		pointer-events: none;
 	}
 
+	.unavailable-striped--blocked {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		overflow: hidden;
+	}
+
+	.calendar-unavailable-label {
+		max-width: calc(100% - 1rem);
+		border: 1px solid rgba(185, 28, 28, 0.14);
+		border-radius: 999px;
+		background: rgba(255, 255, 255, 0.88);
+		padding: 0.25rem 0.625rem;
+		color: rgba(127, 29, 29, 0.92);
+		font-size: 0.75rem;
+		font-weight: 700;
+		line-height: 1.1;
+		text-align: center;
+	}
+
 	.calendar-time-bands {
 		position: absolute;
 		inset: 0;
@@ -1526,10 +1680,6 @@
 		position: absolute;
 		left: 0;
 		right: 0;
-	}
-
-	.calendar-hour-line {
-		/* border-top: 1px dashed rgba(148, 163, 184, 0.35); */
 	}
 
 	.calendar-half-hour-line {
