@@ -1,7 +1,10 @@
 <!-- src/lib/components/bits/slotTimePicker/SlotTimePicker.svelte -->
 <script lang="ts">
 	import Dropdown from '../dropdown/Dropdown.svelte';
-	import { fetchAvailableSlots } from '$lib/services/api/bookingService';
+	import {
+		fetchAvailableSlots,
+		type AvailableSlotsBlockedReason
+	} from '$lib/services/api/bookingService';
 	import DatePicker from '../datePicker/DatePicker.svelte';
 	import { createEventDispatcher } from 'svelte';
 
@@ -25,9 +28,15 @@
 	let availableSlots: string[] = [];
 	let outsideAvailabilitySlots: string[] = [];
 	let sortedOptions: { label: string; value: string; unavailable: boolean }[] = [];
+	let blockedReason: AvailableSlotsBlockedReason | null = null;
 
 	let showWarning = false;
 	$: dateInputId = `${dateField}-datepicker`;
+	$: blockedReasonLabel = getBlockedReasonLabel(blockedReason);
+	$: displayOptions =
+		blockedReasonLabel && sortedOptions.length === 0
+			? [{ label: blockedReasonLabel, value: '', unavailable: false }]
+			: sortedOptions;
 
 	function timeToMinutes(time: string): number {
 		const [h, m] = time.split(':').map(Number);
@@ -36,6 +45,7 @@
 
 	async function updateSlots() {
 		showWarning = false;
+		blockedReason = null;
 		if (selectedDate && trainerId != null && locationId != null) {
 			loading = true;
 			availableSlots = [];
@@ -53,6 +63,7 @@
 
 				availableSlots = res.availableSlots ?? [];
 				outsideAvailabilitySlots = res.outsideAvailabilitySlots ?? [];
+				blockedReason = res.blockedReason ?? null;
 
 				const merged = [
 					...availableSlots.map((t) => ({ label: t, value: t, unavailable: false })),
@@ -62,9 +73,12 @@
 				];
 
 				sortedOptions = merged.sort((a, b) => timeToMinutes(a.value) - timeToMinutes(b.value));
+				const selected = sortedOptions.find((opt) => opt.value === selectedTime);
+				dispatch('unavailabilityChange', selected?.unavailable ?? false);
 			} catch (e) {
 				console.error('Error fetching available slots:', e);
 				showWarning = true;
+				dispatch('unavailabilityChange', false);
 			} finally {
 				loading = false;
 			}
@@ -73,7 +87,14 @@
 			availableSlots = [];
 			outsideAvailabilitySlots = [];
 			sortedOptions = [];
+			blockedReason = null;
+			dispatch('unavailabilityChange', false);
 		}
+	}
+
+	$: if (!loading && selectedTime && !sortedOptions.some((opt) => opt.value === selectedTime)) {
+		selectedTime = '';
+		dispatch('unavailabilityChange', false);
 	}
 
 	$: selectedDate,
@@ -90,6 +111,12 @@
 		if (trainerId == null) missing.push('tränare');
 		if (locationId == null) missing.push('plats');
 		return missing;
+	}
+
+	function getBlockedReasonLabel(reason: AvailableSlotsBlockedReason | null): string | null {
+		if (reason === 'absence') return 'Tränaren är frånvarande';
+		if (reason === 'vacation') return 'Tränaren har semester';
+		return null;
 	}
 </script>
 
@@ -120,13 +147,13 @@
 			id={timeField}
 			{label}
 			bind:selectedValue={selectedTime}
-			options={sortedOptions}
+			options={displayOptions}
 			placeholder="Välj tid"
 			openPosition="up"
-			disabled={sortedOptions.length === 0}
+			disabled={displayOptions.length === 0 || Boolean(blockedReasonLabel)}
 			{errors}
 			on:change={() => {
-				const selected = sortedOptions.find((opt) => opt.value === selectedTime);
+				const selected = displayOptions.find((opt) => opt.value === selectedTime);
 				dispatch('unavailabilityChange', selected?.unavailable ?? false);
 				dispatch('timeSelect', selectedTime);
 			}}

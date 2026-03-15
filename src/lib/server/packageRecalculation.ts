@@ -135,6 +135,8 @@ export async function recalculatePackageAssignments({
 			client,
 			`UPDATE bookings
 			 SET package_id = NULL,
+			     added_to_package_date = NULL,
+			     added_to_package_by = NULL,
 			     updated_at = NOW()
 			 WHERE id = ANY($1::int[])`,
 			[detachedBookingIds]

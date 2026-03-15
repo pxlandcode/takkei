@@ -55,6 +55,15 @@ type LocationCountDbRow = {
 	count_cancelled: number | string | null;
 };
 
+type TrainerCountDbRow = {
+	trainer_id: number | null;
+	trainer_name: string | null;
+	count_total: number | string | null;
+	count_booked: number | string | null;
+	count_late_cancelled: number | string | null;
+	count_cancelled: number | string | null;
+};
+
 type OptionRow = {
 	id: number;
 	firstname?: string | null;
@@ -81,6 +90,7 @@ export type BookingReportBookingTypeFilter =
 export type BookingReportFilters = {
 	dateFrom?: string;
 	dateTo?: string;
+	weekRanges?: { start: string; end: string }[];
 	status?: BookingReportStatusFilter;
 	bookingType?: BookingReportBookingTypeFilter;
 	trainerId?: number;
@@ -131,6 +141,15 @@ export type BookingLocationSummary = {
 	cancelled: number;
 };
 
+export type BookingTrainerSummary = {
+	trainerId: number | null;
+	trainerName: string;
+	total: number;
+	booked: number;
+	lateCancelled: number;
+	cancelled: number;
+};
+
 export type BookingReportSummary = {
 	total: number;
 	booked: number;
@@ -141,6 +160,7 @@ export type BookingReportSummary = {
 	firstBookingAt: string | null;
 	lastBookingAt: string | null;
 	locationBreakdown: BookingLocationSummary[];
+	trainerBreakdown: BookingTrainerSummary[];
 	generatedAt: string;
 };
 
@@ -216,6 +236,20 @@ function normalizeSearch(value?: string) {
 	return trimmed.length ? trimmed : undefined;
 }
 
+function normalizeWeekRanges(
+	value?: { start: string; end: string }[]
+): { start: string; end: string }[] {
+	if (!value?.length) return [];
+	return value
+		.map((range) => {
+			const start = normalizeDateParam(range.start);
+			const end = normalizeDateParam(range.end);
+			if (!start || !end) return null;
+			return start <= end ? { start, end } : { start: end, end: start };
+		})
+		.filter((range): range is { start: string; end: string } => Boolean(range));
+}
+
 function sanitizeLimit(limit?: number) {
 	if (limit === undefined || limit === null) return undefined;
 	const parsed = Math.trunc(Number(limit));
@@ -238,7 +272,9 @@ function statusLabel(status: string | null) {
 	return normalized;
 }
 
-function bookingTypeLabel(bookingTypeKey: DbRow['booking_type_key']): BookingReportRow['bookingTypeLabel'] {
+function bookingTypeLabel(
+	bookingTypeKey: DbRow['booking_type_key']
+): BookingReportRow['bookingTypeLabel'] {
 	if (bookingTypeKey === 'demo') return 'Demo';
 	if (bookingTypeKey === 'education') return 'Utbildning';
 	if (bookingTypeKey === 'internal') return 'Intern';
@@ -246,9 +282,7 @@ function bookingTypeLabel(bookingTypeKey: DbRow['booking_type_key']): BookingRep
 	return 'Vanlig';
 }
 
-function bookingTypeKey(
-	value: DbRow['booking_type_key']
-): BookingReportRow['bookingType'] {
+function bookingTypeKey(value: DbRow['booking_type_key']): BookingReportRow['bookingType'] {
 	if (
 		value === 'demo' ||
 		value === 'education' ||
@@ -311,9 +345,21 @@ function mapLocationRows(rows: LocationCountDbRow[]): BookingLocationSummary[] {
 	}));
 }
 
+function mapTrainerRows(rows: TrainerCountDbRow[]): BookingTrainerSummary[] {
+	return rows.map((row) => ({
+		trainerId: row.trainer_id,
+		trainerName: trimOrNull(row.trainer_name) ?? 'Saknar tränare',
+		total: toInt(row.count_total),
+		booked: toInt(row.count_booked),
+		lateCancelled: toInt(row.count_late_cancelled),
+		cancelled: toInt(row.count_cancelled)
+	}));
+}
+
 function mapSummary(
 	row: SummaryDbRow | undefined,
 	locationRows: LocationCountDbRow[],
+	trainerRows: TrainerCountDbRow[],
 	generatedAt: string
 ): BookingReportSummary {
 	return {
@@ -326,6 +372,7 @@ function mapSummary(
 		firstBookingAt: toIsoString(row?.first_booking_at),
 		lastBookingAt: toIsoString(row?.last_booking_at),
 		locationBreakdown: mapLocationRows(locationRows),
+		trainerBreakdown: mapTrainerRows(trainerRows),
 		generatedAt
 	};
 }
@@ -391,6 +438,7 @@ function buildWhereSql(
 
 	const dateFrom = normalizeDateParam(filters.dateFrom);
 	const dateTo = normalizeDateParam(filters.dateTo);
+	const weekRanges = normalizeWeekRanges(filters.weekRanges);
 	const status = filters.status ?? 'chargeable';
 	const bookingType = filters.bookingType ?? 'all';
 	const search = normalizeSearch(filters.search);
@@ -403,6 +451,17 @@ function buildWhereSql(
 	if (dateTo) {
 		params.push(dateTo);
 		conditions.push(`booking_base.start_time::date <= $${params.length}::date`);
+	}
+
+	if (weekRanges.length) {
+		const weekConditions = weekRanges.map((range) => {
+			params.push(range.start);
+			const startParam = `$${params.length}::date`;
+			params.push(range.end);
+			const endParam = `$${params.length}::date`;
+			return `(booking_base.start_time::date >= ${startParam} AND booking_base.start_time::date <= ${endParam})`;
+		});
+		conditions.push(`(${weekConditions.join(' OR ')})`);
 	}
 
 	if (status === 'chargeable') {
@@ -565,12 +624,31 @@ GROUP BY booking_base.location_id, COALESCE(booking_base.location_name, 'Saknar 
 ORDER BY count_total DESC, location_name ASC
 `;
 
-	const [summaryRows, locationRows] = await Promise.all([
+	const trainerSql = `
+${createBaseCteSql()}
+SELECT
+	booking_base.trainer_id,
+	COALESCE(booking_base.trainer_name, 'Saknar tränare') AS trainer_name,
+	COUNT(*)::int AS count_total,
+	COUNT(*) FILTER (
+		WHERE COALESCE(booking_base.status, '') <> '${CANCELLED_STATUS}'
+		  AND COALESCE(booking_base.status, '') <> '${LATE_CANCELLED_STATUS}'
+	)::int AS count_booked,
+	COUNT(*) FILTER (WHERE COALESCE(booking_base.status, '') = '${LATE_CANCELLED_STATUS}')::int AS count_late_cancelled,
+	COUNT(*) FILTER (WHERE COALESCE(booking_base.status, '') = '${CANCELLED_STATUS}')::int AS count_cancelled
+FROM booking_base
+${whereSql}
+GROUP BY booking_base.trainer_id, COALESCE(booking_base.trainer_name, 'Saknar tränare')
+ORDER BY count_total DESC, trainer_name ASC
+`;
+
+	const [summaryRows, locationRows, trainerRows] = await Promise.all([
 		query(summarySql, params) as Promise<SummaryDbRow[]>,
-		query(locationSql, params) as Promise<LocationCountDbRow[]>
+		query(locationSql, params) as Promise<LocationCountDbRow[]>,
+		query(trainerSql, params) as Promise<TrainerCountDbRow[]>
 	]);
 
-	return mapSummary(summaryRows[0], locationRows, generatedAt);
+	return mapSummary(summaryRows[0], locationRows, trainerRows, generatedAt);
 }
 
 export async function getBookingReportRows(
@@ -579,9 +657,7 @@ export async function getBookingReportRows(
 	return fetchRows(filters);
 }
 
-export async function getBookingReport(
-	filters: BookingReportFilters = {}
-): Promise<BookingReport> {
+export async function getBookingReport(filters: BookingReportFilters = {}): Promise<BookingReport> {
 	const generatedAt = new Date().toISOString();
 	const [summary, filteredSummary, rows] = await Promise.all([
 		fetchSummary(filters, false, generatedAt),

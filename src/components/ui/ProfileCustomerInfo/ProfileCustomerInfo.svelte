@@ -6,6 +6,8 @@
 	import { goto } from '$app/navigation';
 	import PackagePopup from '../packagePopup/PackagePopup.svelte';
 	import { openPopup, closePopup } from '$lib/stores/popupStore';
+	import { hasRole } from '$lib/helpers/userHelpers/roleHelper';
+	import { openPackageAssignmentPopup } from '$lib/helpers/packageAssignments/openPackageAssignmentPopup';
 
 	export let customer;
 	export let onCustomerChange: (value: any) => void = () => {};
@@ -14,6 +16,10 @@
 	let recalcPending = false;
 	let recalcInfo: string | null = null;
 	let recalcError: string | null = null;
+	let recalcDetachedCount = 0;
+	let isAdmin = false;
+
+	$: isAdmin = hasRole('Administrator');
 
 	function handleClientsUpdated(event) {
 		const updatedClients = event.detail ?? [];
@@ -106,6 +112,7 @@ async function recalculateCustomerPackages() {
 	recalcPending = true;
 	recalcInfo = null;
 	recalcError = null;
+	recalcDetachedCount = 0;
 	try {
 		const res = await fetch(`/api/customers/${customer.id}/packages/recalculate`, {
 			method: 'POST',
@@ -126,6 +133,7 @@ async function recalculateCustomerPackages() {
 		recalcInfo =
 			payload?.message ||
 			`Räknade om ${payload?.processedPackages ?? 0} paket och kopplade bort ${payload?.totalDetachedCount ?? 0} bokningar.`;
+		recalcDetachedCount = Number(payload?.totalDetachedCount ?? 0);
 
 		if (typeof refreshCustomer === 'function') {
 			await refreshCustomer();
@@ -135,6 +143,20 @@ async function recalculateCustomerPackages() {
 	} finally {
 		recalcPending = false;
 	}
+}
+
+function openAssignmentPopup(initialFilter: 'all' | 'linked' | 'missing' = 'all') {
+	if (!customer?.id || !isAdmin) return;
+	openPackageAssignmentPopup({
+		scope: 'customer',
+		scopeId: customer.id,
+		initialFilter,
+		onApplied: async () => {
+			if (typeof refreshCustomer === 'function') {
+				await refreshCustomer();
+			}
+		}
+	});
 }
 </script>
 
@@ -179,6 +201,15 @@ async function recalculateCustomerPackages() {
 		<div class="mb-4 flex items-center justify-between">
 			<h4 class="text-xl font-semibold">Paket</h4>
 			<div class="flex flex-wrap gap-2">
+				{#if isAdmin}
+					<Button
+						text="Hantera paketbokningar"
+						variant="secondary"
+						iconLeft="Package"
+						iconLeftSize="14px"
+						on:click={() => openAssignmentPopup()}
+					/>
+				{/if}
 				<Button
 					text="Räkna om alla paket"
 					variant="secondary"
@@ -204,8 +235,16 @@ async function recalculateCustomerPackages() {
 		</div>
 
 		{#if recalcInfo}
-			<div class="mb-4 rounded-sm border border-green-300 bg-green-50 p-3 text-green-900">
-				{recalcInfo}
+			<div class="mb-4 flex flex-col gap-3 rounded-sm border border-green-300 bg-green-50 p-3 text-green-900 md:flex-row md:items-center md:justify-between">
+				<p>{recalcInfo}</p>
+				{#if isAdmin && recalcDetachedCount > 0}
+					<Button
+						text="Hantera bokningar utan paket"
+						variant="secondary"
+						small
+						on:click={() => openAssignmentPopup('missing')}
+					/>
+				{/if}
 			</div>
 		{/if}
 		{#if recalcError}

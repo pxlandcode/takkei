@@ -9,7 +9,6 @@
 	import Icon from '../../components/bits/icon-component/Icon.svelte';
 	import Button from '../../components/bits/button/Button.svelte';
 	import OptionButton from '../../components/bits/optionButton/OptionButton.svelte';
-	import { hasRole } from '$lib/helpers/userHelpers/roleHelper';
 	import ClientForm from '../../components/ui/clientForm/ClientForm.svelte';
 	import BookingPopup from '../../components/ui/bookingPopup/BookingPopup.svelte';
 	import { calendarStore } from '$lib/stores/calendarStore';
@@ -20,9 +19,6 @@
 	import { openPopup } from '$lib/stores/popupStore';
 	import { headerState } from '$lib/stores/headerState.svelte';
 	import { wrapFetch } from '$lib/services/api/apiCache';
-
-	let selectedClientsId: number | null = null;
-	let selectedClientEmail: string | null = null;
 
 	// Headers (sortable like customers: name + trainer)
 	const headers = [
@@ -48,8 +44,6 @@
 	let sortBy: 'name' | 'email' | 'trainer' = 'name';
 	let sortOrder: 'asc' | 'desc' = 'asc';
 
-	$: isAdmin = hasRole('Administrator');
-
 	function onGoToClient(id: number) {
 		goto(`/clients/${id}`);
 	}
@@ -61,13 +55,11 @@
 	}
 
 	function onBookClient(clientId: number) {
-		selectedClientsId = clientId;
 		openBookingPopup(clientId);
 	}
 
 	function onSendClientEmail(email: string) {
 		if (!email) return;
-		selectedClientEmail = email;
 		openMailPopup(email);
 	}
 
@@ -92,12 +84,7 @@
 			icon: 'Plus',
 			component: BookingPopup,
 			props: { clientId },
-			maxWidth: '650px',
-			listeners: {
-				close: () => {
-					selectedClientsId = null;
-				}
-			}
+			maxWidth: '650px'
 		});
 	}
 
@@ -111,11 +98,6 @@
 				prefilledRecipients: [email],
 				lockedFields: ['recipients'],
 				autoFetchUsersAndClients: false
-			},
-			listeners: {
-				close: () => {
-					selectedClientEmail = null;
-				}
 			}
 		});
 	}
@@ -272,9 +254,7 @@
 	}
 
 	// Reload from server when filters change
-	$: if (browser) {
-		selectedStatusOption;
-		selectedOwnershipOption;
+	$: if (browser && selectedStatusOption.value && selectedOwnershipOption.value) {
 		fetchPaginatedClients(true);
 	}
 </script>
@@ -291,9 +271,7 @@
 	<!-- Filters -->
 	<div class="my-4 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
 		<div>
-			{#if isAdmin}
-				<Button text="Lägg till klient" variant="primary" on:click={openClientForm} />
-			{/if}
+			<Button text="Lägg till klient" variant="primary" on:click={openClientForm} />
 		</div>
 
 		<div class="flex flex-col gap-2 xl:flex-row xl:items-center xl:gap-4">

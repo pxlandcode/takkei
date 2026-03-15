@@ -3,6 +3,8 @@
 	import { goto } from '$app/navigation';
 	import Table from '../../bits/table/Table.svelte';
 	import Button from '../../bits/button/Button.svelte';
+	import { hasRole } from '$lib/helpers/userHelpers/roleHelper';
+	import { openPackageAssignmentPopup } from '$lib/helpers/packageAssignments/openPackageAssignmentPopup';
 
 	interface ClientPackage {
 		id: number;
@@ -32,6 +34,8 @@
 	let recalcPending = false;
 	let recalcInfo: string | null = null;
 	let recalcError: string | null = null;
+	let recalcDetachedCount = 0;
+	let isAdmin = false;
 
 	const headers = [
 		{ label: 'Aktivt', key: 'active', width: '90px' },
@@ -46,6 +50,8 @@
 	];
 
 	let tableData = [];
+
+	$: isAdmin = hasRole('Administrator');
 
 	async function loadPackages() {
 		if (!clientId) {
@@ -73,6 +79,7 @@
 		recalcPending = true;
 		recalcInfo = null;
 		recalcError = null;
+		recalcDetachedCount = 0;
 		try {
 			const res = await fetch(`/api/clients/${clientId}/packages/recalculate`, {
 				method: 'POST',
@@ -93,6 +100,7 @@
 			recalcInfo =
 				payload?.message ||
 				`Räknade om ${payload?.processedPackages ?? 0} paket och kopplade bort ${payload?.totalDetachedCount ?? 0} bokningar.`;
+			recalcDetachedCount = Number(payload?.totalDetachedCount ?? 0);
 
 			await loadPackages();
 		} catch (err: any) {
@@ -126,6 +134,18 @@
 
 	function goToCustomer(id: number) {
 		goto(`/settings/customers/${id}`);
+	}
+
+	function openAssignmentPopup(initialFilter: 'all' | 'linked' | 'missing' = 'all') {
+		if (!clientId || !isAdmin) return;
+		openPackageAssignmentPopup({
+			scope: 'client',
+			scopeId: clientId,
+			initialFilter,
+			onApplied: () => {
+				loadPackages();
+			}
+		});
 	}
 
 	$: hasPackages = packages.length > 0;
@@ -167,24 +187,43 @@
 <div class="rounded-sm bg-white p-6 shadow-md">
 	<div class="mb-4 flex items-center justify-between">
 		<h4 class="text-xl font-semibold">Paket</h4>
-		<Button
-			text="Räkna om alla paket"
-			icon="Refresh"
-			variant="secondary"
-			disabled={recalcPending || loading}
-			confirmOptions={{
-				title: 'Räkna om klientens paket?',
-				description:
-					'Detta kopplar bort överflödiga eller paketfria bokningar från alla paket som visas i listan.',
-				actionLabel: 'Räkna om',
-				action: recalculateAllClientPackages
-			}}
-		/>
+		<div class="flex flex-wrap gap-2">
+			{#if isAdmin}
+				<Button
+					text="Hantera paketbokningar"
+					iconLeft="Package"
+					variant="secondary"
+					disabled={loading}
+					on:click={() => openAssignmentPopup()}
+				/>
+			{/if}
+			<Button
+				text="Räkna om alla paket"
+				icon="Refresh"
+				variant="secondary"
+				disabled={recalcPending || loading}
+				confirmOptions={{
+					title: 'Räkna om klientens paket?',
+					description:
+						'Detta kopplar bort överflödiga eller paketfria bokningar från alla paket som visas i listan.',
+					actionLabel: 'Räkna om',
+					action: recalculateAllClientPackages
+				}}
+			/>
+		</div>
 	</div>
 
 	{#if recalcInfo}
-		<div class="mb-4 rounded-sm border border-green-300 bg-green-50 p-3 text-green-900">
-			{recalcInfo}
+		<div class="mb-4 flex flex-col gap-3 rounded-sm border border-green-300 bg-green-50 p-3 text-green-900 md:flex-row md:items-center md:justify-between">
+			<p>{recalcInfo}</p>
+			{#if isAdmin && recalcDetachedCount > 0}
+				<Button
+					text="Hantera bokningar utan paket"
+					variant="secondary"
+					small
+					on:click={() => openAssignmentPopup('missing')}
+				/>
+			{/if}
 		</div>
 	{/if}
 	{#if recalcError}

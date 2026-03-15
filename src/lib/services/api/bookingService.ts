@@ -6,6 +6,8 @@ const PERSONAL_BOOKINGS_PREFIX = '/api/fetch-personal-bookings';
 const NOTIFICATIONS_PREFIX = '/api/notifications';
 const TARGETS_PREFIX = '/api/targets';
 
+export type AvailableSlotsBlockedReason = 'absence' | 'vacation';
+
 function invalidateBookingRelatedCaches() {
 	invalidateByPrefix(BOOKINGS_PREFIX);
 	invalidateByPrefix(PERSONAL_BOOKINGS_PREFIX);
@@ -187,10 +189,11 @@ export async function fetchAvailableSlots({
 		const data = await res.json();
 		return {
 			availableSlots: data.availableSlots,
-			outsideAvailabilitySlots: data.outsideAvailabilitySlots
+			outsideAvailabilitySlots: data.outsideAvailabilitySlots,
+			blockedReason: (data.blockedReason ?? null) as AvailableSlotsBlockedReason | null
 		};
 	}
-	return { availableSlots: [], outsideAvailabilitySlots: [] };
+	return { availableSlots: [], outsideAvailabilitySlots: [], blockedReason: null };
 }
 
 export async function updateStandardBooking(bookingObject: any) {

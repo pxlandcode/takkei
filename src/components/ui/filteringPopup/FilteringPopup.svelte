@@ -31,7 +31,7 @@
 
 	let selectedEntity: EntityKey = 'trainer';
 
-	$: $user;
+	$: activeTrainers = ($users || []).filter((trainer) => trainer.active);
 	$: singleFilterMode = isMobile && !isDayView;
 	$: entityOptions = [
 		{ value: 'trainer' as EntityKey, label: 'Tränare' },
@@ -42,7 +42,7 @@
 		entityOptions.find((option) => option.value === selectedEntity) ?? entityOptions[0];
 	$: trainerDropdownOptions = [
 		{ label: 'Välj tränare', value: null },
-		...(($users || []).map((user) => ({
+		...((activeTrainers || []).map((user) => ({
 			label: `${user.firstname} ${user.lastname}`,
 			value: user.id
 		})) ?? [])
@@ -71,7 +71,9 @@
 		await Promise.all([fetchUsers(), fetchLocations(), fetchClients()]);
 
 		// Pre-fill selected options from store
-		selectedUsers = get(users).filter((user) => filters.trainerIds?.includes(user.id));
+		selectedUsers = get(users).filter(
+			(user) => user.active && filters.trainerIds?.includes(user.id)
+		);
 		selectedLocations = get(locations).filter((location) =>
 			filters.locationIds?.includes(location.id)
 		);
@@ -138,7 +140,7 @@
 	}
 
 	function handleUserSelection(event) {
-		let updated = [...event.detail.selected];
+		let updated = [...event.detail.selected].filter((trainer) => trainer.active);
 		if (singleFilterMode) {
 			if (selectedEntity !== 'trainer') {
 				showRestrictionToast('tränare');
@@ -197,7 +199,7 @@
 			selectedUsers = [];
 		} else {
 			const id = Number(value);
-			const allUsers = get(users);
+			const allUsers = get(users).filter((trainer) => trainer.active);
 			const match = allUsers.find((u) => u.id === id);
 			selectedUsers = match ? [match] : [];
 		}
@@ -264,7 +266,7 @@
 			showRestrictionToast('flera tränare');
 			return;
 		}
-		selectedUsers = $users;
+		selectedUsers = activeTrainers;
 	}
 
 	function onDeSelectAllUsers() {
@@ -300,7 +302,7 @@
 			showRestrictionToast('en tränare');
 			return;
 		}
-		const allUsers = get(users);
+		const allUsers = get(users).filter((trainer) => trainer.active);
 		const currentUser = allUsers.find((u) => u.id === get(user)?.id);
 
 		if (currentUser) {
@@ -478,7 +480,7 @@
 						label="Tränare"
 						placeholder="Välj tränare"
 						id="users"
-						options={($users || []).map((user) => ({
+						options={activeTrainers.map((user) => ({
 							name: `${user.firstname} ${user.lastname}`,
 							value: user
 						}))}

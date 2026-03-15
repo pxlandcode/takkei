@@ -1,7 +1,9 @@
 import { json } from '@sveltejs/kit';
+import type { RequestHandler } from './$types';
 import { query } from '$lib/db';
+import type { UserAvailabilityMap, UserBlockedDaysMap } from '$lib/services/api/calendarService';
 
-export async function GET({ url }) {
+export const GET: RequestHandler = async ({ url }) => {
 	const userId = url.searchParams.get('userId');
 	const from = url.searchParams.get('from');
 	const to = url.searchParams.get('to');
@@ -46,7 +48,8 @@ export async function GET({ url }) {
 			[userId, from, to]
 		);
 
-		const result: Record<string, { from: string; to: string }[] | null> = {};
+		const result: UserAvailabilityMap = {};
+		const blockedDays: UserBlockedDaysMap = {};
 
 		for (const dateStr of days) {
 			const currentDate = new Date(dateStr);
@@ -67,6 +70,7 @@ export async function GET({ url }) {
 			});
 			if (isAbsent) {
 				result[dateStr] = null;
+				blockedDays[dateStr] = 'absence';
 				continue;
 			}
 
@@ -81,6 +85,7 @@ export async function GET({ url }) {
 			});
 			if (isVacationDay) {
 				result[dateStr] = null;
+				blockedDays[dateStr] = 'vacation';
 				continue;
 			}
 
@@ -105,9 +110,9 @@ export async function GET({ url }) {
 			result[dateStr] = weekSlots.length > 0 ? weekSlots : null;
 		}
 
-		return json({ success: true, availability: result });
+		return json({ success: true, availability: result, blockedDays });
 	} catch (err) {
 		console.error('❌ Failed to fetch availability:', err);
 		return json({ error: 'Internal server error' }, { status: 500 });
 	}
-}
+};
