@@ -49,6 +49,7 @@
 		end_time?: string | null;
 		status?: string;
 		approved_by_id?: number;
+		resetApproval?: boolean;
 	};
 
 	let selectedUserId = $state<number | null>(null);
@@ -212,7 +213,7 @@
 
 <div class="mb-24 w-full space-y-6">
 	<div
-		class="flex flex-col gap-4 border-b border-gray pb-4 lg:flex-row lg:items-center lg:justify-between"
+		class="border-gray flex flex-col gap-4 border-b pb-4 lg:flex-row lg:items-center lg:justify-between"
 	>
 		<h2 class="text-xl font-semibold">Schema</h2>
 

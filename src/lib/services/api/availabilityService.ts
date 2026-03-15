@@ -92,8 +92,10 @@ export async function saveOrUpdateAbsences(
 		id?: number;
 		description?: string;
 		approverId?: number;
-		end_time?: string;
+		start_time?: string;
+		end_time?: string | null;
 		status?: string;
+		resetApproval?: boolean;
 	}[]
 ): Promise<any[]> {
 	const saved: any[] = [];
@@ -106,8 +108,11 @@ export async function saveOrUpdateAbsences(
 				body: JSON.stringify({
 					absenceId: absence.id,
 					approverId: absence.approverId,
+					description: absence.description?.trim(),
+					startTime: absence.start_time,
 					endTime: absence.end_time,
-					status: absence.status
+					status: absence.status,
+					resetApproval: absence.resetApproval ?? false
 				})
 			});
 
@@ -120,7 +125,9 @@ export async function saveOrUpdateAbsences(
 		} else {
 			const payload = {
 				userId,
-				description: absence.description ?? ''
+				description: absence.description?.trim() ?? '',
+				startTime: absence.start_time,
+				endTime: absence.end_time ?? null
 			};
 
 			const res = await fetch('/api/availability/absence', {

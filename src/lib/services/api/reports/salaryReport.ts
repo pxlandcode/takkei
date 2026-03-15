@@ -11,284 +11,349 @@ const SALARY_EXCLUDED_STATUSES: string[] = CANCELLED_STATUSES.map((status) =>
 const FALLBACK_SESSION_MINUTES = 60; // Default duration when bookings lack explicit end_time
 
 export type SalaryReportParams = {
-        month: number;
-        year: number;
+	month: number;
+	year: number;
 };
 
 export type SalaryReportDetail = {
-        id: number;
-        startTime: string;
-        endTime: string | null;
-        durationMinutes: number;
-        obMinutes?: number;
-        clientName: string | null;
-        customerName: string | null;
-        bookingType: string | null;
-        locationName: string | null;
+	id: number;
+	startTime: string;
+	endTime: string | null;
+	durationMinutes: number;
+	obMinutes?: number;
+	clientName: string | null;
+	customerName: string | null;
+	bookingType: string | null;
+	locationName: string | null;
 };
 
 export type SalaryReportExtraDuty = {
-        id: number;
-        name: string;
-        approved: boolean;
-        note: string | null;
+	id: number;
+	name: string;
+	approved: boolean;
+	note: string | null;
+};
+
+export type SalaryReportAbsenceDetail = {
+	id: string;
+	kindKey: string;
+	kindLabel: string;
+	startDate: string;
+	endDate: string;
+	days: number;
+	description: string | null;
+	source: 'absence' | 'vacation';
+	status: string | null;
+	approved: boolean;
+};
+
+export type SalaryReportAbsenceGroup = {
+	key: string;
+	label: string;
+	days: number;
+	count: number;
+	entries: SalaryReportAbsenceDetail[];
 };
 
 export type SalaryReportTrainer = {
-        id: number;
-        name: string;
-        email: string | null;
-        locationId: number | null;
-        locationName: string | null;
-        weekdayHours: number;
-        obHours: number;
-        weekendHours: number;
-        holidayHours: number;
-        educationHours: number;
-        tryOutHours: number;
-        internalHours: number;
-        totalHours: number;
-        sessionCount: number;
-        approvedExtra: number;
-        pendingExtra: number;
-        weekday: SalaryReportDetail[];
-        ob: SalaryReportDetail[];
-        weekend: SalaryReportDetail[];
-        holiday: SalaryReportDetail[];
-        education: SalaryReportDetail[];
-        tryOut: SalaryReportDetail[];
-        internal: SalaryReportDetail[];
-        extraDuties: SalaryReportExtraDuty[];
+	id: number;
+	name: string;
+	email: string | null;
+	locationId: number | null;
+	locationName: string | null;
+	weekdayHours: number;
+	obHours: number;
+	weekendHours: number;
+	holidayHours: number;
+	educationHours: number;
+	tryOutHours: number;
+	internalHours: number;
+	totalHours: number;
+	sessionCount: number;
+	approvedExtra: number;
+	pendingExtra: number;
+	absenceDays: number;
+	absenceCount: number;
+	weekday: SalaryReportDetail[];
+	ob: SalaryReportDetail[];
+	weekend: SalaryReportDetail[];
+	holiday: SalaryReportDetail[];
+	education: SalaryReportDetail[];
+	tryOut: SalaryReportDetail[];
+	internal: SalaryReportDetail[];
+	extraDuties: SalaryReportExtraDuty[];
+	absences: SalaryReportAbsenceGroup[];
 };
 
 export type SalaryReportResult = {
-        month: number;
-        year: number;
-        generatedAt: string;
-        range: { start: string; end: string };
-        isMonthComplete: boolean;
-        trainers: SalaryReportTrainer[];
+	month: number;
+	year: number;
+	generatedAt: string;
+	range: { start: string; end: string };
+	isMonthComplete: boolean;
+	trainers: SalaryReportTrainer[];
 };
 
 export function parseSalaryReportMonth(params: { month?: string | null; year?: string | null }) {
-        const { month, year } = params;
-        if (month && /^\d{4}-\d{2}$/.test(month)) {
-                const [yearStr, monthStr] = month.split('-');
-                const parsedYear = Number(yearStr);
-                const parsedMonth = Number(monthStr);
-                if (!Number.isInteger(parsedYear) || parsedYear < 2000 || parsedYear > 9999) {
-                        throw new Error('Invalid year parameter');
-                }
-                if (!Number.isInteger(parsedMonth) || parsedMonth < 1 || parsedMonth > 12) {
-                        throw new Error('Invalid month parameter');
-                }
-                return { month: parsedMonth, year: parsedYear };
-        }
+	const { month, year } = params;
+	if (month && /^\d{4}-\d{2}$/.test(month)) {
+		const [yearStr, monthStr] = month.split('-');
+		const parsedYear = Number(yearStr);
+		const parsedMonth = Number(monthStr);
+		if (!Number.isInteger(parsedYear) || parsedYear < 2000 || parsedYear > 9999) {
+			throw new Error('Invalid year parameter');
+		}
+		if (!Number.isInteger(parsedMonth) || parsedMonth < 1 || parsedMonth > 12) {
+			throw new Error('Invalid month parameter');
+		}
+		return { month: parsedMonth, year: parsedYear };
+	}
 
-        const monthValue = month ? Number(month) : NaN;
-        const yearValue = year ? Number(year) : NaN;
+	const monthValue = month ? Number(month) : NaN;
+	const yearValue = year ? Number(year) : NaN;
 
-        if (!Number.isInteger(monthValue) || monthValue < 1 || monthValue > 12) {
-                throw new Error('Invalid month parameter');
-        }
+	if (!Number.isInteger(monthValue) || monthValue < 1 || monthValue > 12) {
+		throw new Error('Invalid month parameter');
+	}
 
-        if (!Number.isInteger(yearValue) || yearValue < 2000 || yearValue > 9999) {
-                throw new Error('Invalid year parameter');
-        }
+	if (!Number.isInteger(yearValue) || yearValue < 2000 || yearValue > 9999) {
+		throw new Error('Invalid year parameter');
+	}
 
-        return { month: monthValue, year: yearValue };
+	return { month: monthValue, year: yearValue };
 }
 
 type BookingRow = {
-        id: number;
-        start_time: string;
-        end_time?: string | null;
-        trainer_id: number;
-        trainer_firstname: string | null;
-        trainer_lastname: string | null;
-        trainer_email: string | null;
-        trainer_location_id: number | null;
-        trainer_location_name: string | null;
-        try_out: boolean | null;
-        internal: boolean | null;
-        education: boolean | null;
-        internal_education: boolean | null;
-        booking_content_kind: string | null;
-        client_firstname: string | null;
-        client_lastname: string | null;
-        customer_name: string | null;
-        location_name: string | null;
-        status: string | null;
+	id: number;
+	start_time: string;
+	end_time?: string | null;
+	trainer_id: number;
+	trainer_firstname: string | null;
+	trainer_lastname: string | null;
+	trainer_email: string | null;
+	trainer_location_id: number | null;
+	trainer_location_name: string | null;
+	try_out: boolean | null;
+	internal: boolean | null;
+	education: boolean | null;
+	internal_education: boolean | null;
+	booking_content_kind: string | null;
+	client_firstname: string | null;
+	client_lastname: string | null;
+	customer_name: string | null;
+	location_name: string | null;
+	status: string | null;
 };
 
 type ObWindowRow = {
-        id: number;
-        name: string;
-        start_minutes: number;
-        end_minutes: number;
-        weekday_mask: number;
-        include_holidays: boolean;
+	id: number;
+	name: string;
+	start_minutes: number;
+	end_minutes: number;
+	weekday_mask: number;
+	include_holidays: boolean;
 };
 
 type HolidayRow = {
-        date: string;
-        holiday_name: string | null;
-        holiday_description: string | null;
+	date: string;
+	holiday_name: string | null;
+	holiday_description: string | null;
 };
 
 type ExtraDutyRow = {
-        id: number;
-        extra_duty_id: number | null;
-        approved_by_id: number | null;
-        month: string | null;
-        duty: string | null;
-        user_id: number | null;
-        note?: string | null;
+	id: number;
+	extra_duty_id: number | null;
+	approved_by_id: number | null;
+	month: string | null;
+	duty: string | null;
+	user_id: number | null;
+	note?: string | null;
+};
+
+type VacationRow = {
+	id: number;
+	user_id: number | null;
+	start_date: string;
+	end_date: string;
+	description: string | null;
+};
+
+type AbsenceRow = {
+	id: number;
+	user_id: number | null;
+	start_time: string;
+	end_time: string | null;
+	status: string | null;
+	description: string | null;
+	approved_by_id: number | null;
 };
 
 type TrainerMetaRow = {
-        id: number;
-        firstname: string | null;
-        lastname: string | null;
-        email: string | null;
-        default_location_id: number | null;
-        location_name: string | null;
+	id: number;
+	firstname: string | null;
+	lastname: string | null;
+	email: string | null;
+	default_location_id: number | null;
+	location_name: string | null;
 };
 
 type TrainerAccumulator = {
-        id: number;
-        firstname: string | null;
-        lastname: string | null;
-        email: string | null;
-        locationId: number | null;
-        locationName: string | null;
-        weekdayMinutes: number;
-        obMinutes: number;
-        weekendMinutes: number;
-        holidayMinutes: number;
-        educationMinutes: number;
-        tryOutMinutes: number;
-        internalMinutes: number;
-        sessionCount: number;
-        approvedExtra: number;
-        pendingExtra: number;
-        weekday: SalaryReportDetail[];
-        ob: SalaryReportDetail[];
-        weekend: SalaryReportDetail[];
-        holiday: SalaryReportDetail[];
-        education: SalaryReportDetail[];
-        tryOut: SalaryReportDetail[];
-        internal: SalaryReportDetail[];
-        extraDuties: SalaryReportExtraDuty[];
+	id: number;
+	firstname: string | null;
+	lastname: string | null;
+	email: string | null;
+	locationId: number | null;
+	locationName: string | null;
+	weekdayMinutes: number;
+	obMinutes: number;
+	weekendMinutes: number;
+	holidayMinutes: number;
+	educationMinutes: number;
+	tryOutMinutes: number;
+	internalMinutes: number;
+	sessionCount: number;
+	approvedExtra: number;
+	pendingExtra: number;
+	absenceDays: number;
+	absenceCount: number;
+	weekday: SalaryReportDetail[];
+	ob: SalaryReportDetail[];
+	weekend: SalaryReportDetail[];
+	holiday: SalaryReportDetail[];
+	education: SalaryReportDetail[];
+	tryOut: SalaryReportDetail[];
+	internal: SalaryReportDetail[];
+	extraDuties: SalaryReportExtraDuty[];
+	absenceGroups: Map<string, SalaryReportAbsenceGroup>;
 };
 
 type BookingCategory = 'weekday' | 'weekend' | 'holiday' | 'education' | 'tryOut' | 'internal';
 
 export function minutesToHours(minutes: number) {
-        if (!minutes) return 0;
-        const hours = minutes / 60;
-        return Math.round((hours + Number.EPSILON) * 100) / 100;
+	if (!minutes) return 0;
+	const hours = minutes / 60;
+	return Math.round((hours + Number.EPSILON) * 100) / 100;
 }
 
 function createDateKey(parts: ReturnType<typeof extractStockholmTimeParts>) {
-        if (!parts) return null;
-        const pad = (value: number) => value.toString().padStart(2, '0');
-        return `${parts.year}-${pad(parts.month)}-${pad(parts.day)}`;
+	if (!parts) return null;
+	const pad = (value: number) => value.toString().padStart(2, '0');
+	return `${parts.year}-${pad(parts.month)}-${pad(parts.day)}`;
 }
 
 function weekdayIndexFromUtcDay(utcDay: number) {
-        // Monday bit = 1 << 0 ... Sunday = 1 << 6
-        return ((utcDay + 6) % 7) as 0 | 1 | 2 | 3 | 4 | 5 | 6;
+	// Monday bit = 1 << 0 ... Sunday = 1 << 6
+	return ((utcDay + 6) % 7) as 0 | 1 | 2 | 3 | 4 | 5 | 6;
 }
 
 function computeOverlapMinutes(start: number, end: number, windowStart: number, windowEnd: number) {
-        const overlapStart = Math.max(start, windowStart);
-        const overlapEnd = Math.min(end, windowEnd);
-        return overlapEnd > overlapStart ? overlapEnd - overlapStart : 0;
+	const overlapStart = Math.max(start, windowStart);
+	const overlapEnd = Math.min(end, windowEnd);
+	return overlapEnd > overlapStart ? overlapEnd - overlapStart : 0;
 }
 
 function formatName(firstname: string | null, lastname: string | null) {
-        const parts = [firstname, lastname].map((value) => value?.trim()).filter((value) => value);
-        return parts.join(' ');
+	const parts = [firstname, lastname].map((value) => value?.trim()).filter((value) => value);
+	return parts.join(' ');
 }
 
-function normalizeClientName(firstname: string | null, lastname: string | null, fallback: string | null) {
-        const name = formatName(firstname, lastname);
-        if (name) return name;
-        return fallback ?? null;
+function normalizeClientName(
+	firstname: string | null,
+	lastname: string | null,
+	fallback: string | null
+) {
+	const name = formatName(firstname, lastname);
+	if (name) return name;
+	return fallback ?? null;
 }
 
-function ensureTrainer(map: Map<number, TrainerAccumulator>, row: BookingRow | ExtraDutyRow) {
-        const trainerId = 'trainer_id' in row ? row.trainer_id : row.user_id;
-        if (!trainerId || !Number.isFinite(trainerId)) return null;
+function ensureTrainer(
+	map: Map<number, TrainerAccumulator>,
+	row: BookingRow | ExtraDutyRow | VacationRow | AbsenceRow
+) {
+	const trainerId = 'trainer_id' in row ? row.trainer_id : row.user_id;
+	if (!trainerId || !Number.isFinite(trainerId)) return null;
 
-        if (!map.has(trainerId)) {
-                let firstname: string | null = null;
-                let lastname: string | null = null;
-                let email: string | null = null;
-                let locationId: number | null = null;
-                let locationName: string | null = null;
+	if (!map.has(trainerId)) {
+		let firstname: string | null = null;
+		let lastname: string | null = null;
+		let email: string | null = null;
+		let locationId: number | null = null;
+		let locationName: string | null = null;
 
-                if ('trainer_firstname' in row) {
-                        firstname = row.trainer_firstname;
-                        lastname = row.trainer_lastname;
-                        email = row.trainer_email;
-                        locationId = row.trainer_location_id;
-                        locationName = row.trainer_location_name;
-                }
+		if ('trainer_firstname' in row) {
+			firstname = row.trainer_firstname;
+			lastname = row.trainer_lastname;
+			email = row.trainer_email;
+			locationId = row.trainer_location_id;
+			locationName = row.trainer_location_name;
+		}
 
-                map.set(trainerId, {
-                        id: trainerId,
-                        firstname,
-                        lastname,
-                        email,
-                        locationId,
-                        locationName,
-                        weekdayMinutes: 0,
-                        obMinutes: 0,
-                        weekendMinutes: 0,
-                        holidayMinutes: 0,
-                        educationMinutes: 0,
-                        tryOutMinutes: 0,
-                        internalMinutes: 0,
-                        sessionCount: 0,
-                        approvedExtra: 0,
-                        pendingExtra: 0,
-                        weekday: [],
-                        ob: [],
-                        weekend: [],
-                        holiday: [],
-                        education: [],
-                        tryOut: [],
-                        internal: [],
-                        extraDuties: []
-                });
-        }
+		map.set(trainerId, {
+			id: trainerId,
+			firstname,
+			lastname,
+			email,
+			locationId,
+			locationName,
+			weekdayMinutes: 0,
+			obMinutes: 0,
+			weekendMinutes: 0,
+			holidayMinutes: 0,
+			educationMinutes: 0,
+			tryOutMinutes: 0,
+			internalMinutes: 0,
+			sessionCount: 0,
+			approvedExtra: 0,
+			pendingExtra: 0,
+			absenceDays: 0,
+			absenceCount: 0,
+			weekday: [],
+			ob: [],
+			weekend: [],
+			holiday: [],
+			education: [],
+			tryOut: [],
+			internal: [],
+			extraDuties: [],
+			absenceGroups: new Map()
+		});
+	}
 
-        return map.get(trainerId) ?? null;
+	return map.get(trainerId) ?? null;
 }
 
 function sortDetails(values: SalaryReportDetail[]) {
-        values.sort((a, b) => a.startTime.localeCompare(b.startTime));
+	values.sort((a, b) => a.startTime.localeCompare(b.startTime));
+}
+
+function sortAbsenceEntries(values: SalaryReportAbsenceDetail[]) {
+	values.sort((a, b) => {
+		if (a.startDate !== b.startDate) return a.startDate.localeCompare(b.startDate);
+		return a.endDate.localeCompare(b.endDate);
+	});
 }
 
 function normalizeWorkbookBuffer(raw: unknown) {
-        if (raw instanceof Uint8Array) return raw;
-        if (raw instanceof ArrayBuffer) return new Uint8Array(raw);
-        if (ArrayBuffer.isView(raw)) {
-                const view = raw as ArrayBufferView;
-                return new Uint8Array(view.buffer, view.byteOffset, view.byteLength);
-        }
-        throw new Error('Unsupported workbook buffer type');
+	if (raw instanceof Uint8Array) return raw;
+	if (raw instanceof ArrayBuffer) return new Uint8Array(raw);
+	if (ArrayBuffer.isView(raw)) {
+		const view = raw as ArrayBufferView;
+		return new Uint8Array(view.buffer, view.byteOffset, view.byteLength);
+	}
+	throw new Error('Unsupported workbook buffer type');
 }
 
-async function hydrateTrainerMetadata(map: Map<number, TrainerAccumulator>, candidateIds: number[]) {
-        if (!candidateIds.length) return;
-        const uniqueIds = Array.from(new Set(candidateIds.filter((value) => Number.isFinite(value))));
-        if (!uniqueIds.length) return;
+async function hydrateTrainerMetadata(
+	map: Map<number, TrainerAccumulator>,
+	candidateIds: number[]
+) {
+	if (!candidateIds.length) return;
+	const uniqueIds = Array.from(new Set(candidateIds.filter((value) => Number.isFinite(value))));
+	if (!uniqueIds.length) return;
 
-        const rows = await query<TrainerMetaRow>(
-                `SELECT u.id,
+	const rows = await query<TrainerMetaRow>(
+		`SELECT u.id,
                         u.firstname,
                         u.lastname,
                         u.email,
@@ -297,68 +362,68 @@ async function hydrateTrainerMetadata(map: Map<number, TrainerAccumulator>, cand
                  FROM users u
                  LEFT JOIN locations l ON l.id = u.default_location_id
                  WHERE u.id = ANY($1::int[])`,
-                [uniqueIds]
-        );
+		[uniqueIds]
+	);
 
-        for (const row of rows) {
-                const trainer = map.get(row.id);
-                if (!trainer) continue;
-                trainer.firstname = row.firstname;
-                trainer.lastname = row.lastname;
-                trainer.email = row.email;
-                trainer.locationId = row.default_location_id;
-                trainer.locationName = row.location_name;
-        }
+	for (const row of rows) {
+		const trainer = map.get(row.id);
+		if (!trainer) continue;
+		trainer.firstname = row.firstname;
+		trainer.lastname = row.lastname;
+		trainer.email = row.email;
+		trainer.locationId = row.default_location_id;
+		trainer.locationName = row.location_name;
+	}
 }
 
 async function loadObWindows() {
-        const rows = await query<ObWindowRow>(
-                `SELECT id, name, start_minutes, end_minutes, weekday_mask, include_holidays
+	const rows = await query<ObWindowRow>(
+		`SELECT id, name, start_minutes, end_minutes, weekday_mask, include_holidays
                  FROM ob_time_windows
                  WHERE active = true
                  ORDER BY start_minutes ASC`
-        );
-        return rows;
+	);
+	return rows;
 }
 
 async function loadHolidays(startDate: string, endDate: string) {
-        if (startDate > endDate) return [] as HolidayRow[];
-        const rows = await query<HolidayRow>(
-                `SELECT
+	if (startDate > endDate) return [] as HolidayRow[];
+	const rows = await query<HolidayRow>(
+		`SELECT
                         date::date AS date,
                         name AS holiday_name,
                         description AS holiday_description
                  FROM holidays
                  WHERE date::date BETWEEN $1::date AND $2::date`,
-                [startDate, endDate]
-        );
-        return rows;
+		[startDate, endDate]
+	);
+	return rows;
 }
 
 async function loadBookings(start: string, endExclusive: string) {
 	const params: [string, string, string[]] = [start, endExclusive, SALARY_EXCLUDED_STATUSES];
 
-        if (bookingsSupportsEndTime === false) {
-                return query<BookingRow>(buildBookingsQuery(false), params);
-        }
+	if (bookingsSupportsEndTime === false) {
+		return query<BookingRow>(buildBookingsQuery(false), params);
+	}
 
-        try {
-                const rows = await query<BookingRow>(buildBookingsQuery(true), params);
-                bookingsSupportsEndTime = true;
-                return rows;
-        } catch (error) {
-                if (isMissingColumnError(error)) {
-                        bookingsSupportsEndTime = false;
-                        return query<BookingRow>(buildBookingsQuery(false), params);
-                }
-                throw error;
-        }
+	try {
+		const rows = await query<BookingRow>(buildBookingsQuery(true), params);
+		bookingsSupportsEndTime = true;
+		return rows;
+	} catch (error) {
+		if (isMissingColumnError(error)) {
+			bookingsSupportsEndTime = false;
+			return query<BookingRow>(buildBookingsQuery(false), params);
+		}
+		throw error;
+	}
 }
 
 let bookingsSupportsEndTime: boolean | null = null;
 
 function buildBookingsQuery(includeEndTime: boolean) {
-        const endTimeColumn = includeEndTime ? 'b.end_time,' : '';
+	const endTimeColumn = includeEndTime ? 'b.end_time,' : '';
 	return `SELECT
 			b.id,
 			b.start_time,
@@ -393,37 +458,37 @@ function buildBookingsQuery(includeEndTime: boolean) {
 }
 
 function isMissingColumnError(error: unknown) {
-        if (!error || typeof error !== 'object') return false;
-        return (error as { code?: string }).code === '42703';
+	if (!error || typeof error !== 'object') return false;
+	return (error as { code?: string }).code === '42703';
 }
 
 function resolveBookingTiming(startTime: Date, rawEndTime?: string | null) {
-        let resolvedEnd: Date | null = null;
+	let resolvedEnd: Date | null = null;
 
-        if (rawEndTime) {
-                const parsed = new Date(rawEndTime);
-                if (!Number.isNaN(parsed.getTime()) && parsed > startTime) {
-                        resolvedEnd = parsed;
-                }
-        }
+	if (rawEndTime) {
+		const parsed = new Date(rawEndTime);
+		if (!Number.isNaN(parsed.getTime()) && parsed > startTime) {
+			resolvedEnd = parsed;
+		}
+	}
 
-        if (!resolvedEnd) {
-                const fallbackEnd = new Date(startTime.getTime() + FALLBACK_SESSION_MINUTES * 60000);
-                return { endTime: fallbackEnd, durationMinutes: FALLBACK_SESSION_MINUTES };
-        }
+	if (!resolvedEnd) {
+		const fallbackEnd = new Date(startTime.getTime() + FALLBACK_SESSION_MINUTES * 60000);
+		return { endTime: fallbackEnd, durationMinutes: FALLBACK_SESSION_MINUTES };
+	}
 
-        const durationMinutes = Math.round((resolvedEnd.getTime() - startTime.getTime()) / 60000);
-        if (!Number.isFinite(durationMinutes) || durationMinutes <= 0) {
-                const fallbackEnd = new Date(startTime.getTime() + FALLBACK_SESSION_MINUTES * 60000);
-                return { endTime: fallbackEnd, durationMinutes: FALLBACK_SESSION_MINUTES };
-        }
+	const durationMinutes = Math.round((resolvedEnd.getTime() - startTime.getTime()) / 60000);
+	if (!Number.isFinite(durationMinutes) || durationMinutes <= 0) {
+		const fallbackEnd = new Date(startTime.getTime() + FALLBACK_SESSION_MINUTES * 60000);
+		return { endTime: fallbackEnd, durationMinutes: FALLBACK_SESSION_MINUTES };
+	}
 
-        return { endTime: resolvedEnd, durationMinutes };
+	return { endTime: resolvedEnd, durationMinutes };
 }
 
 async function loadExtraDuties(rangeStart: string, nextMonthStart: string) {
-        const rows = await query<ExtraDutyRow>(
-                `SELECT ped.id,
+	const rows = await query<ExtraDutyRow>(
+		`SELECT ped.id,
                         ped.extra_duty_id,
                         ped.approved_by_id,
                         ped.month,
@@ -433,449 +498,691 @@ async function loadExtraDuties(rangeStart: string, nextMonthStart: string) {
                  JOIN extra_duties ed ON ed.id = ped.extra_duty_id
                  WHERE ped.month >= $1::date
                    AND ped.month < $2::date`,
-                [rangeStart, nextMonthStart]
-        );
-        return rows;
+		[rangeStart, nextMonthStart]
+	);
+	return rows;
+}
+
+async function loadVacations(rangeStartDate: string, rangeEndDate: string) {
+	const rows = await query<VacationRow>(
+		`SELECT id, user_id, start_date::date AS start_date, end_date::date AS end_date, description
+                 FROM vacations
+                 WHERE start_date::date <= $2::date
+                   AND end_date::date >= $1::date
+                 ORDER BY start_date ASC`,
+		[rangeStartDate, rangeEndDate]
+	);
+	return rows;
+}
+
+async function loadAbsences(rangeStartIso: string, rangeEndExclusiveIso: string) {
+	const rows = await query<AbsenceRow>(
+		`SELECT id,
+                        user_id,
+                        start_time,
+                        end_time,
+                        status,
+                        description,
+                        approved_by_id
+                 FROM absences
+                 WHERE start_time < $2::timestamp
+                   AND COALESCE(end_time, $2::timestamp) >= $1::timestamp
+                 ORDER BY start_time ASC`,
+		[rangeStartIso, rangeEndExclusiveIso]
+	);
+	return rows;
 }
 
 function determineRange(params: SalaryReportParams) {
-        const { month, year } = params;
-        const start = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0, 0));
-        const startOfNextMonth = new Date(Date.UTC(year, month, 1, 0, 0, 0, 0));
-        const endOfMonth = new Date(startOfNextMonth.getTime() - 1);
+	const { month, year } = params;
+	const start = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0, 0));
+	const startOfNextMonth = new Date(Date.UTC(year, month, 1, 0, 0, 0, 0));
+	const endOfMonth = new Date(startOfNextMonth.getTime() - 1);
 
-        const now = new Date();
-        const todayUtc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0));
-        const todayEndUtc = new Date(todayUtc.getTime() + 24 * 60 * 60 * 1000);
+	const now = new Date();
+	const todayUtc = new Date(
+		Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0)
+	);
+	const todayEndUtc = new Date(todayUtc.getTime() + 24 * 60 * 60 * 1000);
 
-        if (start > todayUtc) {
-                        throw new Error('Selected month is in the future');
-        }
+	if (start > todayUtc) {
+		throw new Error('Selected month is in the future');
+	}
 
-        const rangeEndDate = endOfMonth < todayEndUtc ? endOfMonth : new Date(todayEndUtc.getTime() - 1);
-        const endExclusive = rangeEndDate < endOfMonth ? todayEndUtc : startOfNextMonth;
+	const rangeEndDate = endOfMonth < todayEndUtc ? endOfMonth : new Date(todayEndUtc.getTime() - 1);
+	const endExclusive = rangeEndDate < endOfMonth ? todayEndUtc : startOfNextMonth;
 
-        const isMonthComplete = endOfMonth <= new Date(todayEndUtc.getTime() - 1);
+	const isMonthComplete = endOfMonth <= new Date(todayEndUtc.getTime() - 1);
 
-        return {
-                start,
-                endExclusive,
-                endInclusiveDate: new Date(rangeEndDate.getTime()),
-                isMonthComplete
-        };
+	return {
+		start,
+		endExclusive,
+		endInclusiveDate: new Date(rangeEndDate.getTime()),
+		isMonthComplete
+	};
 }
 
 function formatIsoDate(date: Date) {
-        return date.toISOString();
+	return date.toISOString();
 }
 
 function toDateOnly(date: Date) {
-        const clone = new Date(date.getTime());
-        clone.setUTCHours(0, 0, 0, 0);
-        return clone;
+	const clone = new Date(date.getTime());
+	clone.setUTCHours(0, 0, 0, 0);
+	return clone;
 }
 
 function toIsoDateOnly(date: Date) {
-        return toDateOnly(date).toISOString().slice(0, 10);
+	return toDateOnly(date).toISOString().slice(0, 10);
+}
+
+function parseDateOnly(value: string) {
+	const [yearStr, monthStr, dayStr] = value.split('-');
+	const year = Number(yearStr);
+	const month = Number(monthStr);
+	const day = Number(dayStr);
+	if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) {
+		return NaN;
+	}
+	return Date.UTC(year, month - 1, day);
+}
+
+function countInclusiveDays(startDate: string, endDate: string) {
+	const startValue = parseDateOnly(startDate);
+	const endValue = parseDateOnly(endDate);
+	if (!Number.isFinite(startValue) || !Number.isFinite(endValue) || endValue < startValue) {
+		return 0;
+	}
+	return Math.floor((endValue - startValue) / 86400000) + 1;
+}
+
+function stockholmDateOnly(value: string | null | undefined) {
+	if (!value) return null;
+	const parts = extractStockholmTimeParts(value);
+	const dateKey = createDateKey(parts);
+	if (dateKey) return dateKey;
+
+	const date = new Date(value);
+	if (Number.isNaN(date.getTime())) return null;
+	return date.toISOString().slice(0, 10);
+}
+
+function normalizeAbsenceText(value: string) {
+	return value
+		.normalize('NFKD')
+		.replace(/[\u0300-\u036f]/g, '')
+		.toLowerCase()
+		.trim();
+}
+
+function formatAbsenceLabel(value: string) {
+	return value
+		.trim()
+		.split(/\s+/)
+		.filter(Boolean)
+		.map((part) => {
+			if (part.toUpperCase() === part) return part;
+			return `${part.charAt(0).toUpperCase()}${part.slice(1)}`;
+		})
+		.join(' ');
+}
+
+function toAbsenceKey(value: string) {
+	return (
+		normalizeAbsenceText(value)
+			.replace(/[^a-z0-9]+/g, '-')
+			.replace(/^-+|-+$/g, '') || 'ovrig-franvaro'
+	);
+}
+
+function resolveAbsenceKind(
+	description: string | null | undefined,
+	source: 'absence' | 'vacation'
+) {
+	if (source === 'vacation') {
+		return { key: 'semester', label: 'Semester' };
+	}
+
+	const raw = description?.trim();
+	if (!raw) {
+		return { key: 'ovrig-franvaro', label: 'Övrig frånvaro' };
+	}
+
+	const normalized = normalizeAbsenceText(raw);
+	if (normalized.includes('sjuk')) {
+		return { key: 'sjukfranvaro', label: 'Sjukfrånvaro' };
+	}
+	if (normalized.includes('semester')) {
+		return { key: 'semester', label: 'Semester' };
+	}
+	if (normalized.includes('vab')) {
+		return { key: 'vab', label: 'VAB' };
+	}
+	if (normalized.includes('foraldra')) {
+		return { key: 'foraldraledighet', label: 'Föräldraledighet' };
+	}
+	if (normalized.includes('tjanstled')) {
+		return { key: 'tjanstledighet', label: 'Tjänstledighet' };
+	}
+
+	return { key: toAbsenceKey(raw), label: formatAbsenceLabel(raw) };
+}
+
+function buildOverlappingDateRange(
+	startDate: string,
+	endDate: string,
+	rangeStartDate: string,
+	rangeEndDate: string
+) {
+	const overlapStartDate = startDate > rangeStartDate ? startDate : rangeStartDate;
+	const overlapEndDate = endDate < rangeEndDate ? endDate : rangeEndDate;
+	if (overlapStartDate > overlapEndDate) return null;
+
+	const days = countInclusiveDays(overlapStartDate, overlapEndDate);
+	if (days <= 0) return null;
+
+	return {
+		startDate: overlapStartDate,
+		endDate: overlapEndDate,
+		days
+	};
+}
+
+function registerAbsence(trainer: TrainerAccumulator, detail: SalaryReportAbsenceDetail) {
+	trainer.absenceDays += detail.days;
+	trainer.absenceCount += 1;
+
+	const existing = trainer.absenceGroups.get(detail.kindKey);
+	if (existing) {
+		existing.days += detail.days;
+		existing.count += 1;
+		existing.entries.push(detail);
+		return;
+	}
+
+	trainer.absenceGroups.set(detail.kindKey, {
+		key: detail.kindKey,
+		label: detail.kindLabel,
+		days: detail.days,
+		count: 1,
+		entries: [detail]
+	});
 }
 
 export async function getSalaryReport(params: SalaryReportParams): Promise<SalaryReportResult> {
-        const { start, endExclusive, endInclusiveDate, isMonthComplete } = determineRange(params);
-        const rangeStartIso = formatIsoDate(start);
-        const rangeEndExclusiveIso = formatIsoDate(endExclusive);
-        const rangeEndIso = formatIsoDate(endInclusiveDate);
+	const { start, endExclusive, endInclusiveDate, isMonthComplete } = determineRange(params);
+	const rangeStartIso = formatIsoDate(start);
+	const rangeEndExclusiveIso = formatIsoDate(endExclusive);
+	const rangeEndIso = formatIsoDate(endInclusiveDate);
+	const rangeStartDateOnly = toIsoDateOnly(start);
+	const rangeEndDateOnly = toIsoDateOnly(endInclusiveDate);
 
-        const [obWindows, holidays, bookings, extraDuties] = await Promise.all([
-                loadObWindows(),
-                loadHolidays(toIsoDateOnly(start), toIsoDateOnly(endInclusiveDate)),
-                loadBookings(rangeStartIso, rangeEndExclusiveIso),
-                loadExtraDuties(toIsoDateOnly(start), toIsoDateOnly(endExclusive))
-        ]);
+	const [obWindows, holidays, bookings, extraDuties, vacations, absences] = await Promise.all([
+		loadObWindows(),
+		loadHolidays(rangeStartDateOnly, rangeEndDateOnly),
+		loadBookings(rangeStartIso, rangeEndExclusiveIso),
+		loadExtraDuties(rangeStartDateOnly, toIsoDateOnly(endExclusive)),
+		loadVacations(rangeStartDateOnly, rangeEndDateOnly),
+		loadAbsences(rangeStartIso, rangeEndExclusiveIso)
+	]);
 
-        const holidaySet = new Set(holidays.map((row) => row.date));
-        const trainerMap = new Map<number, TrainerAccumulator>();
+	const holidaySet = new Set(holidays.map((row) => row.date));
+	const trainerMap = new Map<number, TrainerAccumulator>();
 
-        for (const row of bookings) {
-                if (!row.trainer_id) continue;
-                const trainer = ensureTrainer(trainerMap, row);
-                if (!trainer) continue;
+	for (const row of bookings) {
+		if (!row.trainer_id) continue;
+		const trainer = ensureTrainer(trainerMap, row);
+		if (!trainer) continue;
 
-                const startTime = new Date(row.start_time);
-                if (!startTime || Number.isNaN(startTime.getTime())) continue;
+		const startTime = new Date(row.start_time);
+		if (!startTime || Number.isNaN(startTime.getTime())) continue;
 
-                const { endTime, durationMinutes } = resolveBookingTiming(startTime, row.end_time);
-                if (!endTime || durationMinutes <= 0) continue;
+		const { endTime, durationMinutes } = resolveBookingTiming(startTime, row.end_time);
+		if (!endTime || durationMinutes <= 0) continue;
 
-                const timeParts = extractStockholmTimeParts(row.start_time);
-                if (!timeParts) continue;
+		const timeParts = extractStockholmTimeParts(row.start_time);
+		if (!timeParts) continue;
 
-                const dateKey = createDateKey(timeParts);
-                if (!dateKey) continue;
+		const dateKey = createDateKey(timeParts);
+		if (!dateKey) continue;
 
-                const weekdayUtc = new Date(Date.UTC(timeParts.year, timeParts.month - 1, timeParts.day)).getUTCDay();
-                const isWeekend = weekdayUtc === 0 || weekdayUtc === 6;
-                const isHoliday = holidaySet.has(dateKey);
-                const isTryOut = row.try_out === true;
-                const isInternal = row.internal === true;
-                const isEducation = row.education === true || row.internal_education === true;
+		const weekdayUtc = new Date(
+			Date.UTC(timeParts.year, timeParts.month - 1, timeParts.day)
+		).getUTCDay();
+		const isWeekend = weekdayUtc === 0 || weekdayUtc === 6;
+		const isHoliday = holidaySet.has(dateKey);
+		const isTryOut = row.try_out === true;
+		const isInternal = row.internal === true;
+		const isEducation = row.education === true || row.internal_education === true;
 
-                let category: BookingCategory;
-                if (isTryOut) {
-                        category = 'tryOut';
-                } else if (isInternal) {
-                        category = 'internal';
-                } else if (isEducation) {
-                        category = 'education';
-                } else if (isWeekend) {
-                        category = 'weekend';
-                } else if (isHoliday) {
-                        category = 'holiday';
-                } else {
-                        category = 'weekday';
-                }
+		let category: BookingCategory;
+		if (isTryOut) {
+			category = 'tryOut';
+		} else if (isInternal) {
+			category = 'internal';
+		} else if (isEducation) {
+			category = 'education';
+		} else if (isWeekend) {
+			category = 'weekend';
+		} else if (isHoliday) {
+			category = 'holiday';
+		} else {
+			category = 'weekday';
+		}
 
-                const startMinutes = extractStockholmMinutes(row.start_time);
-                const endMinutes = extractStockholmMinutes(endTime);
-                const weekdayMaskIndex = weekdayIndexFromUtcDay(weekdayUtc);
+		const startMinutes = extractStockholmMinutes(row.start_time);
+		const endMinutes = extractStockholmMinutes(endTime);
+		const weekdayMaskIndex = weekdayIndexFromUtcDay(weekdayUtc);
 
-                let obMinutes = 0;
-                if (startMinutes !== null && endMinutes !== null) {
-                        for (const window of obWindows) {
-                                const maskMatch = (window.weekday_mask & (1 << weekdayMaskIndex)) !== 0;
-                                if (!maskMatch) continue;
-                                if (isHoliday && !window.include_holidays) continue;
+		let obMinutes = 0;
+		if (startMinutes !== null && endMinutes !== null) {
+			for (const window of obWindows) {
+				const maskMatch = (window.weekday_mask & (1 << weekdayMaskIndex)) !== 0;
+				if (!maskMatch) continue;
+				if (isHoliday && !window.include_holidays) continue;
 
-                                const overlap = computeOverlapMinutes(
-                                        startMinutes,
-                                        endMinutes,
-                                        window.start_minutes,
-                                        window.end_minutes
-                                );
-                                if (overlap > 0) {
-                                        obMinutes += overlap;
-                                }
-                        }
-                }
+				const overlap = computeOverlapMinutes(
+					startMinutes,
+					endMinutes,
+					window.start_minutes,
+					window.end_minutes
+				);
+				if (overlap > 0) {
+					obMinutes += overlap;
+				}
+			}
+		}
 
-                const detail: SalaryReportDetail = {
-                        id: row.id,
-                        startTime: startTime.toISOString(),
-                        endTime: endTime.toISOString(),
-                        durationMinutes,
-                        obMinutes: obMinutes > 0 ? obMinutes : undefined,
-                        clientName: normalizeClientName(row.client_firstname, row.client_lastname, row.customer_name),
-                        customerName: row.customer_name,
-                        bookingType: row.booking_content_kind,
-                        locationName: row.location_name
-                };
+		const detail: SalaryReportDetail = {
+			id: row.id,
+			startTime: startTime.toISOString(),
+			endTime: endTime.toISOString(),
+			durationMinutes,
+			obMinutes: obMinutes > 0 ? obMinutes : undefined,
+			clientName: normalizeClientName(row.client_firstname, row.client_lastname, row.customer_name),
+			customerName: row.customer_name,
+			bookingType: row.booking_content_kind,
+			locationName: row.location_name
+		};
 
-                trainer.sessionCount += 1;
+		trainer.sessionCount += 1;
 
-                switch (category) {
-                        case 'tryOut':
-                                trainer.tryOutMinutes += durationMinutes;
-                                trainer.tryOut.push(detail);
-                                break;
-                        case 'internal':
-                                trainer.internalMinutes += durationMinutes;
-                                trainer.internal.push(detail);
-                                break;
-                        case 'education':
-                                trainer.educationMinutes += durationMinutes;
-                                trainer.education.push(detail);
-                                break;
-                        case 'weekend':
-                                trainer.weekendMinutes += durationMinutes;
-                                trainer.weekend.push(detail);
-                                break;
-                        case 'holiday':
-                                trainer.holidayMinutes += durationMinutes;
-                                trainer.holiday.push(detail);
-                                break;
-                        default:
-                                trainer.weekdayMinutes += durationMinutes;
-                                trainer.weekday.push(detail);
-                                break;
-                }
+		switch (category) {
+			case 'tryOut':
+				trainer.tryOutMinutes += durationMinutes;
+				trainer.tryOut.push(detail);
+				break;
+			case 'internal':
+				trainer.internalMinutes += durationMinutes;
+				trainer.internal.push(detail);
+				break;
+			case 'education':
+				trainer.educationMinutes += durationMinutes;
+				trainer.education.push(detail);
+				break;
+			case 'weekend':
+				trainer.weekendMinutes += durationMinutes;
+				trainer.weekend.push(detail);
+				break;
+			case 'holiday':
+				trainer.holidayMinutes += durationMinutes;
+				trainer.holiday.push(detail);
+				break;
+			default:
+				trainer.weekdayMinutes += durationMinutes;
+				trainer.weekday.push(detail);
+				break;
+		}
 
-                if (obMinutes > 0) {
-                        trainer.obMinutes += obMinutes;
-                        trainer.ob.push(detail);
-                }
-        }
+		if (obMinutes > 0) {
+			trainer.obMinutes += obMinutes;
+			trainer.ob.push(detail);
+		}
+	}
 
-        const includeApprovedEntries = isMonthComplete;
+	const includeApprovedEntries = isMonthComplete;
 
-        for (const row of extraDuties) {
-                const trainer = ensureTrainer(trainerMap, row);
-                if (!trainer) continue;
+	for (const row of extraDuties) {
+		const trainer = ensureTrainer(trainerMap, row);
+		if (!trainer) continue;
 
-                const approved = row.approved_by_id !== null;
-                if (approved) {
-                        trainer.approvedExtra += 1;
-                } else {
-                        trainer.pendingExtra += 1;
-                }
+		const approved = row.approved_by_id !== null;
+		if (approved) {
+			trainer.approvedExtra += 1;
+		} else {
+			trainer.pendingExtra += 1;
+		}
 
-                if (!includeApprovedEntries && approved) {
-                        continue;
-                }
+		if (!includeApprovedEntries && approved) {
+			continue;
+		}
 
-                trainer.extraDuties.push({
-                        id: row.id,
-                        name: row.duty ?? 'Okänd arbetsuppgift',
-                        approved,
-                        note: row.note ?? null
-                });
-        }
+		trainer.extraDuties.push({
+			id: row.id,
+			name: row.duty ?? 'Okänd arbetsuppgift',
+			approved,
+			note: row.note ?? null
+		});
+	}
 
-        const missingMetadataIds = Array.from(trainerMap.values())
-                .filter((trainer) => !trainer.firstname && !trainer.lastname)
-                .map((trainer) => trainer.id);
-        if (missingMetadataIds.length > 0) {
-                await hydrateTrainerMetadata(trainerMap, missingMetadataIds);
-        }
+	for (const row of vacations) {
+		const trainer = ensureTrainer(trainerMap, row);
+		if (!trainer) continue;
 
-        const trainers: SalaryReportTrainer[] = [];
-        for (const trainer of trainerMap.values()) {
-                sortDetails(trainer.weekday);
-                sortDetails(trainer.ob);
-                sortDetails(trainer.weekend);
-                sortDetails(trainer.holiday);
-                sortDetails(trainer.education);
-                sortDetails(trainer.tryOut);
-                sortDetails(trainer.internal);
+		const overlap = buildOverlappingDateRange(
+			row.start_date,
+			row.end_date,
+			rangeStartDateOnly,
+			rangeEndDateOnly
+		);
+		if (!overlap) continue;
 
-                const totalMinutes =
-                        trainer.weekdayMinutes +
-                        trainer.weekendMinutes +
-                        trainer.holidayMinutes +
-                        trainer.educationMinutes +
-                        trainer.tryOutMinutes +
-                        trainer.internalMinutes;
+		const kind = resolveAbsenceKind(row.description, 'vacation');
+		registerAbsence(trainer, {
+			id: `vacation-${row.id}`,
+			kindKey: kind.key,
+			kindLabel: kind.label,
+			startDate: overlap.startDate,
+			endDate: overlap.endDate,
+			days: overlap.days,
+			description: row.description ?? null,
+			source: 'vacation',
+			status: null,
+			approved: true
+		});
+	}
 
-                trainers.push({
-                        id: trainer.id,
-                        name: formatName(trainer.firstname, trainer.lastname) || 'Okänd tränare',
-                        email: trainer.email ?? null,
-                        locationId: trainer.locationId,
-                        locationName: trainer.locationName ?? null,
-                        weekdayHours: minutesToHours(trainer.weekdayMinutes),
-                        obHours: minutesToHours(trainer.obMinutes),
-                        weekendHours: minutesToHours(trainer.weekendMinutes),
-                        holidayHours: minutesToHours(trainer.holidayMinutes),
-                        educationHours: minutesToHours(trainer.educationMinutes),
-                        tryOutHours: minutesToHours(trainer.tryOutMinutes),
-                        internalHours: minutesToHours(trainer.internalMinutes),
-                        totalHours: minutesToHours(totalMinutes),
-                        sessionCount: trainer.sessionCount,
-                        approvedExtra: trainer.approvedExtra,
-                        pendingExtra: trainer.pendingExtra,
-                        weekday: trainer.weekday,
-                        ob: trainer.ob,
-                        weekend: trainer.weekend,
-                        holiday: trainer.holiday,
-                        education: trainer.education,
-                        tryOut: trainer.tryOut,
-                        internal: trainer.internal,
-                        extraDuties: trainer.extraDuties
-                });
-        }
+	for (const row of absences) {
+		const trainer = ensureTrainer(trainerMap, row);
+		if (!trainer) continue;
 
-        trainers.sort((a, b) => a.name.localeCompare(b.name, 'sv'));
+		const absenceStartDate = stockholmDateOnly(row.start_time);
+		const absenceEndDate = stockholmDateOnly(row.end_time) ?? rangeEndDateOnly;
+		if (!absenceStartDate || !absenceEndDate) continue;
 
-        return {
-                month: params.month,
-                year: params.year,
-                generatedAt: new Date().toISOString(),
-                range: {
-                        start: formatIsoDate(start),
-                        end: rangeEndIso
-                },
-                isMonthComplete,
-                trainers
-        };
+		const overlap = buildOverlappingDateRange(
+			absenceStartDate,
+			absenceEndDate,
+			rangeStartDateOnly,
+			rangeEndDateOnly
+		);
+		if (!overlap) continue;
+
+		const kind = resolveAbsenceKind(row.description, 'absence');
+		registerAbsence(trainer, {
+			id: `absence-${row.id}`,
+			kindKey: kind.key,
+			kindLabel: kind.label,
+			startDate: overlap.startDate,
+			endDate: overlap.endDate,
+			days: overlap.days,
+			description: row.description ?? null,
+			source: 'absence',
+			status: row.status ?? null,
+			approved: row.approved_by_id !== null
+		});
+	}
+
+	const missingMetadataIds = Array.from(trainerMap.values())
+		.filter((trainer) => !trainer.firstname && !trainer.lastname)
+		.map((trainer) => trainer.id);
+	if (missingMetadataIds.length > 0) {
+		await hydrateTrainerMetadata(trainerMap, missingMetadataIds);
+	}
+
+	const trainers: SalaryReportTrainer[] = [];
+	for (const trainer of trainerMap.values()) {
+		sortDetails(trainer.weekday);
+		sortDetails(trainer.ob);
+		sortDetails(trainer.weekend);
+		sortDetails(trainer.holiday);
+		sortDetails(trainer.education);
+		sortDetails(trainer.tryOut);
+		sortDetails(trainer.internal);
+
+		const absenceGroups = Array.from(trainer.absenceGroups.values())
+			.map((group) => {
+				sortAbsenceEntries(group.entries);
+				return {
+					...group,
+					entries: [...group.entries]
+				};
+			})
+			.sort((a, b) => {
+				if (b.days !== a.days) return b.days - a.days;
+				return a.label.localeCompare(b.label, 'sv');
+			});
+
+		const totalMinutes =
+			trainer.weekdayMinutes +
+			trainer.weekendMinutes +
+			trainer.holidayMinutes +
+			trainer.educationMinutes +
+			trainer.tryOutMinutes +
+			trainer.internalMinutes;
+
+		trainers.push({
+			id: trainer.id,
+			name: formatName(trainer.firstname, trainer.lastname) || 'Okänd tränare',
+			email: trainer.email ?? null,
+			locationId: trainer.locationId,
+			locationName: trainer.locationName ?? null,
+			weekdayHours: minutesToHours(trainer.weekdayMinutes),
+			obHours: minutesToHours(trainer.obMinutes),
+			weekendHours: minutesToHours(trainer.weekendMinutes),
+			holidayHours: minutesToHours(trainer.holidayMinutes),
+			educationHours: minutesToHours(trainer.educationMinutes),
+			tryOutHours: minutesToHours(trainer.tryOutMinutes),
+			internalHours: minutesToHours(trainer.internalMinutes),
+			totalHours: minutesToHours(totalMinutes),
+			sessionCount: trainer.sessionCount,
+			approvedExtra: trainer.approvedExtra,
+			pendingExtra: trainer.pendingExtra,
+			absenceDays: trainer.absenceDays,
+			absenceCount: trainer.absenceCount,
+			weekday: trainer.weekday,
+			ob: trainer.ob,
+			weekend: trainer.weekend,
+			holiday: trainer.holiday,
+			education: trainer.education,
+			tryOut: trainer.tryOut,
+			internal: trainer.internal,
+			extraDuties: trainer.extraDuties,
+			absences: absenceGroups
+		});
+	}
+
+	trainers.sort((a, b) => a.name.localeCompare(b.name, 'sv'));
+
+	return {
+		month: params.month,
+		year: params.year,
+		generatedAt: new Date().toISOString(),
+		range: {
+			start: formatIsoDate(start),
+			end: rangeEndIso
+		},
+		isMonthComplete,
+		trainers
+	};
 }
 
 type ExcelModule = typeof import('exceljs');
 
 async function createWorkbook(): Promise<import('exceljs').Workbook> {
-        const mod = (await import('exceljs')) as ExcelModule & { default?: ExcelModule };
-        const excelNs = mod.Workbook ? mod : mod.default;
-        if (!excelNs?.Workbook) {
-                throw new Error('ExcelJS module does not expose a Workbook constructor.');
-        }
-        return new excelNs.Workbook();
+	const mod = (await import('exceljs')) as ExcelModule & { default?: ExcelModule };
+	const excelNs = mod.Workbook ? mod : mod.default;
+	if (!excelNs?.Workbook) {
+		throw new Error('ExcelJS module does not expose a Workbook constructor.');
+	}
+	return new excelNs.Workbook();
 }
 
 function autoFitColumns(worksheet: import('exceljs').Worksheet) {
-        worksheet.columns?.forEach((column) => {
-                if (!column) return;
-                let max = 12;
-                column.eachCell?.({ includeEmpty: true }, (cell) => {
-                        const text = cell.value?.toString?.() ?? '';
-                        if (text.length + 2 > max) max = text.length + 2;
-                });
-                column.width = Math.min(max, 50);
-        });
+	worksheet.columns?.forEach((column) => {
+		if (!column) return;
+		let max = 12;
+		column.eachCell?.({ includeEmpty: true }, (cell) => {
+			const text = cell.value?.toString?.() ?? '';
+			if (text.length + 2 > max) max = text.length + 2;
+		});
+		column.width = Math.min(max, 50);
+	});
 }
 
 function formatHours(hours: number) {
-        return Math.round((hours + Number.EPSILON) * 100) / 100;
+	return Math.round((hours + Number.EPSILON) * 100) / 100;
 }
 
 function formatTotals(trainers: SalaryReportTrainer[]) {
-        return trainers.reduce(
-                (acc, trainer) => {
-                        acc.totalHours += trainer.totalHours;
-                        acc.weekdayHours += trainer.weekdayHours;
-                        acc.obHours += trainer.obHours;
-                        acc.weekendHours += trainer.weekendHours;
-                        acc.holidayHours += trainer.holidayHours;
-                        acc.educationHours += trainer.educationHours;
-                        acc.tryOutHours += trainer.tryOutHours;
-                        acc.internalHours += trainer.internalHours;
-                        acc.sessionCount += trainer.sessionCount;
-                        acc.approvedExtra += trainer.approvedExtra;
-                        acc.pendingExtra += trainer.pendingExtra;
-                        return acc;
-                },
-                {
-                        totalHours: 0,
-                        weekdayHours: 0,
-                        obHours: 0,
-                        weekendHours: 0,
-                        holidayHours: 0,
-                        educationHours: 0,
-                        tryOutHours: 0,
-                        internalHours: 0,
-                        sessionCount: 0,
-                        approvedExtra: 0,
-                        pendingExtra: 0
-                }
-        );
+	return trainers.reduce(
+		(acc, trainer) => {
+			acc.totalHours += trainer.totalHours;
+			acc.weekdayHours += trainer.weekdayHours;
+			acc.obHours += trainer.obHours;
+			acc.weekendHours += trainer.weekendHours;
+			acc.holidayHours += trainer.holidayHours;
+			acc.educationHours += trainer.educationHours;
+			acc.tryOutHours += trainer.tryOutHours;
+			acc.internalHours += trainer.internalHours;
+			acc.sessionCount += trainer.sessionCount;
+			acc.approvedExtra += trainer.approvedExtra;
+			acc.pendingExtra += trainer.pendingExtra;
+			return acc;
+		},
+		{
+			totalHours: 0,
+			weekdayHours: 0,
+			obHours: 0,
+			weekendHours: 0,
+			holidayHours: 0,
+			educationHours: 0,
+			tryOutHours: 0,
+			internalHours: 0,
+			sessionCount: 0,
+			approvedExtra: 0,
+			pendingExtra: 0
+		}
+	);
 }
 
 function buildFilename(result: SalaryReportResult) {
-        const monthStr = result.month.toString().padStart(2, '0');
-        const timestamp = new Date(result.generatedAt)
-                .toISOString()
-                .replace(/[-:]/g, '')
-                .slice(0, 13);
-        return `loneunderlag_${result.year}_${monthStr}_${timestamp}.xlsx`;
+	const monthStr = result.month.toString().padStart(2, '0');
+	const timestamp = new Date(result.generatedAt).toISOString().replace(/[-:]/g, '').slice(0, 13);
+	return `loneunderlag_${result.year}_${monthStr}_${timestamp}.xlsx`;
 }
 
 export async function buildSalaryWorkbook(params: SalaryReportParams) {
-        const report = await getSalaryReport(params);
-        const workbook = await createWorkbook();
-        const summarySheet = workbook.addWorksheet('Översikt');
+	const report = await getSalaryReport(params);
+	const workbook = await createWorkbook();
+	const summarySheet = workbook.addWorksheet('Översikt');
 
-        summarySheet.addRow([
-                'Tränare',
-                'Total timmar',
-                'Vardagstimmar',
-                'OB-timmar',
-                'Helgtimmar',
-                'Helgdagstimmar',
-                'Utbildningstimmar',
-                'Prova-på-timmar',
-                'Interna timmar',
-                'Antal pass',
-                'Godkända extra',
-                'Avvaktande extra'
-        ]);
-        summarySheet.getRow(1).font = { bold: true };
+	summarySheet.addRow([
+		'Tränare',
+		'Total timmar',
+		'Vardagstimmar',
+		'OB-timmar',
+		'Helgtimmar',
+		'Helgdagstimmar',
+		'Utbildningstimmar',
+		'Prova-på-timmar',
+		'Interna timmar',
+		'Antal pass',
+		'Godkända extra',
+		'Avvaktande extra'
+	]);
+	summarySheet.getRow(1).font = { bold: true };
 
-        for (const trainer of report.trainers) {
-                summarySheet.addRow([
-                        trainer.name,
-                        formatHours(trainer.totalHours),
-                        formatHours(trainer.weekdayHours),
-                        formatHours(trainer.obHours),
-                        formatHours(trainer.weekendHours),
-                        formatHours(trainer.holidayHours),
-                        formatHours(trainer.educationHours),
-                        formatHours(trainer.tryOutHours),
-                        formatHours(trainer.internalHours),
-                        trainer.sessionCount,
-                        trainer.approvedExtra,
-                        trainer.pendingExtra
-                ]);
-        }
+	for (const trainer of report.trainers) {
+		summarySheet.addRow([
+			trainer.name,
+			formatHours(trainer.totalHours),
+			formatHours(trainer.weekdayHours),
+			formatHours(trainer.obHours),
+			formatHours(trainer.weekendHours),
+			formatHours(trainer.holidayHours),
+			formatHours(trainer.educationHours),
+			formatHours(trainer.tryOutHours),
+			formatHours(trainer.internalHours),
+			trainer.sessionCount,
+			trainer.approvedExtra,
+			trainer.pendingExtra
+		]);
+	}
 
-        summarySheet.getColumn(2).numFmt = '0.00';
-        summarySheet.getColumn(3).numFmt = '0.00';
-        summarySheet.getColumn(4).numFmt = '0.00';
-        summarySheet.getColumn(5).numFmt = '0.00';
-        summarySheet.getColumn(6).numFmt = '0.00';
-        summarySheet.getColumn(7).numFmt = '0.00';
-        summarySheet.getColumn(8).numFmt = '0.00';
-        summarySheet.getColumn(9).numFmt = '0.00';
+	summarySheet.getColumn(2).numFmt = '0.00';
+	summarySheet.getColumn(3).numFmt = '0.00';
+	summarySheet.getColumn(4).numFmt = '0.00';
+	summarySheet.getColumn(5).numFmt = '0.00';
+	summarySheet.getColumn(6).numFmt = '0.00';
+	summarySheet.getColumn(7).numFmt = '0.00';
+	summarySheet.getColumn(8).numFmt = '0.00';
+	summarySheet.getColumn(9).numFmt = '0.00';
 
-        autoFitColumns(summarySheet);
-        summarySheet.views = [{ state: 'frozen', ySplit: 1 }];
+	autoFitColumns(summarySheet);
+	summarySheet.views = [{ state: 'frozen', ySplit: 1 }];
 
-        const totalsRow = summarySheet.addRow(new Array(summarySheet.columnCount).fill(''));
-        totalsRow.getCell(1).value = 'Totalt';
-        totalsRow.font = { bold: true };
-        const totals = formatTotals(report.trainers);
-        totalsRow.getCell(2).value = formatHours(totals.totalHours);
-        totalsRow.getCell(3).value = formatHours(totals.weekdayHours);
-        totalsRow.getCell(4).value = formatHours(totals.obHours);
-        totalsRow.getCell(5).value = formatHours(totals.weekendHours);
-        totalsRow.getCell(6).value = formatHours(totals.holidayHours);
-        totalsRow.getCell(7).value = formatHours(totals.educationHours);
-        totalsRow.getCell(8).value = formatHours(totals.tryOutHours);
-        totalsRow.getCell(9).value = formatHours(totals.internalHours);
-        totalsRow.getCell(10).value = totals.sessionCount;
-        totalsRow.getCell(11).value = totals.approvedExtra;
-        totalsRow.getCell(12).value = totals.pendingExtra;
+	const totalsRow = summarySheet.addRow(new Array(summarySheet.columnCount).fill(''));
+	totalsRow.getCell(1).value = 'Totalt';
+	totalsRow.font = { bold: true };
+	const totals = formatTotals(report.trainers);
+	totalsRow.getCell(2).value = formatHours(totals.totalHours);
+	totalsRow.getCell(3).value = formatHours(totals.weekdayHours);
+	totalsRow.getCell(4).value = formatHours(totals.obHours);
+	totalsRow.getCell(5).value = formatHours(totals.weekendHours);
+	totalsRow.getCell(6).value = formatHours(totals.holidayHours);
+	totalsRow.getCell(7).value = formatHours(totals.educationHours);
+	totalsRow.getCell(8).value = formatHours(totals.tryOutHours);
+	totalsRow.getCell(9).value = formatHours(totals.internalHours);
+	totalsRow.getCell(10).value = totals.sessionCount;
+	totalsRow.getCell(11).value = totals.approvedExtra;
+	totalsRow.getCell(12).value = totals.pendingExtra;
 
-        const obSheet = workbook.addWorksheet('OB-detaljer');
-        obSheet.addRow([
-                'Tränare',
-                'Start',
-                'Slut',
-                'OB-minuter',
-                'OB-timmar',
-                'Total minuter',
-                'Total timmar',
-                'Klient',
-                'Kund',
-                'Typ'
-        ]);
-        obSheet.getRow(1).font = { bold: true };
+	const obSheet = workbook.addWorksheet('OB-detaljer');
+	obSheet.addRow([
+		'Tränare',
+		'Start',
+		'Slut',
+		'OB-minuter',
+		'OB-timmar',
+		'Total minuter',
+		'Total timmar',
+		'Klient',
+		'Kund',
+		'Typ'
+	]);
+	obSheet.getRow(1).font = { bold: true };
 
-        for (const trainer of report.trainers) {
-                for (const booking of trainer.ob) {
-                        const obMinutes = booking.obMinutes ?? booking.durationMinutes;
-                        obSheet.addRow([
-                                trainer.name,
-                                booking.startTime ? new Date(booking.startTime) : null,
-                                booking.endTime ? new Date(booking.endTime) : null,
-                                obMinutes,
-                                formatHours(obMinutes / 60),
-                                booking.durationMinutes,
-                                formatHours(booking.durationMinutes / 60),
-                                booking.clientName ?? '',
-                                booking.customerName ?? '',
-                                booking.bookingType ?? ''
-                        ]);
-                }
-        }
+	for (const trainer of report.trainers) {
+		for (const booking of trainer.ob) {
+			const obMinutes = booking.obMinutes ?? booking.durationMinutes;
+			obSheet.addRow([
+				trainer.name,
+				booking.startTime ? new Date(booking.startTime) : null,
+				booking.endTime ? new Date(booking.endTime) : null,
+				obMinutes,
+				formatHours(obMinutes / 60),
+				booking.durationMinutes,
+				formatHours(booking.durationMinutes / 60),
+				booking.clientName ?? '',
+				booking.customerName ?? '',
+				booking.bookingType ?? ''
+			]);
+		}
+	}
 
-        obSheet.getColumn(2).numFmt = 'yyyy-mm-dd hh:mm';
-        obSheet.getColumn(3).numFmt = 'yyyy-mm-dd hh:mm';
-        obSheet.getColumn(4).numFmt = '0';
-        obSheet.getColumn(5).numFmt = '0.00';
-        obSheet.getColumn(6).numFmt = '0';
-        obSheet.getColumn(7).numFmt = '0.00';
-        autoFitColumns(obSheet);
-        obSheet.views = [{ state: 'frozen', ySplit: 1 }];
+	obSheet.getColumn(2).numFmt = 'yyyy-mm-dd hh:mm';
+	obSheet.getColumn(3).numFmt = 'yyyy-mm-dd hh:mm';
+	obSheet.getColumn(4).numFmt = '0';
+	obSheet.getColumn(5).numFmt = '0.00';
+	obSheet.getColumn(6).numFmt = '0';
+	obSheet.getColumn(7).numFmt = '0.00';
+	autoFitColumns(obSheet);
+	obSheet.views = [{ state: 'frozen', ySplit: 1 }];
 
-        const rawBuffer = await workbook.xlsx.writeBuffer();
-        const buffer = normalizeWorkbookBuffer(rawBuffer);
-        const filename = buildFilename(report);
+	const rawBuffer = await workbook.xlsx.writeBuffer();
+	const buffer = normalizeWorkbookBuffer(rawBuffer);
+	const filename = buildFilename(report);
 
-        return { buffer, filename };
+	return { buffer, filename };
 }
