@@ -7,6 +7,7 @@
 	import PackagePopup from '../../../../components/ui/packagePopup/PackagePopup.svelte';
 	import { hasRole } from '$lib/helpers/userHelpers/roleHelper';
 	import { openPopup, closePopup } from '$lib/stores/popupStore';
+	import { openPackageAssignmentPopup } from '$lib/helpers/packageAssignments/openPackageAssignmentPopup';
 
 	import OverviewTab from '../../../../components/ui/packages/details/OverviewTab.svelte';
 	import BookingsTab from '../../../../components/ui/packages/details/BookingsTab.svelte';
@@ -39,6 +40,8 @@
 	let recalcErr: string | null = null;
 	let recalcInfo: string | null = null;
 	let recalcPending = false;
+	let recalcDetachedCount = 0;
+	let bookingsRefreshToken = 0;
 
 	$: isAdmin = hasRole('Administrator');
 
@@ -161,6 +164,7 @@
 		recalcErr = null;
 		recalcInfo = null;
 		recalcPending = true;
+		recalcDetachedCount = 0;
 		try {
 			const res = await fetch(`/api/packages/${packageId}/recalculate`, {
 				method: 'POST',
@@ -183,12 +187,14 @@
 			const detachedCount = Number(payload?.detachedCount ?? 0);
 			const overflow = Number(payload?.detachedOverflowChargeableCount ?? 0);
 			const packageFree = Number(payload?.detachedPackageFreeChargeableCount ?? 0);
+			recalcDetachedCount = detachedCount;
 			recalcInfo =
 				detachedCount > 0
 					? `Paketet räknades om. ${detachedCount} bokningar kopplades bort (överfullt: ${overflow}, paketfria: ${packageFree}).`
 					: 'Paketet räknades om. Inga ändringar behövdes.';
 
 			await fetchPkg();
+			bookingsRefreshToken += 1;
 		} catch (e: any) {
 			recalcErr = e?.message ?? 'Något gick fel vid omräkning';
 		} finally {
@@ -250,6 +256,24 @@
 
 	const todayISO = new Date().toISOString().slice(0, 10);
 
+	function openAssignmentPopup(initialFilter: 'all' | 'linked' | 'missing' = 'all') {
+		if (!isAdmin || !pkg) return;
+		const popupScope = pkg.client?.id ? 'client' : 'customer';
+		const popupScopeId = popupScope === 'client' ? Number(pkg.client.id) : Number(pkg.customer?.id);
+		if (!Number.isInteger(popupScopeId) || popupScopeId <= 0) return;
+
+		openPackageAssignmentPopup({
+			scope: popupScope,
+			scopeId: popupScopeId,
+			preselectedPackageId: packageId,
+			initialFilter,
+			onApplied: async () => {
+				await fetchPkg();
+				bookingsRefreshToken += 1;
+			}
+		});
+	}
+
 	// Navigation config (like /reports)
 	const menuItems = [
 		{ label: 'Paket', icon: 'Package', component: OverviewTab },
@@ -277,6 +301,14 @@
 				icon="ArrowRightLeft"
 				variant="secondary"
 				on:click={moveToCustomer}
+			/>
+		{/if}
+		{#if isAdmin}
+			<Button
+				text="Hantera bokningar"
+				iconLeft="Package"
+				variant="secondary"
+				on:click={() => openAssignmentPopup()}
 			/>
 		{/if}
 		{#if isAdmin}
@@ -323,8 +355,16 @@
 
 <div class="m-4 flex flex-col gap-3">
 	{#if recalcInfo}
-		<div class="rounded-sm border border-green-300 bg-green-50 p-3 text-green-900">
-			{recalcInfo}
+		<div class="flex flex-col gap-3 rounded-sm border border-green-300 bg-green-50 p-3 text-green-900 md:flex-row md:items-center md:justify-between">
+			<p>{recalcInfo}</p>
+			{#if isAdmin && recalcDetachedCount > 0}
+				<Button
+					text="Hantera bokningar utan paket"
+					variant="secondary"
+					small
+					on:click={() => openAssignmentPopup('missing')}
+				/>
+			{/if}
 		</div>
 	{/if}
 	{#if recalcErr}
@@ -379,10 +419,14 @@
 			{packageId}
 			{isAdmin}
 			showClientColumn={!pkg.client}
+			refreshToken={bookingsRefreshToken}
 			on:addinvoice={() => {
 				if (isAdmin) showInvoice = true;
 			}}
-			on:changed={fetchPkg}
+			on:changed={async () => {
+				await fetchPkg();
+				bookingsRefreshToken += 1;
+			}}
 		/>
 	</Navigation>
 {/if}

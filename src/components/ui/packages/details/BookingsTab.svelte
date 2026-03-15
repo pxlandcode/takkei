@@ -19,12 +19,15 @@
 	export let packageId: number;
 	export let showClientColumn: boolean;
 	export let isAdmin: boolean = false;
+	export let refreshToken: number = 0;
 
 	const dispatch = createEventDispatcher();
 
 	let bookings: PackageBooking[] = [];
 	let loading = false;
 	let err: string | null = null;
+	let hasMounted = false;
+	let lastRefreshToken: number | null = null;
 
 	// Filter options
 	const filterOptions = [
@@ -85,7 +88,16 @@
 		});
 	}
 
-	onMount(fetchBookings);
+	onMount(async () => {
+		hasMounted = true;
+		lastRefreshToken = refreshToken;
+		await fetchBookings();
+	});
+
+	$: if (hasMounted && refreshToken !== lastRefreshToken) {
+		lastRefreshToken = refreshToken;
+		fetchBookings();
+	}
 
 	const today = new Date().toISOString().slice(0, 10);
 
