@@ -91,7 +91,7 @@
 	let moveDestinationPackageId = '';
 	let selectedBookingIds: number[] = [];
 	let showFilters = false;
-	let showPackages = true;
+	let showPackages = false;
 	let showActions = false;
 	let visibleCount = 50;
 	let tableContainer: HTMLDivElement;
@@ -105,11 +105,12 @@
 	function setDefaultFilters() {
 		selectedTargetPackageId = preselectedPackageId ? String(preselectedPackageId) : '';
 
-		// When opening with a preselected package, show its bookings
+		// When opening with a preselected package, show its bookings and open package section
 		if (preselectedPackageId) {
 			selectedFilter =
 				filterOptions.find((option) => option.value === 'linked') ?? filterOptions[0];
 			selectedPackageFilter = String(preselectedPackageId);
+			showPackages = true;
 		} else {
 			selectedFilter =
 				filterOptions.find((option) => option.value === initialFilter) ?? filterOptions[0];
