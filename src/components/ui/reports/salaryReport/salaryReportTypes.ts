@@ -33,6 +33,8 @@ export type SalaryReportAbsenceDetail = {
 export type SalaryReportAbsenceGroup = {
 	key: string;
 	label: string;
+	approved: boolean;
+	approvalLabel: 'Godkänd' | 'Ej godkänd';
 	days: number;
 	count: number;
 	entries: SalaryReportAbsenceDetail[];
@@ -57,6 +59,8 @@ export type SalaryReportTrainer = {
 	pendingExtra: number;
 	absenceDays: number;
 	absenceCount: number;
+	unapprovedAbsenceDays: number;
+	unapprovedAbsenceCount: number;
 	weekday: SalaryReportDetail[];
 	ob: SalaryReportDetail[];
 	weekend: SalaryReportDetail[];

@@ -50,6 +50,8 @@ export type SalaryReportAbsenceDetail = {
 export type SalaryReportAbsenceGroup = {
 	key: string;
 	label: string;
+	approved: boolean;
+	approvalLabel: 'Godkänd' | 'Ej godkänd';
 	days: number;
 	count: number;
 	entries: SalaryReportAbsenceDetail[];
@@ -74,6 +76,8 @@ export type SalaryReportTrainer = {
 	pendingExtra: number;
 	absenceDays: number;
 	absenceCount: number;
+	unapprovedAbsenceDays: number;
+	unapprovedAbsenceCount: number;
 	weekday: SalaryReportDetail[];
 	ob: SalaryReportDetail[];
 	weekend: SalaryReportDetail[];
@@ -216,6 +220,8 @@ type TrainerAccumulator = {
 	pendingExtra: number;
 	absenceDays: number;
 	absenceCount: number;
+	unapprovedAbsenceDays: number;
+	unapprovedAbsenceCount: number;
 	weekday: SalaryReportDetail[];
 	ob: SalaryReportDetail[];
 	weekend: SalaryReportDetail[];
@@ -308,6 +314,8 @@ function ensureTrainer(
 			pendingExtra: 0,
 			absenceDays: 0,
 			absenceCount: 0,
+			unapprovedAbsenceDays: 0,
+			unapprovedAbsenceCount: 0,
 			weekday: [],
 			ob: [],
 			weekend: [],
@@ -689,10 +697,17 @@ function buildOverlappingDateRange(
 }
 
 function registerAbsence(trainer: TrainerAccumulator, detail: SalaryReportAbsenceDetail) {
-	trainer.absenceDays += detail.days;
-	trainer.absenceCount += 1;
+	if (detail.approved) {
+		trainer.absenceDays += detail.days;
+		trainer.absenceCount += 1;
+	} else {
+		trainer.unapprovedAbsenceDays += detail.days;
+		trainer.unapprovedAbsenceCount += 1;
+	}
 
-	const existing = trainer.absenceGroups.get(detail.kindKey);
+	const approvalLabel = detail.approved ? 'Godkänd' : 'Ej godkänd';
+	const groupKey = `${detail.kindKey}-${detail.approved ? 'approved' : 'unapproved'}`;
+	const existing = trainer.absenceGroups.get(groupKey);
 	if (existing) {
 		existing.days += detail.days;
 		existing.count += 1;
@@ -700,9 +715,11 @@ function registerAbsence(trainer: TrainerAccumulator, detail: SalaryReportAbsenc
 		return;
 	}
 
-	trainer.absenceGroups.set(detail.kindKey, {
-		key: detail.kindKey,
+	trainer.absenceGroups.set(groupKey, {
+		key: groupKey,
 		label: detail.kindLabel,
+		approved: detail.approved,
+		approvalLabel,
 		days: detail.days,
 		count: 1,
 		entries: [detail]
@@ -949,6 +966,7 @@ export async function getSalaryReport(params: SalaryReportParams): Promise<Salar
 				};
 			})
 			.sort((a, b) => {
+				if (a.approved !== b.approved) return a.approved ? 1 : -1;
 				if (b.days !== a.days) return b.days - a.days;
 				return a.label.localeCompare(b.label, 'sv');
 			});
@@ -980,6 +998,8 @@ export async function getSalaryReport(params: SalaryReportParams): Promise<Salar
 			pendingExtra: trainer.pendingExtra,
 			absenceDays: trainer.absenceDays,
 			absenceCount: trainer.absenceCount,
+			unapprovedAbsenceDays: trainer.unapprovedAbsenceDays,
+			unapprovedAbsenceCount: trainer.unapprovedAbsenceCount,
 			weekday: trainer.weekday,
 			ob: trainer.ob,
 			weekend: trainer.weekend,

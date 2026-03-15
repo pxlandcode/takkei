@@ -59,9 +59,7 @@
 		if (entry.status === 'Open') {
 			parts.push('Pågående');
 		}
-		if (entry.approved) {
-			parts.push('Godkänd');
-		}
+		parts.push(entry.approved ? 'Godkänd' : 'Ej godkänd');
 		return parts.join(' · ');
 	}
 
@@ -133,7 +131,12 @@
 			</p>
 			{#if trainer.absenceDays > 0}
 				<p class="text-text/70 text-sm">
-					Frånvaro under perioden: {formatDayLabel(trainer.absenceDays)}
+					Godkänd frånvaro under perioden: {formatDayLabel(trainer.absenceDays)}
+				</p>
+			{/if}
+			{#if trainer.unapprovedAbsenceDays > 0}
+				<p class="text-text/70 text-sm">
+					Ej godkänd frånvaro under perioden: {formatDayLabel(trainer.unapprovedAbsenceDays)}
 				</p>
 			{/if}
 		</div>
@@ -211,7 +214,9 @@
 					{#each trainer.absences as group}
 						<details class="rounded-sm border border-gray-200 p-3">
 							<summary class="cursor-pointer font-semibold">
-								{group.label} ({group.count} st, {formatDayLabel(group.days)})
+								{group.label} · {group.approvalLabel} ({group.count} st, {formatDayLabel(
+									group.days
+								)})
 							</summary>
 							<ul class="mt-2 space-y-2 text-sm">
 								{#each group.entries as entry}

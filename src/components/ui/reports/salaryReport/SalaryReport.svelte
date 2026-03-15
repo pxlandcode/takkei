@@ -25,7 +25,7 @@
 	function formatAbsenceSummary(trainer: SalaryReportTrainer) {
 		if (!trainer.absences.length) return '—';
 		return trainer.absences.map((group) => ({
-			content: `${group.label}: ${formatDayLabel(group.days)}${group.count > 1 ? ` (${group.count} st)` : ''}`
+			content: `${group.label} · ${group.approvalLabel}: ${formatDayLabel(group.days)}${group.count > 1 ? ` (${group.count} st)` : ''}`
 		}));
 	}
 
@@ -382,6 +382,7 @@
 					<div>
 						Status: {report.isMonthComplete ? 'Månaden är avslutad' : 'Månaden pågår'}
 					</div>
+					<div>Frånvaro summeras endast när den är godkänd.</div>
 				</div>
 			{/if}
 		</div>
