@@ -1,10 +1,7 @@
 <!-- src/lib/components/bits/slotTimePicker/SlotTimePicker.svelte -->
 <script lang="ts">
 	import Dropdown from '../dropdown/Dropdown.svelte';
-	import {
-		fetchAvailableSlots,
-		type AvailableSlotsBlockedReason
-	} from '$lib/services/api/bookingService';
+	import { fetchAvailableSlots } from '$lib/services/api/bookingService';
 	import DatePicker from '../datePicker/DatePicker.svelte';
 	import { createEventDispatcher } from 'svelte';
 
@@ -28,15 +25,10 @@
 	let availableSlots: string[] = [];
 	let outsideAvailabilitySlots: string[] = [];
 	let sortedOptions: { label: string; value: string; unavailable: boolean }[] = [];
-	let blockedReason: AvailableSlotsBlockedReason | null = null;
 
 	let showWarning = false;
 	$: dateInputId = `${dateField}-datepicker`;
-	$: blockedReasonLabel = getBlockedReasonLabel(blockedReason);
-	$: displayOptions =
-		blockedReasonLabel && sortedOptions.length === 0
-			? [{ label: blockedReasonLabel, value: '', unavailable: false }]
-			: sortedOptions;
+	$: displayOptions = sortedOptions;
 
 	function timeToMinutes(time: string): number {
 		const [h, m] = time.split(':').map(Number);
@@ -45,7 +37,6 @@
 
 	async function updateSlots() {
 		showWarning = false;
-		blockedReason = null;
 		if (selectedDate && trainerId != null && locationId != null) {
 			loading = true;
 			availableSlots = [];
@@ -63,7 +54,6 @@
 
 				availableSlots = res.availableSlots ?? [];
 				outsideAvailabilitySlots = res.outsideAvailabilitySlots ?? [];
-				blockedReason = res.blockedReason ?? null;
 
 				const merged = [
 					...availableSlots.map((t) => ({ label: t, value: t, unavailable: false })),
@@ -87,7 +77,6 @@
 			availableSlots = [];
 			outsideAvailabilitySlots = [];
 			sortedOptions = [];
-			blockedReason = null;
 			dispatch('unavailabilityChange', false);
 		}
 	}
@@ -111,12 +100,6 @@
 		if (trainerId == null) missing.push('tränare');
 		if (locationId == null) missing.push('plats');
 		return missing;
-	}
-
-	function getBlockedReasonLabel(reason: AvailableSlotsBlockedReason | null): string | null {
-		if (reason === 'absence') return 'Tränaren är frånvarande';
-		if (reason === 'vacation') return 'Tränaren har semester';
-		return null;
 	}
 </script>
 
@@ -150,7 +133,7 @@
 			options={displayOptions}
 			placeholder="Välj tid"
 			openPosition="up"
-			disabled={displayOptions.length === 0 || Boolean(blockedReasonLabel)}
+			disabled={displayOptions.length === 0}
 			{errors}
 			on:change={() => {
 				const selected = displayOptions.find((opt) => opt.value === selectedTime);
