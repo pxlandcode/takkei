@@ -64,6 +64,7 @@ export const POST: RequestHandler = async ({ request }) => {
 	const dayStart = `${date} 00:00:00`;
 	const dayEnd = `${date} 23:59:59`;
 	const targetDate = new Date(date);
+	let blockedReason: AvailableSlotsBlockedReason | null = null;
 
 	// 1. Absences
 	const absences = await query(
@@ -74,17 +75,19 @@ export const POST: RequestHandler = async ({ request }) => {
 		[trainerIdNumber, dayStart, dayEnd]
 	);
 	if (absences.length > 0) {
-		return jsonResponse([], [], 'absence');
+		blockedReason = 'absence';
 	}
 
 	// 2. Vacations (same)
-	const vacations = await query(
-		`SELECT 1 FROM vacations
+	if (!blockedReason) {
+		const vacations = await query(
+			`SELECT 1 FROM vacations
      WHERE user_id = $1 AND start_date <= $2 AND end_date >= $2`,
-		[trainerIdNumber, date]
-	);
-	if (vacations.length > 0) {
-		return jsonResponse([], [], 'vacation');
+			[trainerIdNumber, date]
+		);
+		if (vacations.length > 0) {
+			blockedReason = 'vacation';
+		}
 	}
 
 	// 3. Date or Weekly Availability (same)
@@ -341,7 +344,7 @@ export const POST: RequestHandler = async ({ request }) => {
 			});
 			if (travelConflict) continue;
 
-			if (insideAvailability) {
+			if (insideAvailability && !blockedReason) {
 				availableSlots.push(label);
 			} else {
 				outsideAvailabilitySlots.push(label);
@@ -349,5 +352,5 @@ export const POST: RequestHandler = async ({ request }) => {
 		}
 	}
 
-	return jsonResponse(availableSlots, outsideAvailabilitySlots);
+	return jsonResponse(availableSlots, outsideAvailabilitySlots, blockedReason);
 };

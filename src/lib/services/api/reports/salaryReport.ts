@@ -159,7 +159,7 @@ type ObWindowRow = {
 };
 
 type HolidayRow = {
-	date: string;
+	date: string | Date;
 	holiday_name: string | null;
 	holiday_description: string | null;
 };
@@ -177,8 +177,8 @@ type ExtraDutyRow = {
 type VacationRow = {
 	id: number;
 	user_id: number | null;
-	start_date: string;
-	end_date: string;
+	start_date: string | Date;
+	end_date: string | Date;
 	description: string | null;
 };
 
@@ -584,8 +584,22 @@ function toIsoDateOnly(date: Date) {
 	return toDateOnly(date).toISOString().slice(0, 10);
 }
 
-function parseDateOnly(value: string) {
-	const [yearStr, monthStr, dayStr] = value.split('-');
+function normalizeDateOnlyValue(value: string | Date | null | undefined) {
+	const dateKey = createDateKey(extractStockholmTimeParts(value));
+	if (dateKey) return dateKey;
+
+	if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+		return value;
+	}
+
+	return null;
+}
+
+function parseDateOnly(value: string | Date) {
+	const normalized = normalizeDateOnlyValue(value);
+	if (!normalized) return NaN;
+
+	const [yearStr, monthStr, dayStr] = normalized.split('-');
 	const year = Number(yearStr);
 	const month = Number(monthStr);
 	const day = Number(dayStr);
@@ -685,13 +699,29 @@ function shouldIncludeAbsenceInSalaryReport(description: string | null | undefin
 }
 
 function buildOverlappingDateRange(
-	startDate: string,
-	endDate: string,
-	rangeStartDate: string,
-	rangeEndDate: string
+	startDate: string | Date,
+	endDate: string | Date,
+	rangeStartDate: string | Date,
+	rangeEndDate: string | Date
 ) {
-	const overlapStartDate = startDate > rangeStartDate ? startDate : rangeStartDate;
-	const overlapEndDate = endDate < rangeEndDate ? endDate : rangeEndDate;
+	const normalizedStartDate = normalizeDateOnlyValue(startDate);
+	const normalizedEndDate = normalizeDateOnlyValue(endDate);
+	const normalizedRangeStartDate = normalizeDateOnlyValue(rangeStartDate);
+	const normalizedRangeEndDate = normalizeDateOnlyValue(rangeEndDate);
+
+	if (
+		!normalizedStartDate ||
+		!normalizedEndDate ||
+		!normalizedRangeStartDate ||
+		!normalizedRangeEndDate
+	) {
+		return null;
+	}
+
+	const overlapStartDate =
+		normalizedStartDate > normalizedRangeStartDate ? normalizedStartDate : normalizedRangeStartDate;
+	const overlapEndDate =
+		normalizedEndDate < normalizedRangeEndDate ? normalizedEndDate : normalizedRangeEndDate;
 	if (overlapStartDate > overlapEndDate) return null;
 
 	const days = countInclusiveDays(overlapStartDate, overlapEndDate);
@@ -751,7 +781,11 @@ export async function getSalaryReport(params: SalaryReportParams): Promise<Salar
 		loadAbsences(rangeStartIso, rangeEndExclusiveIso)
 	]);
 
-	const holidaySet = new Set(holidays.map((row) => row.date));
+	const holidaySet = new Set(
+		holidays
+			.map((row) => normalizeDateOnlyValue(row.date))
+			.filter((value): value is string => Boolean(value))
+	);
 	const trainerMap = new Map<number, TrainerAccumulator>();
 
 	for (const row of bookings) {

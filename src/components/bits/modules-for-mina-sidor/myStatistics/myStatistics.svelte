@@ -1,118 +1,106 @@
 <script lang="ts">
-        import { get } from 'svelte/store';
-        import { onMount } from 'svelte';
-        import Icon from '../../icon-component/Icon.svelte';
-        import Button from '../../button/Button.svelte';
-        import StatisticCard from './StatisticCard.svelte';
-        import {
-                type TrainerStatisticsResponse,
-                type CancellationPeriodKey,
-                type CancellationPeriodStats,
-                type DebiteradePassPeriodStats
-        } from '$lib/api/statistics';
-        import { openPopup } from '$lib/stores/popupStore';
-        import { user as userStore } from '$lib/stores/userStore';
-        import StatisticsDetailsPopup from './StatisticsDetailsPopup.svelte';
-        import { cacheFirstJson } from '$lib/services/api/apiCache';
+	import { get } from 'svelte/store';
+	import { onMount } from 'svelte';
+	import Icon from '../../icon-component/Icon.svelte';
+	import Button from '../../button/Button.svelte';
+	import StatisticCard from './StatisticCard.svelte';
+	import {
+		type TrainerStatisticsResponse,
+		type CancellationPeriodKey,
+		type DebiteradePassPeriodStats
+	} from '$lib/api/statistics';
+	import { openPopup } from '$lib/stores/popupStore';
+	import { user as userStore } from '$lib/stores/userStore';
+	import StatisticsDetailsPopup from './StatisticsDetailsPopup.svelte';
+	import { cacheFirstJson } from '$lib/services/api/apiCache';
 
-        export let prefetchedStatistics: TrainerStatisticsResponse | null | undefined = undefined;
-        let statistics: TrainerStatisticsResponse | null = null;
-        let loading = true;
-        let error: string | null = null;
-        let trainerId: number | null = null;
+	export let prefetchedStatistics: TrainerStatisticsResponse | null | undefined = undefined;
+	let statistics: TrainerStatisticsResponse | null = null;
+	let loading = true;
+	let error: string | null = null;
+	let trainerId: number | null = null;
 
-        async function loadStatistics() {
-                if (!trainerId) {
-                        statistics = null;
-                        loading = false;
-                        return;
-                }
+	async function loadStatistics() {
+		if (!trainerId) {
+			statistics = null;
+			loading = false;
+			return;
+		}
 
-                loading = true;
-                error = null;
+		loading = true;
+		error = null;
 
-                try {
-                        if (prefetchedStatistics) {
-                                statistics = prefetchedStatistics;
-                                loading = false;
-                        }
+		try {
+			if (prefetchedStatistics) {
+				statistics = prefetchedStatistics;
+				loading = false;
+			}
 
-                        const url = `/api/statistics?trainerId=${trainerId}`;
-                        const { cached, fresh } = cacheFirstJson<TrainerStatisticsResponse>(fetch, url);
+			const url = `/api/statistics?trainerId=${trainerId}`;
+			const { cached, fresh } = cacheFirstJson<TrainerStatisticsResponse>(fetch, url);
 
-                        if (cached) {
-                                statistics = cached;
-                                loading = false;
-                        }
+			if (cached) {
+				statistics = cached;
+				loading = false;
+			}
 
-                        const data = await fresh;
-                        statistics = data;
-                } catch (err) {
-                        console.error('Failed to load trainer statistics', err);
-                        statistics = null;
-                        error = 'Kunde inte läsa in statistik just nu.';
-                } finally {
-                        loading = false;
-                }
-        }
+			const data = await fresh;
+			statistics = data;
+		} catch (err) {
+			console.error('Failed to load trainer statistics', err);
+			statistics = null;
+			error = 'Kunde inte läsa in statistik just nu.';
+		} finally {
+			loading = false;
+		}
+	}
 
-        onMount(() => {
-                const currentUser = get(userStore);
-                trainerId = currentUser?.id ?? null;
+	onMount(() => {
+		const currentUser = get(userStore);
+		trainerId = currentUser?.id ?? null;
 
-                if (trainerId) {
-                        loadStatistics();
-                } else {
-                        loading = false;
-                }
+		if (trainerId) {
+			loadStatistics();
+		} else {
+			loading = false;
+		}
 
-                const unsubscribe = userStore.subscribe((value) => {
-                        const nextId = value?.id ?? null;
-                        if (nextId && nextId !== trainerId) {
-                                trainerId = nextId;
-                                loadStatistics();
-                        } else if (!nextId) {
-                                trainerId = null;
-                                statistics = null;
-                        }
-                });
+		const unsubscribe = userStore.subscribe((value) => {
+			const nextId = value?.id ?? null;
+			if (nextId && nextId !== trainerId) {
+				trainerId = nextId;
+				loadStatistics();
+			} else if (!nextId) {
+				trainerId = null;
+				statistics = null;
+			}
+		});
 
-                return unsubscribe;
-        });
+		return unsubscribe;
+	});
 
-        function openStatisticsPopup() {
-                if (!statistics || !trainerId) return;
-                openPopup({
-                        header: 'Detaljerad statistik',
-                        icon: 'Charts',
-                        component: StatisticsDetailsPopup,
-                        maxWidth: '900px',
-                        props: { statistics, trainerId, fetchFn: fetch }
-                });
-        }
+	function openStatisticsPopup() {
+		if (!statistics || !trainerId) return;
+		openPopup({
+			header: 'Detaljerad statistik',
+			icon: 'Charts',
+			component: StatisticsDetailsPopup,
+			maxWidth: '900px',
+			props: { statistics, trainerId, fetchFn: fetch }
+		});
+	}
 
-        const cancellationOrder: CancellationPeriodKey[] = ['week', 'month'];
+	const bokningToPeriodKey: Record<string, CancellationPeriodKey | null> = {
+		currentWeek: 'week',
+		nextWeek: null,
+		currentMonth: 'month'
+	};
 
-	$: debiteradePassCards = statistics?.debiteradePass?.periods
-		? cancellationOrder
-				.map((key) => {
-					const data = statistics.debiteradePass?.periods?.[key];
-					return data ? { key, data } : null;
-				})
-				.filter((entry): entry is { key: CancellationPeriodKey; data: DebiteradePassPeriodStats } =>
-					Boolean(entry)
-				)
-		: [];
-	$: cancellationCards = statistics?.avbokningar
-		? cancellationOrder
-				.map((key) => {
-					const data = statistics.avbokningar?.[key];
-					return data ? { key, data } : null;
-				})
-				.filter((entry): entry is { key: CancellationPeriodKey; data: CancellationPeriodStats } =>
-					Boolean(entry)
-				)
-		: [];
+	$: getDebiteradePassForKey = (bokningKey: string): DebiteradePassPeriodStats | null => {
+		const periodKey = bokningToPeriodKey[bokningKey];
+		if (!periodKey) return null;
+		return statistics?.debiteradePass?.periods?.[periodKey] ?? null;
+	};
 </script>
 
 <div
@@ -141,68 +129,35 @@
 	<div class="flex flex-1 flex-col gap-4 text-sm">
 		{#if loading}
 			<p class="text-gray-medium">Laddar statistik…</p>
-                {:else if error}
-                        <p class="text-gray-medium">{error}</p>
-                {:else if !statistics}
-                        <p class="text-gray-medium">Ingen statistik att visa just nu.</p>
-                {:else}
+		{:else if error}
+			<p class="text-gray-medium">{error}</p>
+		{:else if !statistics}
+			<p class="text-gray-medium">Ingen statistik att visa just nu.</p>
+		{:else}
 			<section class="flex flex-col gap-3">
 				<h4 class="text-gray-medium text-sm font-semibold tracking-wide uppercase">
 					Debiterbara bokningar
 				</h4>
-				<div class="grid gap-3 md:grid-cols-3">
-					{#each Object.values(statistics.debiterbaraBokningar) as entry (entry.label)}
+				<div class="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+					{#each Object.entries(statistics.debiterbaraBokningar) as [key, entry] (entry.label)}
+						{@const passData = getDebiteradePassForKey(key)}
 						<StatisticCard
 							label={entry.label}
 							value={entry.totalBookings}
 							deltaLabel={entry.deltaLabel}
 							detailLabel="Pass med OB-tillägg:"
 							detailValue={entry.obBookings}
-						/>
+						>
+							{#if passData}
+								<p class="text-gray-medium text-xs">
+									Debiterade pass hittills: <span class="text-text font-medium"
+										>{passData.hours}</span
+									>
+								</p>
+							{/if}
+						</StatisticCard>
 					{/each}
 				</div>
-			</section>
-
-			<section class="grid gap-6 md:grid-cols-2">
-				<div class="flex flex-col gap-3">
-					<h4 class="text-gray-medium text-sm font-semibold tracking-wide uppercase">
-						Debiterade pass hittills
-					</h4>
-					{#if debiteradePassCards.length}
-						<div class="grid gap-3 sm:grid-cols-2">
-							{#each debiteradePassCards as { key, data } (key)}
-								<StatisticCard
-									label={data.label}
-									value={`${data.hours} h`}
-									deltaLabel={data.deltaLabel}
-									description="Jämförelseperiod"
-								/>
-							{/each}
-						</div>
-					{:else}
-						<p class="text-gray-medium text-xs">Ingen statistik att visa ännu.</p>
-					{/if}
-				</div>
-
-				{#if cancellationCards.length}
-					<div class="flex flex-col gap-3">
-						<h4 class="text-gray-medium text-sm font-semibold tracking-wide uppercase">
-							Avbokningar
-						</h4>
-						<div class="grid gap-3 sm:grid-cols-2">
-							{#each cancellationCards as { key, data } (key)}
-								<StatisticCard
-									label={data.label}
-									value={data.total}
-									valueClass="text-3xl"
-									deltaLabel={data.deltaLabel}
-									detailLabel="Varav sen avbokning:"
-									detailValue={data.late}
-								/>
-							{/each}
-						</div>
-					</div>
-				{/if}
 			</section>
 		{/if}
 	</div>

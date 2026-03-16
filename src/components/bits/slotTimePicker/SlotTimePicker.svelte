@@ -1,10 +1,7 @@
 <!-- src/lib/components/bits/slotTimePicker/SlotTimePicker.svelte -->
 <script lang="ts">
 	import Dropdown from '../dropdown/Dropdown.svelte';
-	import {
-		fetchAvailableSlots,
-		type AvailableSlotsBlockedReason
-	} from '$lib/services/api/bookingService';
+	import { fetchAvailableSlots } from '$lib/services/api/bookingService';
 	import DatePicker from '../datePicker/DatePicker.svelte';
 	import { createEventDispatcher } from 'svelte';
 
@@ -28,24 +25,29 @@
 	let availableSlots: string[] = [];
 	let outsideAvailabilitySlots: string[] = [];
 	let sortedOptions: { label: string; value: string; unavailable: boolean }[] = [];
-	let blockedReason: AvailableSlotsBlockedReason | null = null;
 
 	let showWarning = false;
 	$: dateInputId = `${dateField}-datepicker`;
-	$: blockedReasonLabel = getBlockedReasonLabel(blockedReason);
-	$: displayOptions =
-		blockedReasonLabel && sortedOptions.length === 0
-			? [{ label: blockedReasonLabel, value: '', unavailable: false }]
-			: sortedOptions;
+	$: displayOptions = sortedOptions;
 
 	function timeToMinutes(time: string): number {
 		const [h, m] = time.split(':').map(Number);
 		return h * 60 + m;
 	}
 
+	function normalizeTime(time: string | null | undefined): string {
+		if (!time) return '';
+		const [hours, minutes] = time.split(':');
+		const normalizedHours = Number(hours);
+		const normalizedMinutes = Number(minutes);
+		if (!Number.isFinite(normalizedHours) || !Number.isFinite(normalizedMinutes)) {
+			return time;
+		}
+		return `${String(normalizedHours).padStart(2, '0')}:${String(normalizedMinutes).padStart(2, '0')}`;
+	}
+
 	async function updateSlots() {
 		showWarning = false;
-		blockedReason = null;
 		if (selectedDate && trainerId != null && locationId != null) {
 			loading = true;
 			availableSlots = [];
@@ -63,7 +65,6 @@
 
 				availableSlots = res.availableSlots ?? [];
 				outsideAvailabilitySlots = res.outsideAvailabilitySlots ?? [];
-				blockedReason = res.blockedReason ?? null;
 
 				const merged = [
 					...availableSlots.map((t) => ({ label: t, value: t, unavailable: false })),
@@ -73,7 +74,13 @@
 				];
 
 				sortedOptions = merged.sort((a, b) => timeToMinutes(a.value) - timeToMinutes(b.value));
-				const selected = sortedOptions.find((opt) => opt.value === selectedTime);
+				const normalizedSelectedTime = normalizeTime(selectedTime);
+				const selected = sortedOptions.find(
+					(opt) => normalizeTime(opt.value) === normalizedSelectedTime
+				);
+				if (selected && selectedTime !== selected.value) {
+					selectedTime = selected.value;
+				}
 				dispatch('unavailabilityChange', selected?.unavailable ?? false);
 			} catch (e) {
 				console.error('Error fetching available slots:', e);
@@ -87,14 +94,24 @@
 			availableSlots = [];
 			outsideAvailabilitySlots = [];
 			sortedOptions = [];
-			blockedReason = null;
 			dispatch('unavailabilityChange', false);
 		}
 	}
 
-	$: if (!loading && selectedTime && !sortedOptions.some((opt) => opt.value === selectedTime)) {
-		selectedTime = '';
-		dispatch('unavailabilityChange', false);
+	$: if (!loading && !showWarning && selectedTime && trainerId != null && locationId != null) {
+		const normalizedSelectedTime = normalizeTime(selectedTime);
+		const selected = sortedOptions.find(
+			(opt) => normalizeTime(opt.value) === normalizedSelectedTime
+		);
+
+		if (selected) {
+			if (selectedTime !== selected.value) {
+				selectedTime = selected.value;
+			}
+		} else {
+			selectedTime = '';
+			dispatch('unavailabilityChange', false);
+		}
 	}
 
 	$: selectedDate,
@@ -111,12 +128,6 @@
 		if (trainerId == null) missing.push('tränare');
 		if (locationId == null) missing.push('plats');
 		return missing;
-	}
-
-	function getBlockedReasonLabel(reason: AvailableSlotsBlockedReason | null): string | null {
-		if (reason === 'absence') return 'Tränaren är frånvarande';
-		if (reason === 'vacation') return 'Tränaren har semester';
-		return null;
 	}
 </script>
 
@@ -150,7 +161,7 @@
 			options={displayOptions}
 			placeholder="Välj tid"
 			openPosition="up"
-			disabled={displayOptions.length === 0 || Boolean(blockedReasonLabel)}
+			disabled={displayOptions.length === 0}
 			{errors}
 			on:change={() => {
 				const selected = displayOptions.find((opt) => opt.value === selectedTime);
