@@ -198,7 +198,9 @@
 		value: u.id
 	}));
 	$: educatorIds = new Set(
-		activeUsers.filter((candidate) => hasRole('Educator', candidate)).map((candidate) => candidate.id)
+		activeUsers
+			.filter((candidate) => hasRole('Educator', candidate))
+			.map((candidate) => candidate.id)
 	);
 	$: educationTrainerOptions = userOptions.filter((option) => educatorIds.has(option.value));
 
@@ -398,69 +400,69 @@
 		loadingStore.loading(true, 'Skapar bokning...');
 
 		try {
-		const locationName = getLocationLabelFromId(bookingObject.locationId);
+			const locationName = getLocationLabelFromId(bookingObject.locationId);
 
-		let bookedDates: { date: string; time: string; locationName?: string }[] = [];
-		let success = false;
+			let bookedDates: { date: string; time: string; locationName?: string }[] = [];
+			let success = false;
 
-		if (type === 'training' || type === 'trial' || type === 'practice' || type === 'flight') {
-			const result = await handleTrainingBooking(
-				bookingObject,
-				currentUser,
-				repeatedBookings,
-				'training'
-			);
-			success = result.success;
+			if (type === 'training' || type === 'trial' || type === 'practice' || type === 'flight') {
+				const result = await handleTrainingBooking(
+					bookingObject,
+					currentUser,
+					repeatedBookings,
+					'training'
+				);
+				success = result.success;
 
-			if (success) {
-				if (repeatedBookings.length > 0) {
-					bookedDates = repeatedBookings.map((r) => ({
-						date: r.date,
-						time: r.selectedTime,
-						locationName
-					}));
-				} else {
-					bookedDates = [{ date: bookingObject.date, time: bookingObject.time, locationName }];
+				if (success) {
+					if (repeatedBookings.length > 0) {
+						bookedDates = repeatedBookings.map((r) => ({
+							date: r.date,
+							time: r.selectedTime,
+							locationName
+						}));
+					} else {
+						bookedDates = [{ date: bookingObject.date, time: bookingObject.time, locationName }];
+					}
+				}
+			} else {
+				// meeting | personal
+				const res = await handleMeetingOrPersonalBooking(
+					bookingObject,
+					currentUser,
+					type,
+					repeatedBookings
+				);
+				success = res.success;
+
+				if (success) {
+					bookedDates = res.bookedDates ?? [{ date: bookingObject.date, time: bookingObject.time }];
 				}
 			}
-		} else {
-			// meeting | personal
-			const res = await handleMeetingOrPersonalBooking(
-				bookingObject,
-				currentUser,
-				type,
-				repeatedBookings
-			);
-			success = res.success;
 
-			if (success) {
-				bookedDates = res.bookedDates ?? [{ date: bookingObject.date, time: bookingObject.time }];
-			}
-		}
+			if (success && bookingObject.clientId) {
+				const clientEmail = getClientEmails(bookingObject.clientId);
 
-		if (success && bookingObject.clientId) {
-			const clientEmail = getClientEmails(bookingObject.clientId);
+				if (clientEmail) {
+					const emailResult = await handleBookingEmail({
+						emailBehavior: bookingObject.emailBehavior.value,
+						clientEmail,
+						fromUser: currentUser,
+						bookedDates
+					});
 
-			if (clientEmail) {
-				const emailResult = await handleBookingEmail({
-					emailBehavior: bookingObject.emailBehavior.value,
-					clientEmail,
-					fromUser: currentUser,
-					bookedDates
-				});
-
-				if (emailResult === 'edit') {
-					openPopup({
-						header: `Maila bokningsbekräftelse till ${clientEmail}`,
-						icon: 'Mail',
-						component: MailComponent,
-						maxWidth: '900px',
-						props: {
-							prefilledRecipients: [clientEmail],
-							subject: 'Bokningsbekräftelse',
-							header: 'Bekräftelse på dina bokningar',
-							subheader: 'Tack för din bokning!',
-							body: `
+					if (emailResult === 'edit') {
+						openPopup({
+							header: `Maila bokningsbekräftelse till ${clientEmail}`,
+							icon: 'Mail',
+							component: MailComponent,
+							maxWidth: '900px',
+							props: {
+								prefilledRecipients: [clientEmail],
+								subject: 'Bokningsbekräftelse',
+								header: 'Bekräftelse på dina bokningar',
+								subheader: 'Tack för din bokning!',
+								body: `
 							Hej!<br><br>
 							Jag har bokat in dig följande tider:<br>
 							${bookedDates
@@ -473,26 +475,26 @@
 							${currentUser.firstname}<br>
 							Takkei Trainingsystems
 						`,
-							lockedFields: ['recipients'],
-							autoFetchUsersAndClients: false
-						}
-					});
+								lockedFields: ['recipients'],
+								autoFetchUsersAndClients: false
+							}
+						});
+					}
 				}
 			}
-		}
 
-		console.log('success', success);
-		if (success) {
-			console.log('hello');
-			formErrors = {};
-			clearSelectedSlot();
-			onClose();
-		}
+			console.log('success', success);
+			if (success) {
+				console.log('hello');
+				formErrors = {};
+				clearSelectedSlot();
+				onClose();
+			}
 		} finally {
 			loadingStore.loading(false);
 			isSubmitting = false;
 		}
-}
+	}
 </script>
 
 <!-- Booking Manager UI -->

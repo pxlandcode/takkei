@@ -35,6 +35,17 @@
 		return h * 60 + m;
 	}
 
+	function normalizeTime(time: string | null | undefined): string {
+		if (!time) return '';
+		const [hours, minutes] = time.split(':');
+		const normalizedHours = Number(hours);
+		const normalizedMinutes = Number(minutes);
+		if (!Number.isFinite(normalizedHours) || !Number.isFinite(normalizedMinutes)) {
+			return time;
+		}
+		return `${String(normalizedHours).padStart(2, '0')}:${String(normalizedMinutes).padStart(2, '0')}`;
+	}
+
 	async function updateSlots() {
 		showWarning = false;
 		if (selectedDate && trainerId != null && locationId != null) {
@@ -63,7 +74,13 @@
 				];
 
 				sortedOptions = merged.sort((a, b) => timeToMinutes(a.value) - timeToMinutes(b.value));
-				const selected = sortedOptions.find((opt) => opt.value === selectedTime);
+				const normalizedSelectedTime = normalizeTime(selectedTime);
+				const selected = sortedOptions.find(
+					(opt) => normalizeTime(opt.value) === normalizedSelectedTime
+				);
+				if (selected && selectedTime !== selected.value) {
+					selectedTime = selected.value;
+				}
 				dispatch('unavailabilityChange', selected?.unavailable ?? false);
 			} catch (e) {
 				console.error('Error fetching available slots:', e);
@@ -81,9 +98,20 @@
 		}
 	}
 
-	$: if (!loading && selectedTime && !sortedOptions.some((opt) => opt.value === selectedTime)) {
-		selectedTime = '';
-		dispatch('unavailabilityChange', false);
+	$: if (!loading && !showWarning && selectedTime && trainerId != null && locationId != null) {
+		const normalizedSelectedTime = normalizeTime(selectedTime);
+		const selected = sortedOptions.find(
+			(opt) => normalizeTime(opt.value) === normalizedSelectedTime
+		);
+
+		if (selected) {
+			if (selectedTime !== selected.value) {
+				selectedTime = selected.value;
+			}
+		} else {
+			selectedTime = '';
+			dispatch('unavailabilityChange', false);
+		}
 	}
 
 	$: selectedDate,
