@@ -15,6 +15,10 @@ function invalidateBookingRelatedCaches() {
 	invalidateByPrefix(TARGETS_PREFIX);
 }
 
+function getErrorMessage(error: unknown, fallback: string): string {
+	return error instanceof Error && error.message ? error.message : fallback;
+}
+
 async function notify(data) {
 	await fetch('/api/notifications', {
 		method: 'POST',
@@ -149,11 +153,12 @@ export async function createBooking(
 		};
 	} catch (error) {
 		console.error('Error Submitting Booking:', error);
+		const message = getErrorMessage(error, 'Error creating booking');
 
 		return {
 			success: false,
-			message: 'Error creating booking',
-			error: error.message
+			message,
+			error: message
 		};
 	}
 }
@@ -241,10 +246,11 @@ export async function updateStandardBooking(bookingObject: any) {
 		};
 	} catch (error) {
 		console.error('Error Updating Booking:', error);
+		const message = getErrorMessage(error, 'Error updating booking');
 		return {
 			success: false,
-			message: 'Error updating booking',
-			error: error.message
+			message,
+			error: message
 		};
 	}
 }

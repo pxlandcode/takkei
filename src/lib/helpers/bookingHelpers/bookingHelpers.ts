@@ -47,10 +47,13 @@ export async function handleTrainingBooking(
 				successCount++;
 				bookedDates.push(`${repeated.date} kl ${repeated.selectedTime}`);
 			} else {
+				const errorDetails = result.error ?? result.message;
 				addToast({
 					type: AppToastType.CANCEL,
 					message: `Fel vid bokning`,
-					description: `Misslyckades: ${singleBooking.date} kl ${singleBooking.time}.`
+					description: errorDetails
+						? `${errorDetails} (${singleBooking.date} kl ${singleBooking.time}).`
+						: `Misslyckades: ${singleBooking.date} kl ${singleBooking.time}.`
 				});
 			}
 		}
@@ -77,10 +80,11 @@ export async function handleTrainingBooking(
 
 			return { success: true, bookedDates: [`${bookingObject.date} kl ${bookingObject.time}`] };
 		} else {
+			const errorDetails = result.error ?? result.message;
 			addToast({
 				type: AppToastType.CANCEL,
 				message: 'Något gick fel',
-				description: `Något gick fel, försök igen eller kontakta IT.`
+				description: errorDetails ?? 'Något gick fel, försök igen eller kontakta IT.'
 			});
 			return { success: false };
 		}
@@ -121,12 +125,7 @@ export async function handleMeetingOrPersonalBooking(
 
 		const computed = computeEndTime(startTime);
 		const computedMinutes = timeStringToMinutes(computed);
-		if (
-			computed &&
-			start !== null &&
-			computedMinutes !== null &&
-			computedMinutes > start
-		) {
+		if (computed && start !== null && computedMinutes !== null && computedMinutes > start) {
 			return computed;
 		}
 

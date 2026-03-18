@@ -1,5 +1,6 @@
 import { json } from '@sveltejs/kit';
 import { query } from '$lib/db';
+import { findUserTravelConflict } from '$lib/server/bookingTravelConflict';
 
 export async function POST({ request }) {
 	try {
@@ -29,6 +30,44 @@ export async function POST({ request }) {
 		let resolvedRoomId = room_id ?? null;
 		const hasLocation = location_id !== null && location_id !== undefined;
 		const hasStartTime = Boolean(start_time);
+
+		const trainerTravelConflict = await findUserTravelConflict({
+			queryFn: query,
+			userId: trainer_id ?? null,
+			targetStartTime: start_time ?? null,
+			targetLocationId: location_id ?? null,
+			ignoreBookingId: booking_id
+		});
+		if (trainerTravelConflict) {
+			return json(
+				{
+					error: 'Trainer has insufficient travel time between locations.',
+					conflict: trainerTravelConflict,
+					conflictRole: 'trainer'
+				},
+				{ status: 400 }
+			);
+		}
+
+		if ((internal_education || education) && user_id && user_id !== trainer_id) {
+			const traineeTravelConflict = await findUserTravelConflict({
+				queryFn: query,
+				userId: user_id,
+				targetStartTime: start_time ?? null,
+				targetLocationId: location_id ?? null,
+				ignoreBookingId: booking_id
+			});
+			if (traineeTravelConflict) {
+				return json(
+					{
+						error: 'Selected trainee has insufficient travel time between locations.',
+						conflict: traineeTravelConflict,
+						conflictRole: 'trainee'
+					},
+					{ status: 400 }
+				);
+			}
+		}
 
 		if (!hasLocation) {
 			resolvedRoomId = null;

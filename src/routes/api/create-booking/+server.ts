@@ -1,4 +1,5 @@
 import * as db from '$lib/db';
+import { findUserTravelConflict } from '$lib/server/bookingTravelConflict';
 import { resolvePackageAssignmentForCreate } from '$lib/server/createBookingPackageAssignment';
 import {
 	bookingConsumesPackage,
@@ -101,6 +102,46 @@ export const POST: RequestHandler = async ({ request }) => {
 		let selectedRoomId = rawRoomId;
 		const hasLocation = rawLocationId !== null && rawLocationId !== undefined;
 		const hasStartTime = Boolean(start_time);
+
+		const trainerTravelConflict = await findUserTravelConflict({
+			queryFn: (text, params = []) => txQuery(dbClient, text, params),
+			userId: rawTrainerId,
+			targetStartTime: start_time,
+			targetLocationId: rawLocationId
+		});
+		if (trainerTravelConflict) {
+			await dbClient.query('ROLLBACK');
+			transactionStarted = false;
+			return new Response(
+				JSON.stringify({
+					error: 'Trainer has insufficient travel time between locations.',
+					conflict: trainerTravelConflict,
+					conflictRole: 'trainer'
+				}),
+				{ status: 400 }
+			);
+		}
+
+		if ((internal_education || education) && rawUserId && rawUserId !== rawTrainerId) {
+			const traineeTravelConflict = await findUserTravelConflict({
+				queryFn: (text, params = []) => txQuery(dbClient, text, params),
+				userId: rawUserId,
+				targetStartTime: start_time,
+				targetLocationId: rawLocationId
+			});
+			if (traineeTravelConflict) {
+				await dbClient.query('ROLLBACK');
+				transactionStarted = false;
+				return new Response(
+					JSON.stringify({
+						error: 'Selected trainee has insufficient travel time between locations.',
+						conflict: traineeTravelConflict,
+						conflictRole: 'trainee'
+					}),
+					{ status: 400 }
+				);
+			}
+		}
 
 		if (!hasLocation) {
 			selectedRoomId = null;

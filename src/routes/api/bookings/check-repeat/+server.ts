@@ -4,8 +4,10 @@ import type { RequestHandler } from '@sveltejs/kit';
 
 type Interval = { start: number; end: number };
 type RoomInterval = Interval & { roomId: number | null };
+type LocationInterval = Interval & { locationId: number | null };
 
 const SLOT_LENGTH_MINUTES = 60;
+const TRAVEL_BUFFER_MINUTES = 25;
 
 function extractTimeInMinutes(timeStr: string): number {
 	const [h, m] = timeStr.split(':').map(Number);
@@ -16,6 +18,31 @@ function isNotNull<T>(value: T | null | undefined): value is T {
 }
 function overlaps(startA: number, endA: number, startB: number, endB: number): boolean {
 	return startA < endB && startB < endA;
+}
+
+function hasTravelConflictForIntervals(
+	slotStart: number,
+	slotEnd: number,
+	locationId: number,
+	bookings: LocationInterval[]
+): boolean {
+	return bookings.some((booking) => {
+		if (booking.locationId === null || booking.locationId === locationId) return false;
+
+		if (overlaps(slotStart, slotEnd, booking.start, booking.end)) {
+			return true;
+		}
+
+		if (booking.end <= slotStart) {
+			return slotStart - booking.end < TRAVEL_BUFFER_MINUTES;
+		}
+
+		if (booking.start >= slotEnd) {
+			return booking.start - slotEnd < TRAVEL_BUFFER_MINUTES;
+		}
+
+		return false;
+	});
 }
 
 export const POST: RequestHandler = async ({ request }) => {
@@ -102,29 +129,39 @@ export const POST: RequestHandler = async ({ request }) => {
 
 		// NEW: check trainer & trainee "user-busy" windows (only if asked)
 		let trainerBookingIntervals: Interval[] = [];
+		let trainerLocationIntervals: LocationInterval[] = [];
 		let traineePersonalIntervals: Interval[] = [];
 		let traineeBookingIntervals: Interval[] = [];
+		let traineeLocationIntervals: LocationInterval[] = [];
 		let clientBookingIntervals: Interval[] = [];
 
 		if (checkUsersBusy) {
 			// Trainer's existing client/practice bookings
 			const tBookings = await query(
 				`
-          SELECT start_time
+          SELECT start_time, location_id
           FROM bookings
           WHERE start_time BETWEEN $1 AND $2
             AND LOWER(status) NOT IN ('cancelled', 'late_cancelled')
-            AND trainer_id = $3
+            AND (
+              trainer_id = $3
+              OR (user_id = $3 AND (internal_education = true OR education = true))
+            )
         `,
 				[dayStart, dayEnd, trainerId]
 			);
-			trainerBookingIntervals = tBookings
-				.map((b: any): Interval | null => {
+			trainerLocationIntervals = tBookings
+				.map((b: any): LocationInterval | null => {
 					const start = extractStockholmMinutes(b.start_time);
 					if (start === null) return null;
-					return { start, end: start + SLOT_LENGTH_MINUTES };
+					return {
+						start,
+						end: start + SLOT_LENGTH_MINUTES,
+						locationId: b.location_id === null ? null : Number(b.location_id)
+					};
 				})
 				.filter(isNotNull);
+			trainerBookingIntervals = trainerLocationIntervals.map(({ start, end }) => ({ start, end }));
 
 			if (userId) {
 				// Trainee personal bookings
@@ -146,24 +183,35 @@ export const POST: RequestHandler = async ({ request }) => {
 					})
 					.filter(isNotNull);
 
-				// Trainee practice bookings (bookings.user_id = trainee)
+				// Trainee bookings where the selected user is either the trainer or the trainee
 				const traineeBookings = await query(
 					`
-            SELECT start_time
+            SELECT start_time, location_id
             FROM bookings
             WHERE start_time BETWEEN $1 AND $2
               AND LOWER(status) NOT IN ('cancelled', 'late_cancelled')
-              AND user_id = $3
+              AND (
+                trainer_id = $3
+                OR (user_id = $3 AND (internal_education = true OR education = true))
+              )
           `,
 					[dayStart, dayEnd, userId]
 				);
-				traineeBookingIntervals = traineeBookings
-					.map((b: any): Interval | null => {
+				traineeLocationIntervals = traineeBookings
+					.map((b: any): LocationInterval | null => {
 						const start = extractStockholmMinutes(b.start_time);
 						if (start === null) return null;
-						return { start, end: start + SLOT_LENGTH_MINUTES };
+						return {
+							start,
+							end: start + SLOT_LENGTH_MINUTES,
+							locationId: b.location_id === null ? null : Number(b.location_id)
+						};
 					})
 					.filter(isNotNull);
+				traineeBookingIntervals = traineeLocationIntervals.map(({ start, end }) => ({
+					start,
+					end
+				}));
 			}
 
 			if (clientId) {
@@ -197,12 +245,35 @@ export const POST: RequestHandler = async ({ request }) => {
 
 		// user conflicts
 		const trainerBusy = [...trainerPersonalIntervals, ...trainerBookingIntervals];
-		const traineeBusy = [...traineePersonalIntervals, ...traineeBookingIntervals, ...clientBookingIntervals];
+		const traineeBusy = [
+			...traineePersonalIntervals,
+			...traineeBookingIntervals,
+			...clientBookingIntervals
+		];
 
 		const trainerConflict = trainerBusy.some((b) => overlaps(slotStart, slotEnd, b.start, b.end));
 		const traineeConflict = traineeBusy.some((b) => overlaps(slotStart, slotEnd, b.start, b.end));
+		const trainerTravelConflict = hasTravelConflictForIntervals(
+			slotStart,
+			slotEnd,
+			Number(locationId),
+			trainerLocationIntervals
+		);
+		const traineeTravelConflict =
+			Boolean(userId) &&
+			hasTravelConflictForIntervals(
+				slotStart,
+				slotEnd,
+				Number(locationId),
+				traineeLocationIntervals
+			);
 
-		const hasConflict = allRoomsTaken || trainerConflict || traineeConflict;
+		const hasConflict =
+			allRoomsTaken ||
+			trainerConflict ||
+			traineeConflict ||
+			trainerTravelConflict ||
+			traineeTravelConflict;
 
 		// Suggestions
 		let suggestedTimes: string[] = [];
@@ -219,8 +290,28 @@ export const POST: RequestHandler = async ({ request }) => {
 					);
 					const altTrainer = trainerBusy.some((b) => overlaps(altStart, altEnd, b.start, b.end));
 					const altTrainee = traineeBusy.some((b) => overlaps(altStart, altEnd, b.start, b.end));
+					const altTrainerTravel = hasTravelConflictForIntervals(
+						altStart,
+						altEnd,
+						Number(locationId),
+						trainerLocationIntervals
+					);
+					const altTraineeTravel =
+						Boolean(userId) &&
+						hasTravelConflictForIntervals(
+							altStart,
+							altEnd,
+							Number(locationId),
+							traineeLocationIntervals
+						);
 
-					if (altRoomConflicts.size < roomIds.length && !altTrainer && !altTrainee) {
+					if (
+						altRoomConflicts.size < roomIds.length &&
+						!altTrainer &&
+						!altTrainee &&
+						!altTrainerTravel &&
+						!altTraineeTravel
+					) {
 						suggestedTimes.push(`${h.toString().padStart(2, '0')}:${m === 0 ? '00' : '30'}`);
 					}
 				}
