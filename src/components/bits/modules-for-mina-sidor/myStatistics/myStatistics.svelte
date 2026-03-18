@@ -118,7 +118,9 @@
 
 {#if variant === 'modern'}
 	<section class="bg-white p-4 shadow-sm">
-		<div class="mb-3 flex items-center justify-between">
+		<div
+			class="mb-3 flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between"
+		>
 			<h2 class="flex items-center gap-2 text-lg font-semibold text-gray-900">
 				<Icon icon="Charts" size="18px" color="primary" />
 				Statistik

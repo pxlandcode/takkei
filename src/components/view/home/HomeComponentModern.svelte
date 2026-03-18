@@ -15,14 +15,14 @@
 		<HomeModernHeader />
 
 		<div class="grid gap-3 lg:grid-cols-3">
-			<div class="space-y-3 lg:col-span-2">
+			<div class="min-w-0 space-y-3 lg:col-span-2">
 				<HomeModernNotifications />
 				<HomeModernBookings />
 				<MyStatisticsModule variant="modern" />
 				<BookingGrid trainerId={$user?.id} />
 			</div>
 
-			<div class="space-y-3">
+			<div class="min-w-0 space-y-3">
 				<HomeModernClientsWithoutBookings />
 				<HomeModernGoals />
 				<HomeModernHolidayPayCard />
