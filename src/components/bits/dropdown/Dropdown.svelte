@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { clickOutside } from '$lib/actions/clickOutside';
+	import { ripple } from '$lib/actions/ripple';
 	import IconArrowDown from '$lib/icons/IconArrowDown.svelte';
 	import { createEventDispatcher, onMount } from 'svelte';
 	import Icon from '../icon-component/Icon.svelte';
@@ -101,9 +102,7 @@
 
 	$: isSelectedUnavailable = (() => {
 		const selected = options.find((opt) =>
-			isObjectOption(opt)
-				? valuesEqual(opt.value, selectedValue)
-				: valuesEqual(opt, selectedValue)
+			isObjectOption(opt) ? valuesEqual(opt.value, selectedValue) : valuesEqual(opt, selectedValue)
 		);
 		return isObjectOption(selected) && selected.unavailable;
 	})();
@@ -185,13 +184,13 @@
 			<Icon icon={labelIcon} size={labelIconSize} color="gray" />
 		{/if}
 
-		<label for={id} class="mb-1 block text-sm font-medium text-gray">{label}</label>
+		<label for={id} class="text-gray mb-1 block text-sm font-medium">{label}</label>
 	</div>
 	<!-- Dropdown Button -->
 	<button
 		type="button"
 		{id}
-		class={`group flex w-full flex-row items-center justify-between rounded border px-3 py-2 text-left hover:text-white focus:outline-blue-500
+		class={`group relative flex w-full flex-row items-center justify-between rounded border px-3 py-2 text-left hover:text-white focus:outline-blue-500
 	${errors[id] ? 'border-red-500' : variant === 'black' ? 'border-white' : 'border-gray'} 
 	${
 		isSelectedUnavailable
@@ -205,6 +204,7 @@
 	${variant === 'black' ? 'hover:bg-black' : 'hover:bg-gray'}
 	${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}
 	transition-colors duration-150`}
+		use:ripple
 		on:click={toggleDropdown}
 		aria-haspopup="listbox"
 		aria-expanded={showDropdown}
@@ -212,7 +212,7 @@
 		{disabled}
 		aria-disabled={disabled}
 	>
-		<div class="flex min-w-0 items-center gap-2">
+		<div class="relative z-10 flex min-w-0 items-center gap-2">
 			<span class="truncate">{getLabel(selectedValue)}</span>
 			{#if isObjectOption(selectedOption) || (iconsForSelected && iconsForSelected.length)}
 				<div class="flex shrink-0 items-center gap-1">
@@ -222,12 +222,14 @@
 				</div>
 			{/if}
 		</div>
-		<IconArrowDown
-			size="12px"
-			extraClasses={`transform transition-all duration-300 group-hover:text-white
-				${showDropdown ? (variant === 'black' ? 'rotate-180 text-white' : 'rotate-180 text-white') : 'text-gray '}
-			`}
-		/>
+		<span class="relative z-10 flex shrink-0 items-center">
+			<IconArrowDown
+				size="12px"
+				extraClasses={`transform transition-all duration-300 group-hover:text-white
+					${showDropdown ? (variant === 'black' ? 'rotate-180 text-white' : 'rotate-180 text-white') : 'text-gray '}
+				`}
+			/>
+		</span>
 	</button>
 
 	<!-- Show Error Message if exists -->
@@ -239,7 +241,7 @@
 	{#if showDropdown && options.length > 0}
 		<ul
 			bind:this={suggestionsListElement}
-			class={`absolute z-50 max-h-60 w-full overflow-auto rounded-sm border border-gray-bright bg-white shadow-md
+			class={`border-gray-bright absolute z-50 max-h-60 w-full overflow-auto rounded-sm border bg-white shadow-md
 			${dropdownPosition === 'up' ? 'bottom-full mb-1' : 'top-full mt-1'}`}
 			role="listbox"
 			on:keydown={handleKeydown}
@@ -251,7 +253,7 @@
 				<li class="p-2">
 					<input
 						type="text"
-						class="w-full rounded-sm border p-2 focus:outline-blue"
+						class="focus:outline-blue w-full rounded-sm border p-2"
 						placeholder="Sök..."
 						bind:value={searchQuery}
 						on:keydown={handleKeydown}
@@ -269,11 +271,12 @@
 				>
 					<button
 						on:click={() => selectOption(option)}
-						class={`w-full px-3 py-2 text-left hover:text-white focus:text-white focus:outline-white
+						class={`relative w-full px-3 py-2 text-left hover:text-white focus:text-white focus:outline-white
 				${variant === 'black' ? 'hover:bg-black focus:bg-black' : 'hover:bg-gray focus:bg-gray'}`}
+						use:ripple
 						aria-label={isObjectOption(option) ? option.label : option}
 					>
-						<div class="flex items-center justify-between gap-2">
+						<div class="relative z-10 flex items-center justify-between gap-2">
 							<span>{isObjectOption(option) ? option.label : option}</span>
 							{#if isObjectOption(option)}
 								<div class="flex items-center gap-1">

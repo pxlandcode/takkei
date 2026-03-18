@@ -5,10 +5,23 @@ import {
 } from '$lib/services/api/bookingService';
 import { sendMail } from '$lib/services/mail/mailClientService';
 import { getClientEmails } from '$lib/stores/clientsStore';
+import { getUserEmails } from '$lib/stores/usersStore';
 import { addToast } from '$lib/stores/toastStore';
 import { AppToastType } from '$lib/types/toastTypes';
 
 type BookedDateLine = { date: string; time: string; locationName?: string };
+export type BookingEmailRecipientTarget = 'both' | 'client' | 'trainer';
+
+export const BOOKING_EMAIL_RECIPIENT_OPTIONS: {
+	value: BookingEmailRecipientTarget;
+	label: string;
+}[] = [
+	{ value: 'both', label: 'Båda' },
+	{ value: 'client', label: 'Klient' },
+	{ value: 'trainer', label: 'Tränare' }
+];
+
+export const BOOKING_EMAIL_RECIPIENT_DEFAULT = BOOKING_EMAIL_RECIPIENT_OPTIONS[0];
 
 function timeStringToMinutes(value?: string | null): number | null {
 	if (!value) return null;
@@ -22,6 +35,35 @@ function minutesToTimeString(totalMinutes: number): string {
 	const hours = Math.floor(normalized / 60);
 	const minutes = normalized % 60;
 	return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+}
+
+function getUniqueRecipients(recipients: string[]): string[] {
+	return Array.from(new Set(recipients.filter((email): email is string => Boolean(email))));
+}
+
+export function resolveBookingConfirmationRecipients({
+	recipientTarget = BOOKING_EMAIL_RECIPIENT_DEFAULT.value,
+	clientId,
+	trainerId
+}: {
+	recipientTarget?: BookingEmailRecipientTarget;
+	clientId?: number | null;
+	trainerId?: number | null;
+}): string[] {
+	const clientRecipients =
+		typeof clientId === 'number' && Number.isFinite(clientId) ? getClientEmails(clientId) : [];
+	const trainerRecipients =
+		typeof trainerId === 'number' && Number.isFinite(trainerId) ? getUserEmails(trainerId) : [];
+
+	if (recipientTarget === 'trainer') {
+		return getUniqueRecipients(trainerRecipients);
+	}
+
+	if (recipientTarget === 'both') {
+		return getUniqueRecipients([...clientRecipients, ...trainerRecipients]);
+	}
+
+	return getUniqueRecipients(clientRecipients);
 }
 
 export async function handleTrainingBooking(
@@ -257,18 +299,16 @@ export async function updateMeetingOrPersonalBooking(
 
 export async function handleBookingEmail({
 	emailBehavior,
-	clientEmail,
+	recipientEmails,
 	fromUser,
 	bookedDates
 }: {
 	emailBehavior: 'send' | 'edit' | 'none';
-	clientEmail: string | string[];
+	recipientEmails: string[];
 	fromUser: { firstname: string; lastname: string; email: string };
 	bookedDates: BookedDateLine[];
 }): Promise<'sent' | 'edit' | 'skipped'> {
-	const recipients = (Array.isArray(clientEmail) ? clientEmail : [clientEmail]).filter(
-		(email): email is string => Boolean(email)
-	);
+	const recipients = getUniqueRecipients(recipientEmails);
 	if (recipients.length === 0 || emailBehavior === 'none') return 'skipped';
 	const recipientLabel = recipients.join(', ');
 

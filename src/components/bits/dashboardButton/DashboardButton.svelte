@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { ripple } from '$lib/actions/ripple';
 	import Icon from '../icon-component/Icon.svelte';
 
 	export let label: string;
@@ -18,11 +19,14 @@
 <div class="relative inline-block">
 	<button
 		on:click={navigate}
-		class="glass flex h-[96px] w-[96px] cursor-pointer flex-col items-center justify-center gap-3 rounded-sm transition duration-200 hover:bg-white/20 active:translate-y-1 active:scale-95"
+		use:ripple
+		class="glass relative flex h-[96px] w-[96px] cursor-pointer flex-col items-center justify-center gap-3 rounded-sm transition duration-200 hover:bg-white/20 active:translate-y-1 active:scale-95"
 		aria-label={label}
 	>
-		<Icon {icon} size="35px" color="white" />
-		<p class="text-xxs font-medium text-white">{label}</p>
+		<span class="relative z-10 flex flex-col items-center justify-center gap-3">
+			<Icon {icon} size="35px" color="white" />
+			<p class="text-xxs font-medium text-white">{label}</p>
+		</span>
 	</button>
 
 	{#if notificationCount > 0}

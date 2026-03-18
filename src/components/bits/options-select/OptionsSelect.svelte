@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { createEventDispatcher } from 'svelte';
+	import { ripple } from '$lib/actions/ripple';
 	import Icon from '../icon-component/Icon.svelte';
 
 	export let options: { label: string; icon: string; value: string }[] = [];
@@ -35,7 +36,7 @@
 					type="button"
 					title={option.label}
 					aria-pressed={selectedValue === option.value}
-					class="max-width-[62px] group text-gray hover:border-primary/60 hover:bg-primary/5 flex flex-col
+					class="max-width-[62px] group text-gray hover:border-primary/60 hover:bg-primary/5 relative flex flex-col
                  items-center justify-center
                  rounded-sm
                  border
@@ -44,19 +45,22 @@
                  ${selectedValue === option.value
 						? ' border-primary bg-primary/5'
 						: ' border-gray-200'}"
+					use:ripple
 					on:click={() => selectOption(option.value)}
 				>
-					<span class="flex h-6 w-6 items-center justify-center">
-						<Icon
-							icon={option.icon}
-							size="22px"
-							color={selectedValue === option.value ? 'primary' : 'text'}
-						/>
+					<span class="relative z-10 flex flex-col items-center justify-center">
+						<span class="flex h-6 w-6 items-center justify-center">
+							<Icon
+								icon={option.icon}
+								size="22px"
+								color={selectedValue === option.value ? 'primary' : 'text'}
+							/>
+						</span>
+						<!-- Truncate long labels; keep compact -->
+						<p class="text-xxs mt-1 w-full max-w-[11ch] truncate text-center">
+							{option.label}
+						</p>
 					</span>
-					<!-- Truncate long labels; keep compact -->
-					<p class="text-xxs mt-1 w-full max-w-[11ch] truncate text-center">
-						{option.label}
-					</p>
 				</button>
 			{/key}
 		{/each}
