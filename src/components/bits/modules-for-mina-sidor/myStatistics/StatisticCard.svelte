@@ -5,6 +5,7 @@
 	export let value: string | number;
 	export let valueClass = 'text-2xl';
 	export let deltaLabel: string | undefined = undefined;
+	export let variant: 'default' | 'modern' = 'default';
 	export let detailLabel: string | null = null;
 	export let detailValue: string | number | null = null;
 	export let detailValueSuffix: string | null = null;
@@ -27,13 +28,20 @@
 	}
 
 	$: deltaShort = getDeltaShort(deltaLabel);
+	$: cardClasses =
+		variant === 'modern'
+			? 'border border-gray-200 bg-white p-3'
+			: 'rounded-lg border border-gray-100 bg-gray-50/60 p-3';
 </script>
 
-<div class="rounded-lg border border-gray-100 bg-gray-50/60 p-3">
+<div class={cardClasses}>
 	<div class="flex items-center justify-between">
-		<p class="text-gray-medium text-xs font-semibold uppercase tracking-wide">{label}</p>
+		<p class="text-gray-medium text-xs font-semibold tracking-wide uppercase">{label}</p>
 		{#if deltaShort}
-			<span class={deltaClasses(deltaShort)} use:tooltip={deltaLabel ? { content: deltaLabel } : null}>
+			<span
+				class={deltaClasses(deltaShort)}
+				use:tooltip={deltaLabel ? { content: deltaLabel } : null}
+			>
 				{deltaShort}
 			</span>
 		{/if}

@@ -4,6 +4,7 @@
 	import { confirm } from '$lib/actions/confirm';
 	import { cancelConfirm } from '$lib/actions/cancelConfirm';
 	import { multipleActions } from '$lib/actions/multipleActions';
+	import { ripple } from '$lib/actions/ripple';
 	import { loadingStore } from '$lib/stores/loading';
 
 	// Props
@@ -44,12 +45,12 @@
 		defaultEmailBehavior?: 'send' | 'edit' | 'none';
 	} | null = null;
 
-const dispatch = createEventDispatcher();
+	const dispatch = createEventDispatcher();
 
-const DEFAULT_ICON_LEFT_SIZE = '24px';
-const DEFAULT_ICON_LEFT_SIZE_SMALL = '15px';
-const DEFAULT_ICON_RIGHT_SIZE = '20px';
-const DEFAULT_ICON_RIGHT_SIZE_SMALL = '15px';
+	const DEFAULT_ICON_LEFT_SIZE = '24px';
+	const DEFAULT_ICON_LEFT_SIZE_SMALL = '15px';
+	const DEFAULT_ICON_RIGHT_SIZE = '20px';
+	const DEFAULT_ICON_RIGHT_SIZE_SMALL = '15px';
 
 	$: resolvedIconLeftSize =
 		iconLeftSize ?? (small ? DEFAULT_ICON_LEFT_SIZE_SMALL : DEFAULT_ICON_LEFT_SIZE);
@@ -57,15 +58,28 @@ const DEFAULT_ICON_RIGHT_SIZE_SMALL = '15px';
 		iconRightSize ?? (small ? DEFAULT_ICON_RIGHT_SIZE_SMALL : DEFAULT_ICON_RIGHT_SIZE);
 	$: isGlobalLoading = Boolean($loadingStore?.isLoading);
 	$: isDisabled = disabled || isGlobalLoading;
+	$: hasOnlyIcon = Boolean(icon && !text);
+	$: hasText = Boolean(text);
+	$: sizeClasses = hasOnlyIcon
+		? small
+			? 'h-8 w-8 text-sm'
+			: 'h-[45px] w-[45px] text-base'
+		: small
+			? 'h-8 px-3 text-sm'
+			: hasText
+				? 'h-[45px] px-4 text-base'
+				: 'p-2 text-base';
 
 	// Handle click event
 	function handleClick() {
 		dispatch('click');
 	}
 
+	$: contentClasses = 'relative z-10 flex items-center justify-center gap-2';
+
 	// Dynamic class setup
 	$: buttonClasses = `
-		flex items-center justify-center gap-2 rounded-sm  shadow-xs transition-all duration-200 cursor-pointer
+		relative flex items-center justify-center gap-2 rounded-sm shadow-xs transition-all duration-200 cursor-pointer
 		${variant === 'primary' ? 'bg-primary text-white hover:bg-primary-hover border border-gray/30' : ''}
 		${variant === 'secondary' ? 'bg-white text-gray border border-gray hover:bg-white/80' : ''}
 		${
@@ -77,8 +91,7 @@ const DEFAULT_ICON_RIGHT_SIZE_SMALL = '15px';
 		${variant === 'danger-outline' ? 'bg-white text-error border border-gray hover:bg-error/10 hover:text-error-hover' : ''}
 		${transparent ? 'bg-transparent text-gray shadow-none hover:bg-gray hover:text-white' : ''}
 		${transparent && variant === 'cancel' ? 'hover:text-red' : ''}
-		${icon && !text ? (small ? 'h-8 w-8' : 'h-[45px] w-[45px]') : 'p-2'}
-		${!icon && text ? (small ? 'text-sm' : 'h-[45px]') : 'text-base'}
+		${sizeClasses}
 		${full ? 'w-full' : ''}
 		focus:outline-hidden active:translate-y-1 active:scale-95 active:shadow-xs
 		disabled:opacity-60 disabled:cursor-not-allowed disabled:pointer-events-none disabled:bg-gray-100 disabled:text-gray-500 disabled:border-gray/40
@@ -91,74 +104,92 @@ const DEFAULT_ICON_RIGHT_SIZE_SMALL = '15px';
 			aria-disabled={isDisabled}
 			disabled={isDisabled}
 			use:confirm={confirmOptions}
+			use:ripple
 			{type}
 			class={buttonClasses}
 		>
-			{#if icon && !text}
-				<Icon {icon} size={iconSize} color={iconColor} />
-			{:else}
-				{#if iconLeft}
-					<Icon icon={iconLeft} size={resolvedIconLeftSize} color={iconColor} />
+			<span class={contentClasses}>
+				{#if icon && !text}
+					<Icon {icon} size={iconSize} color={iconColor} />
+				{:else}
+					{#if iconLeft}
+						<Icon icon={iconLeft} size={resolvedIconLeftSize} color={iconColor} />
+					{/if}
+					{text}
+					{#if iconRight}
+						<Icon icon={iconRight} size={resolvedIconRightSize} color={iconColor} />
+					{/if}
 				{/if}
-				{text}
-				{#if iconRight}
-					<Icon icon={iconRight} size={resolvedIconRightSize} color={iconColor} />
-				{/if}
-			{/if}
+			</span>
 		</button>
 	{:else if cancelConfirmOptions}
 		<button
 			aria-disabled={isDisabled}
 			disabled={isDisabled}
 			use:cancelConfirm={cancelConfirmOptions}
+			use:ripple
 			{type}
 			class={buttonClasses}
 		>
-			{#if icon && !text}
-				<Icon {icon} size={iconSize} color={iconColor} />
-			{:else}
-				{#if iconLeft}
-					<Icon icon={iconLeft} size={resolvedIconLeftSize} color={iconColor} />
+			<span class={contentClasses}>
+				{#if icon && !text}
+					<Icon {icon} size={iconSize} color={iconColor} />
+				{:else}
+					{#if iconLeft}
+						<Icon icon={iconLeft} size={resolvedIconLeftSize} color={iconColor} />
+					{/if}
+					{text}
+					{#if iconRight}
+						<Icon icon={iconRight} size={resolvedIconRightSize} color={iconColor} />
+					{/if}
 				{/if}
-				{text}
-				{#if iconRight}
-					<Icon icon={iconRight} size={resolvedIconRightSize} color={iconColor} />
-				{/if}
-			{/if}
+			</span>
 		</button>
 	{:else if multipleActionsOptions}
 		<button
 			aria-disabled={isDisabled}
 			disabled={isDisabled}
 			use:multipleActions={multipleActionsOptions}
+			use:ripple
 			{type}
 			class={buttonClasses}
 		>
-			{#if icon && !text}
-				<Icon {icon} size={iconSize} color={iconColor} />
-			{:else}
-				{#if iconLeft}
-					<Icon icon={iconLeft} size={resolvedIconLeftSize} color={iconColor} />
+			<span class={contentClasses}>
+				{#if icon && !text}
+					<Icon {icon} size={iconSize} color={iconColor} />
+				{:else}
+					{#if iconLeft}
+						<Icon icon={iconLeft} size={resolvedIconLeftSize} color={iconColor} />
+					{/if}
+					{text}
+					{#if iconRight}
+						<Icon icon={iconRight} size={resolvedIconRightSize} color={iconColor} />
+					{/if}
 				{/if}
-				{text}
-				{#if iconRight}
-					<Icon icon={iconRight} size={resolvedIconRightSize} color={iconColor} />
-				{/if}
-			{/if}
+			</span>
 		</button>
 	{:else}
-		<button aria-disabled={isDisabled} disabled={isDisabled} {type} class={buttonClasses} on:click={handleClick}>
-			{#if icon && !text}
-				<Icon {icon} size={iconSize} color={iconColor} />
-			{:else}
-				{#if iconLeft}
-					<Icon icon={iconLeft} size={resolvedIconLeftSize} color={iconColor} />
+		<button
+			aria-disabled={isDisabled}
+			disabled={isDisabled}
+			use:ripple
+			{type}
+			class={buttonClasses}
+			on:click={handleClick}
+		>
+			<span class={contentClasses}>
+				{#if icon && !text}
+					<Icon {icon} size={iconSize} color={iconColor} />
+				{:else}
+					{#if iconLeft}
+						<Icon icon={iconLeft} size={resolvedIconLeftSize} color={iconColor} />
+					{/if}
+					{text}
+					{#if iconRight}
+						<Icon icon={iconRight} size={resolvedIconRightSize} color={iconColor} />
+					{/if}
 				{/if}
-				{text}
-				{#if iconRight}
-					<Icon icon={iconRight} size={resolvedIconRightSize} color={iconColor} />
-				{/if}
-			{/if}
+			</span>
 		</button>
 	{/if}
 	{#if notificationCount > 0}

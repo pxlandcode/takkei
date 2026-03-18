@@ -1,192 +1,194 @@
 <script lang="ts">
-import { onDestroy, onMount, tick } from 'svelte';
-import { tooltip } from '$lib/actions/tooltip';
-import { wrapFetch } from '$lib/services/api/apiCache';
+	import { onDestroy, onMount, tick } from 'svelte';
+	import { tooltip } from '$lib/actions/tooltip';
+	import { wrapFetch } from '$lib/services/api/apiCache';
 
-export let trainerId: number | null = null;
-export let clientId: number | null = null;
-export let border = false;
+	export let trainerId: number | null = null;
+	export let clientId: number | null = null;
+	export let border = false;
 
-const SQUARE_SIZE = 12;
-const GAP = 2;
-const dateFormatter = new Intl.DateTimeFormat('sv-SE', {
-	timeZone: 'Europe/Stockholm',
-	year: 'numeric',
-	month: '2-digit',
-	day: '2-digit'
-});
+	const SQUARE_SIZE = 12;
+	const GAP = 2;
+	const dateFormatter = new Intl.DateTimeFormat('sv-SE', {
+		timeZone: 'Europe/Stockholm',
+		year: 'numeric',
+		month: '2-digit',
+		day: '2-digit'
+	});
 
-type DayCell = { date: Date; key: string; count: number | null };
-type MonthLabel = { name: string; index: number };
+	type DayCell = { date: Date; key: string; count: number | null };
+	type MonthLabel = { name: string; index: number };
 
-let gridContainer: HTMLDivElement | undefined;
-let gridWidth = 0;
-let squareLimit = 53;
-let daysToShow = 365;
+	let gridContainer: HTMLDivElement | undefined;
+	let gridWidth = 0;
+	let squareLimit = 53;
+	let daysToShow = 365;
 
-let countsPerDay: Record<string, number> = {};
-let today: Date;
-let firstValidDate: Date;
-let lastValidDate: Date;
+	let countsPerDay: Record<string, number> = {};
+	let today: Date;
+	let firstValidDate: Date;
+	let lastValidDate: Date;
 
-let days: DayCell[] = [];
-let months: MonthLabel[] = [];
-const weekDays = ['Mån', 'Tis', 'Ons', 'Tors', 'Fre', 'Lör', 'Sön'];
+	let days: DayCell[] = [];
+	let months: MonthLabel[] = [];
+	const weekDays = ['Mån', 'Tis', 'Ons', 'Tors', 'Fre', 'Lör', 'Sön'];
 
-let gridReady = false;
-let lastFilterKey = '';
-let resizeObserver: ResizeObserver | null = null;
-let currentFetchController: AbortController | null = null;
-const fetchCache = new Map<string, Record<string, number>>();
-const cachedFetch = wrapFetch(fetch);
+	let gridReady = false;
+	let lastFilterKey = '';
+	let resizeObserver: ResizeObserver | null = null;
+	let currentFetchController: AbortController | null = null;
+	const fetchCache = new Map<string, Record<string, number>>();
+	const cachedFetch = wrapFetch(fetch);
 
-function formatLocalDate(date: Date) {
-	return dateFormatter.format(date);
-}
+	function formatLocalDate(date: Date) {
+		return dateFormatter.format(date);
+	}
 
-function setupDates() {
-	today = new Date();
-	today.setHours(0, 0, 0, 0);
-	const halfRange = Math.floor(daysToShow / 2);
-	firstValidDate = new Date(today);
-	lastValidDate = new Date(today);
-
-	if (clientId) {
-		firstValidDate.setDate(today.getDate() - halfRange);
-		lastValidDate.setDate(today.getDate() + halfRange);
-	} else {
-		firstValidDate.setDate(today.getDate() - (daysToShow - 1));
+	function setupDates() {
+		today = new Date();
+		today.setHours(0, 0, 0, 0);
+		const halfRange = Math.floor(daysToShow / 2);
+		firstValidDate = new Date(today);
 		lastValidDate = new Date(today);
-	}
 
-	const dayOfWeek = firstValidDate.getDay();
-	const daysToSubtract = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-	const weekStart = new Date(firstValidDate);
-	weekStart.setDate(weekStart.getDate() - daysToSubtract);
-
-	days = [];
-	months = [];
-	let currentDate = new Date(weekStart);
-	let monthLoop: number | null = null;
-
-	while (currentDate <= lastValidDate) {
-		const date = new Date(currentDate);
-		if (date.getMonth() !== monthLoop) {
-			monthLoop = date.getMonth();
-			months.push({
-				name: date.toLocaleString('sv-SE', { month: 'short' }),
-				index: Math.floor(days.length / 7) + 1
-			});
+		if (clientId) {
+			firstValidDate.setDate(today.getDate() - halfRange);
+			lastValidDate.setDate(today.getDate() + halfRange);
+		} else {
+			firstValidDate.setDate(today.getDate() - (daysToShow - 1));
+			lastValidDate = new Date(today);
 		}
-		const isBlank = date < firstValidDate;
-		const key = formatLocalDate(date);
-		days.push({ date, key, count: isBlank ? null : 0 });
-		currentDate.setDate(currentDate.getDate() + 1);
+
+		const dayOfWeek = firstValidDate.getDay();
+		const daysToSubtract = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+		const weekStart = new Date(firstValidDate);
+		weekStart.setDate(weekStart.getDate() - daysToSubtract);
+
+		days = [];
+		months = [];
+		let currentDate = new Date(weekStart);
+		let monthLoop: number | null = null;
+
+		while (currentDate <= lastValidDate) {
+			const date = new Date(currentDate);
+			if (date.getMonth() !== monthLoop) {
+				monthLoop = date.getMonth();
+				months.push({
+					name: date.toLocaleString('sv-SE', { month: 'short' }),
+					index: Math.floor(days.length / 7) + 1
+				});
+			}
+			const isBlank = date < firstValidDate;
+			const key = formatLocalDate(date);
+			days.push({ date, key, count: isBlank ? null : 0 });
+			currentDate.setDate(currentDate.getDate() + 1);
+		}
 	}
-}
 
-function buildFetchKey(from: string, to: string) {
-	return `${from}|${to}|${trainerId ?? ''}|${clientId ?? ''}`;
-}
-
-async function fetchCountsAndRender(force = false) {
-	if (trainerId && clientId) {
-		console.warn('Pass only trainerId OR clientId, not both.');
-		return;
+	function buildFetchKey(from: string, to: string) {
+		return `${from}|${to}|${trainerId ?? ''}|${clientId ?? ''}`;
 	}
 
-	const from = formatLocalDate(firstValidDate);
-	const to = formatLocalDate(lastValidDate);
-	const cacheKey = buildFetchKey(from, to);
-
-	if (!force && fetchCache.has(cacheKey)) {
-		countsPerDay = fetchCache.get(cacheKey)!;
-		updateDays();
-		return;
-	}
-
-	currentFetchController?.abort();
-	const controller = new AbortController();
-	currentFetchController = controller;
-
-	const params = new URLSearchParams({ from, to });
-	if (trainerId) params.append('trainerId', trainerId.toString());
-	if (clientId) params.append('clientId', clientId.toString());
-
-	try {
-		const res = await cachedFetch(`/api/bookings/counts-per-day?${params}`, {
-			signal: controller.signal
-		});
-		if (!res.ok) {
-			console.error(await res.text());
+	async function fetchCountsAndRender(force = false) {
+		if (trainerId && clientId) {
+			console.warn('Pass only trainerId OR clientId, not both.');
 			return;
 		}
 
-		const data = (await res.json()) as Record<string, number>;
-		fetchCache.set(cacheKey, data);
-		countsPerDay = data;
-		updateDays();
-	} catch (error) {
-		if ((error as DOMException)?.name === 'AbortError') return;
-		console.error('Failed to load counts per day', error);
+		const from = formatLocalDate(firstValidDate);
+		const to = formatLocalDate(lastValidDate);
+		const cacheKey = buildFetchKey(from, to);
+
+		if (!force && fetchCache.has(cacheKey)) {
+			countsPerDay = fetchCache.get(cacheKey)!;
+			updateDays();
+			return;
+		}
+
+		currentFetchController?.abort();
+		const controller = new AbortController();
+		currentFetchController = controller;
+
+		const params = new URLSearchParams({ from, to });
+		if (trainerId) params.append('trainerId', trainerId.toString());
+		if (clientId) params.append('clientId', clientId.toString());
+
+		try {
+			const res = await cachedFetch(`/api/bookings/counts-per-day?${params}`, {
+				signal: controller.signal
+			});
+			if (!res.ok) {
+				console.error(await res.text());
+				return;
+			}
+
+			const data = (await res.json()) as Record<string, number>;
+			fetchCache.set(cacheKey, data);
+			countsPerDay = data;
+			updateDays();
+		} catch (error) {
+			if ((error as DOMException)?.name === 'AbortError') return;
+			console.error('Failed to load counts per day', error);
+		}
 	}
-}
 
-function updateDays() {
-	days = days.map((day) => {
-		if (day.count === null) return day;
-		return { ...day, count: countsPerDay[day.key] ?? 0 };
-	});
-}
+	function updateDays() {
+		days = days.map((day) => {
+			if (day.count === null) return day;
+			return { ...day, count: countsPerDay[day.key] ?? 0 };
+		});
+	}
 
-function refreshGrid(force = false) {
-	setupDates();
-	void fetchCountsAndRender(force);
-}
+	function refreshGrid(force = false) {
+		setupDates();
+		void fetchCountsAndRender(force);
+	}
 
-function handleResize(width: number) {
-	if (width <= 0) return;
-	const visibleBlocks = Math.max(1, Math.floor(width / (SQUARE_SIZE + GAP)));
-	if (visibleBlocks === squareLimit && days.length) return;
-	squareLimit = visibleBlocks;
-	daysToShow = squareLimit * 7;
-	refreshGrid();
-}
+	function handleResize(width: number) {
+		if (width <= 0) return;
+		const visibleBlocks = Math.max(1, Math.floor(width / (SQUARE_SIZE + GAP)));
+		if (visibleBlocks === squareLimit && days.length) return;
+		squareLimit = visibleBlocks;
+		daysToShow = squareLimit * 7;
+		refreshGrid();
+	}
 
-onMount(async () => {
-	await tick();
-	if (!gridContainer) return;
-	gridWidth = gridContainer.offsetWidth;
-	handleResize(gridWidth);
-	resizeObserver = new ResizeObserver((entries) => {
-		const entry = entries[0];
-		if (!entry) return;
-		gridWidth = entry.contentRect.width;
+	onMount(async () => {
+		await tick();
+		if (!gridContainer) return;
+		gridWidth = gridContainer.offsetWidth;
 		handleResize(gridWidth);
+		resizeObserver = new ResizeObserver((entries) => {
+			const entry = entries[0];
+			if (!entry) return;
+			gridWidth = entry.contentRect.width;
+			handleResize(gridWidth);
+		});
+		resizeObserver.observe(gridContainer);
+		gridReady = true;
 	});
-	resizeObserver.observe(gridContainer);
-	gridReady = true;
-});
 
-onDestroy(() => {
-	resizeObserver?.disconnect();
-	currentFetchController?.abort();
-});
+	onDestroy(() => {
+		resizeObserver?.disconnect();
+		currentFetchController?.abort();
+	});
 
-$: if (gridReady) {
-	const filterKey = `${trainerId ?? ''}|${clientId ?? ''}`;
-	if (filterKey !== lastFilterKey) {
-		lastFilterKey = filterKey;
-		fetchCache.clear();
-		refreshGrid(true);
+	$: if (gridReady) {
+		const filterKey = `${trainerId ?? ''}|${clientId ?? ''}`;
+		if (filterKey !== lastFilterKey) {
+			lastFilterKey = filterKey;
+			fetchCache.clear();
+			refreshGrid(true);
+		}
 	}
-}
 </script>
 
 <div
-	class="max-w-[820px] rounded-sm bg-white {border ? 'border border-gray-200' : ''} p-6 shadow-md"
+	class="w-full max-w-[820px] min-w-0 rounded-sm bg-white {border
+		? 'border border-gray-200'
+		: ''} p-4 shadow-md sm:p-6"
 >
-	<div class="mb-4 flex flex-row items-center justify-between">
+	<div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
 		{#if trainerId}
 			<h4 class="text-xl font-semibold">Bokningar senaste {daysToShow} dagar</h4>
 		{:else if clientId}
@@ -207,7 +209,7 @@ $: if (gridReady) {
 			</h3>
 		{/if}
 
-		<div class="flex flex-row items-center gap-[2px]">
+		<div class="flex flex-wrap items-center gap-[2px] sm:justify-end">
 			{#if trainerId}
 				<p class="day-label">0</p>
 				<div use:tooltip={{ content: '0 bokningar' }} class="cell bg-gray-200"></div>
@@ -259,39 +261,35 @@ $: if (gridReady) {
 						style="grid-column: {Math.floor(i / 7) + 1}; grid-row: {(i % 7) + 1};"
 					></div>
 				{:else if trainerId}
-				<div
-					use:tooltip={{
-						content: `Datum: ${day.key}, Bokningar: ${day.count}`
-					}}
-					class={`cell ${
-						day.count === 0
-							? 'bg-gray-200'
-							: day.count === 1
-							? 'bg-orange/10'
-							: day.count === 2
-							? 'bg-orange/30'
-							: day.count === 3
-							? 'bg-orange/55'
-							: day.count === 4
-							? 'bg-orange/80'
-							: 'bg-orange'
+					<div
+						use:tooltip={{
+							content: `Datum: ${day.key}, Bokningar: ${day.count}`
+						}}
+						class={`cell ${
+							day.count === 0
+								? 'bg-gray-200'
+								: day.count === 1
+									? 'bg-orange/10'
+									: day.count === 2
+										? 'bg-orange/30'
+										: day.count === 3
+											? 'bg-orange/55'
+											: day.count === 4
+												? 'bg-orange/80'
+												: 'bg-orange'
 						}`}
-					style={`grid-column: ${Math.floor(i / 7) + 1}; grid-row: ${(i % 7) + 1};`}
-				></div>
+						style={`grid-column: ${Math.floor(i / 7) + 1}; grid-row: ${(i % 7) + 1};`}
+					></div>
 				{:else if clientId}
-				<div
-					use:tooltip={{
-						content: `Datum: ${day.key}`
-					}}
-					class={`cell ${
-						day.count === 0
-							? 'bg-gray-200'
-							: day.date <= today
-							? 'bg-orange'
-							: 'bg-orange/55'
+					<div
+						use:tooltip={{
+							content: `Datum: ${day.key}`
+						}}
+						class={`cell ${
+							day.count === 0 ? 'bg-gray-200' : day.date <= today ? 'bg-orange' : 'bg-orange/55'
 						}`}
-					style={`grid-column: ${Math.floor(i / 7) + 1}; grid-row: ${(i % 7) + 1};`}
-				></div>
+						style={`grid-column: ${Math.floor(i / 7) + 1}; grid-row: ${(i % 7) + 1};`}
+					></div>
 				{/if}
 			{/each}
 		</div>
@@ -317,6 +315,7 @@ $: if (gridReady) {
 
 	.grid-wrapper {
 		display: flex;
+		min-width: 0;
 	}
 
 	.weekdays {
@@ -340,6 +339,7 @@ $: if (gridReady) {
 		grid-template-rows: repeat(7, 12px);
 		gap: 2px;
 		width: 100%;
+		min-width: 0;
 	}
 
 	.cell {

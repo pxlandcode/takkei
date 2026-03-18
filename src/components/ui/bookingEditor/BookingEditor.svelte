@@ -11,7 +11,7 @@
 	import type { FullBooking } from '$lib/types/calendarTypes';
 	import { locations, fetchLocations } from '$lib/stores/locationsStore';
 	import { users, fetchUsers } from '$lib/stores/usersStore';
-	import { clients, fetchClients, getClientEmails } from '$lib/stores/clientsStore';
+	import { clients, fetchClients } from '$lib/stores/clientsStore';
 	import {
 		bookingContents as bookingContentsStore,
 		fetchBookingContents
@@ -21,7 +21,9 @@
 	import { loadingStore } from '$lib/stores/loading';
 	import { openPopup } from '$lib/stores/popupStore';
 	import {
+		BOOKING_EMAIL_RECIPIENT_DEFAULT,
 		handleBookingEmail,
+		resolveBookingConfirmationRecipients,
 		updateTrainingBooking,
 		updateMeetingOrPersonalBooking
 	} from '$lib/helpers/bookingHelpers/bookingHelpers';
@@ -114,7 +116,9 @@
 		value: u.id
 	}));
 	$: educatorIds = new Set(
-		activeUsers.filter((candidate) => hasRole('Educator', candidate)).map((candidate) => candidate.id)
+		activeUsers
+			.filter((candidate) => hasRole('Educator', candidate))
+			.map((candidate) => candidate.id)
 	);
 	$: educationTrainerOptions = userOptions.filter((option) => educatorIds.has(option.value));
 	$: locationOptions = ($locations || []).map((loc) => ({ label: loc.name, value: loc.id }));
@@ -303,7 +307,8 @@
 			status: full.booking.status,
 			repeat: false,
 			repeatWeeks: 4,
-			emailBehavior: { ...EMAIL_DEFAULT }
+			emailBehavior: { ...EMAIL_DEFAULT },
+			emailRecipient: { ...BOOKING_EMAIL_RECIPIENT_DEFAULT }
 		};
 
 		if (standardTypes.has(type)) {
@@ -449,6 +454,9 @@
 				: numericValue;
 		}
 		payload.emailBehavior = editableBooking.emailBehavior ?? { ...EMAIL_DEFAULT };
+		payload.emailRecipient = editableBooking.emailRecipient ?? {
+			...BOOKING_EMAIL_RECIPIENT_DEFAULT
+		};
 
 		if (standardTypes.has(selectedBookingComponent) && !payload.__originalEndTime) {
 			payload.endTime = null;
@@ -460,13 +468,16 @@
 
 	async function maybeSendEmail(type: BookingComponentType, payload: any) {
 		if (!standardTypes.has(type)) return;
+		if (!currentUser) return;
 
-		const behavior = payload.emailBehavior?.value ?? 'none';
+		const behavior = (payload.emailBehavior?.value ?? 'none') as 'send' | 'edit' | 'none';
 		if (behavior === 'none') return;
-		if (!payload.clientId) return;
-
-		const clientEmail = getClientEmails(payload.clientId);
-		if (!clientEmail) return;
+		const recipients = resolveBookingConfirmationRecipients({
+			recipientTarget: payload.emailRecipient?.value ?? BOOKING_EMAIL_RECIPIENT_DEFAULT.value,
+			clientId: payload.clientId,
+			trainerId: payload.trainerId
+		});
+		if (recipients.length === 0) return;
 
 		const bookedDates = [
 			{
@@ -478,18 +489,18 @@
 
 		const emailResult = await handleBookingEmail({
 			emailBehavior: behavior,
-			clientEmail,
+			recipientEmails: recipients,
 			fromUser: currentUser,
 			bookedDates
 		});
 
 		if (emailResult === 'edit') {
-			openEmailPopup(clientEmail, bookedDates);
+			openEmailPopup(recipients, bookedDates);
 		}
 	}
 
 	function openEmailPopup(
-		recipient: string,
+		recipients: string[],
 		bookedDates: { date: string; time: string; locationName?: string }[]
 	) {
 		const locationsSummary = bookedDates
@@ -497,12 +508,12 @@
 			.join('<br>');
 
 		openPopup({
-			header: `Maila bokningsuppdatering till ${recipient}`,
+			header: `Maila bokningsuppdatering till ${recipients.join(', ')}`,
 			icon: 'Mail',
 			component: MailComponent,
 			maxWidth: '900px',
 			props: {
-				prefilledRecipients: [recipient],
+				prefilledRecipients: recipients,
 				subject: 'Bokningsuppdatering',
 				header: 'Din bokning har uppdaterats',
 				subheader: 'Nya detaljer för din bokning',

@@ -26,6 +26,31 @@ function overlaps(startA: number, endA: number, startB: number, endB: number): b
 	return startA < endB && startB < endA;
 }
 
+function hasTravelConflictForIntervals(
+	slotStart: number,
+	slotEnd: number,
+	locationId: number,
+	bookings: LocationInterval[]
+): boolean {
+	return bookings.some((booking) => {
+		if (booking.locationId === null || booking.locationId === locationId) return false;
+
+		if (overlaps(slotStart, slotEnd, booking.start, booking.end)) {
+			return true;
+		}
+
+		if (booking.end <= slotStart) {
+			return slotStart - booking.end < TRAVEL_BUFFER_MINUTES;
+		}
+
+		if (booking.start >= slotEnd) {
+			return booking.start - slotEnd < TRAVEL_BUFFER_MINUTES;
+		}
+
+		return false;
+	});
+}
+
 function jsonResponse(
 	availableSlots: string[],
 	outsideAvailabilitySlots: string[],
@@ -175,10 +200,11 @@ export const POST: RequestHandler = async ({ request }) => {
 		})
 		.filter(isNotNull);
 
-	// 7. NEW: Trainee’s busy intervals (only when asked)
+	// 7. Selected trainee/user busy intervals (only when asked)
 	let traineeIntervals: Interval[] = [];
+	let traineeLocationIntervals: LocationInterval[] = [];
 	if (checkUsersBusy && userId) {
-		const [traineePersonal, traineePractice] = await Promise.all([
+		const [traineePersonal, traineeBookings] = await Promise.all([
 			query(
 				`SELECT start_time, end_time FROM personal_bookings
          WHERE start_time BETWEEN $1 AND $2
@@ -186,11 +212,15 @@ export const POST: RequestHandler = async ({ request }) => {
 				[dayStart, dayEnd, userId]
 			),
 			query(
-				`SELECT start_time FROM bookings
+				`SELECT start_time, location_id FROM bookings
          WHERE start_time BETWEEN $1 AND $2
            AND LOWER(status) NOT IN ('cancelled', 'late_cancelled')
-           AND user_id = $3`,
-				[dayStart, dayEnd, userId]
+           AND (
+             trainer_id = $3
+             OR (user_id = $3 AND (internal_education = true OR education = true))
+           )
+           AND ($4::int IS NULL OR id <> $4)`,
+				[dayStart, dayEnd, userId, bookingIdToIgnore]
 			)
 		]);
 
@@ -203,15 +233,22 @@ export const POST: RequestHandler = async ({ request }) => {
 			})
 			.filter(isNotNull);
 
-		const traineePracticeIntervals = traineePractice
-			.map((row: any) => {
+		traineeLocationIntervals = traineeBookings
+			.map((row: any): LocationInterval | null => {
 				const start = extractStockholmMinutes(row.start_time);
 				if (start === null) return null;
-				return { start, end: start + SLOT_LENGTH_MINUTES };
+				return {
+					start,
+					end: start + SLOT_LENGTH_MINUTES,
+					locationId: row.location_id === null ? null : Number(row.location_id)
+				};
 			})
 			.filter(isNotNull);
 
-		traineeIntervals = [...traineePersonalIntervals, ...traineePracticeIntervals];
+		traineeIntervals = [
+			...traineePersonalIntervals,
+			...traineeLocationIntervals.map(({ start, end }) => ({ start, end }))
+		];
 	}
 
 	// Bookings where trainer is the trainer (for location-based travel checks)
@@ -320,29 +357,23 @@ export const POST: RequestHandler = async ({ request }) => {
 
 			// Travel time conflicts - check both trainer-as-trainer and trainer-as-trainee bookings
 			// Need 85 minutes (60 min slot + 25 min travel) buffer between bookings at different locations
-			const travelConflict = allTrainerLocationIntervals.some((booking) => {
-				if (booking.locationId === null || booking.locationId === locationIdNumber) return false;
-
-				// Direct time overlap
-				if (overlaps(slotStart, slotEnd, booking.start, booking.end)) {
-					return true;
-				}
-
-				// New slot is AFTER existing booking: need travel buffer after existing booking ends
-				if (booking.end <= slotStart) {
-					return slotStart - booking.end < TRAVEL_BUFFER_MINUTES;
-				}
-
-				// New slot is BEFORE existing booking: need travel buffer before existing booking starts
-				// slotEnd + travel_buffer must be <= booking.start
-				// i.e., booking.start - slotEnd must be >= travel_buffer
-				if (booking.start >= slotEnd) {
-					return booking.start - slotEnd < TRAVEL_BUFFER_MINUTES;
-				}
-
-				return false;
-			});
+			const travelConflict = hasTravelConflictForIntervals(
+				slotStart,
+				slotEnd,
+				locationIdNumber,
+				allTrainerLocationIntervals
+			);
 			if (travelConflict) continue;
+
+			if (checkUsersBusy && userId) {
+				const traineeTravelConflict = hasTravelConflictForIntervals(
+					slotStart,
+					slotEnd,
+					locationIdNumber,
+					traineeLocationIntervals
+				);
+				if (traineeTravelConflict) continue;
+			}
 
 			if (insideAvailability && !blockedReason) {
 				availableSlots.push(label);

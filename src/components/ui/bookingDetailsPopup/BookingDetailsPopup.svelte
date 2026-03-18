@@ -182,7 +182,8 @@
 		!currentBooking.isPersonalBooking &&
 		Boolean(currentBooking.booking.internalEducation || currentBooking.additionalInfo?.education);
 	$: participantLabel = showTraineeParticipant ? 'Trainee' : 'Kund';
-	$: participantEntry = (showTraineeParticipant ? currentBooking.trainee : currentBooking.client) ?? null;
+	$: participantEntry =
+		(showTraineeParticipant ? currentBooking.trainee : currentBooking.client) ?? null;
 	$: bookingComponentType = determineBookingComponent(currentBooking);
 	$: bookingTypeLabel = componentLabels[bookingComponentType];
 	$: canQuickSwap = !currentBooking.isPersonalBooking && !isMeetingBooking(currentBooking);
@@ -374,7 +375,7 @@
 		const bookedDates = buildBookedDatesForConfirmation();
 		const emailResult = await handleBookingEmail({
 			emailBehavior: behavior,
-			clientEmail: recipients,
+			recipientEmails: recipients,
 			fromUser: currentUser,
 			bookedDates
 		});
@@ -662,8 +663,8 @@
 				})
 			);
 
-			trainerSwapOptions = availabilityChecks.filter(
-				(option): option is SwapOption => Boolean(option)
+			trainerSwapOptions = availabilityChecks.filter((option): option is SwapOption =>
+				Boolean(option)
 			);
 
 			if (trainerSwapOptions.length === 0) {
@@ -1097,7 +1098,7 @@
 									</a>
 								{/if}
 								{#if participantEntry.active === false}
-									<span class="ml-1 text-error font-medium">(Ej aktiv)</span>
+									<span class="text-error ml-1 font-medium">(Ej aktiv)</span>
 								{/if}
 							{:else}
 								<span>{showTraineeParticipant ? 'Trainee saknas' : 'Kund saknas'}</span>

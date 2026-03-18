@@ -2,7 +2,7 @@
 	import { createEventDispatcher, onMount, tick } from 'svelte';
 	import { users, fetchUsers } from '$lib/stores/usersStore';
 	import { locations, fetchLocations } from '$lib/stores/locationsStore';
-	import { clients, fetchClients, getClientEmails } from '$lib/stores/clientsStore';
+	import { clients, fetchClients } from '$lib/stores/clientsStore';
 	import { bookingContents, fetchBookingContents } from '$lib/stores/bookingContentStore';
 	import { capitalizeFirstLetter } from '$lib/helpers/generic/genericHelpers';
 	import Button from '../../bits/button/Button.svelte';
@@ -14,11 +14,13 @@
 	import { calendarStore } from '$lib/stores/calendarStore';
 	import { get } from 'svelte/store';
 	import {
+		BOOKING_EMAIL_RECIPIENT_DEFAULT,
+		handleBookingEmail,
 		handleMeetingOrPersonalBooking,
-		handleTrainingBooking
+		handleTrainingBooking,
+		resolveBookingConfirmationRecipients
 	} from '$lib/helpers/bookingHelpers/bookingHelpers';
 	import { openPopup, popupStore, closePopup, type PopupState } from '$lib/stores/popupStore';
-	import { handleBookingEmail } from '$lib/helpers/bookingHelpers/bookingHelpers';
 	import MailComponent from '../mailComponent/MailComponent.svelte';
 	import { hasRole } from '$lib/helpers/userHelpers/roleHelper';
 	import type { User } from '$lib/types/userTypes';
@@ -115,7 +117,8 @@
 				})
 			: '13:30',
 		repeat: false,
-		emailBehavior: { label: 'Skicka inte', value: 'none' }
+		emailBehavior: { label: 'Skicka inte', value: 'none' },
+		emailRecipient: { ...BOOKING_EMAIL_RECIPIENT_DEFAULT }
 	};
 
 	function removeError(field: string) {
@@ -440,25 +443,35 @@
 				}
 			}
 
-			if (success && bookingObject.clientId) {
-				const clientEmail = getClientEmails(bookingObject.clientId);
+			const emailBehavior = (bookingObject.emailBehavior?.value ?? 'none') as
+				| 'send'
+				| 'edit'
+				| 'none';
 
-				if (clientEmail) {
+			if (success && emailBehavior !== 'none') {
+				const recipients = resolveBookingConfirmationRecipients({
+					recipientTarget:
+						bookingObject.emailRecipient?.value ?? BOOKING_EMAIL_RECIPIENT_DEFAULT.value,
+					clientId: bookingObject.clientId,
+					trainerId: bookingObject.trainerId
+				});
+
+				if (recipients.length > 0) {
 					const emailResult = await handleBookingEmail({
-						emailBehavior: bookingObject.emailBehavior.value,
-						clientEmail,
+						emailBehavior,
+						recipientEmails: recipients,
 						fromUser: currentUser,
 						bookedDates
 					});
 
 					if (emailResult === 'edit') {
 						openPopup({
-							header: `Maila bokningsbekräftelse till ${clientEmail}`,
+							header: `Maila bokningsbekräftelse till ${recipients.join(', ')}`,
 							icon: 'Mail',
 							component: MailComponent,
 							maxWidth: '900px',
 							props: {
-								prefilledRecipients: [clientEmail],
+								prefilledRecipients: recipients,
 								subject: 'Bokningsbekräftelse',
 								header: 'Bekräftelse på dina bokningar',
 								subheader: 'Tack för din bokning!',

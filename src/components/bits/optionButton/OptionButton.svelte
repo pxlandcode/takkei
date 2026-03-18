@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { createEventDispatcher } from 'svelte';
+	import { ripple } from '$lib/actions/ripple';
 	import Icon from '../icon-component/Icon.svelte';
 
 	export let options: { value: any; label: string; icon?: string }[] = [];
@@ -67,12 +68,15 @@
 					class={`${buttonClasses} ${selectedOption?.value === option.value ? selectedClasses : ''} 
 					${index === 0 ? 'rounded-l' : ''} 
 					${index === options.length - 1 ? 'rounded-r' : ''}`}
+					use:ripple
 					on:click={() => selectOption(option)}
 				>
-					{#if selectedOption?.value === option.value || option.icon}
-						<Icon icon={option.icon ? option.icon : 'Check'} size="16px" />
-					{/if}
-					{option.label}
+					<span class="relative z-10 flex flex-row items-center justify-center gap-1">
+						{#if selectedOption?.value === option.value || option.icon}
+							<Icon icon={option.icon ? option.icon : 'Check'} size="16px" />
+						{/if}
+						{option.label}
+					</span>
 				</button>
 			{/each}
 		</div>

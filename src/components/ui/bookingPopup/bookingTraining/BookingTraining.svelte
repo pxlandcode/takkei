@@ -3,6 +3,10 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
 	import { capitalizeFirstLetter } from '$lib/helpers/generic/genericHelpers';
+	import {
+		BOOKING_EMAIL_RECIPIENT_DEFAULT,
+		BOOKING_EMAIL_RECIPIENT_OPTIONS
+	} from '$lib/helpers/bookingHelpers/bookingHelpers';
 	import { calendarStore, getWeekStartAndEnd } from '$lib/stores/calendarStore';
 	import { closePopup } from '$lib/stores/popupStore';
 	import OptionButton from '../../../bits/optionButton/OptionButton.svelte';
@@ -45,6 +49,11 @@
 		{ value: 'inactive-eligible', label: 'Inaktiva provfria' },
 		{ value: 'trainer', label: 'Tränarens klienter' },
 		{ value: 'all', label: 'Alla klienter' }
+	];
+	const emailBehaviorOptions = [
+		{ value: 'none', label: 'Skicka inte' },
+		{ value: 'send', label: 'Skicka direkt' },
+		{ value: 'edit', label: 'Redigera innan' }
 	];
 	let clientScopeOptions = isTrial ? trialClientScopeOptions : baseClientScopeOptions;
 	let clientScope = isTrial ? trialClientScopeOptions[0] : baseClientScopeOptions[0];
@@ -155,6 +164,14 @@
 
 	$: if (!bookingObject.bookingType && bookingContents.length > 0) {
 		bookingObject.bookingType = bookingContents[0];
+	}
+
+	$: if (!bookingObject.emailBehavior) {
+		bookingObject.emailBehavior = { ...emailBehaviorOptions[0] };
+	}
+
+	$: if (!bookingObject.emailRecipient) {
+		bookingObject.emailRecipient = { ...BOOKING_EMAIL_RECIPIENT_DEFAULT };
 	}
 
 	function formatClient(c) {
@@ -316,10 +333,15 @@
 	}
 
 	function handleEmailBehaviorSelect(event: CustomEvent<string>) {
-		bookingObject.emailBehavior = {
-			value: event.detail,
-			label: capitalizeFirstLetter(event.detail)
-		};
+		bookingObject.emailBehavior =
+			emailBehaviorOptions.find((option) => option.value === event.detail) ??
+			emailBehaviorOptions[0];
+	}
+
+	function handleEmailRecipientSelect(event: CustomEvent<string>) {
+		bookingObject.emailRecipient =
+			BOOKING_EMAIL_RECIPIENT_OPTIONS.find((option) => option.value === event.detail) ??
+			BOOKING_EMAIL_RECIPIENT_DEFAULT;
 	}
 
 	async function viewAvailability() {
@@ -496,17 +518,25 @@
 			</div>
 		</RepeatBookingSection>
 	{/if}
-	<OptionButton
-		label="Bekräftelsemail"
-		labelIcon="Mail"
-		options={[
-			{ value: 'none', label: 'Skicka inte' },
-			{ value: 'send', label: 'Skicka direkt' },
-			{ value: 'edit', label: 'Redigera innan' }
-		]}
-		bind:selectedOption={bookingObject.emailBehavior}
-		on:select={handleEmailBehaviorSelect}
-		size="small"
-		full
-	/>
+	<div class="flex flex-col gap-2">
+		<OptionButton
+			label="Bekräftelsemail"
+			labelIcon="Mail"
+			options={emailBehaviorOptions}
+			bind:selectedOption={bookingObject.emailBehavior}
+			on:select={handleEmailBehaviorSelect}
+			size="small"
+			full
+		/>
+		{#if bookingObject.emailBehavior?.value !== 'none'}
+			<OptionButton
+				label="Mottagare"
+				options={BOOKING_EMAIL_RECIPIENT_OPTIONS}
+				bind:selectedOption={bookingObject.emailRecipient}
+				on:select={handleEmailRecipientSelect}
+				size="small"
+				full
+			/>
+		{/if}
+	</div>
 </div>
