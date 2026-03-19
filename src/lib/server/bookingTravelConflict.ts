@@ -2,6 +2,9 @@ import { extractStockholmMinutes, extractStockholmTimeParts } from '$lib/server/
 
 export const SLOT_LENGTH_MINUTES = 60;
 export const TRAVEL_BUFFER_MINUTES = 25;
+const LOCAL_TIMESTAMP_RE =
+	/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::(\d{2})(?:\.\d{1,6})?)?)?$/;
+const EXPLICIT_TIMEZONE_RE = /(Z|[+-]\d{2}:?\d{2})$/i;
 
 type QueryFn = <T = any>(text: string, params?: unknown[]) => Promise<T[]>;
 
@@ -16,6 +19,38 @@ export type TravelConflict = {
 	conflictingStartTime: string | Date;
 	conflictingLocationId: number | null;
 };
+
+type BookingTimeParts = {
+	year: number;
+	month: number;
+	day: number;
+	hour: number;
+	minute: number;
+	second: number;
+};
+
+function extractBookingTimeParts(value: string | Date | null | undefined): BookingTimeParts | null {
+	if (!value) return null;
+
+	if (typeof value === 'string') {
+		const trimmed = value.trim();
+		if (!EXPLICIT_TIMEZONE_RE.test(trimmed)) {
+			const match = trimmed.match(LOCAL_TIMESTAMP_RE);
+			if (match) {
+				return {
+					year: Number(match[1]),
+					month: Number(match[2]),
+					day: Number(match[3]),
+					hour: Number(match[4] ?? '0'),
+					minute: Number(match[5] ?? '0'),
+					second: Number(match[6] ?? '0')
+				};
+			}
+		}
+	}
+
+	return extractStockholmTimeParts(value);
+}
 
 function overlaps(startA: number, endA: number, startB: number, endB: number): boolean {
 	return startA < endB && startB < endA;
@@ -58,8 +93,10 @@ export function findTravelConflictForBooking({
 	targetLocationId: number;
 	bookings: TravelConflictRow[];
 }): TravelConflict | null {
-	const targetStartMinutes = extractStockholmMinutes(targetStartTime);
-	if (targetStartMinutes === null) return null;
+	const targetTimeParts = extractBookingTimeParts(targetStartTime);
+	if (!targetTimeParts) return null;
+
+	const targetStartMinutes = targetTimeParts.hour * 60 + targetTimeParts.minute;
 
 	for (const booking of bookings) {
 		if (!hasTravelConflict(targetStartMinutes, targetLocationId, booking)) {
@@ -93,7 +130,7 @@ export async function findUserTravelConflict({
 		return null;
 	}
 
-	const timeParts = extractStockholmTimeParts(targetStartTime);
+	const timeParts = extractBookingTimeParts(targetStartTime);
 	if (!timeParts) return null;
 
 	const ymd = `${timeParts.year}-${String(timeParts.month).padStart(2, '0')}-${String(timeParts.day).padStart(2, '0')}`;

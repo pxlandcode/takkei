@@ -1,10 +1,16 @@
 import { tick } from 'svelte';
 import { clickOutside } from '$lib/actions/clickOutside';
+import {
+	cancellationReasonOptions,
+	isLateCancellation,
+	toLocalDateTimeInputValue,
+	type CancellationEmailBehavior
+} from '$lib/helpers/bookingHelpers/cancellation';
 
 interface CancelParams {
-	onConfirm: (reason: string, time: string, emailBehavior: 'send' | 'edit' | 'none') => void;
+	onConfirm: (reason: string, time: string, emailBehavior: CancellationEmailBehavior) => void;
 	startTimeISO: string;
-	defaultEmailBehavior?: 'send' | 'edit' | 'none';
+	defaultEmailBehavior?: CancellationEmailBehavior;
 }
 
 export function cancelConfirm(
@@ -19,53 +25,7 @@ export function cancelConfirm(
 	let removeReasonListeners: (() => void) | null = null;
 	let removeEmailBehaviorListeners: (() => void) | null = null;
 	let selectedReason = '';
-	let selectedEmailBehavior: 'send' | 'edit' | 'none' = defaultEmailBehavior;
-
-	const cancelReasonOptions = [
-		{ value: 'Rebook', label: 'Flyttat träningen' },
-		{ value: 'Family', label: 'Familj' },
-		{ value: 'Work', label: 'Arbete' },
-		{ value: 'Travel', label: 'Resa' },
-		{ value: 'Illness', label: 'Sjukdom' },
-		{ value: 'Injury', label: 'Skada' },
-		{ value: 'Injury Takkei', label: 'Skada på Takkei' },
-		{ value: 'Injury external', label: 'Skada utanför Takkei' },
-		{ value: 'No_show', label: 'Dök inte upp' },
-		{ value: 'Other', label: 'Övrigt' },
-		{ value: 'Unknown', label: 'Vet ej' }
-	];
-
-	function sameYMD(a: Date, b: Date) {
-		return (
-			a.getFullYear() === b.getFullYear() &&
-			a.getMonth() === b.getMonth() &&
-			a.getDate() === b.getDate()
-		);
-	}
-	function withinCancellationWindow(start: Date, cancelAt: Date) {
-		const startMidnight = new Date(start.getFullYear(), start.getMonth(), start.getDate());
-		const cancelPlus24 = new Date(cancelAt.getTime() + 24 * 60 * 60 * 1000);
-
-		const dayAfterCancel = new Date(
-			cancelAt.getFullYear(),
-			cancelAt.getMonth(),
-			cancelAt.getDate() + 1
-		);
-		const okTomorrowBeforeNoon = sameYMD(start, dayAfterCancel) && cancelAt.getHours() < 12;
-
-		return startMidnight > cancelPlus24 || okTomorrowBeforeNoon;
-	}
-	function isLate(startISO: string, cancelLocalValue: string) {
-		const start = new Date(startISO);
-		const cancel = new Date(cancelLocalValue.replace(' ', 'T'));
-		return !withinCancellationWindow(start, cancel);
-	}
-
-	// Format using local timezone so the datetime-local input defaults to the correct Swedish time.
-	function toLocalDateTimeInputValue(date: Date): string {
-		const pad = (value: number) => value.toString().padStart(2, '0');
-		return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
-	}
+	let selectedEmailBehavior: CancellationEmailBehavior = defaultEmailBehavior;
 
 	function onClick(event: MouseEvent) {
 		event.preventDefault();
@@ -83,7 +43,7 @@ export function cancelConfirm(
 		selectedReason = '';
 		selectedEmailBehavior = defaultEmailBehavior;
 
-		const reasonOptionsHTML = cancelReasonOptions
+		const reasonOptionsHTML = cancellationReasonOptions
 			.map(({ value, label }) => `<option value="${value}">${label}</option>`)
 			.join('');
 
@@ -176,7 +136,7 @@ export function cancelConfirm(
 			};
 
 			const toggleLateNote = () => {
-				const late = isLate(startTimeISO, timeInput.value);
+				const late = isLateCancellation(startTimeISO, timeInput.value);
 				lateNote.classList.toggle('hidden', !late);
 			};
 

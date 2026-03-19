@@ -331,6 +331,41 @@ export async function cancelBooking(
 	}
 }
 
+export async function updateCancelledBooking(
+	bookingId: number,
+	reason: string,
+	actualCancelTime: string
+) {
+	try {
+		const res = await fetch('/api/update-cancelled-booking', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({
+				booking_id: bookingId,
+				reason,
+				actual_cancel_time: actualCancelTime
+			})
+		});
+
+		const data = await res.json();
+
+		if (!res.ok) throw new Error(data.error || 'Update failed');
+
+		invalidateBookingRelatedCaches();
+		return {
+			success: true,
+			message: 'Avbokningen har uppdaterats',
+			data: data.booking
+		};
+	} catch (err: any) {
+		console.error('Error updating cancelled booking:', err);
+		return {
+			success: false,
+			message: err.message ?? 'Unknown update error'
+		};
+	}
+}
+
 export async function deletePersonalBooking(bookingId: number) {
 	try {
 		const res = await fetch(`/api/personal-bookings/${bookingId}`, {

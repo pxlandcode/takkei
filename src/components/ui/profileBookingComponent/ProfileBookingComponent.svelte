@@ -4,9 +4,17 @@
 	import { writable, get } from 'svelte/store';
 	import { cancelBooking } from '$lib/services/api/bookingService';
 	import { fetchClients, getClientEmails } from '$lib/stores/clientsStore';
+	import { fetchUsers } from '$lib/stores/usersStore';
 	import { sendMail } from '$lib/services/mail/mailClientService';
 	import { addToast } from '$lib/stores/toastStore';
 	import { AppToastType } from '$lib/types/toastTypes';
+	import {
+		BOOKING_EMAIL_RECIPIENT_DEFAULT,
+		BOOKING_EMAIL_RECIPIENT_OPTIONS,
+		handleBookingEmail,
+		resolveBookingConfirmationRecipients,
+		type BookingEmailRecipientTarget
+	} from '$lib/helpers/bookingHelpers/bookingHelpers';
 
 	import ProfileBookingSlot from '../profileBookingSlot/ProfileBookingSlot.svelte';
 	import OptionButton from '../../bits/optionButton/OptionButton.svelte';
@@ -34,8 +42,6 @@
 	let cancelConfirmOptions = null;
 
 	const CANCELLED_STATUSES = new Set(['cancelled', 'late_cancelled']);
-
-	let currentUser = get(user);
 
 	const debouncedLoad = debounce((val) => {
 		if (/^\d{4}-\d{2}-\d{2}$/.test(val)) {
@@ -199,7 +205,31 @@
 		}
 	}
 
-	function sendBookingConfirmations() {
+	function buildBookingConfirmationBody(bookedDates, fromUser) {
+		const linesHtml = bookedDates
+			.map((bd) =>
+				bd.locationName
+					? `${bd.date} kl. ${bd.time} på ${bd.locationName}`
+					: `${bd.date} kl. ${bd.time}`
+			)
+			.join('<br>');
+
+		return [
+			'Hej!',
+			'',
+			'<b>Jag har bokat in dig följande tider:</b>',
+			linesHtml,
+			'Du kan boka av eller om din träningstid senast klockan 12.00 dagen innan träning genom att kontakta någon i ditt tränarteam via sms, e-post eller telefon.',
+			'',
+			'Hälsningar,',
+			`${fromUser.firstname}, Takkei Trainingsystems`
+		].join('<br>');
+	}
+
+	async function sendBookingConfirmations(
+		behavior: 'send' | 'edit',
+		recipientTarget: BookingEmailRecipientTarget = BOOKING_EMAIL_RECIPIENT_DEFAULT.value
+	) {
 		const bookingsToSend = get(selectedBookings);
 
 		if (bookingsToSend.length === 0) return;
@@ -214,10 +244,27 @@
 			return;
 		}
 
-		const clientEmail = client?.email;
+		const current = get(user);
+		if (!current) {
+			addToast({
+				type: AppToastType.CANCEL,
+				message: 'Saknar användare',
+				description: 'Kunde inte skicka bekräftelsemail.'
+			});
+			return;
+		}
+
+		const resolvedClientId =
+			clientId ?? bookingsToSend.find((booking) => booking.client?.id)?.client?.id ?? null;
+		const trainerIds = Array.from(
+			new Set(
+				bookingsToSend
+					.map((booking) => booking.trainer?.id)
+					.filter((id): id is number => typeof id === 'number' && Number.isFinite(id))
+			)
+		);
 
 		const bookedDates = bookingsToSend.map((b) => {
-			console.log(b);
 			const start = new Date(b.booking.startTime);
 			const time = start.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' });
 			const date = start.toLocaleDateString('sv-SE');
@@ -225,32 +272,59 @@
 			return { date, time, locationName };
 		});
 
-		const linesHtml = bookedDates
-			.map((bd) =>
-				bd.locationName
-					? `${bd.date} kl. ${bd.time} på ${bd.locationName}`
-					: `${bd.date} kl. ${bd.time}`
-			)
-			.join('<br>');
+		let recipients = resolveBookingConfirmationRecipients({
+			recipientTarget,
+			clientId: resolvedClientId,
+			trainerId: trainerIds
+		});
 
-		const body = [
-			'Hej!',
-			'',
-			'<b>Jag har bokat in dig följande tider:</b>',
-			linesHtml,
-			'Du kan boka av eller om din träningstid senast klockan 12.00 dagen innan träning genom att kontakta någon i ditt tränarteam via sms, e-post eller telefon.',
-			'',
-			'Hälsningar,',
-			`${currentUser.firstname}, Takkei Trainingsystems`
-		].join('<br>');
+		if (!recipients.length && recipientTarget === 'both') {
+			try {
+				await Promise.all([fetchClients(), fetchUsers()]);
+			} catch (error) {
+				console.error('Failed to refresh recipients for booking email', error);
+			}
+
+			recipients = resolveBookingConfirmationRecipients({
+				recipientTarget,
+				clientId: resolvedClientId,
+				trainerId: trainerIds
+			});
+		}
+
+		if (!recipients.length && recipientTarget === 'client') {
+			recipients = await resolveClientRecipients();
+		}
+
+		if (!recipients.length) {
+			addToast({
+				type: AppToastType.CANCEL,
+				message: 'Ingen e-postadress',
+				description: 'Det saknas e-postadress för vald mottagare, så inget mail skickades.'
+			});
+			return;
+		}
+
+		const body = buildBookingConfirmationBody(bookedDates, current);
+
+		const emailResult = await handleBookingEmail({
+			emailBehavior: behavior,
+			recipientEmails: recipients,
+			fromUser: current,
+			bookedDates
+		});
+
+		if (emailResult !== 'edit') {
+			return;
+		}
 
 		openPopup({
-			header: `Maila bokningsbekräftelse till ${clientEmail}`,
+			header: `Maila bokningsbekräftelse till ${recipients.join(', ')}`,
 			icon: 'Mail',
 			component: MailComponent,
 			maxWidth: '900px',
 			props: {
-				prefilledRecipients: [clientEmail],
+				prefilledRecipients: recipients,
 				subject: 'Bokningsbekräftelse',
 				header: 'Bekräftelse på dina bokningar',
 				subheader: 'Tack för din bokning!',
@@ -561,7 +635,32 @@
 					variant="primary"
 					small
 					class="bg-orange! text-white disabled:cursor-not-allowed disabled:opacity-50"
-					on:click={sendBookingConfirmations}
+					multipleActionsOptions={{
+						title: 'Skicka bekräftelse?',
+						description: 'Välj hur bekräftelsen ska skickas.',
+						selectionLabel: 'Mottagare',
+						selectionOptions: BOOKING_EMAIL_RECIPIENT_OPTIONS.map((option) => ({
+							label: option.label,
+							value: option.value
+						})),
+						defaultSelection: BOOKING_EMAIL_RECIPIENT_DEFAULT.value,
+						primaryLabel: 'Skicka direkt',
+						primaryAction: (recipientTarget) => {
+							void sendBookingConfirmations(
+								'send',
+								(recipientTarget as BookingEmailRecipientTarget | undefined) ??
+									BOOKING_EMAIL_RECIPIENT_DEFAULT.value
+							);
+						},
+						secondaryLabel: 'Redigera innan',
+						secondaryAction: (recipientTarget) => {
+							void sendBookingConfirmations(
+								'edit',
+								(recipientTarget as BookingEmailRecipientTarget | undefined) ??
+									BOOKING_EMAIL_RECIPIENT_DEFAULT.value
+							);
+						}
+					}}
 				/>
 
 				<Button
@@ -571,7 +670,7 @@
 					iconColor="error"
 					variant="danger-outline"
 					small
-					cancelConfirmOptions={cancelConfirmOptions}
+					{cancelConfirmOptions}
 				/>
 			</div>
 		</div>

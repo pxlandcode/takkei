@@ -10,15 +10,14 @@ import { addToast } from '$lib/stores/toastStore';
 import { AppToastType } from '$lib/types/toastTypes';
 
 type BookedDateLine = { date: string; time: string; locationName?: string };
-export type BookingEmailRecipientTarget = 'both' | 'client' | 'trainer';
+export type BookingEmailRecipientTarget = 'both' | 'client';
 
 export const BOOKING_EMAIL_RECIPIENT_OPTIONS: {
 	value: BookingEmailRecipientTarget;
 	label: string;
 }[] = [
-	{ value: 'both', label: 'Båda' },
-	{ value: 'client', label: 'Klient' },
-	{ value: 'trainer', label: 'Tränare' }
+	{ value: 'both', label: 'Tränare & klient' },
+	{ value: 'client', label: 'Klient' }
 ];
 
 export const BOOKING_EMAIL_RECIPIENT_DEFAULT = BOOKING_EMAIL_RECIPIENT_OPTIONS[0];
@@ -48,16 +47,18 @@ export function resolveBookingConfirmationRecipients({
 }: {
 	recipientTarget?: BookingEmailRecipientTarget;
 	clientId?: number | null;
-	trainerId?: number | null;
+	trainerId?: number | number[] | null;
 }): string[] {
 	const clientRecipients =
 		typeof clientId === 'number' && Number.isFinite(clientId) ? getClientEmails(clientId) : [];
 	const trainerRecipients =
-		typeof trainerId === 'number' && Number.isFinite(trainerId) ? getUserEmails(trainerId) : [];
-
-	if (recipientTarget === 'trainer') {
-		return getUniqueRecipients(trainerRecipients);
-	}
+		typeof trainerId === 'number'
+			? Number.isFinite(trainerId)
+				? getUserEmails(trainerId)
+				: []
+			: Array.isArray(trainerId)
+				? getUserEmails(trainerId)
+				: [];
 
 	if (recipientTarget === 'both') {
 		return getUniqueRecipients([...clientRecipients, ...trainerRecipients]);
