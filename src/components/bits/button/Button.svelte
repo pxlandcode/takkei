@@ -33,11 +33,14 @@
 	export let multipleActionsOptions: {
 		title?: string;
 		description?: string;
-		primaryAction?: () => void;
+		primaryAction?: (selectedValue?: string) => void;
 		primaryLabel?: string;
-		secondaryAction?: () => void;
+		secondaryAction?: (selectedValue?: string) => void;
 		secondaryLabel?: string;
 		cancelLabel?: string;
+		selectionLabel?: string;
+		selectionOptions?: { label: string; value: string }[];
+		defaultSelection?: string;
 	} | null = null;
 	export let cancelConfirmOptions: {
 		onConfirm: (reason: string, time: string, emailBehavior: 'send' | 'edit' | 'none') => void;

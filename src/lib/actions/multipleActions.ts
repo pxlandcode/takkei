@@ -4,11 +4,14 @@ import { clickOutside } from '$lib/actions/clickOutside';
 export interface MultipleActionsParams {
 	title?: string;
 	description?: string;
-	primaryAction?: () => void;
+	primaryAction?: (selectedValue?: string) => void;
 	primaryLabel?: string;
-	secondaryAction?: () => void;
+	secondaryAction?: (selectedValue?: string) => void;
 	secondaryLabel?: string;
 	cancelLabel?: string;
+	selectionLabel?: string;
+	selectionOptions?: { label: string; value: string }[];
+	defaultSelection?: string;
 }
 
 export function multipleActions(node: HTMLElement, params: MultipleActionsParams) {
@@ -23,6 +26,11 @@ export function multipleActions(node: HTMLElement, params: MultipleActionsParams
 	const primaryLabel = params.primaryLabel ?? 'Confirm';
 	const secondaryLabel = params.secondaryLabel ?? 'Option';
 	const cancelLabel = params.cancelLabel ?? 'Cancel';
+	const selectionLabel = params.selectionLabel ?? '';
+	const selectionOptions = params.selectionOptions ?? [];
+	let selectedValue =
+		params.defaultSelection ??
+		(selectionOptions.length > 0 ? selectionOptions[0].value : undefined);
 
 	function onClick(event: MouseEvent) {
 		event.preventDefault();
@@ -33,6 +41,9 @@ export function multipleActions(node: HTMLElement, params: MultipleActionsParams
 
 	function show() {
 		if (popover) return;
+		selectedValue =
+			params.defaultSelection ??
+			(selectionOptions.length > 0 ? selectionOptions[0].value : undefined);
 
 		popover = document.createElement('div');
 		popover.className =
@@ -40,6 +51,30 @@ export function multipleActions(node: HTMLElement, params: MultipleActionsParams
 
 		const descriptionHtml = description
 			? `<p class="mb-3 text-sm text-gray">${description}</p>`
+			: '';
+		const selectionHtml = selectionOptions.length
+			? `
+				<div class="mb-3">
+					<p class="mb-2 text-sm font-medium text-gray">${selectionLabel}</p>
+					<div class="w-full rounded-sm border border-gray bg-white p-[2px]">
+						<div class="flex gap-[2px] rounded-sm">
+							${selectionOptions
+								.map((option, index) => {
+									const isSelected = option.value === selectedValue;
+									return `<button
+										type="button"
+										data-selection-value="${option.value}"
+										aria-pressed="${isSelected}"
+										class="flex-1 cursor-pointer px-3 py-2 text-xs font-semibold transition-colors duration-200 ${
+											isSelected ? 'bg-gray text-white' : 'text-gray hover:bg-gray hover:text-white'
+										} ${index === 0 ? 'rounded-l' : ''} ${index === selectionOptions.length - 1 ? 'rounded-r' : ''}"
+									>${option.label}</button>`;
+								})
+								.join('')}
+						</div>
+					</div>
+				</div>
+			`
 			: '';
 		const secondaryButtonHtml = secondaryAction
 			? `<button data-secondary class="rounded-sm border border-gray bg-white px-3 py-1 text-sm text-gray hover:bg-gray-100 whitespace-nowrap">${secondaryLabel}</button>`
@@ -51,6 +86,7 @@ export function multipleActions(node: HTMLElement, params: MultipleActionsParams
 				<button data-cancel aria-label="${cancelLabel}" class="absolute -top-2 -right-2 flex h-7 w-7 items-center justify-center rounded-sm text-gray hover:bg-gray-100 hover:text-gray-700">&times;</button>
 			</div>
 			${descriptionHtml}
+			${selectionHtml}
 			<div class="flex justify-end gap-2">
 				${secondaryButtonHtml}
 				<button data-primary class="rounded-sm bg-success hover:bg-success-hover px-3 py-1 text-sm text-white whitespace-nowrap">${primaryLabel}</button>
@@ -70,21 +106,38 @@ export function multipleActions(node: HTMLElement, params: MultipleActionsParams
 
 			cleanupOutside = clickOutside(popover!, hide).destroy;
 
-			popover
-				?.querySelector('[data-cancel]')
-				?.addEventListener('click', hide);
-			popover
-				?.querySelector('[data-primary]')
-				?.addEventListener('click', () => {
-					primaryAction ? primaryAction() : node.click();
-					hide();
+			const selectionButtons = Array.from(
+				popover?.querySelectorAll<HTMLButtonElement>('[data-selection-value]') ?? []
+			);
+
+			function updateSelectionStyles() {
+				for (const button of selectionButtons) {
+					const isSelected = button.dataset.selectionValue === selectedValue;
+					button.setAttribute('aria-pressed', String(isSelected));
+					button.classList.toggle('bg-gray', isSelected);
+					button.classList.toggle('text-white', isSelected);
+					button.classList.toggle('text-gray', !isSelected);
+					button.classList.toggle('hover:bg-gray', !isSelected);
+					button.classList.toggle('hover:text-white', !isSelected);
+				}
+			}
+
+			for (const button of selectionButtons) {
+				button.addEventListener('click', () => {
+					selectedValue = button.dataset.selectionValue;
+					updateSelectionStyles();
 				});
-			popover
-				?.querySelector('[data-secondary]')
-				?.addEventListener('click', () => {
-					secondaryAction?.();
-					hide();
-				});
+			}
+
+			popover?.querySelector('[data-cancel]')?.addEventListener('click', hide);
+			popover?.querySelector('[data-primary]')?.addEventListener('click', () => {
+				primaryAction ? primaryAction(selectedValue) : node.click();
+				hide();
+			});
+			popover?.querySelector('[data-secondary]')?.addEventListener('click', () => {
+				secondaryAction?.(selectedValue);
+				hide();
+			});
 		});
 
 		visible = true;
@@ -106,7 +159,9 @@ export function multipleActions(node: HTMLElement, params: MultipleActionsParams
 
 		const trigger = node.getBoundingClientRect();
 		const box = popover.getBoundingClientRect();
-		const hostRect = ((node.closest('dialog') as HTMLElement) ?? document.body).getBoundingClientRect();
+		const hostRect = (
+			(node.closest('dialog') as HTMLElement) ?? document.body
+		).getBoundingClientRect();
 		const spacing = 8;
 
 		let top: number;

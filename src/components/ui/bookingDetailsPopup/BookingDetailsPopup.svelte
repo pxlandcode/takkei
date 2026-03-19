@@ -10,7 +10,13 @@
 	import { bookingContents } from '$lib/stores/bookingContentStore';
 	import { calendarStore } from '$lib/stores/calendarStore';
 	import { addToast } from '$lib/stores/toastStore';
-	import { handleBookingEmail } from '$lib/helpers/bookingHelpers/bookingHelpers';
+	import {
+		BOOKING_EMAIL_RECIPIENT_DEFAULT,
+		BOOKING_EMAIL_RECIPIENT_OPTIONS,
+		handleBookingEmail,
+		resolveBookingConfirmationRecipients,
+		type BookingEmailRecipientTarget
+	} from '$lib/helpers/bookingHelpers/bookingHelpers';
 	import {
 		cancelBooking,
 		deleteMeetingBooking,
@@ -403,7 +409,10 @@
 		});
 	}
 
-	async function handleBookingConfirmation(behavior: 'send' | 'edit') {
+	async function handleBookingConfirmation(
+		behavior: 'send' | 'edit',
+		recipientTarget: BookingEmailRecipientTarget = BOOKING_EMAIL_RECIPIENT_DEFAULT.value
+	) {
 		const clientId = currentBooking.client?.id;
 		if (!clientId) return;
 
@@ -417,12 +426,35 @@
 			return;
 		}
 
-		const recipients = await resolveClientRecipients(clientId, currentBooking.client?.email);
+		let recipients = resolveBookingConfirmationRecipients({
+			recipientTarget,
+			clientId,
+			trainerId: currentBooking.trainer?.id ?? null
+		});
+
+		if (!recipients.length && recipientTarget === 'both') {
+			try {
+				await Promise.all([fetchClients(), fetchUsers()]);
+			} catch (error) {
+				console.error('Failed to refresh recipients for booking email', error);
+			}
+
+			recipients = resolveBookingConfirmationRecipients({
+				recipientTarget,
+				clientId,
+				trainerId: currentBooking.trainer?.id ?? null
+			});
+		}
+
+		if (!recipients.length && recipientTarget === 'client') {
+			recipients = await resolveClientRecipients(clientId, currentBooking.client?.email);
+		}
+
 		if (!recipients.length) {
 			addToast({
 				type: AppToastType.CANCEL,
 				message: 'Ingen e-postadress',
-				description: 'Kunden saknar e-postadress, så inget mail skickades.'
+				description: 'Det saknas e-postadress för vald mottagare, så inget mail skickades.'
 			});
 			return;
 		}
@@ -1106,13 +1138,27 @@
 							multipleActionsOptions={{
 								title: 'Skicka bekräftelse?',
 								description: 'Välj hur bekräftelsen ska skickas.',
+								selectionLabel: 'Mottagare',
+								selectionOptions: BOOKING_EMAIL_RECIPIENT_OPTIONS.map((option) => ({
+									label: option.label,
+									value: option.value
+								})),
+								defaultSelection: BOOKING_EMAIL_RECIPIENT_DEFAULT.value,
 								primaryLabel: 'Skicka direkt',
-								primaryAction: () => {
-									void handleBookingConfirmation('send');
+								primaryAction: (recipientTarget) => {
+									void handleBookingConfirmation(
+										'send',
+										(recipientTarget as BookingEmailRecipientTarget | undefined) ??
+											BOOKING_EMAIL_RECIPIENT_DEFAULT.value
+									);
 								},
 								secondaryLabel: 'Redigera innan',
-								secondaryAction: () => {
-									void handleBookingConfirmation('edit');
+								secondaryAction: (recipientTarget) => {
+									void handleBookingConfirmation(
+										'edit',
+										(recipientTarget as BookingEmailRecipientTarget | undefined) ??
+											BOOKING_EMAIL_RECIPIENT_DEFAULT.value
+									);
 								}
 							}}
 						/>
