@@ -36,4 +36,14 @@ describe('findTravelConflictForBooking', () => {
 
 		expect(conflict).toBeNull();
 	});
+
+	it('allows a Stockholm-local booking one hour before a later booking on another location', () => {
+		const conflict = findTravelConflictForBooking({
+			targetStartTime: '2026-03-26T09:30:00',
+			targetLocationId: 68,
+			bookings: [{ id: 27655, start_time: '2026-03-26T10:30:00.000Z', location_id: 71 }]
+		});
+
+		expect(conflict).toBeNull();
+	});
 });
