@@ -16,6 +16,7 @@
 		deleteMeetingBooking,
 		deletePersonalBooking,
 		fetchAvailableSlots,
+		updateCancelledBooking,
 		updateStandardBooking
 	} from '$lib/services/api/bookingService';
 	import { AppToastType } from '$lib/types/toastTypes';
@@ -29,6 +30,13 @@
 	import QuillViewer from '../../bits/quillViewer/QuillViewer.svelte';
 	import { fetchBookingNotes } from '$lib/services/api/bookingNotesService';
 	import { openPopup, popupStore, closePopup, type PopupState } from '$lib/stores/popupStore';
+	import {
+		cancellationReasonOptions,
+		getCancellationStatusLabel,
+		getEditableCancellationTime,
+		isLateCancellation,
+		type CancellationEmailBehavior
+	} from '$lib/helpers/bookingHelpers/cancellation';
 
 	type BookingComponentType =
 		| 'training'
@@ -69,6 +77,9 @@
 	$: if (booking !== lastPropBooking && booking) {
 		lastPropBooking = booking;
 		currentBooking = booking;
+		cancelEditOpen = false;
+		cancelEditSaving = false;
+		syncCancelledEditFields();
 	}
 
 	$: {
@@ -84,9 +95,9 @@
 	let participantNames: string[] = [];
 	let isCancelled = false;
 	let cancelOptions: {
-		onConfirm: (reason: string, time: string, emailBehavior: 'send' | 'edit' | 'none') => void;
+		onConfirm: (reason: string, time: string, emailBehavior: CancellationEmailBehavior) => void;
 		startTimeISO: string;
-		defaultEmailBehavior?: 'send' | 'edit' | 'none';
+		defaultEmailBehavior?: CancellationEmailBehavior;
 	} | null = null;
 	let confirmDeleteOptions: {
 		title?: string;
@@ -131,6 +142,19 @@
 	let isLoadingBookingNotes = false;
 	let lastLoadedBookingNotesId: number | null = null;
 	let canSendConfirmation = false;
+	const cancellationReasonDropdownOptions = cancellationReasonOptions.map((option) => ({
+		label: option.label,
+		value: option.value
+	}));
+	let cancelEditOpen = false;
+	let cancelEditSaving = false;
+	let cancelEditReason = currentBooking.booking.cancelReason ?? '';
+	let cancelEditTime = getEditableCancellationTime(
+		currentBooking.booking.actualCancelTime,
+		currentBooking.booking.cancelTime
+	);
+	let cancellationStatusLabel = getCancellationStatusLabel(currentBooking.booking.status);
+	let cancellationPreviewLabel = cancellationStatusLabel;
 
 	function normalizeKind(kind?: string | null) {
 		if (!kind) return '';
@@ -174,7 +198,7 @@
 
 	$: isCancelled =
 		(currentBooking.booking.status &&
-			currentBooking.booking.status.toLowerCase() === 'cancelled') ||
+			['cancelled', 'late_cancelled'].includes(currentBooking.booking.status.toLowerCase())) ||
 		!!currentBooking.booking.cancelTime;
 	$: canSendConfirmation =
 		!isCancelled && !currentBooking.isPersonalBooking && Boolean(currentBooking.client?.id);
@@ -191,6 +215,15 @@
 	$: currentLocationId = currentBooking.location?.id ?? null;
 	$: currentBookingDate = toDateInputValue(new Date(currentBooking.booking.startTime));
 	$: currentBookingTime = toTimeInputValue(new Date(currentBooking.booking.startTime));
+	$: cancellationStatusLabel = getCancellationStatusLabel(currentBooking.booking.status);
+	$: cancellationPreviewLabel =
+		cancelEditTime && !Number.isNaN(new Date(cancelEditTime).getTime())
+			? getCancellationStatusLabel(
+					isLateCancellation(currentBooking.booking.startTime, cancelEditTime)
+						? 'Late_cancelled'
+						: 'Cancelled'
+				)
+			: cancellationStatusLabel;
 	$: if (!activeQuickEdit) {
 		pendingTrainerSelection = currentTrainerId;
 		pendingLocationSelection = currentLocationId;
@@ -237,7 +270,29 @@
 		return JSON.parse(JSON.stringify(source));
 	}
 
+	function syncCancelledEditFields() {
+		cancelEditReason = currentBooking.booking.cancelReason ?? '';
+		cancelEditTime = getEditableCancellationTime(
+			currentBooking.booking.actualCancelTime,
+			currentBooking.booking.cancelTime
+		);
+	}
+
+	function toggleCancelledEdit() {
+		if (cancelEditSaving) return;
+		cancelEditOpen = !cancelEditOpen;
+		syncCancelledEditFields();
+	}
+
+	function closeCancelledEdit() {
+		if (cancelEditSaving) return;
+		cancelEditOpen = false;
+		syncCancelledEditFields();
+	}
+
 	onMount(async () => {
+		syncCancelledEditFields();
+
 		if (currentBooking.isPersonalBooking && get(users).length === 0) {
 			await fetchUsers();
 		}
@@ -392,7 +447,7 @@
 	}: {
 		reason?: string;
 		time?: string;
-		emailBehavior?: 'send' | 'edit' | 'none';
+		emailBehavior?: CancellationEmailBehavior;
 	}) {
 		const personalBooking = currentBooking.isPersonalBooking;
 		const meetingBooking = isMeetingBooking(currentBooking);
@@ -505,6 +560,74 @@
 				message: 'Fel vid avbokning',
 				description: res.message ?? 'Något gick fel.'
 			});
+		}
+	}
+
+	async function saveCancelledBookingChanges() {
+		if (cancelEditSaving) return;
+
+		if (!cancelEditReason) {
+			addToast({
+				type: AppToastType.CANCEL,
+				message: 'Orsak saknas',
+				description: 'Välj en avbokningsorsak innan du sparar.'
+			});
+			return;
+		}
+
+		if (!cancelEditTime) {
+			addToast({
+				type: AppToastType.CANCEL,
+				message: 'Tid saknas',
+				description: 'Ange avbokningstid innan du sparar.'
+			});
+			return;
+		}
+
+		cancelEditSaving = true;
+
+		try {
+			const res = await updateCancelledBooking(
+				currentBooking.booking.id,
+				cancelEditReason,
+				cancelEditTime
+			);
+
+			if (!res.success) {
+				throw new Error(res.message ?? 'Avbokningen kunde inte uppdateras.');
+			}
+
+			const updated = res.data ?? {};
+			currentBooking = {
+				...currentBooking,
+				booking: {
+					...currentBooking.booking,
+					status: updated.status ?? currentBooking.booking.status,
+					cancelReason: updated.cancel_reason ?? cancelEditReason,
+					cancelTime: updated.cancel_time ?? currentBooking.booking.cancelTime,
+					actualCancelTime: updated.actual_cancel_time ?? currentBooking.booking.actualCancelTime,
+					updatedAt: updated.updated_at ?? new Date().toISOString()
+				}
+			};
+
+			cancelEditOpen = false;
+			syncCancelledEditFields();
+			await calendarStore.refresh(fetch);
+			dispatch('updated', { booking: currentBooking });
+			addToast({
+				type: AppToastType.SUCCESS,
+				message: 'Avbokning uppdaterad',
+				description: 'Orsak och avbokningstid har sparats.'
+			});
+		} catch (error: any) {
+			console.error('Failed to update cancelled booking', error);
+			addToast({
+				type: AppToastType.CANCEL,
+				message: 'Kunde inte uppdatera avbokning',
+				description: error?.message ?? 'Försök igen om en liten stund.'
+			});
+		} finally {
+			cancelEditSaving = false;
 		}
 	}
 
@@ -1003,9 +1126,14 @@
 						cancelConfirmOptions={cancelOptions}
 						confirmOptions={confirmDeleteOptions}
 					/>
-				{:else}
-					<!-- Optional: just a close button when canceled -->
-					<Button text="Stäng" variant="secondary" small on:click={onClose} />
+				{:else if requiresCancelReason}
+					<Button
+						iconLeft="Edit"
+						text={cancelEditOpen ? 'Avsluta redigering' : 'Ändra avbokning'}
+						variant="secondary"
+						small
+						on:click={toggleCancelledEdit}
+					/>
 				{/if}
 			</div>
 		</div>
@@ -1015,7 +1143,7 @@
 			<div class="mx-1 rounded-sm border border-rose-300 bg-rose-100 p-3 text-rose-900">
 				<div class="flex items-center gap-2">
 					<Icon icon="CircleAlert" size="18px" color="error" />
-					<span class="font-semibold">Avbokad</span>
+					<span class="font-semibold">{cancellationStatusLabel}</span>
 				</div>
 
 				{#if currentBooking.booking.cancelReason}
@@ -1036,6 +1164,58 @@
 						</p>
 					{/if}
 				</div>
+
+				{#if cancelEditOpen && requiresCancelReason}
+					<div class="mt-4 rounded-sm border border-rose-200 bg-white/75 p-4 text-gray-900">
+						<div class="grid gap-3 sm:grid-cols-2">
+							<Dropdown
+								id="cancelled-booking-reason"
+								label="Orsak"
+								placeholder="Välj orsak"
+								options={cancellationReasonDropdownOptions}
+								bind:selectedValue={cancelEditReason}
+							/>
+							<div class="relative flex w-full flex-col gap-1">
+								<div class="mb-1 flex flex-row items-center gap-2">
+									<label
+										class="text-gray mb-1 block text-sm font-medium"
+										for="cancelled-booking-time"
+									>
+										Avbokningstid
+									</label>
+								</div>
+								<input
+									id="cancelled-booking-time"
+									type="datetime-local"
+									class="border-gray h-[42px] w-full rounded border bg-white px-3 text-sm text-black transition-colors duration-150 focus:outline-blue-500"
+									bind:value={cancelEditTime}
+								/>
+								<p class="mt-2 text-xs text-rose-700">
+									Status efter ändring: {cancellationPreviewLabel}
+								</p>
+								{#if cancelEditTime && isLateCancellation(currentBooking.booking.startTime, cancelEditTime)}
+									<p class="text-error mt-1 text-xs">Sen avbokning, debiteringsregler kan gälla.</p>
+								{/if}
+							</div>
+						</div>
+						<div class="mt-4 flex flex-wrap justify-end gap-2">
+							<Button
+								text="Avbryt"
+								variant="secondary"
+								small
+								disabled={cancelEditSaving}
+								on:click={closeCancelledEdit}
+							/>
+							<Button
+								text={cancelEditSaving ? 'Sparar...' : 'Spara'}
+								variant="primary"
+								small
+								disabled={cancelEditSaving || !cancelEditReason || !cancelEditTime}
+								on:click={saveCancelledBookingChanges}
+							/>
+						</div>
+					</div>
+				{/if}
 			</div>
 		{/if}
 
