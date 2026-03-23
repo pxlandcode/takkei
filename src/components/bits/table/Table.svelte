@@ -172,21 +172,23 @@
 </script>
 
 <!-- Desktop Table -->
-<div class="border-gray overflow-x-auto sm:rounded-sm lg:border lg:shadow-md">
+<div class="overflow-x-auto rounded-lg border border-gray-200 shadow-sm">
 	<table
 		class={`hidden w-full lg:table ${sideScrollable ? 'min-w-max table-auto' : 'table-fixed'}`}
 	>
-		<thead class="bg-gray rounded-t-lg text-left text-white">
+		<thead class="bg-gray rounded-t-lg text-left text-sm text-white">
 			<tr>
 				{#if !noSelect}
-					<th class="w-12 p-2 py-4 pl-4">
+					<th class="w-12 px-4 py-3 pl-4">
 						<input type="checkbox" class="border-gray h-5 w-5 rounded-sm" />
 					</th>
 				{/if}
 
 				{#each headers as header}
 					<th
-						class="{header.sort ? 'cursor-pointer' : ''} items-center gap-2 p-2 py-4 text-nowrap"
+						class="{header.sort
+							? 'cursor-pointer'
+							: ''} items-center gap-2 px-4 py-3 font-medium tracking-wide text-nowrap"
 						on:click={() => header.sort && sortTable(header.key)}
 						style={header.width ? `width: ${header.width}` : ''}
 					>
@@ -214,16 +216,19 @@
 				{/each}
 			</tr>
 		</thead>
-		<tbody class="divide-gray-bright divide-y bg-white">
+		<tbody class="bg-white">
 			{#each $sortedData as row}
-				<tr class="hover:bg-gray-100">
+				<tr class="transition-colors even:bg-gray-50 hover:bg-blue-50/30">
 					{#if !noSelect}
-						<td class="p-4">
+						<td class="px-4 py-6">
 							<input type="checkbox" class="border-gray h-5 w-5 rounded-sm" />
 						</td>
 					{/if}
 					{#each headers as header}
-						<td class="p-4" style={header.width ? `width: ${header.width}` : ''}>
+						<td
+							class="px-4 py-6 text-sm text-gray-800"
+							style={header.width ? `width: ${header.width}` : ''}
+						>
 							{#if Array.isArray(row[header.key])}
 								<div
 									class="flex flex-row flex-wrap gap-2 {header.key === 'actions' &&
@@ -239,6 +244,7 @@
 															text={item.label}
 															iconLeft={item.label ? item.icon : undefined}
 															iconLeftSize="14px"
+															small={true}
 															variant={item.variant}
 															icon={item.label ? undefined : item.icon}
 															disabled={Boolean(item.disabled)}
@@ -249,34 +255,35 @@
 															text={item.label}
 															iconLeft={item.label ? item.icon : undefined}
 															iconLeftSize="14px"
+															small={true}
 															variant={item.variant}
 															icon={item.label ? undefined : item.icon}
 															disabled={Boolean(item.disabled)}
 														/>
 													{/if}
 												</span>
+											{:else if item.confirmOptions}
+												<Button
+													confirmOptions={item.confirmOptions}
+													text={item.label}
+													iconLeft={item.label ? item.icon : undefined}
+													iconLeftSize="14px"
+													small={true}
+													variant={item.variant}
+													icon={item.label ? undefined : item.icon}
+													disabled={Boolean(item.disabled)}
+												/>
 											{:else}
-												{#if item.confirmOptions}
-													<Button
-														confirmOptions={item.confirmOptions}
-														text={item.label}
-														iconLeft={item.label ? item.icon : undefined}
-														iconLeftSize="14px"
-														variant={item.variant}
-														icon={item.label ? undefined : item.icon}
-														disabled={Boolean(item.disabled)}
-													/>
-												{:else}
-													<Button
-														on:click={item.action}
-														text={item.label}
-														iconLeft={item.label ? item.icon : undefined}
-														iconLeftSize="14px"
-														variant={item.variant}
-														icon={item.label ? undefined : item.icon}
-														disabled={Boolean(item.disabled)}
-													/>
-												{/if}
+												<Button
+													on:click={item.action}
+													text={item.label}
+													iconLeft={item.label ? item.icon : undefined}
+													iconLeftSize="14px"
+													small={true}
+													variant={item.variant}
+													icon={item.label ? undefined : item.icon}
+													disabled={Boolean(item.disabled)}
+												/>
 											{/if}
 										{:else if item.type === 'link'}
 											<button
@@ -287,15 +294,10 @@
 												{item.label}
 											</button>
 										{:else if item.type === 'status'}
-											<span
-												class="inline-flex items-center"
-												title={item.label ?? ''}
-											>
+											<span class="inline-flex items-center" title={item.label ?? ''}>
 												<span
 													class={`h-3 w-3 rounded-full ${
-														item.status === 'inactive'
-															? 'border border-yellow-500'
-															: 'bg-green-500'
+														item.status === 'inactive' ? 'border border-yellow-500' : 'bg-green-500'
 													}`}
 												></span>
 												{#if item.label}
@@ -318,9 +320,9 @@
 	</table>
 
 	<!-- Mobile View (Stacked Rows) -->
-	<div class="flex flex-col gap-4 p-4 lg:hidden">
+	<div class="flex flex-col gap-3 p-3 lg:hidden">
 		{#each $sortedData as row}
-			<div class="border-gray rounded-sm border p-4 shadow-md">
+			<div class="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
 				<div class="flex items-center justify-between">
 					{#if Array.isArray(row[headers[titleHeaderIndex].key])}
 						<div class="flex flex-col gap-1">
@@ -364,6 +366,7 @@
 															text={item.label}
 															iconLeft={item.label ? item.icon : undefined}
 															iconLeftSize="14px"
+															small={true}
 															variant={item.variant}
 															icon={item.label ? undefined : item.icon}
 															disabled={Boolean(item.disabled)}
@@ -374,34 +377,35 @@
 															text={item.label}
 															iconLeft={item.label ? item.icon : undefined}
 															iconLeftSize="14px"
+															small={true}
 															variant={item.variant}
 															icon={item.label ? undefined : item.icon}
 															disabled={Boolean(item.disabled)}
 														/>
 													{/if}
 												</span>
+											{:else if item.confirmOptions}
+												<Button
+													confirmOptions={item.confirmOptions}
+													text={item.label}
+													iconLeft={item.label ? item.icon : undefined}
+													iconLeftSize="14px"
+													small={true}
+													variant={item.variant}
+													icon={item.label ? undefined : item.icon}
+													disabled={Boolean(item.disabled)}
+												/>
 											{:else}
-												{#if item.confirmOptions}
-													<Button
-														confirmOptions={item.confirmOptions}
-														text={item.label}
-														iconLeft={item.label ? item.icon : undefined}
-														iconLeftSize="14px"
-														variant={item.variant}
-														icon={item.label ? undefined : item.icon}
-														disabled={Boolean(item.disabled)}
-													/>
-												{:else}
-													<Button
-														on:click={item.action}
-														text={item.label}
-														iconLeft={item.label ? item.icon : undefined}
-														iconLeftSize="14px"
-														variant={item.variant}
-														icon={item.label ? undefined : item.icon}
-														disabled={Boolean(item.disabled)}
-													/>
-												{/if}
+												<Button
+													on:click={item.action}
+													text={item.label}
+													iconLeft={item.label ? item.icon : undefined}
+													iconLeftSize="14px"
+													small={true}
+													variant={item.variant}
+													icon={item.label ? undefined : item.icon}
+													disabled={Boolean(item.disabled)}
+												/>
 											{/if}
 										{:else if item.type === 'link'}
 											<button
@@ -412,15 +416,10 @@
 												{item.label}
 											</button>
 										{:else if item.type === 'status'}
-											<span
-												class="inline-flex items-center"
-												title={item.label ?? ''}
-											>
+											<span class="inline-flex items-center" title={item.label ?? ''}>
 												<span
 													class={`h-3 w-3 rounded-full ${
-														item.status === 'inactive'
-															? 'border border-yellow-500'
-															: 'bg-green-500'
+														item.status === 'inactive' ? 'border border-yellow-500' : 'bg-green-500'
 													}`}
 												></span>
 												{#if item.label}
