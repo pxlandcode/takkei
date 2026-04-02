@@ -8,6 +8,18 @@
 	export let clients: HomeModernClient[] = [];
 	export let chipClass = 'bg-gray-100 text-gray-600 hover:bg-gray-200';
 	export let maxVisible = 4;
+
+	let showAllClients = false;
+
+	$: hiddenClientCount = Math.max(clients.length - maxVisible, 0);
+	$: visibleClients = showAllClients ? clients : clients.slice(0, maxVisible);
+	$: if (hiddenClientCount === 0 && showAllClients) {
+		showAllClients = false;
+	}
+
+	function toggleShowAllClients() {
+		showAllClients = !showAllClients;
+	}
 </script>
 
 <div>
@@ -15,7 +27,7 @@
 		{label} ({clients.length})
 	</p>
 	<div class="flex flex-wrap gap-1">
-		{#each clients.slice(0, maxVisible) as client (client.id)}
+		{#each visibleClients as client (client.id)}
 			<a
 				href="/clients/{client.id}"
 				class={`inline-flex items-center gap-1.5 px-2 py-1 text-xs font-medium transition ${chipClass}`}
@@ -31,8 +43,18 @@
 				{/if}
 			</a>
 		{/each}
-		{#if clients.length > maxVisible}
-			<span class="px-2 py-1 text-xs text-gray-400">+{clients.length - maxVisible}</span>
+		{#if hiddenClientCount > 0}
+			<button
+				type="button"
+				class="text-primary inline-flex items-center px-2 py-1 text-xs font-medium transition hover:underline"
+				on:click={toggleShowAllClients}
+				aria-expanded={showAllClients}
+				aria-label={showAllClients
+					? `Visa färre klienter i ${label.toLowerCase()}`
+					: `Visa ${hiddenClientCount} fler klienter i ${label.toLowerCase()}`}
+			>
+				{showAllClients ? 'Visa färre' : `+${hiddenClientCount}`}
+			</button>
 		{/if}
 	</div>
 </div>
