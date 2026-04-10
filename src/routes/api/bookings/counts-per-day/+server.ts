@@ -2,6 +2,7 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { query } from '$lib/db'; // Adjust if your db import is elsewhere
 import { respondJsonWithEtag } from '$lib/server/http-cache';
+import { saldoAdjustmentSql } from '$lib/server/packageSemantics';
 
 export const GET: RequestHandler = async ({ url, request }) => {
 	const from = url.searchParams.get('from');
@@ -18,7 +19,8 @@ export const GET: RequestHandler = async ({ url, request }) => {
 
 	// Build filter
 	const params: any[] = [from, to];
-	let condition = `start_time >= $1::date AND start_time < ($2::date + INTERVAL '1 day') AND cancel_time IS NULL`;
+	// Saldojusteringar are stored as bookings, but should not be counted in the booking grid.
+	let condition = `start_time >= $1::date AND start_time < ($2::date + INTERVAL '1 day') AND cancel_time IS NULL AND NOT (${saldoAdjustmentSql('bookings')})`;
 
 	if (trainerId) {
 		params.push(parseInt(trainerId));

@@ -5,11 +5,41 @@
 	import Table from '../../bits/table/Table.svelte';
 	import { goto } from '$app/navigation';
 	import PackagePopup from '../packagePopup/PackagePopup.svelte';
+	import SaldoAdjustmentPopup from '../ProfileClientPackages/SaldoAdjustmentPopup.svelte';
 	import { openPopup, closePopup } from '$lib/stores/popupStore';
 	import { hasRole } from '$lib/helpers/userHelpers/roleHelper';
 	import { openPackageAssignmentPopup } from '$lib/helpers/packageAssignments/openPackageAssignmentPopup';
+	import type { ComponentType } from 'svelte';
 
-	export let customer;
+	type CustomerPackage = {
+		id: number;
+		article?: { name?: string | null } | null;
+		client?: { id: number; firstname?: string | null; lastname?: string | null } | null;
+		frozen_from_date?: string | null;
+		autogiro?: boolean | null;
+		invoice_numbers?: Array<string | number> | null;
+		total_sessions?: number | null;
+		used_sessions_total?: number | null;
+		remaining_sessions?: number | null;
+	};
+
+	type CustomerProfile = {
+		id: number;
+		name?: string | null;
+		email?: string | null;
+		phone?: string | null;
+		customer_no?: string | number | null;
+		organization_number?: string | null;
+		invoice_address?: string | null;
+		invoice_zip?: string | null;
+		invoice_city?: string | null;
+		invoice_reference?: string | null;
+		active?: boolean | null;
+		clients?: any[];
+		packages?: CustomerPackage[];
+	};
+
+	export let customer: CustomerProfile;
 	export let onCustomerChange: (value: any) => void = () => {};
 	export let refreshCustomer: (() => Promise<void> | void) | null = null;
 	let isEditing = false;
@@ -21,7 +51,7 @@
 
 	$: isAdmin = hasRole('Administrator');
 
-	function handleClientsUpdated(event) {
+	function handleClientsUpdated(event: CustomEvent<any[]>) {
 		const updatedClients = event.detail ?? [];
 		customer = { ...customer, clients: updatedClients };
 		onCustomerChange?.(customer);
@@ -35,7 +65,7 @@
 		isEditing = false;
 	}
 
-const packageHeaders = [
+	const packageHeaders = [
 		{ label: 'Typ', key: 'type' },
 		{ label: 'Klient', key: 'client' },
 		{ label: 'Fryst', key: 'frozen' },
@@ -45,12 +75,13 @@ const packageHeaders = [
 		{ label: 'Bokningar', key: 'bookings' }
 	];
 
-	const packageTable = customer.packages?.map((pkg) => {
+	$: packageTable = (customer.packages ?? []).map((pkg: CustomerPackage) => {
 		const totalSessions = pkg.total_sessions ?? null;
 		const usedSessions = pkg.used_sessions_total ?? 0;
 		const saldoValue = pkg.remaining_sessions != null ? String(pkg.remaining_sessions) : '—';
 		const bookingsValue =
 			totalSessions != null ? `${usedSessions}/${totalSessions}` : String(usedSessions);
+		const packageClient = pkg.client ?? null;
 
 		return {
 			id: pkg.id,
@@ -64,13 +95,13 @@ const packageHeaders = [
 				}
 			],
 			client: [
-				pkg.client
+				packageClient
 					? {
 							type: 'link',
-							label: `${pkg.client.firstname} ${pkg.client.lastname}`,
+							label: `${packageClient.firstname} ${packageClient.lastname}`,
 							attrs: { 'data-sveltekit-preload-data': 'hover' },
-							action: () => goto(`/clients/${pkg.client.id}`)
-					}
+							action: () => goto(`/clients/${packageClient.id}`)
+						}
 					: { type: 'text', content: 'Delat (ingen klient)' }
 			],
 			frozen: pkg.frozen_from_date ? `Ja (${String(pkg.frozen_from_date).slice(0, 10)})` : 'Nej',
@@ -84,80 +115,101 @@ const packageHeaders = [
 		};
 	});
 
-async function handleCreatePackage() {
-	closePopup();
-	try {
-		if (typeof refreshCustomer === 'function') {
-			await refreshCustomer();
-		}
-	} catch (error) {
-		console.error('Failed to refresh customer after creating package:', error);
-	}
-}
-
-function openPackagePopup() {
-	openPopup({
-		header: 'Lägg till paket',
-		icon: 'Plus',
-		component: PackagePopup,
-		width: '1000px',
-		props: {
-			customerId: customer.id,
-			onSave: handleCreatePackage
-		}
-	});
-}
-
-async function recalculateCustomerPackages() {
-	recalcPending = true;
-	recalcInfo = null;
-	recalcError = null;
-	recalcDetachedCount = 0;
-	try {
-		const res = await fetch(`/api/customers/${customer.id}/packages/recalculate`, {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({})
-		});
-
-		const text = await res.text();
-		let payload: any = null;
+	async function handleCreatePackage() {
+		closePopup();
 		try {
-			payload = text ? JSON.parse(text) : null;
-		} catch {
-			payload = null;
-		}
-
-		if (!res.ok) throw new Error(payload?.error || text || 'Kunde inte räkna om paket');
-
-		recalcInfo =
-			payload?.message ||
-			`Räknade om ${payload?.processedPackages ?? 0} paket och kopplade bort ${payload?.totalDetachedCount ?? 0} bokningar.`;
-		recalcDetachedCount = Number(payload?.totalDetachedCount ?? 0);
-
-		if (typeof refreshCustomer === 'function') {
-			await refreshCustomer();
-		}
-	} catch (error: any) {
-		recalcError = error?.message ?? 'Kunde inte räkna om paket';
-	} finally {
-		recalcPending = false;
-	}
-}
-
-function openAssignmentPopup(initialFilter: 'all' | 'linked' | 'missing' = 'all') {
-	if (!customer?.id || !isAdmin) return;
-	openPackageAssignmentPopup({
-		scope: 'customer',
-		scopeId: customer.id,
-		initialFilter,
-		onApplied: async () => {
 			if (typeof refreshCustomer === 'function') {
 				await refreshCustomer();
 			}
+		} catch (error) {
+			console.error('Failed to refresh customer after creating package:', error);
 		}
-	});
-}
+	}
+
+	function openPackagePopup() {
+		openPopup({
+			header: 'Lägg till paket',
+			icon: 'Plus',
+			component: PackagePopup as unknown as ComponentType,
+			width: '1000px',
+			props: {
+				customerId: customer.id,
+				onSave: handleCreatePackage
+			}
+		});
+	}
+
+	async function recalculateCustomerPackages() {
+		recalcPending = true;
+		recalcInfo = null;
+		recalcError = null;
+		recalcDetachedCount = 0;
+		try {
+			const res = await fetch(`/api/customers/${customer.id}/packages/recalculate`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({})
+			});
+
+			const text = await res.text();
+			let payload: any = null;
+			try {
+				payload = text ? JSON.parse(text) : null;
+			} catch {
+				payload = null;
+			}
+
+			if (!res.ok) throw new Error(payload?.error || text || 'Kunde inte räkna om paket');
+
+			recalcInfo =
+				payload?.message ||
+				`Räknade om ${payload?.processedPackages ?? 0} paket och kopplade bort ${payload?.totalDetachedCount ?? 0} bokningar.`;
+			recalcDetachedCount = Number(payload?.totalDetachedCount ?? 0);
+
+			if (typeof refreshCustomer === 'function') {
+				await refreshCustomer();
+			}
+		} catch (error: any) {
+			recalcError = error?.message ?? 'Kunde inte räkna om paket';
+		} finally {
+			recalcPending = false;
+		}
+	}
+
+	function openAssignmentPopup(initialFilter: 'all' | 'linked' | 'missing' = 'all') {
+		if (!customer?.id || !isAdmin) return;
+		openPackageAssignmentPopup({
+			scope: 'customer',
+			scopeId: customer.id,
+			initialFilter,
+			onApplied: async () => {
+				if (typeof refreshCustomer === 'function') {
+					await refreshCustomer();
+				}
+			}
+		});
+	}
+
+	function openSaldoAdjustmentPopup() {
+		if (!customer?.id || !isAdmin) return;
+		openPopup({
+			header: 'Saldojustering',
+			icon: 'Calculator',
+			component: SaldoAdjustmentPopup as unknown as ComponentType,
+			maxWidth: '560px',
+			props: {
+				customerId: customer.id
+			},
+			listeners: {
+				saved: async () => {
+					if (typeof refreshCustomer === 'function') {
+						await refreshCustomer();
+					}
+				}
+			},
+			closeOn: ['saved']
+		});
+	}
 </script>
 
 <div class="flex flex-col gap-4">
@@ -203,6 +255,13 @@ function openAssignmentPopup(initialFilter: 'all' | 'linked' | 'missing' = 'all'
 			<div class="flex flex-wrap gap-2">
 				{#if isAdmin}
 					<Button
+						text="Saldojustering"
+						variant="secondary"
+						iconLeft="Calculator"
+						iconLeftSize="14px"
+						on:click={openSaldoAdjustmentPopup}
+					/>
+					<Button
 						text="Hantera paketbokningar"
 						variant="secondary"
 						iconLeft="Package"
@@ -235,7 +294,9 @@ function openAssignmentPopup(initialFilter: 'all' | 'linked' | 'missing' = 'all'
 		</div>
 
 		{#if recalcInfo}
-			<div class="mb-4 flex flex-col gap-3 rounded-sm border border-green-300 bg-green-50 p-3 text-green-900 md:flex-row md:items-center md:justify-between">
+			<div
+				class="mb-4 flex flex-col gap-3 rounded-sm border border-green-300 bg-green-50 p-3 text-green-900 md:flex-row md:items-center md:justify-between"
+			>
 				<p>{recalcInfo}</p>
 				{#if isAdmin && recalcDetachedCount > 0}
 					<Button
@@ -249,7 +310,8 @@ function openAssignmentPopup(initialFilter: 'all' | 'linked' | 'missing' = 'all'
 		{/if}
 		{#if recalcError}
 			<div class="mb-4 rounded-sm border border-red-300 bg-red-50 p-3 text-red-800">
-				<strong>Omräkning misslyckades:</strong> {recalcError}
+				<strong>Omräkning misslyckades:</strong>
+				{recalcError}
 			</div>
 		{/if}
 

@@ -3,6 +3,7 @@ import { extractStockholmTimeParts } from '$lib/server/stockholm-time';
 export const CANCELLED_STATUS = 'Cancelled' as const;
 export const LATE_CANCELLED_STATUS = 'Late_cancelled' as const;
 export const TRAINING_RELATIONSHIPS = ['Training', 'Training and Membership'] as const;
+const SALDO_ADJUSTMENT_STOCKHOLM_HOUR = 3;
 
 type DateLike = Date | string | null | undefined;
 
@@ -124,6 +125,27 @@ export function packageFreeExclusionSql(alias = 'b') {
 	return `COALESCE(${alias}.internal, false) = false AND COALESCE(${alias}.education, false) = false AND COALESCE(${alias}.try_out, false) = false`;
 }
 
+export function stockholmLocalTimestampSql(expression: string) {
+	return `(${expression} AT TIME ZONE 'UTC' AT TIME ZONE 'Europe/Stockholm')`;
+}
+
+export function saldoAdjustmentSql(alias = 'b') {
+	// Legacy Rails convention: saldojustering is a roomless booking at 03:00 Stockholm time.
+	return `${alias}.room_id IS NULL AND EXTRACT(HOUR FROM ${stockholmLocalTimestampSql(`${alias}.start_time`)}) = ${SALDO_ADJUSTMENT_STOCKHOLM_HOUR}`;
+}
+
+export function isSaldoAdjustmentBooking({
+	room_id,
+	start_time
+}: {
+	room_id?: number | string | null;
+	start_time?: DateLike;
+}) {
+	if (room_id !== null && room_id !== undefined) return false;
+	const parts = extractStockholmTimeParts(start_time);
+	return parts?.hour === SALDO_ADJUSTMENT_STOCKHOLM_HOUR;
+}
+
 function compareNullableYmdAscNullsLast(left: string | null, right: string | null) {
 	if (left && right) return left.localeCompare(right);
 	if (!left && right) return 1;
@@ -148,7 +170,10 @@ function compareActiveCandidates(left: ActivePackageCandidate, right: ActivePack
 	const validityCmp = compareValidityEndDescDefinedFirst(left, right);
 	if (validityCmp !== 0) return validityCmp;
 
-	const paymentCmp = compareNullableYmdAscNullsLast(toYmd(left.first_payment_date), toYmd(right.first_payment_date));
+	const paymentCmp = compareNullableYmdAscNullsLast(
+		toYmd(left.first_payment_date),
+		toYmd(right.first_payment_date)
+	);
 	if (paymentCmp !== 0) return paymentCmp;
 
 	return Number(left.id) - Number(right.id);
@@ -168,14 +193,19 @@ function isCandidateEligible(candidate: ActivePackageCandidate, checkYmd: string
 	);
 }
 
-export function selectActivePackage<T extends ActivePackageCandidate>(packages: T[], checkYmd: string): T | null {
+export function selectActivePackage<T extends ActivePackageCandidate>(
+	packages: T[],
+	checkYmd: string
+): T | null {
 	if (!Array.isArray(packages) || packages.length === 0) return null;
 
 	const eligible = packages.filter((pkg) => isCandidateEligible(pkg, checkYmd));
 	if (!eligible.length) return null;
 
 	const personal = eligible.filter((pkg) => Boolean(pkg.is_personal));
-	const shared = eligible.filter((pkg) => !pkg.is_personal && (pkg.is_shared === true || pkg.is_shared == null));
+	const shared = eligible.filter(
+		(pkg) => !pkg.is_personal && (pkg.is_shared === true || pkg.is_shared == null)
+	);
 	const pool = personal.length ? personal : shared;
 	if (!pool.length) return null;
 

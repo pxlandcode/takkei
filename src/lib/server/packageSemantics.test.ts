@@ -4,6 +4,7 @@ import {
 	getNextStockholmDayStartLocal,
 	getStockholmYmd,
 	isChargeablePackageBookingStatus,
+	isSaldoAdjustmentBooking,
 	isPackageUsableOnDate,
 	selectActivePackage
 } from './packageSemantics';
@@ -234,5 +235,30 @@ describe('packageSemantics', () => {
 			expect(getStockholmYmd(afterMidnightStockholm)).toBe('2025-01-11');
 		});
 	});
-});
 
+	describe('isSaldoAdjustmentBooking', () => {
+		it('detects the saldojustering 03:00 Stockholm marker across winter and summer time', () => {
+			expect(
+				isSaldoAdjustmentBooking({
+					room_id: null,
+					start_time: '2026-01-10T02:00:00.000Z'
+				})
+			).toBe(true);
+			expect(
+				isSaldoAdjustmentBooking({
+					room_id: null,
+					start_time: '2026-07-10T01:00:00.000Z'
+				})
+			).toBe(true);
+		});
+
+		it('requires room_id to be null', () => {
+			expect(
+				isSaldoAdjustmentBooking({
+					room_id: 1,
+					start_time: '2026-01-10T02:00:00.000Z'
+				})
+			).toBe(false);
+		});
+	});
+});

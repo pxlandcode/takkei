@@ -1,4 +1,4 @@
-import { json } from '@sveltejs/kit';
+import { json, type RequestHandler } from '@sveltejs/kit';
 import { query } from '$lib/db';
 import {
 	chargeablePackageBookingSql,
@@ -47,16 +47,19 @@ function compareByFirstPaymentDate(a: RawPackageRow, b: RawPackageRow) {
 	return Number(a.id) - Number(b.id);
 }
 
-export async function GET({ params }) {
+export const GET: RequestHandler = async ({ params, url }) => {
 	const clientId = Number(params.slug);
 	if (!Number.isInteger(clientId)) {
 		return json({ error: 'Invalid client id' }, { status: 400 });
 	}
 
 	try {
-		const todayYmd = getStockholmYmd(new Date());
-		const nextDayStartLocal = getNextStockholmDayStartLocal(new Date());
-		if (!todayYmd || !nextDayStartLocal) {
+		const selectedYmd = ymd(url.searchParams.get('date')) ?? getStockholmYmd(new Date());
+		const eligibleOnly = ['1', 'true', 'yes'].includes(
+			(url.searchParams.get('eligibleOnly') ?? '').toLowerCase()
+		);
+		const nextDayStartLocal = selectedYmd ? getNextStockholmDayStartLocal(selectedYmd) : null;
+		if (!selectedYmd || !nextDayStartLocal) {
 			return json({ error: 'Failed to determine business date' }, { status: 500 });
 		}
 
@@ -81,8 +84,16 @@ export async function GET({ params }) {
 			JOIN customers cu ON cu.id = p.customer_id
 			LEFT JOIN articles a ON a.id = p.article_id
 			WHERE p.client_id = $1
+				AND (
+					$3::boolean = FALSE
+					OR (
+						(p.frozen_from_date IS NULL OR p.frozen_from_date > $2::date)
+						AND (a.validity_start_date IS NULL OR a.validity_start_date <= $2::date)
+						AND (a.validity_end_date IS NULL OR a.validity_end_date >= $2::date)
+					)
+				)
 			`,
-			[clientId]
+			[clientId, selectedYmd, eligibleOnly]
 		)) as RawPackageRow[];
 
 		const sharedPackages = (await query(
@@ -117,7 +128,7 @@ export async function GET({ params }) {
 				AND (a.validity_start_date IS NULL OR a.validity_start_date <= $2::date)
 				AND (a.validity_end_date IS NULL OR a.validity_end_date >= $2::date)
 			`,
-			[clientId, todayYmd]
+			[clientId, selectedYmd]
 		)) as RawPackageRow[];
 
 		const rawPackages = [...personalPackages, ...sharedPackages].sort(compareByFirstPaymentDate);
@@ -185,11 +196,13 @@ export async function GET({ params }) {
 					? null
 					: Number(row.article_sessions);
 			const counts = bookingCounts[Number(row.id)] ?? { total: 0, usedUntilToday: 0 };
-			const remaining = sessions === null || Number.isNaN(sessions) ? null : sessions - counts.total;
+			const remaining =
+				sessions === null || Number.isNaN(sessions) ? null : sessions - counts.total;
 			const remainingToday =
 				sessions === null || Number.isNaN(sessions) ? null : sessions - counts.usedUntilToday;
 			const isPersonal = row.client_id === clientId;
-			const trainingClientCount = row.client_id == null ? sharedClientCounts[Number(row.customer_id)] ?? 0 : 0;
+			const trainingClientCount =
+				row.client_id == null ? (sharedClientCounts[Number(row.customer_id)] ?? 0) : 0;
 
 			return {
 				id: Number(row.id),
@@ -232,7 +245,7 @@ export async function GET({ params }) {
 				validity_start_date: pkg.article_validity_start_date,
 				validity_end_date: pkg.article_validity_end_date
 			})),
-			todayYmd
+			selectedYmd
 		);
 
 		const activeId = active?.id ?? null;
@@ -248,4 +261,4 @@ export async function GET({ params }) {
 		console.error('Error fetching client packages:', error);
 		return json({ error: 'Internal Server Error' }, { status: 500 });
 	}
-}
+};
