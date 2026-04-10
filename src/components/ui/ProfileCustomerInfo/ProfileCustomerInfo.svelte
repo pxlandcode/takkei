@@ -259,6 +259,7 @@
 						variant="secondary"
 						iconLeft="Calculator"
 						iconLeftSize="14px"
+						small
 						on:click={openSaldoAdjustmentPopup}
 					/>
 					<Button
@@ -266,6 +267,7 @@
 						variant="secondary"
 						iconLeft="Package"
 						iconLeftSize="14px"
+						small
 						on:click={() => openAssignmentPopup()}
 					/>
 				{/if}
@@ -274,6 +276,7 @@
 					variant="secondary"
 					iconLeft="Refresh"
 					iconLeftSize="14px"
+					small
 					disabled={recalcPending}
 					confirmOptions={{
 						title: 'Räkna om kundens paket?',
@@ -288,6 +291,7 @@
 					variant="secondary"
 					iconLeft="Plus"
 					iconLeftSize="14px"
+					small
 					on:click={openPackagePopup}
 				/>
 			</div>

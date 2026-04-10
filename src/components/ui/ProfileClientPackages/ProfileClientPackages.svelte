@@ -212,6 +212,7 @@
 					text="Saldojustering"
 					iconLeft="Calculator"
 					variant="secondary"
+					small
 					disabled={loading}
 					on:click={openSaldoAdjustmentPopup}
 				/>
@@ -219,6 +220,7 @@
 					text="Hantera paketbokningar"
 					iconLeft="Package"
 					variant="secondary"
+					small
 					disabled={loading}
 					on:click={() => openAssignmentPopup()}
 				/>
@@ -227,6 +229,7 @@
 				text="Räkna om alla paket"
 				icon="Refresh"
 				variant="secondary"
+				small
 				disabled={recalcPending || loading}
 				confirmOptions={{
 					title: 'Räkna om klientens paket?',
