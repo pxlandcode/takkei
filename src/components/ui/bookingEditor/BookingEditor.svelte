@@ -409,11 +409,31 @@
 				return false;
 			}
 		} else {
-			if (!editableBooking.name?.trim()) {
+			if (selectedBookingComponent === 'meeting') {
+				if (!editableBooking.name?.trim()) {
+					addToast({
+						type: AppToastType.CANCEL,
+						message: 'Namn saknas',
+						description: 'Ange ett namn för bokningen.'
+					});
+					return false;
+				}
+
+				if (!editableBooking.attendees?.length) {
+					addToast({
+						type: AppToastType.CANCEL,
+						message: 'Saknar deltagare',
+						description: 'Välj minst en deltagare innan du sparar.'
+					});
+					return false;
+				}
+			}
+
+			if (selectedBookingComponent === 'personal' && !editableBooking.user_id) {
 				addToast({
 					type: AppToastType.CANCEL,
-					message: 'Namn saknas',
-					description: 'Ange ett namn för bokningen.'
+					message: 'Saknar användare',
+					description: 'Välj vem bokningen gäller innan du sparar.'
 				});
 				return false;
 			}

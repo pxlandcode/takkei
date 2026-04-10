@@ -4,6 +4,7 @@
 
 	import Button from '../../../bits/button/Button.svelte';
 	import DropdownCheckbox from '../../../bits/dropdown-checkbox/DropdownCheckbox.svelte';
+	import FilterBox from '../../../bits/filterBox/FilterBox.svelte';
 	import Input from '../../../bits/Input/Input.svelte';
 	import TextArea from '../../../bits/textarea/TextArea.svelte';
 	import { user } from '$lib/stores/userStore';
@@ -32,6 +33,9 @@
 	export let selectedIsUnavailable: boolean = false;
 	export let isEditing: boolean = false;
 	export let errors: Record<string, string> = {};
+	type SelectedAttendee = { id: number; firstname: string; lastname: string };
+
+	let selectedAttendeeUsers: SelectedAttendee[] = [];
 	let endTimeLimit: string | null = null;
 	let endTimeLimitMessage: string | null = null;
 	let boundaryKey: string | null = null;
@@ -266,6 +270,16 @@
 		return users.find((u) => u.value === id)?.name ?? `ID ${id}`;
 	}
 
+	$: selectedAttendeeUsers = Array.from(
+		new Set((bookingObject.attendees ?? []).map((attendeeId) => Number(attendeeId)))
+	)
+		.filter((attendeeId) => Number.isFinite(attendeeId))
+		.map((attendeeId) => ({
+			id: attendeeId,
+			firstname: getUserName(attendeeId),
+			lastname: ''
+		}));
+
 	function removeUserFromBooking(userId: number) {
 		bookingObject.attendees = bookingObject.attendees?.filter((id) => id !== userId);
 		bookingObject.user_ids = bookingObject.user_ids?.filter((id) => id !== userId);
@@ -455,6 +469,14 @@
 				<Button icon="Trash" iconColor="red" variant="secondary" on:click={onDeSelectAllUsers} />
 			</div>
 		</div>
+
+		{#if selectedAttendeeUsers.length > 0}
+			<FilterBox
+				title="Valda deltagare"
+				selectedUsers={selectedAttendeeUsers}
+				on:removeFilter={(event) => removeUserFromBooking(event.detail.id)}
+			/>
+		{/if}
 	{/if}
 
 	<!-- Date & Time -->

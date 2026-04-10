@@ -12,6 +12,17 @@ function isMeetingKind(kind: string | null | undefined) {
 	return normalized.includes('meeting') || normalized.includes('mote');
 }
 
+function resolveActorUserId(authUser: App.Locals['user'] | null): number | null {
+	if (!authUser) return null;
+	if (authUser.kind === 'trainer') {
+		return typeof authUser.trainerId === 'number' ? authUser.trainerId : null;
+	}
+	if (authUser.kind === 'client') {
+		return typeof authUser.clientId === 'number' ? authUser.clientId : null;
+	}
+	return null;
+}
+
 export const GET: RequestHandler = async ({ params }) => {
 	const bookingId = Number(params.id);
 
@@ -66,7 +77,7 @@ export const GET: RequestHandler = async ({ params }) => {
 	}
 };
 
-export const DELETE: RequestHandler = async ({ params }) => {
+export const DELETE: RequestHandler = async ({ params, locals }) => {
 	const idParam = params.id;
 	const bookingId = Number(idParam);
 
@@ -74,9 +85,14 @@ export const DELETE: RequestHandler = async ({ params }) => {
 		return json({ error: 'Ogiltigt boknings-ID' }, { status: 400 });
 	}
 
+	const actorUserId = resolveActorUserId(locals.user ?? null);
+	if (!actorUserId || Number.isNaN(actorUserId)) {
+		return json({ error: 'Unauthorized' }, { status: 401 });
+	}
+
 	try {
 		const existing = await query(
-			`SELECT b.id, bc.kind
+			`SELECT b.id, b.created_by_id, bc.kind
 			 FROM bookings b
 			 LEFT JOIN booking_contents bc ON bc.id = b.booking_content_id
 			 WHERE b.id = $1`,
@@ -90,6 +106,16 @@ export const DELETE: RequestHandler = async ({ params }) => {
 		const record = existing[0];
 		if (!isMeetingKind(record.kind)) {
 			return json({ error: 'Endast mötesbokningar kan tas bort' }, { status: 400 });
+		}
+		if (
+			record.created_by_id !== null &&
+			record.created_by_id !== undefined &&
+			Number(record.created_by_id) !== actorUserId
+		) {
+			return json(
+				{ error: 'Endast mötesägaren kan avboka mötet för alla deltagare.' },
+				{ status: 403 }
+			);
 		}
 
 		await query(`DELETE FROM bookings WHERE id = $1`, [bookingId]);

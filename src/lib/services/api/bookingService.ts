@@ -366,9 +366,17 @@ export async function updateCancelledBooking(
 	}
 }
 
-export async function deletePersonalBooking(bookingId: number) {
+export async function deletePersonalBooking(
+	bookingId: number,
+	scope: 'all' | 'self' = 'all'
+) {
 	try {
-		const res = await fetch(`/api/personal-bookings/${bookingId}`, {
+		const params = new URLSearchParams();
+		if (scope === 'self') {
+			params.set('scope', 'self');
+		}
+		const suffix = params.toString() ? `?${params.toString()}` : '';
+		const res = await fetch(`/api/personal-bookings/${bookingId}${suffix}`, {
 			method: 'DELETE'
 		});
 		const data = await res.json();
@@ -376,7 +384,9 @@ export async function deletePersonalBooking(bookingId: number) {
 		invalidateBookingRelatedCaches();
 		return {
 			success: true,
-			message: 'Bokningen har tagits bort',
+			message:
+				data?.message ??
+				(scope === 'self' ? 'Du har tagits bort från mötet.' : 'Bokningen har tagits bort'),
 			data
 		};
 	} catch (error: any) {
