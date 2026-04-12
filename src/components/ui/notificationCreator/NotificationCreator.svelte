@@ -9,6 +9,7 @@
 	import TextArea from '../../bits/textarea/TextArea.svelte';
 	import { addToast } from '$lib/stores/toastStore';
 	import { AppToastType } from '$lib/types/toastTypes';
+	import { closePopup } from '$lib/stores/popupStore';
 	import { user } from '$lib/stores/userStore';
 	import Checkbox from '../../bits/checkbox/Checkbox.svelte';
 	import InfoButton from '../../bits/infoButton/InfoButton.svelte';
@@ -180,6 +181,7 @@
 
 			if (isEdit) {
 				dispatch('updated', { notification: saved });
+				closePopup();
 			} else {
 				name = '';
 				description = '';
@@ -188,6 +190,7 @@
 				selectedUsers = [];
 				errors = {};
 				onCreated();
+				closePopup();
 			}
 		} catch (err) {
 			addToast({
@@ -199,7 +202,7 @@
 	}
 </script>
 
-<div class="flex w-[600px] max-w-[600px] flex-col gap-2">
+<div class="flex w-full max-w-[600px] flex-col gap-2">
 	<h2 class="text-text mb-2 text-xl font-semibold">
 		{mode === 'edit' ? 'Ändra notifikation' : 'Skapa ny notifikation'}
 	</h2>

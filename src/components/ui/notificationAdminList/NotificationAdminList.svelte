@@ -89,6 +89,7 @@
 			header: 'Ändra notifikation',
 			icon: 'Edit',
 			component: NotificationCreator,
+			maxWidth: '700px',
 			props: {
 				mode: 'edit',
 				notification
