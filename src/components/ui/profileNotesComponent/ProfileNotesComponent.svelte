@@ -18,9 +18,10 @@
 
 	export let targetId: number | null = null;
 	export let isClient: boolean = false;
+	export let targetType: 'User' | 'Client' | 'Customer' | null = null;
 
 	let writerId: number = $user?.id;
-	let targetType = isClient ? 'Client' : 'User';
+	let resolvedTargetType: 'User' | 'Client' | 'Customer' = 'User';
 
 	let allNotes = writable([]);
 	let notes = writable([]);
@@ -46,13 +47,14 @@
 	};
 
 	$: noteKindId = selectedNoteKindForNewNote;
+	$: resolvedTargetType = targetType ?? (isClient ? 'Client' : 'User');
 
 	// 🧠 Load on mount
 	onMount(async () => {
-		if (!targetId || !targetType) return;
+		if (!targetId || !resolvedTargetType) return;
 
 		const [fetchedNotes, fetchedKinds] = await Promise.all([
-			fetchNotes(targetId, targetType, fetch),
+			fetchNotes(targetId, resolvedTargetType, fetch),
 			fetch('/api/note_kinds').then((res) => res.json())
 		]);
 
@@ -85,10 +87,17 @@
 	}
 
 	async function submitNote() {
-		if (!newNoteText.trim() || !targetId || !targetType) return;
+		if (!newNoteText.trim() || !targetId || !resolvedTargetType) return;
 		isSubmitting.set(true);
 
-		const newNote = await addNote(targetId, targetType, writerId, newNoteText, fetch, noteKindId);
+		const newNote = await addNote(
+			targetId,
+			resolvedTargetType,
+			writerId,
+			newNoteText,
+			fetch,
+			noteKindId
+		);
 		if (newNote) {
 			allNotes.update((existing) => [newNote, ...existing]);
 			newNoteText = '';

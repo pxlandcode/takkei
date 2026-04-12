@@ -2,6 +2,8 @@
 	import { onMount } from 'svelte';
 	import Icon from '../../../bits/icon-component/Icon.svelte';
 	import Button from '../../../bits/button/Button.svelte';
+	import QuillEditor from '../../../bits/quillEditor/QuillEditor.svelte';
+	import QuillViewer from '../../../bits/quillViewer/QuillViewer.svelte';
 
 	export let packageId: number;
 	export let isAdmin: boolean = false;
@@ -12,7 +14,20 @@
 	let newNoteText = '';
 	let isSubmitting = false;
 
-	// Placeholder - API to be implemented
+	function handleTextChange(event: CustomEvent<string>) {
+		newNoteText = event.detail;
+	}
+
+	function hasVisibleContent(html: string) {
+		const plain = html
+			.replace(/<br\s*\/?>/gi, ' ')
+			.replace(/<[^>]*>/g, ' ')
+			.replace(/&nbsp;/gi, ' ')
+			.trim();
+
+		return plain.length > 0;
+	}
+
 	async function fetchNotes() {
 		loading = true;
 		err = null;
@@ -34,7 +49,7 @@
 	}
 
 	async function submitNote() {
-		if (!newNoteText.trim()) return;
+		if (!hasVisibleContent(newNoteText)) return;
 		isSubmitting = true;
 		try {
 			const res = await fetch(`/api/packages/${packageId}/notes`, {
@@ -65,37 +80,26 @@
 	}
 </script>
 
-<div class="space-y-4">
-	<!-- Add note section -->
+<div class="custom-scrollbar flex h-full flex-col gap-4 overflow-y-auto">
 	{#if isAdmin}
-		<div class="rounded-sm border border-gray-200 bg-white p-4 shadow-sm">
-			<div class="mb-3 flex items-center gap-2">
-				<div
-					class="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 text-blue-600"
-				>
-					<Icon icon="Plus" size="16px" />
-				</div>
-				<h4 class="text-lg font-semibold text-gray-900">Lägg till anteckning</h4>
-			</div>
-			<textarea
-				class="w-full rounded-sm border border-gray-200 p-3 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
-				rows="3"
-				placeholder="Skriv en anteckning..."
-				bind:value={newNoteText}
-			></textarea>
-			<div class="mt-3 flex justify-end">
-				<Button
-					text="Spara"
-					icon="Check"
-					variant="primary"
-					disabled={isSubmitting || !newNoteText.trim()}
-					on:click={submitNote}
-				/>
-			</div>
+		<div>
+			<QuillEditor content={newNoteText} on:change={handleTextChange} />
+		</div>
+
+		<div class="full-w flex justify-end">
+			<Button
+				text="Lägg till anteckning"
+				variant="primary"
+				on:click={submitNote}
+				disabled={isSubmitting || !hasVisibleContent(newNoteText)}
+			/>
 		</div>
 	{/if}
 
-	<!-- Notes list -->
+	<div class="border-gray-bright flex w-full flex-row items-center justify-between border-b pb-2">
+		<h3 class="text-xl">Anteckningar</h3>
+	</div>
+
 	{#if loading}
 		<div class="flex items-center gap-2 py-8 text-gray-500">
 			<Icon icon="Refresh" size="18px" extraClasses="animate-spin" />
@@ -116,32 +120,28 @@
 			{/if}
 		</div>
 	{:else}
-		<div class="space-y-3">
+		<div class="flex h-full flex-col gap-4 pb-12">
 			{#each notes as note (note.id)}
-				<div class="rounded-sm border border-gray-200 bg-white p-4 shadow-sm">
-					<div class="mb-2 flex items-start justify-between gap-4">
-						<div class="flex items-center gap-2">
-							<div
-								class="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 text-gray-600"
-							>
-								<Icon icon="User" size="14px" />
-							</div>
-							<div>
-								<p class="text-sm font-medium text-gray-900">
-									{note.writer?.firstname ?? 'Okänd'}
-									{note.writer?.lastname ?? ''}
-								</p>
-								<p class="text-xs text-gray-500">{formatDate(note.created_at)}</p>
-							</div>
+				<div class="border-gray-bright rounded-sm border bg-white p-4 shadow-md">
+					<div class="flex flex-row items-start justify-between gap-2">
+						<div class="flex flex-row items-center gap-2">
+							<Icon icon="Notes" size="20px" color="orange" />
+							<p class="text-orange text-xs font-semibold">Anteckning</p>
 						</div>
-						{#if note.note_kind}
-							<span class="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">
-								{note.note_kind.name}
-							</span>
-						{/if}
 					</div>
-					<div class="prose prose-sm max-w-none text-gray-700">
-						{@html note.text}
+
+					<div>
+						<QuillViewer content={note.text} key={note.id} />
+					</div>
+
+					<div
+						class="text-gray-medium mt-2 flex flex-col gap-2 text-xs sm:flex-row sm:items-center sm:justify-between"
+					>
+						<p>{formatDate(note.created_at)}</p>
+						<p class="text-right">
+							{note.writer?.firstname ?? 'Okänd'}
+							{note.writer?.lastname ?? ''}
+						</p>
 					</div>
 				</div>
 			{/each}

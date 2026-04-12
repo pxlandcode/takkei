@@ -66,7 +66,7 @@
 			label: 'Anteckningar',
 			icon: 'Notes',
 			component: ProfileNotesComponent,
-			props: () => (customerId ? { targetId: customerId } : {})
+			props: () => (customerId ? { targetId: customerId, targetType: 'Customer' } : {})
 		}
 	];
 
