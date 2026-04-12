@@ -358,7 +358,8 @@
 		payload.internalEducation = type === 'practice';
 		payload.education = type === 'education';
 
-		if (type === 'practice' || type === 'education' || type === 'flight') {
+		// Flight bookings can still belong to a client even though the client selector is hidden.
+		if (type === 'practice' || type === 'education') {
 			payload.clientId = null;
 		}
 	}
