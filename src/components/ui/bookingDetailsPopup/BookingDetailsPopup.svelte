@@ -105,6 +105,15 @@
 		startTimeISO: string;
 		defaultEmailBehavior?: CancellationEmailBehavior;
 	} | null = null;
+	let meetingCancelOptions: {
+		title?: string;
+		description?: string;
+		primaryAction?: () => void;
+		primaryLabel?: string;
+		secondaryAction?: () => void;
+		secondaryLabel?: string;
+		cancelLabel?: string;
+	} | null = null;
 	let confirmDeleteOptions: {
 		title?: string;
 		description?: string;
@@ -144,6 +153,13 @@
 	let currentLocationId: number | null = null;
 	let currentBookingDate = '';
 	let currentBookingTime = '';
+	let currentUserId: number | null = null;
+	let meetingOwnerId: number | null = null;
+	let meetingParticipantIds: number[] = [];
+	let hasMeetingOwner = false;
+	let isMeetingOwner = false;
+	let canLeaveMeeting = false;
+	let canManageMeetingCancellation = true;
 	let bookingNotes: any[] = [];
 	let isLoadingBookingNotes = false;
 	let lastLoadedBookingNotesId: number | null = null;
@@ -181,6 +197,26 @@
 		);
 	}
 
+	function getMeetingOwnerId(bookingItem: FullBooking): number | null {
+		if (bookingItem.isPersonalBooking) {
+			return bookingItem.personalBooking?.bookedById ?? null;
+		}
+		return bookingItem.booking.createdById ?? null;
+	}
+
+	function getMeetingParticipantIds(bookingItem: FullBooking): number[] {
+		const ids = new Set<number>();
+		const add = (value: unknown) => {
+			const parsed = Number(value);
+			if (Number.isFinite(parsed)) ids.add(parsed);
+		};
+
+		(bookingItem.personalBooking?.userIds ?? []).forEach(add);
+		add(bookingItem.booking.userId);
+
+		return Array.from(ids);
+	}
+
 	$: requiresCancelReason = !currentBooking.isPersonalBooking && !isMeetingBooking(currentBooking);
 	$: cancelOptions = requiresCancelReason
 		? {
@@ -201,6 +237,41 @@
 					void performCancellation({});
 				}
 			};
+	$: currentUserId = $user?.id ?? null;
+	$: meetingOwnerId = isMeetingBooking(currentBooking) ? getMeetingOwnerId(currentBooking) : null;
+	$: meetingParticipantIds = isMeetingBooking(currentBooking) ? getMeetingParticipantIds(currentBooking) : [];
+	$: hasMeetingOwner = isMeetingBooking(currentBooking) && meetingOwnerId !== null;
+	$: isMeetingOwner =
+		hasMeetingOwner && currentUserId !== null && meetingOwnerId === currentUserId;
+	$: canLeaveMeeting =
+		isMeetingBooking(currentBooking) &&
+		currentUserId !== null &&
+		meetingParticipantIds.includes(currentUserId);
+	$: canManageMeetingCancellation =
+		!isMeetingBooking(currentBooking) || !hasMeetingOwner || isMeetingOwner || canLeaveMeeting;
+	$: meetingCancelOptions =
+		!isCancelled && isMeetingBooking(currentBooking) && hasMeetingOwner && canManageMeetingCancellation
+			? {
+					title: 'Hantera möte',
+					description: isMeetingOwner
+						? canLeaveMeeting
+							? 'Välj om mötet ska avbokas för alla deltagare eller om bara du ska tas bort.'
+							: 'Du äger mötet och kan avboka det för alla deltagare.'
+						: 'Du är inte mötesägare och kan bara ta bort dig själv från mötet.',
+					primaryLabel: isMeetingOwner ? 'Avboka för alla' : 'Ta bort mig',
+					primaryAction: () => {
+						void performCancellation({ meetingScope: isMeetingOwner ? 'all' : 'self' });
+					},
+					secondaryLabel: 'Ta bort mig',
+					secondaryAction:
+						isMeetingOwner && canLeaveMeeting
+							? () => {
+									void performCancellation({ meetingScope: 'self' });
+								}
+							: undefined,
+					cancelLabel: 'Stäng'
+				}
+			: null;
 
 	$: isCancelled =
 		(currentBooking.booking.status &&
@@ -409,6 +480,87 @@
 		});
 	}
 
+	function getMeetingDisplayName() {
+		const name = currentBooking.personalBooking?.name?.trim();
+		return name || 'Möte';
+	}
+
+	function getMeetingDateTimeLabel() {
+		const dateLabel = toDateInputValue(startTime);
+		const startLabel = formatTime(startTime.toISOString());
+		const endIso = currentBooking.booking.endTime ?? null;
+		if (endIso) {
+			const endLabel = formatTime(new Date(endIso).toISOString());
+			return `${dateLabel} kl. ${startLabel}-${endLabel}`;
+		}
+		return `${dateLabel} kl. ${startLabel}`;
+	}
+
+	async function createMeetingNotification(userIds: number[], name: string, description: string) {
+		const currentUser = get(user);
+		const actorId = currentUser?.id ?? null;
+		const recipientIds = Array.from(
+			new Set(
+				userIds.filter((userId) => Number.isFinite(userId) && (actorId === null || userId !== actorId))
+			)
+		);
+
+		if (!actorId || recipientIds.length === 0) return;
+
+		try {
+			await fetch('/api/notifications', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					name,
+					description,
+					user_ids: recipientIds,
+					start_time: currentBooking.booking.startTime,
+					end_time: currentBooking.booking.endTime ?? null,
+					created_by: actorId
+				})
+			});
+		} catch (error) {
+			console.error('Failed to create meeting cancellation notification', error);
+		}
+	}
+
+	async function notifyMeetingCancellation(meetingScope: 'all' | 'self') {
+		if (!currentUserId) return;
+
+		const currentUser = get(user);
+		const actorName =
+			[currentUser?.firstname, currentUser?.lastname].filter(Boolean).join(' ') || 'En användare';
+		const meetingName = getMeetingDisplayName();
+		const meetingDateTime = getMeetingDateTimeLabel();
+
+		if (meetingScope === 'all') {
+			await createMeetingNotification(
+				meetingParticipantIds,
+				'Möte avbokat',
+				`${actorName} avbokade mötet "${meetingName}" ${meetingDateTime}.`
+			);
+			return;
+		}
+
+		if (isMeetingOwner) {
+			await createMeetingNotification(
+				meetingParticipantIds,
+				'Mötesdeltagare ändrad',
+				`${actorName} lämnade mötet "${meetingName}" ${meetingDateTime}.`
+			);
+			return;
+		}
+
+		if (meetingOwnerId && meetingOwnerId !== currentUserId) {
+			await createMeetingNotification(
+				[meetingOwnerId],
+				'Deltagare lämnade möte',
+				`${actorName} lämnade mötet "${meetingName}" ${meetingDateTime}.`
+			);
+		}
+	}
+
 	async function handleBookingConfirmation(
 		behavior: 'send' | 'edit',
 		recipientTarget: BookingEmailRecipientTarget = BOOKING_EMAIL_RECIPIENT_DEFAULT.value
@@ -475,11 +627,13 @@
 	async function performCancellation({
 		reason,
 		time,
-		emailBehavior = 'none'
+		emailBehavior = 'none',
+		meetingScope = 'all'
 	}: {
 		reason?: string;
 		time?: string;
 		emailBehavior?: CancellationEmailBehavior;
+		meetingScope?: 'all' | 'self';
 	}) {
 		const personalBooking = currentBooking.isPersonalBooking;
 		const meetingBooking = isMeetingBooking(currentBooking);
@@ -557,7 +711,7 @@
 		};
 
 		if (personalBooking) {
-			res = await deletePersonalBooking(currentBooking.booking.id);
+			res = await deletePersonalBooking(currentBooking.booking.id, meetingScope);
 		} else if (meetingBooking) {
 			res = await deleteMeetingBooking(currentBooking.booking.id);
 		} else {
@@ -574,13 +728,22 @@
 		}
 
 		if (res.success) {
+			if (personalBooking && meetingBooking) {
+				await notifyMeetingCancellation(meetingScope);
+			}
+
 			if (!personalBooking && !meetingBooking) {
 				await handleCancellationEmail(emailBehavior);
 			}
 
 			addToast({
 				type: AppToastType.SUCCESS,
-				message: personalBooking || meetingBooking ? 'Bokning borttagen' : 'Bokning avbruten',
+				message:
+					meetingScope === 'self'
+						? 'Du har lämnat mötet'
+						: personalBooking || meetingBooking
+							? 'Bokning borttagen'
+							: 'Bokning avbruten',
 				description: res.message ?? 'Bokningen har uppdaterats.'
 			});
 
@@ -1163,15 +1326,18 @@
 							}}
 						/>
 					{/if}
-					<Button
-						iconLeft="Trash"
-						iconColor="error"
-						text="Avboka"
-						variant="danger-outline"
-						small
-						cancelConfirmOptions={cancelOptions}
-						confirmOptions={confirmDeleteOptions}
-					/>
+					{#if canManageMeetingCancellation}
+						<Button
+							iconLeft="Trash"
+							iconColor="error"
+							text="Avboka"
+							variant="danger-outline"
+							small
+							multipleActionsOptions={meetingCancelOptions}
+							cancelConfirmOptions={meetingCancelOptions ? null : cancelOptions}
+							confirmOptions={meetingCancelOptions ? null : confirmDeleteOptions}
+						/>
+					{/if}
 				{:else if requiresCancelReason}
 					<Button
 						iconLeft="Edit"

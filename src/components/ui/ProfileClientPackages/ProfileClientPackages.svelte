@@ -5,6 +5,8 @@
 	import Button from '../../bits/button/Button.svelte';
 	import { hasRole } from '$lib/helpers/userHelpers/roleHelper';
 	import { openPackageAssignmentPopup } from '$lib/helpers/packageAssignments/openPackageAssignmentPopup';
+	import { openPopup } from '$lib/stores/popupStore';
+	import SaldoAdjustmentPopup from './SaldoAdjustmentPopup.svelte';
 
 	interface ClientPackage {
 		id: number;
@@ -148,6 +150,23 @@
 		});
 	}
 
+	function openSaldoAdjustmentPopup() {
+		if (!clientId || !isAdmin) return;
+		openPopup({
+			header: 'Saldojustering',
+			icon: 'Calculator',
+			component: SaldoAdjustmentPopup,
+			maxWidth: '560px',
+			props: { clientId },
+			listeners: {
+				saved: () => {
+					loadPackages();
+				}
+			},
+			closeOn: ['saved']
+		});
+	}
+
 	$: hasPackages = packages.length > 0;
 	$: tableData = packages.map((pkg) => ({
 		id: pkg.id,
@@ -190,9 +209,18 @@
 		<div class="flex flex-wrap gap-2">
 			{#if isAdmin}
 				<Button
+					text="Saldojustering"
+					iconLeft="Calculator"
+					variant="secondary"
+					small
+					disabled={loading}
+					on:click={openSaldoAdjustmentPopup}
+				/>
+				<Button
 					text="Hantera paketbokningar"
 					iconLeft="Package"
 					variant="secondary"
+					small
 					disabled={loading}
 					on:click={() => openAssignmentPopup()}
 				/>
@@ -201,6 +229,7 @@
 				text="Räkna om alla paket"
 				icon="Refresh"
 				variant="secondary"
+				small
 				disabled={recalcPending || loading}
 				confirmOptions={{
 					title: 'Räkna om klientens paket?',
@@ -214,7 +243,9 @@
 	</div>
 
 	{#if recalcInfo}
-		<div class="mb-4 flex flex-col gap-3 rounded-sm border border-green-300 bg-green-50 p-3 text-green-900 md:flex-row md:items-center md:justify-between">
+		<div
+			class="mb-4 flex flex-col gap-3 rounded-sm border border-green-300 bg-green-50 p-3 text-green-900 md:flex-row md:items-center md:justify-between"
+		>
 			<p>{recalcInfo}</p>
 			{#if isAdmin && recalcDetachedCount > 0}
 				<Button
@@ -228,7 +259,8 @@
 	{/if}
 	{#if recalcError}
 		<div class="mb-4 rounded-sm border border-red-300 bg-red-50 p-3 text-red-800">
-			<strong>Omräkning misslyckades:</strong> {recalcError}
+			<strong>Omräkning misslyckades:</strong>
+			{recalcError}
 		</div>
 	{/if}
 

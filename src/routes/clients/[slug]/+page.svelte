@@ -66,7 +66,7 @@
 			label: 'Anteckningar',
 			icon: 'Notes',
 			component: ProfileNotesComponent,
-			props: () => (clientId ? { targetId: clientId, isClient: true } : {})
+			props: () => (clientId ? { targetId: clientId, isClient: true, targetType: 'Client' } : {})
 		}
 	];
 	const defaultTab = menuItems.find((item) => item.label === 'Profil') ?? menuItems[0];

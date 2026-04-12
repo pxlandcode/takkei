@@ -1,32 +1,32 @@
 <script lang="ts">
 	import Button from '../../bits/button/Button.svelte';
+	import NotificationCreator from '../../ui/notificationCreator/NotificationCreator.svelte';
+	import NotificationAdminList from '../notificationAdminList/NotificationAdminList.svelte';
+	import { openPopup } from '$lib/stores/popupStore';
 
-import NotificationCreator from '../../ui/notificationCreator/NotificationCreator.svelte';
-import NotificationAdminList from '../notificationAdminList/NotificationAdminList.svelte';
-import { openPopup } from '$lib/stores/popupStore';
+	let refreshKey = 0;
 
-let refreshKey = 0;
+	function handleCreated() {
+		refreshKey++;
+	}
 
-function handleCreated() {
-	refreshKey++;
-}
-
-function openNotificationPopup() {
-	openPopup({
-		header: 'Ny notifikation',
-		icon: 'Notification',
-		component: NotificationCreator,
-		listeners: {
-			created: () => {
-				handleCreated();
-			}
-		},
-		closeOn: ['created']
-	});
-}
+	function openNotificationPopup() {
+		openPopup({
+			header: 'Ny notifikation',
+			icon: 'Notification',
+			component: NotificationCreator,
+			maxWidth: '700px',
+			listeners: {
+				created: () => {
+					handleCreated();
+				}
+			},
+			closeOn: ['created']
+		});
+	}
 </script>
 
-<div class="h-full overflow-x-scroll custom-scrollbar">
+<div class="custom-scrollbar h-full overflow-x-scroll">
 	<div class="mb-4 flex flex-row items-center justify-between">
 		<h2 class="text-xl font-semibold">Notifikationer</h2>
 	</div>
@@ -43,5 +43,5 @@ function openNotificationPopup() {
 
 	<NotificationAdminList {refreshKey} />
 
-<!-- Popups handled via global store -->
+	<!-- Popups handled via global store -->
 </div>

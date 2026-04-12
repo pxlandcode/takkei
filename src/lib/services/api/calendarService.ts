@@ -16,6 +16,21 @@ export type UserAvailabilityResponse = {
 	blockedDays: UserBlockedDaysMap;
 };
 
+function collectPersonalBookingUserIds(raw: any): number[] {
+	const ids = new Set<number>();
+	const add = (value: unknown) => {
+		const parsed = Number(value);
+		if (Number.isFinite(parsed)) ids.add(parsed);
+	};
+
+	add(raw.user_id);
+	if (Array.isArray(raw.user_ids)) {
+		raw.user_ids.forEach(add);
+	}
+
+	return Array.from(ids);
+}
+
 export function buildBookingUrls(
 	filters: BookingFilters,
 	limit?: number,
@@ -173,6 +188,7 @@ export function transformBooking(raw: any): FullBooking {
 			startTime: raw.start_time,
 			endTime: raw.end_time ?? null,
 			createdAt: raw.created_at,
+			createdById: raw.created_by_id ?? null,
 			updatedAt: raw.updated_at,
 			cancelTime: raw.cancel_time ?? null,
 			actualCancelTime: raw.actual_cancel_time ?? null,
@@ -244,6 +260,8 @@ export async function fetchBookingById(
  * Convert API response into FullBooking format (for personal bookings).
  */
 export function transformPersonalBooking(raw: any): FullBooking {
+	const userIds = collectPersonalBookingUserIds(raw);
+
 	return {
 		isPersonalBooking: true, // Indicates a personal booking
 		booking: {
@@ -252,6 +270,7 @@ export function transformPersonalBooking(raw: any): FullBooking {
 			startTime: raw.start_time,
 			endTime: raw.end_time ?? null,
 			createdAt: raw.created_at,
+			createdById: null,
 			updatedAt: raw.updated_at,
 			cancelTime: null,
 			repeatIndex: raw.repeat_of ?? null,
@@ -259,7 +278,8 @@ export function transformPersonalBooking(raw: any): FullBooking {
 			refundComment: null,
 			cancelReason: null,
 			bookingWithoutRoom: false,
-			internalEducation: false
+			internalEducation: false,
+			userId: raw.user_id ?? null
 		},
 		trainer: null,
 		client: null,
@@ -281,7 +301,7 @@ export function transformPersonalBooking(raw: any): FullBooking {
 			name: raw.name,
 			text: raw.text ?? '',
 			bookedById: raw.booked_by_id ?? null,
-			userIds: raw.user_ids ? raw.user_ids : [],
+			userIds,
 			kind: raw.kind ?? 'Private'
 		}
 	};

@@ -68,6 +68,23 @@
 		dispatch('changed');
 	}
 
+	async function deleteSaldoAdjustment(bookingId: number) {
+		const res = await fetch(`/api/saldojustering/${bookingId}`, { method: 'DELETE' });
+		if (!res.ok) {
+			const t = await res.text();
+			let msg = t;
+			try {
+				const parsed = JSON.parse(t);
+				msg = parsed?.error || t;
+			} catch {
+				// ignore
+			}
+			throw new Error(msg);
+		}
+		await fetchBookings();
+		dispatch('changed');
+	}
+
 	async function handleBookingClick(bookingId: number) {
 		const booking = await fetchBookingById(bookingId, fetch);
 		if (!booking) return;
@@ -156,10 +173,13 @@
 							variant="danger-outline"
 							small
 							confirmOptions={{
-								title: 'Ta bort från paketet?',
-								description: 'Bokningen kopplas bort från paketet men tas inte bort.',
+								title: b.is_saldojustering ? 'Ta bort saldojustering?' : 'Ta bort från paketet?',
+								description: b.is_saldojustering
+									? 'Saldojusteringen tas bort och saldot ökar med 1.'
+									: 'Bokningen kopplas bort från paketet men tas inte bort.',
 								actionLabel: 'Ta bort',
-								action: () => removeFromPackage(b.id)
+								action: () =>
+									b.is_saldojustering ? deleteSaldoAdjustment(b.id) : removeFromPackage(b.id)
 							}}
 						/>
 					{/if}

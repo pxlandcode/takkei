@@ -25,7 +25,9 @@
 	$: bookingHeadline = booking.is_saldojustering ? 'Saldojustering' : 'Träning';
 	$: endTime =
 		booking.datetime != null
-			? new Date(new Date(booking.datetime.replace(' ', 'T')).getTime() + 60 * 60 * 1000).toISOString()
+			? new Date(
+					new Date(booking.datetime.replace(' ', 'T')).getTime() + 60 * 60 * 1000
+				).toISOString()
 			: null;
 
 	function formatDate(date: string) {
@@ -68,7 +70,7 @@
 			<Icon icon={bookingIcon} size="20px" />
 		</span>
 
-		<div class="min-w-0 flex flex-col">
+		<div class="flex min-w-0 flex-col">
 			<div class="flex flex-row">
 				<p class="font-base truncate">
 					<strong>{bookingHeadline}</strong>
@@ -85,7 +87,9 @@
 
 	<div class="slot-side ml-3 flex items-center gap-2 text-sm">
 		<div class="flex min-w-0 flex-col items-end text-right">
-			<span class="font-medium text-gray-700">{booking.trainer_name || 'Okänd tränare'}</span>
+			{#if !booking.is_saldojustering}
+				<span class="font-medium text-gray-700">{booking.trainer_name || 'Okänd tränare'}</span>
+			{/if}
 			{#if showClientColumn}
 				<span class="text-xs text-gray-500">{booking.client_name || 'Okänd klient'}</span>
 			{/if}

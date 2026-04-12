@@ -1,7 +1,17 @@
-import { query } from '$lib/db';
+import * as db from '$lib/db';
+import type { PoolClient } from 'pg';
+
+const { pool, query } = db;
+
+type SqlClient = Pick<PoolClient, 'query'>;
+
+async function runQuery(client: SqlClient, text: string, params: unknown[] = []) {
+	return (await (db as any).queryWithClient(client as PoolClient, text, params)) as any[];
+}
 
 function extractLink(description: string | null): { cleaned: string; link: string | null } {
-	if (!description || typeof description !== 'string') return { cleaned: description ?? '', link: null };
+	if (!description || typeof description !== 'string')
+		return { cleaned: description ?? '', link: null };
 	const linkMatch = description.match(/NEWS_LINK:([^\s]+)/);
 	const link = linkMatch ? linkMatch[1] : null;
 	const cleaned = linkMatch ? description.replace(linkMatch[0], '').trim() : description;
@@ -26,6 +36,8 @@ export async function getNotificationsForUser(userId: number, type?: number) {
 			SELECT event_id FROM events_done WHERE user_id = $1
 		)
 		AND events.active = true
+		AND COALESCE(events.start_time, events.created_at) <= NOW()
+		AND (events.end_time IS NULL OR events.end_time > NOW())
 	`;
 
 	const params: (number | string)[] = [userId];
@@ -35,7 +47,13 @@ export async function getNotificationsForUser(userId: number, type?: number) {
 		params.push(type);
 	}
 
-	baseQuery += ` ORDER BY events.start_time ASC`;
+	baseQuery += `
+		ORDER BY
+			CASE WHEN COALESCE(event_types.type, 'info') = 'alert' THEN 0 ELSE 1 END,
+			COALESCE(events.start_time, events.created_at) DESC,
+			events.created_at DESC,
+			events.id DESC
+	`;
 
 	const result = await query(baseQuery, params);
 
@@ -80,6 +98,21 @@ export async function createNotification({
 		throw new Error('Missing required fields');
 	}
 
+	const parsedStartTime = new Date(start_time);
+	if (Number.isNaN(parsedStartTime.getTime())) {
+		throw new Error('Ogiltig starttid');
+	}
+
+	if (end_time) {
+		const parsedEndTime = new Date(end_time);
+		if (Number.isNaN(parsedEndTime.getTime())) {
+			throw new Error('Ogiltig sluttid');
+		}
+		if (parsedEndTime.getTime() <= parsedStartTime.getTime()) {
+			throw new Error('Sluttid måste vara senare än starttid');
+		}
+	}
+
 	const [event] = await query(
 		`INSERT INTO events (
 			name,
@@ -105,6 +138,93 @@ export async function createNotification({
 }
 
 /**
+ * Update an existing notification (event)
+ */
+export async function updateNotification(
+	id: number,
+	{
+		name,
+		description,
+		user_ids,
+		start_time,
+		end_time,
+		event_type_id = null
+	}: {
+		name: string;
+		description: string;
+		user_ids: number[];
+		start_time: string;
+		end_time?: string | null;
+		event_type_id?: number | null;
+	}
+) {
+	if (!id) throw new Error('Missing notification id');
+	if (!name || !user_ids?.length || !start_time) {
+		throw new Error('Missing required fields');
+	}
+
+	const parsedStartTime = new Date(start_time);
+	if (Number.isNaN(parsedStartTime.getTime())) {
+		throw new Error('Ogiltig starttid');
+	}
+
+	if (end_time) {
+		const parsedEndTime = new Date(end_time);
+		if (Number.isNaN(parsedEndTime.getTime())) {
+			throw new Error('Ogiltig sluttid');
+		}
+		if (parsedEndTime.getTime() <= parsedStartTime.getTime()) {
+			throw new Error('Sluttid måste vara senare än starttid');
+		}
+	}
+
+	const client = await pool.connect();
+
+	try {
+		await client.query('BEGIN');
+
+		const [event] = await runQuery(
+			client,
+			`UPDATE events
+			 SET name = $1,
+			     description = $2,
+			     user_ids = $3,
+			     start_time = $4,
+			     end_time = $5,
+			     event_type_id = $6,
+			     updated_at = NOW()
+			 WHERE id = $7
+			 RETURNING *`,
+			[name, description, user_ids, start_time, end_time, event_type_id, id]
+		);
+
+		if (!event) {
+			throw new Error('Notifikationen kunde inte hittas');
+		}
+
+		await runQuery(
+			client,
+			`DELETE FROM events_done
+			 WHERE event_id = $1
+			   AND NOT (user_id = ANY($2::int[]))`,
+			[id, user_ids]
+		);
+
+		await client.query('COMMIT');
+		return event;
+	} catch (error) {
+		try {
+			await client.query('ROLLBACK');
+		} catch (rollbackError) {
+			console.error('Failed to rollback notification update:', rollbackError);
+		}
+		throw error;
+	} finally {
+		client.release();
+	}
+}
+
+/**
  * Mark a notification as done for a specific user
  */
 export async function markNotificationAsDone(event_id: number, user_id: number) {
@@ -115,6 +235,23 @@ export async function markNotificationAsDone(event_id: number, user_id: number) 
 		 VALUES ($1, $2)
 		 ON CONFLICT DO NOTHING`,
 		[event_id, user_id]
+	);
+
+	return true;
+}
+
+/**
+ * Mark multiple notifications as done for a specific user
+ */
+export async function markMultipleNotificationsAsDone(event_ids: number[], user_id: number) {
+	if (!event_ids?.length || !user_id) throw new Error('Missing event_ids or user_id');
+
+	const values = event_ids.map((id, i) => `($${i + 1}, $${event_ids.length + 1})`).join(', ');
+	await query(
+		`INSERT INTO events_done (event_id, user_id)
+		 VALUES ${values}
+		 ON CONFLICT DO NOTHING`,
+		[...event_ids, user_id]
 	);
 
 	return true;
@@ -136,7 +273,15 @@ export async function unmarkNotificationAsDone(event_id: number, user_id: number
  * Get notifications created by a specific user (admin view)
  * Includes recipient done status and pagination
  */
-export async function getSentNotifications({ userId, offset = 0, limit = 10 }) {
+export async function getSentNotifications({
+	userId,
+	offset = 0,
+	limit = 10
+}: {
+	userId: number;
+	offset?: number;
+	limit?: number;
+}) {
 	if (!userId) throw new Error('Missing userId');
 
 	const results = await query(

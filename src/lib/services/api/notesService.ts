@@ -1,6 +1,6 @@
 export async function fetchNotes(
 	targetId: number,
-	targetType: 'User' | 'Client',
+	targetType: 'User' | 'Client' | 'Customer',
 	fetchFn: typeof fetch
 ) {
 	const normalize = (note: any) => ({
@@ -27,7 +27,7 @@ export async function fetchNotes(
 
 export async function addNote(
 	targetId: number,
-	targetType: 'User' | 'Client',
+	targetType: 'User' | 'Client' | 'Customer',
 	writerId: number,
 	text: string,
 	fetchFn: typeof fetch,

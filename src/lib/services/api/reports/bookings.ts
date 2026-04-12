@@ -3,7 +3,8 @@ import {
 	CANCELLED_STATUS,
 	LATE_CANCELLED_STATUS,
 	chargeablePackageBookingSql,
-	packageFreeExclusionSql
+	packageFreeExclusionSql,
+	saldoAdjustmentSql
 } from '$lib/server/packageSemantics';
 
 type DbRow = {
@@ -416,7 +417,7 @@ WITH booking_base AS (
 		CASE WHEN ${chargeablePackageBookingSql('b')} THEN TRUE ELSE FALSE END AS is_chargeable,
 		CASE WHEN COALESCE(b.status, '') = '${CANCELLED_STATUS}' THEN TRUE ELSE FALSE END AS is_cancelled,
 		CASE WHEN COALESCE(b.status, '') = '${LATE_CANCELLED_STATUS}' THEN TRUE ELSE FALSE END AS is_late_cancelled,
-		CASE WHEN b.room_id IS NULL AND EXTRACT(HOUR FROM b.start_time) = 3 THEN TRUE ELSE FALSE END AS is_saldo_adjustment
+		CASE WHEN ${saldoAdjustmentSql('b')} THEN TRUE ELSE FALSE END AS is_saldo_adjustment
 	FROM bookings b
 	LEFT JOIN clients c ON c.id = b.client_id
 	LEFT JOIN users u ON u.id = b.trainer_id

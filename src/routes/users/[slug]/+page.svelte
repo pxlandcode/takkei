@@ -50,7 +50,7 @@
 			label: 'Anteckningar',
 			icon: 'Notes',
 			component: ProfileNotesComponent,
-			props: () => (trainerId ? { targetId: trainerId } : {})
+			props: () => (trainerId ? { targetId: trainerId, targetType: 'User' } : {})
 		}
 	];
 

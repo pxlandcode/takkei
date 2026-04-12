@@ -1,6 +1,8 @@
+import type { RequestHandler } from '@sveltejs/kit';
 import { query } from '$lib/db';
+import { getStockholmYmd, isSaldoAdjustmentBooking } from '$lib/server/packageSemantics';
 
-export async function GET({ params }) {
+export const GET: RequestHandler = async ({ params }) => {
 	const id = Number(params.id);
 	if (Number.isNaN(id)) {
 		return new Response(JSON.stringify({ error: 'Invalid ID' }), { status: 400 });
@@ -25,17 +27,17 @@ export async function GET({ params }) {
 	);
 
 	const out = rows.map((r: any) => {
-		const dt = new Date(r.start_time);
-		const iso = dt.toISOString();
-		const hour = iso.slice(11, 13); // 'HH'
-
-		// saldojustering: no room and 03:xx
-		const isSaldo = !r.room_id && hour === '03';
+		const dt = r.start_time ? new Date(r.start_time) : null;
+		const iso = dt && !Number.isNaN(dt.getTime()) ? dt.toISOString() : null;
+		const isSaldo = isSaldoAdjustmentBooking({
+			room_id: r.room_id,
+			start_time: r.start_time
+		});
 
 		return {
 			id: r.id,
-			datetime: iso.slice(0, 16).replace('T', ' '),
-			date: iso.slice(0, 10),
+			datetime: iso,
+			date: getStockholmYmd(r.start_time) ?? iso?.slice(0, 10) ?? '',
 			is_saldojustering: isSaldo,
 			trainer_name: isSaldo
 				? ''
@@ -45,4 +47,4 @@ export async function GET({ params }) {
 	});
 
 	return new Response(JSON.stringify(out), { status: 200 });
-}
+};

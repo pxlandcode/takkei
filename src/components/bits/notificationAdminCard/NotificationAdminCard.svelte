@@ -1,25 +1,25 @@
 <script lang="ts">
-import { text } from '@sveltejs/kit';
-import Icon from '../icon-component/Icon.svelte';
-import { createEventDispatcher } from 'svelte';
+	import Icon from '../icon-component/Icon.svelte';
+	import { createEventDispatcher } from 'svelte';
 
-import { confirm } from '$lib/actions/confirm';
-import { addToast } from '$lib/stores/toastStore';
-import { AppToastType } from '$lib/types/toastTypes';
+	import { confirm } from '$lib/actions/confirm';
+	import { addToast } from '$lib/stores/toastStore';
+	import { AppToastType } from '$lib/types/toastTypes';
 
-export let title = '';
-export let message = '';
-export let timeAgo = 'just nu';
-export let eventType: 'client' | 'alert' | 'info' | 'article' = 'info';
-export let startTime: string | null = null;
-export let endTime: string | null = null;
-export let doneCount = 0;
-export let totalCount = 0;
-export let recipients: { id: number; name: string; hasMarkedDone: boolean }[] = [];
-export let expanded = false;
-export let link: string | null = null;
+	export let title = '';
+	export let message = '';
+	export let timeAgo = 'just nu';
+	export let eventType: 'client' | 'alert' | 'info' | 'article' = 'info';
+	export let startTime: string | null = null;
+	export let endTime: string | null = null;
+	export let doneCount = 0;
+	export let totalCount = 0;
+	export let recipients: { id: number; name: string; hasMarkedDone: boolean; event_id: number }[] =
+		[];
+	export let expanded = false;
+	export let link: string | null = null;
 
-const dispatch = createEventDispatcher();
+	const dispatch = createEventDispatcher();
 
 	function formatDate(date: string) {
 		return new Date(date).toLocaleDateString('sv-SE', {
@@ -40,11 +40,20 @@ const dispatch = createEventDispatcher();
 		dispatch('delete');
 	}
 
+	function handleEdit() {
+		dispatch('edit');
+	}
+
 	function toggle() {
 		expanded = !expanded;
 	}
 
-	async function handleToggleDone(recipient) {
+	async function handleToggleDone(recipient: {
+		id: number;
+		name: string;
+		hasMarkedDone: boolean;
+		event_id: number;
+	}) {
 		try {
 			const method = recipient.hasMarkedDone ? 'PATCH' : 'PUT';
 
@@ -117,23 +126,28 @@ const dispatch = createEventDispatcher();
 											: 'CircleInfo'}
 								size="18"
 							/>
-							<span class="text-sm font-semibold text-text">{title}</span>
+							<span class="text-text text-sm font-semibold">{title}</span>
 						</div>
 						<p class="pl-6 text-xs text-gray-500">{getDateRange(startTime, endTime)}</p>
 					</div>
 
 					<div class="flex flex-col items-end gap-2">
 						<span class="text-xs text-gray-400">{timeAgo}</span>
-						<button
-							use:confirm={{
-								title: 'Radera notifikation?',
-								description: 'Detta kommer att ta bort notifikationen för alla mottagare.',
-								action: handleDelete
-							}}
-							class="mt-1 text-xs text-red-600 hover:underline"
-						>
-							Radera
-						</button>
+						<div class="mt-1 flex items-center gap-3">
+							<button class="text-primary text-xs hover:underline" on:click={handleEdit}>
+								Ändra
+							</button>
+							<button
+								use:confirm={{
+									title: 'Radera notifikation?',
+									description: 'Detta kommer att ta bort notifikationen för alla mottagare.',
+									action: handleDelete
+								}}
+								class="text-xs text-red-600 hover:underline"
+							>
+								Radera
+							</button>
+						</div>
 					</div>
 				</div>
 
@@ -143,7 +157,7 @@ const dispatch = createEventDispatcher();
 
 				{#if message}
 					<div class="relative mt-2 text-sm text-gray-700">
-						<p class="whitespace-pre-line pl-6" class:line-clamp-2={!expanded}>
+						<p class="pl-6 whitespace-pre-line" class:line-clamp-2={!expanded}>
 							{expanded ? message : message.slice(0, 250)}
 						</p>
 					</div>
@@ -151,7 +165,10 @@ const dispatch = createEventDispatcher();
 
 				{#if link}
 					<div class="mt-2 pl-6">
-						<a class="text-sm font-semibold text-primary underline hover:text-primary-hover" href={link}>
+						<a
+							class="text-primary hover:text-primary-hover text-sm font-semibold underline"
+							href={link}
+						>
 							{link.startsWith('/news') ? 'Läs hela artikeln' : 'Öppna länk'}
 						</a>
 					</div>
@@ -161,7 +178,7 @@ const dispatch = createEventDispatcher();
 					<div class="mt-3 space-y-1 text-sm text-gray-800">
 						{#each recipients as r (r.id + '-' + r.hasMarkedDone)}
 							<div
-								class="flex items-center justify-between border-b py-1 pl-6 pr-2"
+								class="flex items-center justify-between border-b py-1 pr-2 pl-6"
 								class:text-green={r.hasMarkedDone}
 								class:text-error={!r.hasMarkedDone}
 							>

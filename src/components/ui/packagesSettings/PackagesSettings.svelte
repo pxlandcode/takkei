@@ -1,11 +1,14 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import type { TableType } from '$lib/types/componentTypes';
+	import type { ComponentType } from 'svelte';
+	import type { TableCellValue, TableType } from '$lib/types/componentTypes';
 
 	import Button from '../../bits/button/Button.svelte';
 	import Table from '../../bits/table/Table.svelte';
+	import PackagePopup from '../packagePopup/PackagePopup.svelte';
 	import { debounce } from '$lib/utils/debounce';
 	import { loadingStore } from '$lib/stores/loading';
+	import { openPopup, closePopup } from '$lib/stores/popupStore';
 	import { goto } from '$app/navigation';
 
 	let data: TableType = [];
@@ -20,6 +23,17 @@
 	let sortBy = 'product';
 	let sortOrder = 'asc';
 
+	type PackagesSortChangeEvent = CustomEvent<{ column: string; order: string }>;
+	type PackageListItem = {
+		id: number;
+		product?: string | null;
+		customer?: { id?: number | null; name?: string | null } | null;
+		client?: { id?: number | null; firstname?: string | null; lastname?: string | null } | null;
+		bookings?: TableCellValue;
+		payments?: TableCellValue;
+		frozen?: TableCellValue;
+	};
+
 	const headers = [
 		{ label: 'Produkt', key: 'product', sort: true, isSearchable: true },
 		{ label: 'Kund', key: 'customer', sort: true, isSearchable: true },
@@ -28,7 +42,7 @@
 		{ label: '', key: 'actions', width: '100px' }
 	];
 
-	async function handleSortChange(event) {
+	async function handleSortChange(event: PackagesSortChangeEvent) {
 		const { column, order } = event.detail;
 		sortBy = column;
 		sortOrder = order;
@@ -36,7 +50,28 @@
 	}
 
 	function onGoToPackage(id: number) {
-		goto(`/settings/packages/${id}`);
+		void goto(`/settings/packages/${id}`);
+	}
+
+	async function handleCreatePackage() {
+		closePopup();
+		try {
+			await fetchPaginatedPackages(true);
+		} catch (error) {
+			console.error('Error refreshing packages after create:', error);
+		}
+	}
+
+	function openPackagePopup() {
+		openPopup({
+			header: 'Lägg till paket',
+			icon: 'Plus',
+			component: PackagePopup as unknown as ComponentType,
+			width: '1000px',
+			props: {
+				onSave: handleCreatePackage
+			}
+		});
 	}
 
 	async function fetchPaginatedPackages(reset = false) {
@@ -57,31 +92,41 @@
 			);
 			if (!res.ok) throw new Error('Failed to fetch packages');
 
-			const fetched = await res.json();
+			const fetched: PackageListItem[] = await res.json();
 
-			const newData = fetched.map((pkg) => ({
+			const newData: TableType = fetched.map((pkg: PackageListItem) => ({
 				id: pkg.id,
 				product: [
 					{
 						type: 'link',
 						label: pkg.product || 'Okänd typ',
-						action: () => goto(`/settings/packages/${pkg.id}`)
+						action: () => {
+							void goto(`/settings/packages/${pkg.id}`);
+						}
 					}
 				],
-				customer: [
-					{
-						type: 'link',
-						label: `${pkg.customer.name}`,
-						action: () => goto(`settings/customers/${pkg.customer?.id}`)
-					}
-				],
-				client: [
-					{
-						type: 'link',
-						label: `${pkg.client?.firstname} ${pkg.client?.lastname}`,
-						action: () => goto(`/clients/${pkg.client?.id}`)
-					}
-				],
+				customer: pkg.customer?.id
+					? [
+							{
+								type: 'link',
+								label: pkg.customer?.name || 'Okänd kund',
+								action: () => {
+									void goto(`/settings/customers/${pkg.customer?.id}`);
+								}
+							}
+						]
+					: [{ type: 'text', content: pkg.customer?.name || 'Okänd kund' }],
+				client: pkg.client?.id
+					? [
+							{
+								type: 'link',
+								label: `${pkg.client.firstname} ${pkg.client.lastname}`,
+								action: () => {
+									void goto(`/clients/${pkg.client?.id}`);
+								}
+							}
+						]
+					: [{ type: 'text', content: '—' }],
 				bookings: pkg.bookings,
 				payments: pkg.payments,
 				frozen: pkg.frozen,
@@ -143,7 +188,7 @@
 </div>
 <div class="h-full overflow-x-scroll custom-scrollbar" on:scroll={handleScroll}>
 	<div class="mb-4 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-		<Button text="Lägg till paket" variant="primary" on:click={() => alert('Add Package')} />
+		<Button text="Lägg till paket" variant="primary" on:click={openPackagePopup} />
 
 		<div class="flex flex-col gap-2 xl:flex-row xl:items-center xl:gap-4">
 			<input

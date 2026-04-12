@@ -1,4 +1,7 @@
 import { query } from '$lib/db';
+import { resolveAdministratorRequest } from '$lib/server/adminAccess';
+import { trainingRelationshipSql } from '$lib/server/packageSemantics';
+import { json, type RequestHandler } from '@sveltejs/kit';
 
 interface RelationshipRow {
 	id: number;
@@ -20,7 +23,47 @@ function parseClientIds(payload: unknown): number[] | null {
 	return Array.from(seen);
 }
 
-export async function PATCH({ params, request }) {
+export const GET: RequestHandler = async ({ params, locals }) => {
+	const admin = await resolveAdministratorRequest(locals);
+	if (!admin.ok) {
+		return json({ error: admin.message }, { status: admin.status });
+	}
+
+	const customerId = Number(params.id);
+	if (!Number.isFinite(customerId) || customerId <= 0) {
+		return json({ error: 'Ogiltigt kund-id' }, { status: 400 });
+	}
+
+	const existingCustomer = await query('SELECT 1 FROM customers WHERE id = $1 LIMIT 1', [
+		customerId
+	]);
+	if (existingCustomer.length === 0) {
+		return json({ error: 'Kund hittades inte' }, { status: 404 });
+	}
+
+	const clients = await query(
+		`
+		SELECT cl.id, cl.firstname, cl.lastname
+		FROM client_customer_relationships rel
+		JOIN clients cl ON cl.id = rel.client_id
+		WHERE rel.customer_id = $1
+			AND ${trainingRelationshipSql('rel')}
+		ORDER BY cl.lastname NULLS LAST, cl.firstname NULLS LAST
+		`,
+		[customerId]
+	);
+
+	return json({
+		clients: clients.map((client: any) => ({
+			id: Number(client.id),
+			name:
+				[client.firstname, client.lastname].filter(Boolean).join(' ').trim() ||
+				`Klient ${client.id}`
+		}))
+	});
+};
+
+export const PATCH: RequestHandler = async ({ params, request }) => {
 	const customerId = Number(params.id);
 
 	if (!Number.isFinite(customerId) || customerId <= 0) {
@@ -36,11 +79,15 @@ export async function PATCH({ params, request }) {
 
 	const clientIds = parseClientIds(body?.clientIds);
 	if (clientIds === null) {
-		return new Response(JSON.stringify({ error: "clientIds måste vara en lista" }), { status: 400 });
+		return new Response(JSON.stringify({ error: 'clientIds måste vara en lista' }), {
+			status: 400
+		});
 	}
 
 	// Ensure customer exists
-	const existingCustomer = await query('SELECT 1 FROM customers WHERE id = $1 LIMIT 1', [customerId]);
+	const existingCustomer = await query('SELECT 1 FROM customers WHERE id = $1 LIMIT 1', [
+		customerId
+	]);
 	if (existingCustomer.length === 0) {
 		return new Response(JSON.stringify({ error: 'Kund hittades inte' }), { status: 404 });
 	}
@@ -59,9 +106,7 @@ export async function PATCH({ params, request }) {
 	}
 
 	const currentlyActiveIds = new Set<number>(
-		relationships
-			.filter((rel) => rel.active)
-			.map((rel) => rel.client_id)
+		relationships.filter((rel) => rel.active).map((rel) => rel.client_id)
 	);
 
 	const targetClientIds = new Set<number>(clientIds);
@@ -115,7 +160,9 @@ export async function PATCH({ params, request }) {
 		}
 	} catch (error) {
 		console.error('Failed to update client relationships', error);
-		return new Response(JSON.stringify({ error: 'Misslyckades att uppdatera kopplingar' }), { status: 500 });
+		return new Response(JSON.stringify({ error: 'Misslyckades att uppdatera kopplingar' }), {
+			status: 500
+		});
 	}
 
 	const updatedClients = await query(
@@ -130,4 +177,4 @@ export async function PATCH({ params, request }) {
 	return new Response(JSON.stringify({ success: true, clients: updatedClients }), {
 		status: 200
 	});
-}
+};

@@ -35,10 +35,15 @@
 	}
 
 	$: customerFields = [
-		{ label: 'Kund', value: pkg.customer?.name },
+		{
+			label: 'Kund',
+			value: pkg.customer?.name,
+			href: pkg.customer?.id ? `/settings/customers/${pkg.customer.id}` : undefined
+		},
 		{
 			label: 'Klient',
-			value: pkg.client ? `${pkg.client.firstname} ${pkg.client.lastname}` : null
+			value: pkg.client ? `${pkg.client.firstname} ${pkg.client.lastname}` : null,
+			href: pkg.client?.id ? `/clients/${pkg.client.id}` : undefined
 		},
 		{ label: 'Giltigt t.o.m', value: fmtDate(pkg.valid_to) }
 	] as InfoField[];

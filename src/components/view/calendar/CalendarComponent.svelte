@@ -375,6 +375,55 @@
 		color: string;
 	};
 
+	type ClientSummary = {
+		id: number;
+		name: string;
+		initials: string;
+		color: string;
+	};
+
+	type SplitLaneSummary =
+		| {
+				key: string;
+				kind: 'trainer';
+				id: number;
+				title: string;
+				shortLabel: string;
+				accentColor: string;
+		  }
+		| {
+				key: string;
+				kind: 'location';
+				id: number;
+				title: string;
+				shortLabel: string;
+				accentColor: string | null;
+		  }
+		| {
+				key: string;
+				kind: 'client';
+				id: number;
+				title: string;
+				shortLabel: string;
+				accentColor: string;
+		  };
+
+	type SplitColumnView = {
+		key: string;
+		kind: SplitLaneSummary['kind'];
+		title: string;
+		shortLabel: string;
+		accentColor: string | null;
+		layout: LayoutInfo[];
+		unavailableBlocks: UnavailableBlock[];
+		emptySlots: { top: number; start: Date }[];
+		locationId: number | null;
+		trainerId: number | null;
+		clientId: number | null;
+	};
+
+	const MAX_SPLIT_FILTERS = 6;
+
 	const trainerColorPalette = [
 		'#fb7185',
 		'#f87171',
@@ -391,6 +440,12 @@
 	function getTrainerColor(id: number): string {
 		if (!Number.isFinite(id)) return '#94a3b8';
 		const index = Math.abs(Math.trunc(id)) % trainerColorPalette.length;
+		return trainerColorPalette[index] ?? '#94a3b8';
+	}
+
+	function getClientColor(id: number): string {
+		if (!Number.isFinite(id)) return '#94a3b8';
+		const index = Math.abs(Math.trunc(id) + 3) % trainerColorPalette.length;
 		return trainerColorPalette[index] ?? '#94a3b8';
 	}
 
@@ -447,28 +502,6 @@
 		return summaries;
 	});
 
-	const selectedTrainerIdSet = $derived.by(() => new Set(selectedTrainerIds));
-	const trainerFilterCount = $derived.by(() => selectedTrainerIds.length);
-
-	function getTrainerBucketId(booking: FullBooking, allowedTrainerIds: Set<number>): number | null {
-		const bookingTrainerId = booking.trainer?.id ?? null;
-		if (bookingTrainerId != null && allowedTrainerIds.has(bookingTrainerId)) {
-			return bookingTrainerId;
-		}
-		if (booking.isPersonalBooking) {
-			const personalIds = booking.personalBooking?.userIds ?? [];
-			if (Array.isArray(personalIds)) {
-				for (const rawId of personalIds) {
-					const numericId = typeof rawId === 'number' && Number.isFinite(rawId) ? rawId : null;
-					if (numericId != null && Number.isFinite(numericId) && allowedTrainerIds.has(numericId)) {
-						return numericId;
-					}
-				}
-			}
-		}
-		return null;
-	}
-
 	const selectedLocationIds = $derived(
 		Array.isArray(filters?.locationIds)
 			? filters.locationIds.filter((id): id is number => typeof id === 'number')
@@ -519,170 +552,221 @@
 
 	const selectedLocationIdSet = $derived.by(() => new Set(selectedLocationIds));
 
-	const hasNonTrainerFilters = $derived.by(() => {
-		const locationFiltersActive =
-			Array.isArray(filters?.locationIds) && filters.locationIds.length > 0;
-		const clientFiltersActive = Array.isArray(filters?.clientIds) && filters.clientIds.length > 0;
-		const userFiltersActive = Array.isArray(filters?.userIds) && filters.userIds.length > 0;
-		const roomFilterActive = filters?.roomId != null;
-		return locationFiltersActive || clientFiltersActive || userFiltersActive || roomFilterActive;
-	});
-
-	const hasNonLocationFilters = $derived.by(() => {
-		const trainerFiltersActive =
-			Array.isArray(filters?.trainerIds) && filters.trainerIds.length > 0;
-		const clientFiltersActive = Array.isArray(filters?.clientIds) && filters.clientIds.length > 0;
-		const userFiltersActive = Array.isArray(filters?.userIds) && filters.userIds.length > 0;
-		const roomFilterActive = filters?.roomId != null;
-		const personalBookingsActive = Boolean(filters?.personalBookings);
-		return (
-			trainerFiltersActive ||
-			clientFiltersActive ||
-			userFiltersActive ||
-			roomFilterActive ||
-			personalBookingsActive
-		);
-	});
-
-	const shouldSplitByLocation = $derived(
-		singleDayView
-			? selectedLocationSummaries.length > 1
-			: selectedLocationSummaries.length > 0 && !hasNonLocationFilters
+	const selectedClientIds = $derived(
+		Array.isArray(filters?.clientIds)
+			? filters.clientIds.filter((id): id is number => typeof id === 'number')
+			: []
 	);
 
-	const shouldSplitByTrainer = $derived.by(() => {
-		const count = trainerFilterCount;
-		const trainerIds = filters?.trainerIds ?? null;
-		if (count <= 1 || hasNonTrainerFilters) {
-			return false;
+	function buildClientSummaryName(first?: string | null, last?: string | null, id?: number) {
+		const firstName = first?.trim() ?? '';
+		const lastName = last?.trim() ?? '';
+		const combined = `${firstName} ${lastName}`.trim();
+		if (combined) return combined;
+		if (firstName || lastName) return firstName || lastName;
+		return id != null ? `Kund ${id}` : 'Kund';
+	}
+
+	function buildClientInitials(first?: string | null, last?: string | null, id?: number) {
+		const firstLetter = first?.trim()?.[0];
+		const lastLetter = last?.trim()?.[0];
+		if (firstLetter && lastLetter) return `${firstLetter}${lastLetter}`.toUpperCase();
+		if (firstLetter) return firstLetter.toUpperCase();
+		if (lastLetter) return lastLetter.toUpperCase();
+		return id != null ? `K${id}` : 'KU';
+	}
+
+	const selectedClientSummaries = $derived.by<ClientSummary[]>(() => {
+		const ids = selectedClientIds;
+		if (!ids.length) return [];
+		const infoLookup = new Map<number, { name: string; initials: string }>();
+		for (const booking of bookings) {
+			const client = booking.client;
+			if (!client?.id || infoLookup.has(client.id)) continue;
+			infoLookup.set(client.id, {
+				name: buildClientSummaryName(client.firstname, client.lastname, client.id),
+				initials: buildClientInitials(client.firstname, client.lastname, client.id)
+			});
 		}
-		if (singleDayView) {
-			return count <= 5;
+
+		const summaries: ClientSummary[] = [];
+		const seen = new Set<number>();
+		for (const id of ids) {
+			if (seen.has(id)) continue;
+			const info = infoLookup.get(id);
+			summaries.push({
+				id,
+				name: info?.name ?? `Kund ${id}`,
+				initials: info?.initials ?? `K${id}`,
+				color: getClientColor(id)
+			});
+			seen.add(id);
 		}
-		return count <= 5;
+		return summaries;
 	});
 
-	type LocationColumnView = {
-		locationId: number | null;
-		locationName: string;
-		locationColor: string | null;
-		layout: LayoutInfo[];
-		emptySlots: { top: number; start: Date }[];
-	};
+	function matchesTrainerSelection(booking: FullBooking, trainerId: number): boolean {
+		const bookingTrainerId = booking.trainer?.id ?? null;
+		if (bookingTrainerId === trainerId) {
+			return true;
+		}
 
-	type TrainerColumnView = {
-		trainerId: number | null;
-		trainerName: string;
-		trainerColor: string;
-		layout: LayoutInfo[];
-		unavailableBlocks: UnavailableBlock[];
-		emptySlots: { top: number; start: Date }[];
-	};
+		const traineeId = booking.trainee?.id ?? booking.booking.userId ?? null;
+		if (
+			traineeId === trainerId &&
+			(Boolean(booking.booking.internalEducation) || Boolean(booking.additionalInfo?.education))
+		) {
+			return true;
+		}
 
-	const locationColumnsByDay = $derived.by<LocationColumnView[][]>(() => {
-		if (!shouldSplitByLocation) return [];
+		if (!booking.isPersonalBooking) {
+			return false;
+		}
+
+		const personalIds = booking.personalBooking?.userIds ?? [];
+		return Array.isArray(personalIds)
+			? personalIds.some((rawId) => {
+					const numericId =
+						typeof rawId === 'number' && Number.isFinite(rawId) ? rawId : Number(rawId);
+					return Number.isFinite(numericId) && numericId === trainerId;
+				})
+			: false;
+	}
+
+	function matchesLocationSelection(booking: FullBooking, locationId: number): boolean {
+		return (booking.location?.id ?? null) === locationId;
+	}
+
+	function matchesClientSelection(booking: FullBooking, clientId: number): boolean {
+		return (booking.client?.id ?? null) === clientId;
+	}
+
+	const splitLaneSummaries = $derived.by<SplitLaneSummary[]>(() => [
+		...selectedTrainerSummaries.map((trainer) => ({
+			key: `trainer-${trainer.id}`,
+			kind: 'trainer' as const,
+			id: trainer.id,
+			title: trainer.name,
+			shortLabel: trainer.initials,
+			accentColor: trainer.color
+		})),
+		...selectedLocationSummaries.map((location) => ({
+			key: `location-${location.id}`,
+			kind: 'location' as const,
+			id: location.id,
+			title: location.name,
+			shortLabel: getLocationShortLabel(location.name),
+			accentColor: location.color
+		})),
+		...selectedClientSummaries.map((client) => ({
+			key: `client-${client.id}`,
+			kind: 'client' as const,
+			id: client.id,
+			title: client.name,
+			shortLabel: client.initials,
+			accentColor: client.color
+		}))
+	]);
+
+	const shouldSplitBySelectedFilters = $derived.by(() => {
+		const count = splitLaneSummaries.length;
+		return count > 0 && count <= MAX_SPLIT_FILTERS;
+	});
+
+	const hasSplitTrainerLane = $derived.by(
+		() => shouldSplitBySelectedFilters && selectedTrainerSummaries.length > 0
+	);
+	const hasSplitLocationLane = $derived.by(
+		() => shouldSplitBySelectedFilters && selectedLocationSummaries.length > 0
+	);
+
+	const splitColumnsByDay = $derived.by<SplitColumnView[][]>(() => {
+		if (!shouldSplitBySelectedFilters) return [];
+
 		return weekDays.map(({ fullDate }, dayIndex) => {
 			const dayBookings = bookingsByDay[dayIndex] ?? [];
-			const columns: LocationColumnView[] = selectedLocationSummaries.map((location) => {
-				const locationBookings = dayBookings.filter(
-					(booking) => (booking.location?.id ?? null) === location.id
+
+			return splitLaneSummaries.map((lane) => {
+				if (lane.kind === 'trainer') {
+					const trainerBookings = dayBookings.filter((booking) =>
+						matchesTrainerSelection(booking, lane.id)
+					);
+					return {
+						key: lane.key,
+						kind: lane.kind,
+						title: lane.title,
+						shortLabel: lane.shortLabel,
+						accentColor: lane.accentColor,
+						layout: layoutDayBookings(trainerBookings),
+						unavailableBlocks: computeUnavailableBlocks(
+							fullDate,
+							filters,
+							availability,
+							blockedDays,
+							lane.id
+						),
+						emptySlots: computeEmptySlotBlocks(
+							fullDate,
+							trainerBookings,
+							filters,
+							availability,
+							blockedDays,
+							lane.id
+						),
+						locationId: null,
+						trainerId: lane.id,
+						clientId: null
+					};
+				}
+
+				if (lane.kind === 'location') {
+					const locationBookings = dayBookings.filter((booking) =>
+						matchesLocationSelection(booking, lane.id)
+					);
+					return {
+						key: lane.key,
+						kind: lane.kind,
+						title: lane.title,
+						shortLabel: lane.shortLabel,
+						accentColor: lane.accentColor,
+						layout: layoutDayBookings(locationBookings),
+						unavailableBlocks: [],
+						emptySlots: computeEmptySlotBlocks(
+							fullDate,
+							locationBookings,
+							filters,
+							availability,
+							blockedDays
+						),
+						locationId: lane.id,
+						trainerId: null,
+						clientId: null
+					};
+				}
+
+				const clientBookings = dayBookings.filter((booking) =>
+					matchesClientSelection(booking, lane.id)
 				);
 				return {
-					locationId: location.id,
-					locationName: location.name,
-					locationColor: location.color,
-					layout: layoutDayBookings(locationBookings),
+					key: lane.key,
+					kind: lane.kind,
+					title: lane.title,
+					shortLabel: lane.shortLabel,
+					accentColor: lane.accentColor,
+					layout: layoutDayBookings(clientBookings),
+					unavailableBlocks: [],
 					emptySlots: computeEmptySlotBlocks(
 						fullDate,
-						locationBookings,
+						clientBookings,
 						filters,
 						availability,
 						blockedDays
-					)
-				};
-			});
-
-			const leftoverBookings = dayBookings.filter((booking) => {
-				const id = booking.location?.id ?? null;
-				return !(id != null && selectedLocationIdSet.has(id));
-			});
-
-			if (leftoverBookings.length) {
-				columns.push({
-					locationId: null,
-					locationName: 'Övriga',
-					locationColor: '#94a3b8',
-					layout: layoutDayBookings(leftoverBookings),
-					emptySlots: []
-				});
-			}
-
-			return columns;
-		});
-	});
-
-	const trainerColumnsByDay = $derived.by<TrainerColumnView[][]>(() => {
-		if (!shouldSplitByTrainer) {
-			return [];
-		}
-
-		return weekDays.map(({ fullDate }, dayIndex) => {
-			const dayBookings = bookingsByDay[dayIndex] ?? [];
-			const buckets = new Map<number | null, FullBooking[]>();
-			for (const trainer of selectedTrainerSummaries) {
-				buckets.set(trainer.id, []);
-			}
-			buckets.set(null, []);
-
-			for (const booking of dayBookings) {
-				const bucketId = getTrainerBucketId(booking, selectedTrainerIdSet);
-				const targetBucket = bucketId != null ? buckets.get(bucketId) : undefined;
-				if (targetBucket) {
-					targetBucket.push(booking);
-				} else {
-					const leftoverBucket = buckets.get(null);
-					leftoverBucket?.push(booking);
-				}
-			}
-
-			const columns: TrainerColumnView[] = selectedTrainerSummaries.map((trainer) => {
-				const trainerBookings = buckets.get(trainer.id) ?? [];
-				return {
-					trainerId: trainer.id,
-					trainerName: trainer.name,
-					trainerColor: trainer.color,
-					layout: layoutDayBookings(trainerBookings),
-					unavailableBlocks: computeUnavailableBlocks(
-						fullDate,
-						filters,
-						availability,
-						blockedDays,
-						trainer.id
 					),
-					emptySlots: computeEmptySlotBlocks(
-						fullDate,
-						trainerBookings,
-						filters,
-						availability,
-						blockedDays,
-						trainer.id
-					)
+					locationId: null,
+					trainerId: null,
+					clientId: lane.id
 				};
 			});
-
-			const leftoverBookings = buckets.get(null) ?? [];
-			if (leftoverBookings.length) {
-				columns.push({
-					trainerId: null,
-					trainerName: 'Övriga',
-					trainerColor: '#94a3b8',
-					layout: layoutDayBookings(leftoverBookings),
-					unavailableBlocks: [],
-					emptySlots: []
-				});
-			}
-
-			return columns;
 		});
 	});
 
@@ -743,7 +827,7 @@
 			targetedLocation != null && locationIds.length === 1 && locationIds[0] === targetedLocation;
 		const splitViewMatch =
 			targetedLocation != null &&
-			shouldSplitByLocation &&
+			hasSplitLocationLane &&
 			selectedLocationIdSet.has(targetedLocation);
 		if (!singleLocationMatch && !splitViewMatch) {
 			slotDialogView = null;
@@ -843,6 +927,25 @@
 		return results;
 	}
 
+	function shouldShowSplitSlotTime(
+		columns: SplitColumnView[],
+		columnIndex: number,
+		slotStart: Date
+	): boolean {
+		const slotTime = slotStart.getTime();
+		for (let index = 0; index < columnIndex; index += 1) {
+			const previousColumn = columns[index];
+			if (!previousColumn) continue;
+			const alreadyShown = previousColumn.emptySlots.some(
+				(candidate) => candidate.start.getTime() === slotTime
+			);
+			if (alreadyShown) {
+				return false;
+			}
+		}
+		return true;
+	}
+
 	function openBookingDetails(booking: FullBooking) {
 		slotDialogView = null;
 		dispatch('onBookingClick', { booking });
@@ -931,7 +1034,7 @@
 			bookingLocationId != null && locationIds.length === 1 && locationIds[0] === bookingLocationId;
 		const hasSplitLocationMatch =
 			bookingLocationId != null &&
-			shouldSplitByLocation &&
+			hasSplitLocationLane &&
 			selectedLocationIdSet.has(bookingLocationId);
 		if (!hasSingleLocationFilter && !hasSplitLocationMatch) {
 			openBookingDetails(booking);
@@ -1221,12 +1324,14 @@
 	function openBookingPopup(
 		startTime: Date,
 		locationId?: number | null,
-		trainerId?: number | null
+		trainerId?: number | null,
+		clientId?: number | null
 	) {
 		dispatch('onTimeSlotClick', {
 			startTime,
 			locationId: locationId ?? null,
-			trainerId: trainerId ?? null
+			trainerId: trainerId ?? null,
+			clientId: clientId ?? null
 		});
 	}
 
@@ -1388,7 +1493,7 @@
 						}}
 					/>
 				{/if}
-				{#if !shouldSplitByTrainer}
+				{#if !hasSplitTrainerLane}
 					{#each unavailableBlocksByDay[dayIndex] ?? [] as block}
 						<div
 							class="unavailable-striped absolute right-0 left-0"
@@ -1403,87 +1508,38 @@
 					{/each}
 				{/if}
 
-				{#if shouldSplitByLocation}
-					<div class="flex h-full">
-						{#each locationColumnsByDay[dayIndex] ?? [] as column, columnIndex (column.locationId ?? `unknown-${columnIndex}`)}
-							{@const locationHeaderLabel = getLocationShortLabel(column.locationName)}
-							{@const locationHeaderTitle = column.locationName ?? 'Plats'}
+				{#if shouldSplitBySelectedFilters}
+					{@const dayColumns = splitColumnsByDay[dayIndex] ?? []}
+					{@const showSplitHeaders = dayColumns.length > 1}
+					<div class="flex h-full" class:gap-1={singleDayView} class:gap-0={!singleDayView}>
+						{#each dayColumns as column, columnIndex (column.key)}
+							{@const headerText = singleDayView
+								? column.kind === 'location' || isMobile
+									? column.shortLabel
+									: column.title
+								: column.shortLabel}
 							<div
-								class="flex flex-1 basis-0 flex-col"
-								class:gap-1={singleDayView}
-								class:gap-0={!singleDayView}
+								class="flex min-w-0 flex-1 basis-0 flex-col"
+								class:gap-1={singleDayView && showSplitHeaders}
+								class:gap-0={!singleDayView || !showSplitHeaders}
 							>
-								{#if singleDayView}
+								{#if showSplitHeaders}
 									<div
-										class="calendar-location-header text-gray-dark border-gray-bright/70 flex items-center justify-center rounded border bg-white/80 px-2 py-1 text-xs font-semibold"
-										style="border-color: {column.locationColor ?? '#e2e8f0'};"
-										title={locationHeaderTitle}
+										class="calendar-location-header text-gray-dark border-gray-bright/70 flex min-w-0 overflow-hidden rounded border bg-white/80 text-xs font-semibold"
+										class:px-2={singleDayView}
+										class:px-1={!singleDayView}
+										class:py-1={singleDayView}
+										class:py-0.5={!singleDayView}
+										style="border-color: {column.accentColor ?? '#e2e8f0'};"
+										use:tooltip={!singleDayView
+											? { content: column.title, preferred: 'top' }
+											: undefined}
 									>
-										<span class="truncate tracking-wide" class:uppercase={isMobile}>
-											{locationHeaderLabel}
-										</span>
-									</div>
-								{/if}
-								<div class="relative flex-1">
-									<div class="calendar-time-bands">
-										{#each hourBandOffsets as top, index}
-											<div
-												class="calendar-hour-band"
-												class:calendar-hour-band--alt={index % 2 === 1}
-												style={`top: ${top}px; height: ${hourHeight}px;`}
-											/>
-										{/each}
-									</div>
-									<div class="calendar-time-lines">
-										{#each hourLineOffsets as top}
-											<div class="calendar-hour-line" style={`top: ${top}px;`} />
-										{/each}
-										{#each halfHourLineOffsets as top}
-											<div class="calendar-half-hour-line" style={`top: ${top}px;`} />
-										{/each}
-									</div>
-									{#each column.emptySlots as slot}
-										<button
-											class="hover:bg-orange/20 absolute right-0 left-0 cursor-pointer"
-											style="top: {slot.top}px; height: {hourHeight}px; z-index: 0;"
-											on:click={() => openBookingPopup(slot.start, column.locationId)}
-											use:tooltip={{
-												content: `${slot.start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - ${new Date(slot.start.getTime() + 60 * 60 * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
-											}}
+										<span
+											class="block min-w-0 flex-1 truncate text-center tracking-wide"
+											class:uppercase={isMobile || !singleDayView}
 										>
-											<span class="empty-slot-time">
-												{slot.start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-											</span>
-										</button>
-									{/each}
-									{#each column.layout ?? [] as layoutItem (layoutItem.booking.booking.id)}
-										<BookingSlot
-											booking={layoutItem.booking}
-											{startHour}
-											{hourHeight}
-											columnIndex={layoutItem.columnIndex}
-											columnCount={layoutItem.columnCount}
-											onbookingselected={(event) =>
-												handleBookingSlotClick(event, layoutItem.booking)}
-										/>
-									{/each}
-								</div>
-							</div>
-						{/each}
-					</div>
-				{:else if shouldSplitByTrainer}
-					<div class="flex h-full gap-1">
-						{#each trainerColumnsByDay[dayIndex] ?? [] as column, columnIndex (column.trainerId ?? `trainer-${columnIndex}`)}
-							{@const trainerHeaderTitle = column.trainerName ?? 'Tränare'}
-							<div class="flex flex-1 basis-0 flex-col" class:gap-1={singleDayView}>
-								{#if singleDayView}
-									<div
-										class="calendar-location-header border-gray-bright/70 text-gray-dark flex items-center justify-center rounded border bg-white/80 px-2 py-1 text-xs font-semibold"
-										title={trainerHeaderTitle}
-										style={`border-color: ${column.trainerColor ?? '#e2e8f0'};`}
-									>
-										<span class="truncate tracking-wide">
-											{trainerHeaderTitle}
+											{headerText}
 										</span>
 									</div>
 								{/if}
@@ -1521,14 +1577,25 @@
 										<button
 											class="hover:bg-orange/20 absolute right-0 left-0 cursor-pointer"
 											style="top: {slot.top}px; height: {hourHeight}px; z-index: 0;"
-											on:click={() => openBookingPopup(slot.start, null, column.trainerId)}
+											on:click={() =>
+												openBookingPopup(
+													slot.start,
+													column.locationId,
+													column.trainerId,
+													column.clientId
+												)}
 											use:tooltip={{
 												content: `${slot.start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - ${new Date(slot.start.getTime() + 60 * 60 * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
 											}}
 										>
-											<span class="empty-slot-time">
-												{slot.start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-											</span>
+											{#if singleDayView || shouldShowSplitSlotTime(dayColumns, columnIndex, slot.start)}
+												<span class="empty-slot-time">
+													{slot.start.toLocaleTimeString([], {
+														hour: '2-digit',
+														minute: '2-digit'
+													})}
+												</span>
+											{/if}
 										</button>
 									{/each}
 									{#each column.layout ?? [] as layoutItem (layoutItem.booking.booking.id)}

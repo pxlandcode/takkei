@@ -2,6 +2,7 @@ export interface BookingDetails {
 	id: number;
 	status: string; // "New", "Cancelled", etc.
 	createdAt: string; // ISO date
+	createdById?: number | null;
 	updatedAt: string; // ISO date
 	startTime: string; // ISO date
 	endTime?: string | null; // ISO date

@@ -50,6 +50,9 @@
 
 	let isMobile = false;
 	let showDrawer = false;
+	let resizeHandler: (() => void) | null = null;
+	let clientRootDrawerClosed = false;
+	const MOBILE_BREAKPOINT = 768;
 
 	let showTopLoadingBar = false;
 	let loadingBarVisible = false;
@@ -110,10 +113,48 @@
 		if (loadingBarHideTimeout) {
 			clearTimeout(loadingBarHideTimeout);
 		}
+		if (browser && resizeHandler) {
+			window.removeEventListener('resize', resizeHandler);
+		}
 	});
 
-	$: if (!isTrainer) {
+	$: if (!isTrainer && !isClient) {
 		showDrawer = false;
+		clientRootDrawerClosed = false;
+	}
+
+	function updateIsMobile() {
+		if (!browser) return;
+		isMobile = window.innerWidth < MOBILE_BREAKPOINT;
+	}
+
+	function syncDrawerForRoute(
+		pathname = currentRoute,
+		accountKind: string | null | undefined = currentAccount?.kind
+	) {
+		if (accountKind !== 'trainer' && accountKind !== 'client') {
+			showDrawer = false;
+			return;
+		}
+
+		if (!isMobile) {
+			showDrawer = false;
+			return;
+		}
+
+		const defaultRoute = accountKind === 'trainer' ? '/' : '/client';
+		if (accountKind === 'trainer') {
+			showDrawer = pathname !== defaultRoute;
+			return;
+		}
+
+		if (pathname === defaultRoute) {
+			showDrawer = !clientRootDrawerClosed;
+			return;
+		}
+
+		clientRootDrawerClosed = false;
+		showDrawer = true;
 	}
 
 	// Detect mobile and route changes
@@ -134,29 +175,24 @@
 				.catch((error) => console.error('Service worker registration failed', error));
 		}
 
-		isMobile = window.innerWidth < 768;
-		const defaultRoute = current?.kind === 'trainer' ? '/' : '/client';
-		if (current?.kind === 'client' && currentRoute === defaultRoute) {
-			showDrawer = true;
-		} else {
-			showDrawer = isMobile && currentRoute !== defaultRoute;
-		}
+		updateIsMobile();
+		syncDrawerForRoute(currentRoute, current?.kind);
+
+		resizeHandler = () => {
+			updateIsMobile();
+			syncDrawerForRoute(currentRoute, currentAccount?.kind);
+		};
+		window.addEventListener('resize', resizeHandler);
 	});
 
-	page.subscribe(($page) => {
-		if (!browser || !isMobile) return;
-		if (isTrainer) {
-			showDrawer = $page.url.pathname !== '/';
-		} else if (isClient) {
-			if ($page.url.pathname === '/client') {
-				// allow manual toggle
-			} else {
-				showDrawer = true;
-			}
-		}
-	});
+	$: if (browser) {
+		syncDrawerForRoute(currentRoute, currentAccount?.kind);
+	}
 
 	function closeDrawer() {
+		if (isClient) {
+			clientRootDrawerClosed = true;
+		}
 		showDrawer = false;
 		goto(isTrainer ? '/' : '/client');
 	}
@@ -510,8 +546,16 @@
 			pointer-events: none;
 		}
 
+		.mobile-drawer * {
+			pointer-events: none;
+		}
+
 		.mobile-drawer.visible {
 			transform: translateY(0%);
+			pointer-events: auto;
+		}
+
+		.mobile-drawer.visible * {
 			pointer-events: auto;
 		}
 

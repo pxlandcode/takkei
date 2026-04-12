@@ -4,11 +4,35 @@
 	import { addToast } from '$lib/stores/toastStore';
 	import { AppToastType } from '$lib/types/toastTypes';
 	import NotificationAdminCard from '../../bits/notificationAdminCard/NotificationAdminCard.svelte';
+	import NotificationCreator from '../notificationCreator/NotificationCreator.svelte';
+	import { openPopup } from '$lib/stores/popupStore';
 
 	export let refreshKey = 0;
 
-	let sentNotifications = [];
-	let expanded = new Set<number>();
+	type NotificationRecipient = {
+		id: number;
+		name: string;
+		hasMarkedDone: boolean;
+		event_id: number;
+	};
+
+	type NotificationAdminItem = {
+		id: number;
+		name: string;
+		description: string;
+		start_time?: string | null;
+		end_time?: string | null;
+		created_at?: string | null;
+		event_type: 'client' | 'alert' | 'info' | 'article';
+		event_type_id?: number | null;
+		user_ids: number[];
+		marked_done: number;
+		total_receivers: number;
+		link?: string | null;
+		recipients?: NotificationRecipient[];
+	};
+
+	let sentNotifications: NotificationAdminItem[] = [];
 	let offset = 0;
 	let limit = 10;
 	let loading = false;
@@ -22,17 +46,22 @@
 		resetAndFetch();
 	}
 
+	function getErrorMessage(error: unknown) {
+		return error instanceof Error ? error.message : 'Något gick fel.';
+	}
+
 	async function loadMore() {
-		if (loading || allLoaded || !$user?.id) return;
+		const userId = $user?.id;
+		if (loading || allLoaded || !userId) return;
 		loading = true;
 
 		try {
 			const res = await fetch(
-				`/api/notifications/sent?user_id=${$user.id}&offset=${offset}&limit=${limit}`
+				`/api/notifications/sent?user_id=${userId}&offset=${offset}&limit=${limit}`
 			);
 			if (!res.ok) throw new Error('Serverfel');
 
-			const data = await res.json();
+			const data = (await res.json()) as NotificationAdminItem[];
 			if (data.length < limit) allLoaded = true;
 
 			sentNotifications = [...sentNotifications, ...data];
@@ -41,7 +70,7 @@
 			addToast({
 				type: AppToastType.CANCEL,
 				message: 'Kunde inte hämta notifikationer',
-				description: err.message
+				description: getErrorMessage(err)
 			});
 		} finally {
 			loading = false;
@@ -53,6 +82,25 @@
 		allLoaded = false;
 		sentNotifications = [];
 		loadMore();
+	}
+
+	function openEditPopup(notification: NotificationAdminItem) {
+		openPopup({
+			header: 'Ändra notifikation',
+			icon: 'Edit',
+			component: NotificationCreator,
+			maxWidth: '700px',
+			props: {
+				mode: 'edit',
+				notification
+			},
+			listeners: {
+				updated: () => {
+					resetAndFetch();
+				}
+			},
+			closeOn: ['updated']
+		});
 	}
 
 	async function handleDelete(id: number) {
@@ -74,7 +122,7 @@
 			addToast({
 				type: AppToastType.CANCEL,
 				message: 'Fel vid radering',
-				description: err.message
+				description: getErrorMessage(err)
 			});
 		}
 	}
@@ -88,11 +136,12 @@
 			startTime={notif.start_time}
 			endTime={notif.end_time}
 			eventType={notif.event_type}
-			timeAgo={new Date(notif.created_at).toLocaleDateString('sv-SE')}
+			timeAgo={notif.created_at ? new Date(notif.created_at).toLocaleDateString('sv-SE') : ''}
 			link={notif.link}
 			doneCount={notif.marked_done}
 			totalCount={notif.total_receivers}
 			recipients={notif.recipients || []}
+			on:edit={() => openEditPopup(notif)}
 			on:delete={() => handleDelete(notif.id)}
 		/>
 	{/each}

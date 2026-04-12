@@ -1,4 +1,5 @@
 import type { HomeModernClient, HomeModernNotificationEvent } from './homeModernTypes';
+import { sortNotifications } from '$lib/utils/notifications';
 
 const STOCKHOLM_TIME_ZONE = 'Europe/Stockholm';
 
@@ -50,7 +51,9 @@ export function formatCurrency(value: number | null) {
 	}).format(value ?? 0);
 }
 
-export function relativeTime(value: string) {
+export function relativeTime(value?: string | null) {
+	if (!value) return '';
+
 	const diff = Date.now() - new Date(value).getTime();
 	const minutes = Math.floor(diff / 60000);
 
@@ -65,11 +68,7 @@ export function relativeTime(value: string) {
 }
 
 export function sortNotificationEvents(events: HomeModernNotificationEvent[]) {
-	return [...events].sort((left, right) => {
-		if (left.event_type === 'alert' && right.event_type !== 'alert') return -1;
-		if (left.event_type !== 'alert' && right.event_type === 'alert') return 1;
-		return new Date(right.start_time).getTime() - new Date(left.start_time).getTime();
-	});
+	return sortNotifications(events);
 }
 
 export function getClientFullName(client: HomeModernClient) {

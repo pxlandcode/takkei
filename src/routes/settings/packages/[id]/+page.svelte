@@ -5,6 +5,7 @@
 	import Button from '../../../../components/bits/button/Button.svelte';
 	import Navigation from '../../../../components/bits/navigation/Navigation.svelte';
 	import PackagePopup from '../../../../components/ui/packagePopup/PackagePopup.svelte';
+	import SaldoAdjustmentPopup from '../../../../components/ui/ProfileClientPackages/SaldoAdjustmentPopup.svelte';
 	import { hasRole } from '$lib/helpers/userHelpers/roleHelper';
 	import { openPopup, closePopup } from '$lib/stores/popupStore';
 	import { openPackageAssignmentPopup } from '$lib/helpers/packageAssignments/openPackageAssignmentPopup';
@@ -274,6 +275,33 @@
 		});
 	}
 
+	function openSaldoAdjustmentPopup() {
+		if (!isAdmin || !pkg) return;
+		const selectedClientId = pkg.client?.id ? Number(pkg.client.id) : null;
+		const selectedCustomerId = pkg.customer?.id ? Number(pkg.customer.id) : null;
+		if (!selectedClientId && !selectedCustomerId) return;
+
+		openPopup({
+			header: 'Saldojustering',
+			icon: 'Calculator',
+			component: SaldoAdjustmentPopup,
+			maxWidth: '560px',
+			props: {
+				clientId: selectedClientId,
+				customerId: selectedCustomerId,
+				packageId,
+				packageLocked: true
+			},
+			listeners: {
+				saved: async () => {
+					await fetchPkg();
+					bookingsRefreshToken += 1;
+				}
+			},
+			closeOn: ['saved']
+		});
+	}
+
 	// Navigation config (like /reports)
 	const menuItems = [
 		{ label: 'Paket', icon: 'Package', component: OverviewTab },
@@ -301,6 +329,14 @@
 				icon="ArrowRightLeft"
 				variant="secondary"
 				on:click={moveToCustomer}
+			/>
+		{/if}
+		{#if isAdmin}
+			<Button
+				text="Saldojustering"
+				iconLeft="Calculator"
+				variant="secondary"
+				on:click={openSaldoAdjustmentPopup}
 			/>
 		{/if}
 		{#if isAdmin}
@@ -355,7 +391,9 @@
 
 <div class="m-4 flex flex-col gap-3">
 	{#if recalcInfo}
-		<div class="flex flex-col gap-3 rounded-sm border border-green-300 bg-green-50 p-3 text-green-900 md:flex-row md:items-center md:justify-between">
+		<div
+			class="flex flex-col gap-3 rounded-sm border border-green-300 bg-green-50 p-3 text-green-900 md:flex-row md:items-center md:justify-between"
+		>
 			<p>{recalcInfo}</p>
 			{#if isAdmin && recalcDetachedCount > 0}
 				<Button
