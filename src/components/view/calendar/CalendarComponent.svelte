@@ -1510,6 +1510,7 @@
 
 				{#if shouldSplitBySelectedFilters}
 					{@const dayColumns = splitColumnsByDay[dayIndex] ?? []}
+					{@const showSplitHeaders = dayColumns.length > 1}
 					<div class="flex h-full" class:gap-1={singleDayView} class:gap-0={!singleDayView}>
 						{#each dayColumns as column, columnIndex (column.key)}
 							{@const headerText = singleDayView
@@ -1519,27 +1520,29 @@
 								: column.shortLabel}
 							<div
 								class="flex min-w-0 flex-1 basis-0 flex-col"
-								class:gap-1={singleDayView}
-								class:gap-0={!singleDayView}
+								class:gap-1={singleDayView && showSplitHeaders}
+								class:gap-0={!singleDayView || !showSplitHeaders}
 							>
-								<div
-									class="calendar-location-header text-gray-dark border-gray-bright/70 flex min-w-0 overflow-hidden rounded border bg-white/80 text-xs font-semibold"
-									class:px-2={singleDayView}
-									class:px-1={!singleDayView}
-									class:py-1={singleDayView}
-									class:py-0.5={!singleDayView}
-									style="border-color: {column.accentColor ?? '#e2e8f0'};"
-									use:tooltip={!singleDayView
-										? { content: column.title, preferred: 'top' }
-										: undefined}
-								>
-									<span
-										class="block min-w-0 flex-1 truncate text-center tracking-wide"
-										class:uppercase={isMobile || !singleDayView}
+								{#if showSplitHeaders}
+									<div
+										class="calendar-location-header text-gray-dark border-gray-bright/70 flex min-w-0 overflow-hidden rounded border bg-white/80 text-xs font-semibold"
+										class:px-2={singleDayView}
+										class:px-1={!singleDayView}
+										class:py-1={singleDayView}
+										class:py-0.5={!singleDayView}
+										style="border-color: {column.accentColor ?? '#e2e8f0'};"
+										use:tooltip={!singleDayView
+											? { content: column.title, preferred: 'top' }
+											: undefined}
 									>
-										{headerText}
-									</span>
-								</div>
+										<span
+											class="block min-w-0 flex-1 truncate text-center tracking-wide"
+											class:uppercase={isMobile || !singleDayView}
+										>
+											{headerText}
+										</span>
+									</div>
+								{/if}
 								<div class="relative flex-1">
 									<div class="calendar-time-bands">
 										{#each hourBandOffsets as top, index}
