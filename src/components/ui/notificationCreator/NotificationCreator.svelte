@@ -13,27 +13,56 @@
 	import Checkbox from '../../bits/checkbox/Checkbox.svelte';
 	import InfoButton from '../../bits/infoButton/InfoButton.svelte';
 	import { sendMail } from '$lib/services/mail/mailClientService';
+	import type { User } from '$lib/types/userTypes';
 
 	$: user;
 
+	type EditableNotification = {
+		id: number;
+		name: string;
+		description: string;
+		start_time?: string | null;
+		end_time?: string | null;
+		user_ids: number[];
+		event_type?: string | null;
+		event_type_id?: number | null;
+	};
+
+	export let mode: 'create' | 'edit' = 'create';
+	export let notification: EditableNotification | null = null;
+
 	const dispatch = createEventDispatcher();
 
-	let name = '';
-	let description = '';
-	let start_time = new Date().toISOString().slice(0, 16);
-	let end_time = '';
-	let selectedUsers = [];
+	function getLocalDateTimeValue(date = new Date()) {
+		const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+		return localDate.toISOString().slice(0, 16);
+	}
+
+	let name = notification?.name ?? '';
+	let description = notification?.description ?? '';
+	let start_time = notification?.start_time
+		? getLocalDateTimeValue(new Date(notification.start_time))
+		: getLocalDateTimeValue();
+	let end_time = notification?.end_time
+		? getLocalDateTimeValue(new Date(notification.end_time))
+		: '';
+	let selectedUsers: User[] = [];
 	let errors: Record<string, string> = {};
-	let isImportant = false;
+	let isImportant = notification?.event_type_id === 2 || notification?.event_type === 'alert';
 	let sendAsEmail = false;
 
 	onMount(async () => {
 		if (get(users).length === 0) {
 			await fetchUsers();
 		}
+
+		if (mode === 'edit' && notification?.user_ids?.length) {
+			const selectedUserIds = new Set(notification.user_ids);
+			selectedUsers = get(users).filter((candidate) => selectedUserIds.has(candidate.id));
+		}
 	});
 
-	function handleUserSelection(event) {
+	function handleUserSelection(event: CustomEvent<{ selected: User[] }>) {
 		selectedUsers = [...event.detail.selected];
 	}
 
@@ -45,10 +74,17 @@
 		selectedUsers = [];
 	}
 
+	function getErrorMessage(error: unknown) {
+		return error instanceof Error ? error.message : 'Något gick fel.';
+	}
+
 	function validate() {
 		errors = {};
 		if (!name) errors.name = 'Titel krävs';
 		if (!start_time) errors.start_time = 'Starttid krävs';
+		if (end_time && new Date(end_time).getTime() <= new Date(start_time).getTime()) {
+			errors.end_time = 'Sluttid måste vara senare än starttid';
+		}
 		if (selectedUsers.length === 0) errors.user_ids = 'Minst en användare krävs';
 		return Object.keys(errors).length === 0;
 	}
@@ -68,32 +104,58 @@
 		}
 
 		const user_ids = selectedUsers.map((u) => u.id);
+		const currentUserId = $user?.id;
+		const isEdit = mode === 'edit' && Boolean(notification?.id);
+		const endpoint = isEdit ? `/api/notifications/${notification?.id}` : '/api/notifications';
+		const method = isEdit ? 'PUT' : 'POST';
+
+		if (!isEdit && !currentUserId) {
+			addToast({
+				type: AppToastType.CANCEL,
+				message: 'Fel vid skapande',
+				description: 'Kunde inte identifiera användaren som skapar notifikationen.'
+			});
+			return;
+		}
 
 		try {
-			const res = await fetch('/api/notifications', {
-				method: 'POST',
+			const body: Record<string, unknown> = {
+				name,
+				description,
+				start_time,
+				end_time: end_time || null,
+				user_ids,
+				event_type_id: isImportant ? 2 : null
+			};
+
+			if (!isEdit) {
+				body.created_by = currentUserId;
+			}
+
+			const res = await fetch(endpoint, {
+				method,
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					name,
-					description,
-					start_time,
-					end_time: end_time || null,
-					user_ids,
-					created_by: $user?.id,
-					event_type_id: isImportant ? 2 : null
-				})
+				body: JSON.stringify(body)
 			});
 
 			if (!res.ok) throw new Error((await res.json()).error || 'Fel vid skapande');
-			const created = await res.json();
+			const saved = await res.json();
 
-			addToast({
-				type: AppToastType.SUCCESS,
-				message: 'Notifikation skapad!',
-				description: `Notifikationen "${created.name}" skapades för ${user_ids.length} användare.`
-			});
+			if (!isEdit) {
+				addToast({
+					type: AppToastType.SUCCESS,
+					message: 'Notifikation skapad!',
+					description: `Notifikationen "${saved.name}" skapades för ${user_ids.length} användare.`
+				});
+			} else {
+				addToast({
+					type: AppToastType.SUCCESS,
+					message: 'Notifikationen uppdaterades',
+					description: saved.name
+				});
+			}
 
-			if (sendAsEmail) {
+			if (!isEdit && sendAsEmail) {
 				try {
 					await sendMail({
 						to: selectedUsers.map((u) => u.email),
@@ -111,44 +173,51 @@
 					addToast({
 						type: AppToastType.CANCEL,
 						message: 'Kunde inte skicka e-post',
-						description: emailErr.message
+						description: getErrorMessage(emailErr)
 					});
 				}
 			}
 
-			name = '';
-			description = '';
-			start_time = new Date().toISOString().slice(0, 16);
-			end_time = '';
-			selectedUsers = [];
-			errors = {};
-
-			onCreated();
+			if (isEdit) {
+				dispatch('updated', { notification: saved });
+			} else {
+				name = '';
+				description = '';
+				start_time = getLocalDateTimeValue();
+				end_time = '';
+				selectedUsers = [];
+				errors = {};
+				onCreated();
+			}
 		} catch (err) {
 			addToast({
 				type: AppToastType.CANCEL,
-				message: 'Fel vid skapande',
-				description: err.message || 'Kunde inte skapa notifikationen.'
+				message: isEdit ? 'Fel vid uppdatering' : 'Fel vid skapande',
+				description: getErrorMessage(err) || 'Kunde inte skapa notifikationen.'
 			});
 		}
 	}
 </script>
 
 <div class="flex w-[600px] max-w-[600px] flex-col gap-2">
-	<h2 class="mb-2 text-xl font-semibold text-text">Skapa ny notifikation</h2>
+	<h2 class="text-text mb-2 text-xl font-semibold">
+		{mode === 'edit' ? 'Ändra notifikation' : 'Skapa ny notifikation'}
+	</h2>
 
 	<Input label="Titel" name="name" bind:value={name} {errors} />
 	<TextArea label="Beskrivning" name="description" bind:value={description} />
-	<div class="mb-2 grid grid-cols-1 gap-4 xl:grid-cols-2">
-		<div class="flex items-center gap-2">
-			<Checkbox id="sendAsEmail" bind:checked={sendAsEmail} label="Skicka som mail" />
-			<InfoButton
-				info="Om detta är markerat skickas notifikationen även som ett e-postmeddelande."
-				preferred="right"
-				variant="dark"
-				letter="?"
-			/>
-		</div>
+	<div class="mb-2 grid grid-cols-1 gap-4 {mode === 'create' ? 'xl:grid-cols-2' : ''}">
+		{#if mode === 'create'}
+			<div class="flex items-center gap-2">
+				<Checkbox id="sendAsEmail" bind:checked={sendAsEmail} label="Skicka som mail" />
+				<InfoButton
+					info="Om detta är markerat skickas notifikationen även som ett e-postmeddelande."
+					preferred="right"
+					variant="dark"
+					letter="?"
+				/>
+			</div>
+		{/if}
 		<div class="flex items-center gap-2">
 			<Checkbox id="important" bind:checked={isImportant} label="Viktigt meddelande" />
 			<InfoButton
@@ -168,7 +237,13 @@
 			bind:value={start_time}
 			{errors}
 		/>
-		<Input label="Sluttid (valfritt)" type="datetime-local" bind:value={end_time} />
+		<Input
+			label="Sluttid (valfritt)"
+			name="end_time"
+			type="datetime-local"
+			bind:value={end_time}
+			{errors}
+		/>
 	</div>
 
 	<!-- User dropdown and controls -->
@@ -202,7 +277,7 @@
 	<FilterBox
 		title="Mottagare"
 		{selectedUsers}
-		on:removeFilter={(event) => {
+		on:removeFilter={(event: CustomEvent<{ type: string; id: number }>) => {
 			const { type, id } = event.detail;
 			if (type === 'trainer') selectedUsers = selectedUsers.filter((u) => u.id !== id);
 		}}
@@ -212,7 +287,7 @@
 		full
 		iconRight="Notification"
 		iconRightSize="16"
-		text="Skapa notifikation"
+		text={mode === 'edit' ? 'Spara ändringar' : 'Skapa notifikation'}
 		on:click={submit}
 	/>
 </div>

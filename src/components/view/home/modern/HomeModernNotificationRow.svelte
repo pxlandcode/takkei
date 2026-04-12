@@ -5,6 +5,7 @@
 	import { ripple } from '$lib/actions/ripple';
 	import { relativeTime } from './homeModernUtils';
 	import type { HomeModernNotificationEvent } from './homeModernTypes';
+	import { getNotificationDisplayStart } from '$lib/utils/notifications';
 
 	type NotificationOverflowField = 'title' | 'description';
 
@@ -19,7 +20,7 @@
 	let descriptionTruncated = false;
 	let isExpanded = false;
 
-	$: isExpandable = titleTruncated || descriptionTruncated;
+	$: isExpandable = titleTruncated || descriptionTruncated || !!event.link;
 	$: if (!isExpandable && isExpanded) {
 		isExpanded = false;
 	}
@@ -165,7 +166,9 @@
 				{event.name}
 			</span>
 			<div class="grid flex-shrink-0 grid-cols-[auto_12px] items-center gap-1">
-				<span class="text-[10px] text-gray-400">{relativeTime(event.start_time)}</span>
+				<span class="text-[10px] text-gray-400">
+					{relativeTime(getNotificationDisplayStart(event))}
+				</span>
 				<span
 					class="group-hover:text-primary inline-flex w-3 justify-center text-gray-300 transition-[transform,color] duration-200"
 					class:rotate-180={isExpanded}
@@ -188,6 +191,15 @@
 			>
 				{event.description}
 			</p>
+		{/if}
+		{#if isExpanded && event.link}
+			<a
+				href={event.link}
+				class="text-primary hover:text-primary-hover mt-1 inline-block text-[11px] font-semibold underline"
+				on:click|stopPropagation
+			>
+				{event.link.startsWith('/news') ? 'Läs hela artikeln' : 'Öppna'}
+			</a>
 		{/if}
 	</div>
 	<button

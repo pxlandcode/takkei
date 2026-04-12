@@ -3,8 +3,9 @@ export interface HomeModernNotificationEvent {
 	name: string;
 	description: string;
 	event_type: string;
-	start_time: string;
+	start_time?: string | null;
 	end_time?: string | null;
+	created_at?: string | null;
 	done?: boolean;
 	created_by?: { name?: string } | null;
 	link?: string | null;

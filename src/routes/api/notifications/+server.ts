@@ -4,6 +4,7 @@ import {
 	getNotificationsForUser,
 	createNotification,
 	markNotificationAsDone,
+	markMultipleNotificationsAsDone,
 	unmarkNotificationAsDone
 } from '$lib/services/api/notificationService';
 import { respondJsonWithEtag } from '$lib/server/http-cache';
@@ -54,7 +55,11 @@ export const PUT: RequestHandler = async ({ request }) => {
 	const body = await request.json();
 
 	try {
-		await markNotificationAsDone(body.event_id, body.user_id);
+		if (Array.isArray(body.event_ids)) {
+			await markMultipleNotificationsAsDone(body.event_ids, body.user_id);
+		} else {
+			await markNotificationAsDone(body.event_id, body.user_id);
+		}
 		return json({ success: true });
 	} catch (err: any) {
 		return json({ error: err.message }, { status: 500 });
