@@ -161,7 +161,8 @@
 		const timeSlot = event.detail.startTime;
 		const locationId = event.detail.locationId ?? null;
 		const trainerId = event.detail.trainerId ?? null;
-		openBookingPopup(timeSlot, null, locationId, trainerId);
+		const clientId = event.detail.clientId ?? null;
+		openBookingPopup(timeSlot, null, locationId, trainerId, clientId);
 	}
 
 	function handlePinnedSlotClick(event) {
@@ -364,11 +365,15 @@
 		initialStartTime: Date | null = null,
 		resumeSlot: SelectedSlot | null = null,
 		preselectedLocationId: number | null = null,
-		preselectedTrainerId: number | null = null
+		preselectedTrainerId: number | null = null,
+		preselectedClientId: number | null = null
 	) {
 		let nextResumeSlot = resumeSlot;
 
-		if (!nextResumeSlot && (preselectedLocationId != null || preselectedTrainerId != null)) {
+		if (
+			!nextResumeSlot &&
+			(preselectedLocationId != null || preselectedTrainerId != null || preselectedClientId != null)
+		) {
 			const derivedDate = initialStartTime
 				? formatLocalDate(initialStartTime)
 				: (filters.date ?? null);
@@ -380,6 +385,7 @@
 				time: derivedTime,
 				trainerId: preselectedTrainerId,
 				locationId: preselectedLocationId,
+				clientId: preselectedClientId,
 				createdAt: Date.now()
 			};
 		}
