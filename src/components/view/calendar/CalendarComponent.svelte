@@ -605,40 +605,46 @@
 		return summaries;
 	});
 
-	function matchesTrainerSelection(booking: FullBooking, trainerId: number): boolean {
-		const bookingTrainerId = booking.trainer?.id ?? null;
-		if (bookingTrainerId === trainerId) {
-			return true;
+	const selectedTrainerIdSet = $derived.by(() => new Set(selectedTrainerIds));
+	const selectedClientIdSet = $derived.by(() => new Set(selectedClientIds));
+
+	function getMatchingTrainerSelectionIds(
+		booking: FullBooking,
+		allowedTrainerIds: Set<number>
+	): number[] {
+		if (allowedTrainerIds.size === 0) return [];
+
+		const matches: number[] = [];
+		const seen = new Set<number>();
+		const addMatch = (value: unknown) => {
+			const numericId = typeof value === 'number' && Number.isFinite(value) ? value : Number(value);
+			if (!Number.isFinite(numericId) || seen.has(numericId) || !allowedTrainerIds.has(numericId)) {
+				return;
+			}
+			seen.add(numericId);
+			matches.push(numericId);
+		};
+
+		addMatch(booking.trainer?.id ?? null);
+
+		if (Boolean(booking.booking.internalEducation) || Boolean(booking.additionalInfo?.education)) {
+			addMatch(booking.trainee?.id ?? booking.booking.userId ?? null);
 		}
 
-		const traineeId = booking.trainee?.id ?? booking.booking.userId ?? null;
-		if (
-			traineeId === trainerId &&
-			(Boolean(booking.booking.internalEducation) || Boolean(booking.additionalInfo?.education))
-		) {
-			return true;
+		if (booking.isPersonalBooking) {
+			const personalIds = booking.personalBooking?.userIds ?? [];
+			if (Array.isArray(personalIds)) {
+				for (const personalId of personalIds) {
+					addMatch(personalId);
+				}
+			}
 		}
 
-		if (!booking.isPersonalBooking) {
-			return false;
-		}
-
-		const personalIds = booking.personalBooking?.userIds ?? [];
-		return Array.isArray(personalIds)
-			? personalIds.some((rawId) => {
-					const numericId =
-						typeof rawId === 'number' && Number.isFinite(rawId) ? rawId : Number(rawId);
-					return Number.isFinite(numericId) && numericId === trainerId;
-				})
-			: false;
+		return matches;
 	}
 
-	function matchesLocationSelection(booking: FullBooking, locationId: number): boolean {
-		return (booking.location?.id ?? null) === locationId;
-	}
-
-	function matchesClientSelection(booking: FullBooking, clientId: number): boolean {
-		return (booking.client?.id ?? null) === clientId;
+	function createSplitLaneBookingBuckets(lanes: SplitLaneSummary[]) {
+		return new Map<string, FullBooking[]>(lanes.map((lane) => [lane.key, []]));
 	}
 
 	const splitLaneSummaries = $derived.by<SplitLaneSummary[]>(() => [
@@ -685,12 +691,27 @@
 
 		return weekDays.map(({ fullDate }, dayIndex) => {
 			const dayBookings = bookingsByDay[dayIndex] ?? [];
+			const laneBookings = createSplitLaneBookingBuckets(splitLaneSummaries);
+
+			for (const booking of dayBookings) {
+				for (const trainerId of getMatchingTrainerSelectionIds(booking, selectedTrainerIdSet)) {
+					laneBookings.get(`trainer-${trainerId}`)?.push(booking);
+				}
+
+				const locationId = booking.location?.id ?? null;
+				if (locationId != null && selectedLocationIdSet.has(locationId)) {
+					laneBookings.get(`location-${locationId}`)?.push(booking);
+				}
+
+				const clientId = booking.client?.id ?? null;
+				if (clientId != null && selectedClientIdSet.has(clientId)) {
+					laneBookings.get(`client-${clientId}`)?.push(booking);
+				}
+			}
 
 			return splitLaneSummaries.map((lane) => {
 				if (lane.kind === 'trainer') {
-					const trainerBookings = dayBookings.filter((booking) =>
-						matchesTrainerSelection(booking, lane.id)
-					);
+					const trainerBookings = laneBookings.get(lane.key) ?? [];
 					return {
 						key: lane.key,
 						kind: lane.kind,
@@ -720,9 +741,7 @@
 				}
 
 				if (lane.kind === 'location') {
-					const locationBookings = dayBookings.filter((booking) =>
-						matchesLocationSelection(booking, lane.id)
-					);
+					const locationBookings = laneBookings.get(lane.key) ?? [];
 					return {
 						key: lane.key,
 						kind: lane.kind,
@@ -744,9 +763,7 @@
 					};
 				}
 
-				const clientBookings = dayBookings.filter((booking) =>
-					matchesClientSelection(booking, lane.id)
-				);
+				const clientBookings = laneBookings.get(lane.key) ?? [];
 				return {
 					key: lane.key,
 					kind: lane.kind,
