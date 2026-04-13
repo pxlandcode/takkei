@@ -16,6 +16,12 @@ export type UserAvailabilityResponse = {
 	blockedDays: UserBlockedDaysMap;
 };
 
+export type UsersAvailabilityResponse = {
+	success: boolean;
+	availability: Record<number, UserAvailabilityMap>;
+	blockedDays: Record<number, UserBlockedDaysMap>;
+};
+
 function collectPersonalBookingUserIds(raw: any): number[] {
 	const ids = new Set<number>();
 	const add = (value: unknown) => {
@@ -307,15 +313,33 @@ export function transformPersonalBooking(raw: any): FullBooking {
 	};
 }
 
+export async function fetchUsersAvailability(
+	userIds: number[],
+	from: string,
+	to: string,
+	fetchFn: typeof fetch = fetch
+): Promise<UsersAvailabilityResponse> {
+	const params = new URLSearchParams({ from, to });
+	for (const userId of userIds) {
+		if (!Number.isFinite(userId)) continue;
+		params.append('userId', String(userId));
+	}
+
+	const res = await fetchFn(`/api/availability/users-availability?${params.toString()}`);
+	if (!res.ok) throw new Error('Kunde inte hämta tillgänglighet');
+	return await res.json();
+}
+
 export async function fetchUserAvailability(
 	userId: number,
 	from: string,
 	to: string,
 	fetchFn: typeof fetch = fetch
 ): Promise<UserAvailabilityResponse> {
-	const res = await fetchFn(
-		`/api/availability/users-availability?userId=${userId}&from=${from}&to=${to}`
-	);
-	if (!res.ok) throw new Error('Kunde inte hämta tillgänglighet');
-	return await res.json();
+	const response = await fetchUsersAvailability([userId], from, to, fetchFn);
+	return {
+		success: response.success,
+		availability: response.availability[userId] ?? {},
+		blockedDays: response.blockedDays[userId] ?? {}
+	};
 }

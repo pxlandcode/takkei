@@ -2,7 +2,7 @@ import { writable } from 'svelte/store';
 import {
 	buildBookingUrls,
 	fetchBookings,
-	fetchUserAvailability,
+	fetchUsersAvailability,
 	transformBooking,
 	transformPersonalBooking
 } from '$lib/services/api/calendarService';
@@ -254,33 +254,18 @@ const createCalendarStore = () => {
 			const bookingsPromise = fetchBookings(base, fetchFn);
 			const availabilityPromise: Promise<CalendarAvailabilityPayload> =
 				trainerIds.length > 0 && base.from && base.to
-					? Promise.all(
-							trainerIds.map(async (trainerId) => {
-								try {
-									const response = await fetchUserAvailability(
-										trainerId,
-										base.from!,
-										base.to!,
-										fetchFn
-									);
-									return { trainerId, response };
-								} catch (err) {
-									console.error(`❌ Failed to fetch availability for trainer ${trainerId}:`, err);
-									return null;
-								}
+					? fetchUsersAvailability(trainerIds, base.from!, base.to!, fetchFn)
+							.then((response) => ({
+								availability: response.availability ?? {},
+								blockedDays: response.blockedDays ?? {}
+							}))
+							.catch((err) => {
+								console.error('❌ Failed to fetch availability:', err);
+								return {
+									availability: {},
+									blockedDays: {}
+								} satisfies CalendarAvailabilityPayload;
 							})
-						).then((responses) => {
-							const availability: CalendarAvailability = {};
-							const blockedDays: CalendarBlockedDays = {};
-
-							for (const entry of responses) {
-								if (!entry) continue;
-								availability[entry.trainerId] = entry.response.availability ?? {};
-								blockedDays[entry.trainerId] = entry.response.blockedDays ?? {};
-							}
-
-							return { availability, blockedDays };
-						})
 					: Promise.resolve({
 							availability: {},
 							blockedDays: {}
