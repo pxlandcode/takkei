@@ -6,6 +6,7 @@ export interface HomeModernNotificationEvent {
 	start_time?: string | null;
 	end_time?: string | null;
 	created_at?: string | null;
+	notify_at?: string | null;
 	done?: boolean;
 	created_by?: { name?: string } | null;
 	link?: string | null;

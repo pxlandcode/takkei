@@ -7,7 +7,11 @@
 	import Icon from '../../icon-component/Icon.svelte';
 	import NotificationCard from '../../notificationCard/NotificationCard.svelte';
 	import { cacheFirstJson, invalidateByPrefix } from '$lib/services/api/apiCache';
-	import { getNotificationDisplayStart, sortNotifications } from '$lib/utils/notifications';
+	import {
+		getNotificationDisplayStart,
+		getNotificationEventStart,
+		sortNotifications
+	} from '$lib/utils/notifications';
 
 	type NotificationEvent = {
 		id: number;
@@ -17,6 +21,7 @@
 		start_time?: string | null;
 		end_time?: string | null;
 		created_at?: string | null;
+		notify_at?: string | null;
 		created_by?: { name?: string } | null;
 		link?: string | null;
 		done?: boolean;
@@ -55,7 +60,6 @@
 			});
 	}
 
-	$: $user;
 	onMount(fetchNotifications);
 
 	async function markAsDone(eventId: number) {
@@ -126,7 +130,7 @@
 					message={event.description}
 					timeAgo={relativeTime(getNotificationDisplayStart(event))}
 					type={event.event_type}
-					startTime={getNotificationDisplayStart(event)}
+					startTime={getNotificationEventStart(event)}
 					endTime={event.end_time}
 					createdBy={event.created_by?.name}
 					link={event.link}

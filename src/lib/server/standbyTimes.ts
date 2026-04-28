@@ -2,6 +2,7 @@ import { query } from '$lib/db';
 import { getNextStockholmDayStartLocal, getStockholmYmd } from '$lib/server/packageSemantics';
 import { extractStockholmTimeParts } from '$lib/server/stockholm-time';
 import { sendStyledEmail } from '$lib/services/mail/mailServerService';
+import { createNotification } from '$lib/services/api/notificationService';
 import type {
 	StandbyAvailableStart,
 	StandbyDisplayClient,
@@ -930,15 +931,26 @@ function buildStandbyBookingLink({
 	locationId: number;
 	clientId: number | null;
 }) {
+	const bookingPath = buildStandbyBookingPath({ freedSlotStart, locationId, clientId });
+	return `${STANDBY_BOOKING_BASE_URL}${bookingPath}`;
+}
+
+function buildStandbyBookingPath({
+	freedSlotStart,
+	locationId,
+	clientId
+}: {
+	freedSlotStart: string;
+	locationId: number;
+	clientId: number | null;
+}) {
 	const params = new URLSearchParams();
 	const date = getStockholmYmd(freedSlotStart);
 	if (date) params.set('date', date);
 	params.set('locationId', String(locationId));
 	if (clientId) params.set('clientId', String(clientId));
 	const queryString = params.toString();
-	return queryString
-		? `${STANDBY_BOOKING_BASE_URL}/calendar?${queryString}`
-		: `${STANDBY_BOOKING_BASE_URL}/calendar`;
+	return queryString ? `/calendar?${queryString}` : '/calendar';
 }
 
 function buildStandbyEmailBody({
@@ -989,6 +1001,40 @@ function buildStandbyEmailBody({
 	return lines.join('');
 }
 
+function buildStandbyNotificationDescription({
+	standbyTime,
+	freedSlotStart,
+	locationName,
+	locationId
+}: {
+	standbyTime: StandbyTimeRecord;
+	freedSlotStart: string;
+	locationName: string;
+	locationId: number;
+}) {
+	const freedSlotLabel = formatStockholmDateTimeLabel(freedSlotStart);
+	const bookingPath = buildStandbyBookingPath({
+		freedSlotStart,
+		locationId,
+		clientId: standbyTime.clientId
+	});
+	const lines = [
+		`En standbytid matchar en ledig tid på ${locationName} ${freedSlotLabel}.`,
+		`Önskad tid: ${standbyTime.date} kl. ${standbyTime.startTime} - ${standbyTime.endTime}`
+	];
+
+	if (standbyTime.client) {
+		lines.push(`Kund: ${standbyTime.client.firstname} ${standbyTime.client.lastname}`);
+	}
+
+	if (standbyTime.comment) {
+		lines.push(`Kommentar: ${standbyTime.comment}`);
+	}
+
+	lines.push(`NEWS_LINK:${bookingPath}`);
+	return lines.join('\n');
+}
+
 export async function notifyStandbyTimesAboutCancelledBooking({
 	startTime,
 	locationId
@@ -997,18 +1043,18 @@ export async function notifyStandbyTimesAboutCancelledBooking({
 	locationId: number | null | undefined;
 }) {
 	if (!startTime || !locationId) {
-		return { matchedCount: 0, deliveredCount: 0 };
+		return { matchedCount: 0, deliveredCount: 0, notificationCount: 0 };
 	}
 
 	const freedSlotEpoch = toEpoch(startTime);
 	if (freedSlotEpoch === null || freedSlotEpoch <= Date.now()) {
-		return { matchedCount: 0, deliveredCount: 0 };
+		return { matchedCount: 0, deliveredCount: 0, notificationCount: 0 };
 	}
 
 	const dayStart = getStockholmYmd(startTime);
 	const nextDayStart = getNextStockholmDayStartLocal(startTime);
 	if (!dayStart || !nextDayStart) {
-		return { matchedCount: 0, deliveredCount: 0 };
+		return { matchedCount: 0, deliveredCount: 0, notificationCount: 0 };
 	}
 
 	const rows = (await query(
@@ -1024,7 +1070,7 @@ export async function notifyStandbyTimesAboutCancelledBooking({
 		standbyTimeMatchesFreedSlot(row, locationId, startTime)
 	);
 	if (matchingRows.length === 0) {
-		return { matchedCount: 0, deliveredCount: 0 };
+		return { matchedCount: 0, deliveredCount: 0, notificationCount: 0 };
 	}
 
 	const hydrated = await hydrateStandbyRows(matchingRows, null);
@@ -1034,8 +1080,15 @@ export async function notifyStandbyTimesAboutCancelledBooking({
 		'vald plats';
 
 	let deliveredCount = 0;
+	let notificationCount = 0;
 
 	for (const standbyTime of hydrated) {
+		const recipientIds = Array.from(
+			new Set(
+				standbyTime.trainerIds.filter((trainerId) => Number.isInteger(trainerId) && trainerId > 0)
+			)
+		);
+
 		const recipients = Array.from(
 			new Set(
 				standbyTime.trainers
@@ -1043,6 +1096,31 @@ export async function notifyStandbyTimesAboutCancelledBooking({
 					.filter((email) => email.length > 0)
 			)
 		);
+
+		if (recipientIds.length > 0 && standbyTime.ownerTrainerId) {
+			try {
+				await createNotification({
+					name: 'Standbytid tillgänglig',
+					description: buildStandbyNotificationDescription({
+						standbyTime,
+						freedSlotStart: startTime,
+						locationName: freedLocationName,
+						locationId
+					}),
+					user_ids: recipientIds,
+					start_time: startTime,
+					end_time: null,
+					notify_at: 'created_at',
+					created_by: standbyTime.ownerTrainerId
+				});
+				notificationCount += 1;
+			} catch (error) {
+				console.error('Failed to create standby notification', {
+					standbyTimeId: standbyTime.id,
+					error
+				});
+			}
+		}
 
 		if (recipients.length === 0) {
 			continue;
@@ -1072,6 +1150,7 @@ export async function notifyStandbyTimesAboutCancelledBooking({
 
 	return {
 		matchedCount: hydrated.length,
-		deliveredCount
+		deliveredCount,
+		notificationCount
 	};
 }

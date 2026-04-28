@@ -2,7 +2,9 @@ export type NotificationLike = {
 	id?: number | null;
 	event_type?: string | null;
 	start_time?: string | null;
+	end_time?: string | null;
 	created_at?: string | null;
+	notify_at?: string | null;
 };
 
 function toTimestamp(value?: string | null) {
@@ -13,6 +15,39 @@ function toTimestamp(value?: string | null) {
 }
 
 export function getNotificationDisplayStart<
+	T extends Pick<
+		NotificationLike,
+		'start_time' | 'end_time' | 'created_at' | 'notify_at' | 'event_type'
+	>
+>(notification: T) {
+	if (notification.notify_at === 'created_at') {
+		return notification.created_at ?? notification.start_time ?? null;
+	}
+
+	if (notification.notify_at === 'three_days_before' && notification.start_time) {
+		const timestamp = new Date(notification.start_time).getTime();
+		if (!Number.isNaN(timestamp)) {
+			return new Date(timestamp - 3 * 24 * 60 * 60 * 1000).toISOString();
+		}
+	}
+
+	if (notification.event_type === 'client' || notification.event_type === 'article') {
+		return notification.created_at ?? notification.start_time ?? null;
+	}
+
+	if (
+		notification.notify_at === 'start_time' &&
+		notification.start_time &&
+		notification.end_time &&
+		new Date(notification.end_time).getTime() <= new Date(notification.start_time).getTime()
+	) {
+		return notification.created_at ?? notification.start_time ?? null;
+	}
+
+	return notification.start_time ?? notification.created_at ?? null;
+}
+
+export function getNotificationEventStart<
 	T extends Pick<NotificationLike, 'start_time' | 'created_at'>
 >(notification: T) {
 	return notification.start_time ?? notification.created_at ?? null;

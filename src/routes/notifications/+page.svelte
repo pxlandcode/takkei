@@ -8,7 +8,11 @@
 	import Checkbox from '../../components/bits/checkbox/Checkbox.svelte';
 	import { notificationStore } from '$lib/stores/notificationStore';
 	import { invalidateByPrefix, wrapFetch } from '$lib/services/api/apiCache';
-	import { getNotificationDisplayStart, sortNotifications } from '$lib/utils/notifications';
+	import {
+		getNotificationDisplayStart,
+		getNotificationEventStart,
+		sortNotifications
+	} from '$lib/utils/notifications';
 
 	type NotificationEvent = {
 		id: number;
@@ -18,11 +22,10 @@
 		start_time?: string | null;
 		end_time?: string | null;
 		created_at?: string | null;
+		notify_at?: string | null;
 		created_by?: { name?: string } | null;
 		link?: string | null;
 	};
-
-	$: $user;
 
 	let events: NotificationEvent[] = [];
 	let selected = new Set<number>();
@@ -223,7 +226,7 @@
 							message={event.description}
 							timeAgo={relativeTime(getNotificationDisplayStart(event))}
 							type={event.event_type}
-							startTime={getNotificationDisplayStart(event)}
+							startTime={getNotificationEventStart(event)}
 							endTime={event.end_time}
 							createdBy={event.created_by?.name}
 							link={event.link}

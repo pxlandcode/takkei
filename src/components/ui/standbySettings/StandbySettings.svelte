@@ -120,6 +120,18 @@
 		);
 	}
 
+	function getCreatorBadgeLabel(standbyTime: StandbyTimeRecord) {
+		if (standbyTime.isOwner) {
+			return 'Skapad av dig';
+		}
+
+		if (standbyTime.owner) {
+			return `Skapad av ${standbyTime.owner.firstname} ${standbyTime.owner.lastname}`;
+		}
+
+		return null;
+	}
+
 	onMount(() => {
 		loadStandbyTimes();
 	});
@@ -135,7 +147,7 @@
 			</p>
 		</div>
 
-		<div class="flex flex-wrap items-center gap-3">
+		<div class="flex w-full flex-wrap items-end justify-between gap-3">
 			<div class="min-w-[220px]">
 				<OptionButton
 					label="Visa"
@@ -147,7 +159,7 @@
 					on:select={handleViewSelect}
 				/>
 			</div>
-			<Button text="Ny standbytid" iconLeft="Plus" on:click={openCreatePopup} />
+			<Button text="Ny standbytid" iconLeft="Plus" small on:click={openCreatePopup} />
 		</div>
 	</div>
 
@@ -210,11 +222,11 @@
 										Utgången
 									</span>
 								{/if}
-								{#if standbyTime.isOwner}
+								{#if getCreatorBadgeLabel(standbyTime)}
 									<span
-										class="bg-orange/10 rounded-full px-2 py-1 text-xs font-medium text-orange-700"
+										class="rounded-full bg-blue-100 px-2 py-1 text-xs font-medium text-blue-700"
 									>
-										Din
+										{getCreatorBadgeLabel(standbyTime)}
 									</span>
 								{/if}
 							</div>
@@ -236,15 +248,6 @@
 										<p class="mt-1">
 											{standbyTime.client.firstname}
 											{standbyTime.client.lastname}
-										</p>
-									</div>
-								{/if}
-								{#if standbyTime.owner && !standbyTime.isOwner}
-									<div>
-										<p class="text-xs font-semibold tracking-wide text-gray-500 uppercase">Ägare</p>
-										<p class="mt-1">
-											{standbyTime.owner.firstname}
-											{standbyTime.owner.lastname}
 										</p>
 									</div>
 								{/if}

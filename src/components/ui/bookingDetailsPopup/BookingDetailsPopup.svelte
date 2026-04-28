@@ -600,6 +600,7 @@
 					user_ids: recipientIds,
 					start_time: currentBooking.booking.startTime,
 					end_time: currentBooking.booking.endTime ?? null,
+					notify_at: 'created_at',
 					created_by: actorId
 				})
 			});
