@@ -4,9 +4,21 @@ import type { PoolClient } from 'pg';
 const { pool, query } = db;
 
 type SqlClient = Pick<PoolClient, 'query'>;
+type DbModuleWithClientQuery = typeof db & {
+	queryWithClient: <T = Record<string, unknown>>(
+		client: PoolClient,
+		text: string,
+		params?: unknown[]
+	) => Promise<T[]>;
+};
+const queryWithClient = (db as DbModuleWithClientQuery).queryWithClient;
 
-async function runQuery(client: SqlClient, text: string, params: unknown[] = []) {
-	return (await (db as any).queryWithClient(client as PoolClient, text, params)) as any[];
+async function runQuery<T = Record<string, unknown>>(
+	client: SqlClient,
+	text: string,
+	params: unknown[] = []
+) {
+	return queryWithClient<T>(client as PoolClient, text, params);
 }
 
 function extractLink(description: string | null): { cleaned: string; link: string | null } {
@@ -20,6 +32,23 @@ function extractLink(description: string | null): { cleaned: string; link: strin
 
 export async function getNotificationsForUser(userId: number, type?: number) {
 	if (!userId) throw new Error('Missing userId');
+
+	const legacyImmediateExpression = `
+		events.notify_at = 'start_time'
+		AND events.start_time IS NOT NULL
+		AND events.end_time IS NOT NULL
+		AND events.end_time <= events.start_time
+	`;
+
+	const visibleAtExpression = `
+		CASE
+			WHEN events.notify_at = 'created_at' THEN COALESCE(events.created_at, events.start_time)
+			WHEN events.notify_at = 'three_days_before' AND events.start_time IS NOT NULL THEN events.start_time - INTERVAL '3 days'
+			WHEN ${legacyImmediateExpression} THEN COALESCE(events.created_at, events.start_time)
+			WHEN COALESCE(event_types.type, 'info') IN ('client', 'article') THEN COALESCE(events.created_at, events.start_time)
+			ELSE COALESCE(events.start_time, events.created_at)
+		END
+	`;
 
 	let baseQuery = `
 		SELECT 
@@ -36,8 +65,14 @@ export async function getNotificationsForUser(userId: number, type?: number) {
 			SELECT event_id FROM events_done WHERE user_id = $1
 		)
 		AND events.active = true
-		AND COALESCE(events.start_time, events.created_at) <= NOW()
-		AND (events.end_time IS NULL OR events.end_time > NOW())
+		AND ${visibleAtExpression} <= NOW()
+		AND (
+			events.notify_at = 'created_at'
+			OR (${legacyImmediateExpression})
+			OR COALESCE(event_types.type, 'info') IN ('client', 'article')
+			OR events.end_time IS NULL
+			OR events.end_time > NOW()
+		)
 	`;
 
 	const params: (number | string)[] = [userId];
@@ -50,7 +85,7 @@ export async function getNotificationsForUser(userId: number, type?: number) {
 	baseQuery += `
 		ORDER BY
 			CASE WHEN COALESCE(event_types.type, 'info') = 'alert' THEN 0 ELSE 1 END,
-			COALESCE(events.start_time, events.created_at) DESC,
+			${visibleAtExpression} DESC,
 			events.created_at DESC,
 			events.id DESC
 	`;
@@ -84,7 +119,8 @@ export async function createNotification({
 	start_time,
 	end_time,
 	event_type_id = null,
-	created_by
+	created_by,
+	notify_at = 'created_at'
 }: {
 	name: string;
 	description: string;
@@ -93,6 +129,7 @@ export async function createNotification({
 	end_time?: string | null;
 	event_type_id?: number | null;
 	created_by: number;
+	notify_at?: string | null;
 }) {
 	if (!name || !user_ids?.length || !start_time || !created_by) {
 		throw new Error('Missing required fields');
@@ -120,14 +157,15 @@ export async function createNotification({
 			user_ids,
 			start_time,
 			end_time,
+			notify_at,
 			event_type_id,
 			created_by,
 			created_at,
 			updated_at
 		) VALUES (
-			$1, $2, $3, $4, $5, $6, $7, NOW(), NOW()
+			$1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW()
 		) RETURNING *`,
-		[name, description, user_ids, start_time, end_time, event_type_id, created_by]
+		[name, description, user_ids, start_time, end_time, notify_at, event_type_id, created_by]
 	);
 
 	if (!event) {
@@ -148,7 +186,8 @@ export async function updateNotification(
 		user_ids,
 		start_time,
 		end_time,
-		event_type_id = null
+		event_type_id = null,
+		notify_at = 'start_time'
 	}: {
 		name: string;
 		description: string;
@@ -156,6 +195,7 @@ export async function updateNotification(
 		start_time: string;
 		end_time?: string | null;
 		event_type_id?: number | null;
+		notify_at?: string | null;
 	}
 ) {
 	if (!id) throw new Error('Missing notification id');
@@ -191,11 +231,12 @@ export async function updateNotification(
 			     user_ids = $3,
 			     start_time = $4,
 			     end_time = $5,
-			     event_type_id = $6,
+			     notify_at = $6,
+			     event_type_id = $7,
 			     updated_at = NOW()
-			 WHERE id = $7
+			 WHERE id = $8
 			 RETURNING *`,
-			[name, description, user_ids, start_time, end_time, event_type_id, id]
+			[name, description, user_ids, start_time, end_time, notify_at, event_type_id, id]
 		);
 
 		if (!event) {

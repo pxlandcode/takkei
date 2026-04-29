@@ -6,7 +6,27 @@
 	import Icon from '../../bits/icon-component/Icon.svelte';
 	import Table from '../../bits/table/Table.svelte';
 	import LocationPopup from '../../ui/locationPopup/LocationPopup.svelte';
+	import RoomBlocksPopup from '../../ui/roomBlocksPopup/RoomBlocksPopup.svelte';
 	import { openPopup, closePopup } from '$lib/stores/popupStore';
+
+	type LocationRecord = {
+		id: number;
+		name: string;
+		color?: string | null;
+		rooms?: Array<{
+			id: number;
+			name: string;
+			active: boolean;
+			half_hour_start?: boolean;
+		}>;
+	};
+
+	type LocationFormPayload = {
+		id?: number | null;
+		name: string;
+		color: string;
+		rooms?: unknown[];
+	};
 
 	let data: TableType = [];
 	let filteredData: TableType = [];
@@ -15,7 +35,7 @@
 	const headers = [
 		{ label: 'Namn', key: 'name', icon: 'Building', isSearchable: true },
 
-		{ label: 'Actions', key: 'actions', isSearchable: false, width: '100px' }
+		{ label: 'Actions', key: 'actions', isSearchable: false, width: '150px' }
 	];
 
 	onMount(async () => {
@@ -23,11 +43,19 @@
 	});
 
 	async function loadLocations() {
-		const locations = await getLocations();
+		const locations = (await getLocations()) as LocationRecord[];
 
 		data = locations.map((loc) => ({
 			name: loc.name,
 			actions: [
+				{
+					type: 'button',
+					icon: 'CalendarCross',
+					label: '',
+					variant: 'secondary',
+					tooltip: 'Hantera blockeringar',
+					action: () => openRoomBlocksPopup(loc)
+				},
 				{
 					type: 'button',
 					icon: 'Edit',
@@ -41,13 +69,14 @@
 		filteredData = [...data];
 	}
 
-	async function handleAddLocation(locationData) {
+	async function handleAddLocation(locationData: LocationFormPayload) {
 		await createLocation(locationData);
 		await loadLocations();
 		closePopup();
 	}
 
-	async function handleUpdateLocation(locationData) {
+	async function handleUpdateLocation(locationData: LocationFormPayload) {
+		if (locationData.id == null) return;
 		await updateLocation(locationData.id, locationData);
 		await loadLocations();
 		closePopup();
@@ -57,7 +86,7 @@
 		openPopup({
 			header: 'Lägg till plats',
 			icon: 'Plus',
-			component: LocationPopup,
+				component: LocationPopup as any,
 			maxWidth: '640px',
 			props: {
 				onSave: handleAddLocation
@@ -65,15 +94,27 @@
 		});
 	}
 
-	function openEditLocationPopup(location) {
+	function openEditLocationPopup(location: LocationRecord) {
 		openPopup({
 			header: 'Redigera plats',
 			icon: 'Edit',
-			component: LocationPopup,
+				component: LocationPopup as any,
 			maxWidth: '500px',
 			props: {
 				location,
 				onSave: handleUpdateLocation
+			}
+		});
+	}
+
+	function openRoomBlocksPopup(location: LocationRecord) {
+		openPopup({
+			header: `Blockeringar: ${location.name}`,
+			icon: 'CalendarCross',
+				component: RoomBlocksPopup as any,
+			maxWidth: '1100px',
+			props: {
+				location
 			}
 		});
 	}
@@ -83,10 +124,14 @@
 		filteredData = query
 			? data.filter((row) =>
 					headers.some(
-						(header) =>
-							header.isSearchable &&
-							typeof row[header.key] === 'string' &&
-							row[header.key].toLowerCase().includes(query)
+						(header) => {
+							const cell = row[header.key];
+							return (
+								header.isSearchable &&
+								typeof cell === 'string' &&
+								cell.toLowerCase().includes(query)
+							);
+						}
 					)
 				)
 			: data;

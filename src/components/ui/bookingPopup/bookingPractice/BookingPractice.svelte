@@ -62,8 +62,6 @@
 	}
 
 	async function checkRepeatAvailability() {
-		const filterHalfHourTimes = (times?: string[]) =>
-			(times ?? []).filter((time) => time.split(':')[1] === '30');
 		const payload: any = {
 			date: bookingObject.date,
 			trainerId: bookingObject.trainerId,
@@ -86,7 +84,7 @@
 		const data = await res.json();
 		repeatedBookings = data.success
 			? data.repeatedBookings.map((week: any) => {
-					const suggestedTimes = filterHalfHourTimes(week.suggestedTimes);
+					const suggestedTimes = week.suggestedTimes ?? [];
 					return {
 						...week,
 						suggestedTimes,

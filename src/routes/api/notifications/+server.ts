@@ -24,7 +24,7 @@ export const GET: RequestHandler = async ({ url, request }) => {
 		return json({ error: 'Invalid or missing user_id' }, { status: 400 });
 	}
 
-	if (typeParam && isNaN(type)) {
+	if (typeParam && (type === undefined || Number.isNaN(type))) {
 		return json({ error: 'Invalid type parameter' }, { status: 400 });
 	}
 
@@ -42,8 +42,11 @@ export const POST: RequestHandler = async ({ request }) => {
 	try {
 		const created = await createNotification(body);
 		return json(created);
-	} catch (err: any) {
-		return json({ error: err.message }, { status: 500 });
+	} catch (err: unknown) {
+		return json(
+			{ error: err instanceof Error ? err.message : 'Unexpected notification error' },
+			{ status: 500 }
+		);
 	}
 };
 
@@ -61,8 +64,11 @@ export const PUT: RequestHandler = async ({ request }) => {
 			await markNotificationAsDone(body.event_id, body.user_id);
 		}
 		return json({ success: true });
-	} catch (err: any) {
-		return json({ error: err.message }, { status: 500 });
+	} catch (err: unknown) {
+		return json(
+			{ error: err instanceof Error ? err.message : 'Unexpected notification error' },
+			{ status: 500 }
+		);
 	}
 };
 
@@ -72,7 +78,10 @@ export const PATCH: RequestHandler = async ({ request }) => {
 	try {
 		await unmarkNotificationAsDone(body.event_id, body.user_id);
 		return json({ success: true });
-	} catch (err: any) {
-		return json({ error: err.message }, { status: 500 });
+	} catch (err: unknown) {
+		return json(
+			{ error: err instanceof Error ? err.message : 'Unexpected notification error' },
+			{ status: 500 }
+		);
 	}
 };

@@ -1,4 +1,10 @@
 import { query } from '$lib/db';
+import {
+	addDaysToDateString,
+	buildRoomBlockTimestamp,
+	evaluateRoomAvailabilityAtStart,
+	loadLocationRoomAvailabilityContext
+} from '$lib/server/roomBlocks';
 import { extractStockholmMinutes } from '$lib/server/stockholm-time';
 import type { RequestHandler } from '@sveltejs/kit';
 
@@ -9,8 +15,7 @@ const TRAVEL_BUFFER_MINUTES = 25;
 const TOTAL_BUFFER_BEFORE_BOOKING = SLOT_LENGTH_MINUTES + TRAVEL_BUFFER_MINUTES;
 
 type Interval = { start: number; end: number };
-type RoomInterval = Interval & { roomId: number | null };
-type LocationInterval = Interval & { locationId: number | null };
+	type LocationInterval = Interval & { locationId: number | null };
 type AvailableSlotsBlockedReason = 'absence' | 'vacation';
 
 function isNotNull<T>(value: T | null | undefined): value is T {
@@ -143,24 +148,16 @@ export const POST: RequestHandler = async ({ request }) => {
 		}
 	}
 
-	// 4. Active rooms (same)
-	const rooms = await query(`SELECT id FROM rooms WHERE location_id = $1 AND active = true`, [
-		locationIdNumber
-	]);
-	const roomIds = rooms.map((r) => r.id);
-	if (roomIds.length === 0) {
+	const roomAvailabilityContext = await loadLocationRoomAvailabilityContext({
+		locationId: locationIdNumber,
+		windowStart: `${date} 00:00:00`,
+		windowEnd: `${addDaysToDateString(date, 1)} 00:00:00`,
+		ignoreBookingId: bookingIdToIgnore
+	});
+
+	if (roomAvailabilityContext.rooms.length === 0) {
 		return jsonResponse([], []);
 	}
-
-	// 5. Bookings in those rooms (same)
-	const bookings = await query(
-		`SELECT id, room_id, start_time FROM bookings
-     WHERE start_time BETWEEN $1 AND $2
-       AND LOWER(status) NOT IN ('cancelled', 'late_cancelled')
-       AND room_id = ANY($3::int[])
-       AND ($4::int IS NULL OR id <> $4)`,
-		[dayStart, dayEnd, roomIds, bookingIdToIgnore]
-	);
 
 	const trainerBookings = await query(
 		`SELECT id, start_time, location_id FROM bookings
@@ -296,34 +293,20 @@ export const POST: RequestHandler = async ({ request }) => {
 		})
 	);
 
-	const bookingIntervals: RoomInterval[] = bookings
-		.map((row: any): RoomInterval | null => {
-			const start = extractStockholmMinutes(row.start_time);
-			if (start === null) return null;
-			return {
-				start,
-				end: start + SLOT_LENGTH_MINUTES,
-				roomId: row.room_id === null ? null : Number(row.room_id)
-			};
-		})
-		.filter(isNotNull);
-
 	const availableSlots: string[] = [];
 	const outsideAvailabilitySlots: string[] = [];
 
 	for (let h = 5; h <= 21; h++) {
-		for (const m of [30]) {
+		for (const m of [0, 30]) {
 			const slotStart = h * 60 + m;
 			const slotEnd = slotStart + SLOT_LENGTH_MINUTES;
 			const label = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
 
-			// room capacity
-			const bookedRoomIdsAtThisSlot = new Set(
-				bookingIntervals
-					.filter((booking) => overlaps(slotStart, slotEnd, booking.start, booking.end))
-					.map((booking) => booking.roomId)
-			);
-			if (bookedRoomIdsAtThisSlot.size === roomIds.length) continue;
+			const roomAvailability = evaluateRoomAvailabilityAtStart({
+				context: roomAvailabilityContext,
+				startTime: buildRoomBlockTimestamp(date, label)
+			});
+			if (roomAvailability.availableRoomIds.length === 0) continue;
 
 			// trainer availability window
 			const insideAvailability = availability.some((a) =>

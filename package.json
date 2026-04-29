@@ -12,6 +12,7 @@
 		"format": "prettier --write .",
 		"lint": "prettier --check . && eslint .",
 		"test:unit": "vitest",
+		"test:room-blocks": "VITE_CACHE_DIR=.vitest-cache-room-blocks vitest run src/lib/server/roomBlocks.test.ts",
 		"test": "npm run test:unit -- --run"
 	},
 	"devDependencies": {

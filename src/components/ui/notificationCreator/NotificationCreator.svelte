@@ -16,8 +16,6 @@
 	import { sendMail } from '$lib/services/mail/mailClientService';
 	import type { User } from '$lib/types/userTypes';
 
-	$: user;
-
 	type EditableNotification = {
 		id: number;
 		name: string;
@@ -125,6 +123,7 @@
 				description,
 				start_time,
 				end_time: end_time || null,
+				notify_at: 'start_time',
 				user_ids,
 				event_type_id: isImportant ? 2 : null
 			};

@@ -14,6 +14,7 @@
 	import Button from '../../components/bits/button/Button.svelte';
 	import GreetingSettings from '../../components/ui/greetingSettings/GreetingSettings.svelte';
 	import HolidayPaySettings from '../../components/ui/holidayPaySettings/HolidayPaySettings.svelte';
+	import StandbySettings from '../../components/ui/standbySettings/StandbySettings.svelte';
 
 	import NotificationAdministration from '../../components/ui/notificationAdministration/NotificationAdministration.svelte';
 	import MailHistory from '../../components/ui/mailHistory/MailHistory.svelte';
@@ -33,6 +34,7 @@
 		},
 		{ label: 'Mailutskick', icon: 'Mail', component: MailComponent },
 		{ label: 'Mailhistorik', icon: 'HistoryList', component: MailHistory },
+		{ label: 'Standbytid', icon: 'Clock', component: StandbySettings },
 		{
 			label: 'Notifikationer',
 			icon: 'Notification',

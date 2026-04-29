@@ -6,6 +6,7 @@ import {
 	getStockholmYmd,
 	isChargeablePackageBookingStatus
 } from '$lib/server/packageSemantics';
+import { findAvailableRoomForStart } from '$lib/server/roomBlocks';
 import type { RequestHandler } from '@sveltejs/kit';
 import type { PoolClient } from 'pg';
 
@@ -145,64 +146,25 @@ export const POST: RequestHandler = async ({ request }) => {
 
 		if (!hasLocation) {
 			selectedRoomId = null;
-		} else if (selectedRoomId) {
-			const validRoom = await txQuery(
-				dbClient,
-				`SELECT id FROM rooms WHERE id = $1 AND location_id = $2 AND active = true`,
-				[selectedRoomId, rawLocationId]
-			);
-			if (!validRoom.length) {
-				selectedRoomId = null;
-			}
 		}
 
 		if (hasLocation && hasStartTime) {
-			if (selectedRoomId) {
-				const roomConflict = await txQuery(
-					dbClient,
-					`
-					SELECT 1 FROM bookings
-					WHERE room_id = $1
-					  AND start_time = $2
-					  AND (status IS NULL OR LOWER(status) NOT IN ('cancelled', 'late_cancelled'))
-					LIMIT 1
-					`,
-					[selectedRoomId, start_time]
-				);
-				if (roomConflict.length) {
-					selectedRoomId = null;
-				}
+			const availability = await findAvailableRoomForStart({
+				queryFn: (text, params = []) => txQuery(dbClient, text, params),
+				locationId: rawLocationId as number,
+				startTime: start_time,
+				preferredRoomId: selectedRoomId
+			});
+
+			if (!availability?.selectedRoomId) {
+				await dbClient.query('ROLLBACK');
+				transactionStarted = false;
+				return new Response(JSON.stringify({ error: 'No available room at this time.' }), {
+					status: 400
+				});
 			}
 
-			if (!selectedRoomId) {
-				const availableRooms = await txQuery(
-					dbClient,
-					`
-					SELECT r.id FROM rooms r
-					WHERE r.location_id = $1
-					AND r.active = true
-					AND NOT EXISTS (
-						SELECT 1 FROM bookings b
-						WHERE b.room_id = r.id
-						AND b.start_time = $2
-						AND (b.status IS NULL OR LOWER(b.status) NOT IN ('cancelled', 'late_cancelled'))
-					)
-					ORDER BY r.id ASC
-					LIMIT 1
-					`,
-					[rawLocationId, start_time]
-				);
-
-				if (availableRooms.length === 0) {
-					await dbClient.query('ROLLBACK');
-					transactionStarted = false;
-					return new Response(JSON.stringify({ error: 'No available room at this time.' }), {
-						status: 400
-					});
-				}
-
-				selectedRoomId = Number(availableRooms[0].id);
-			}
+			selectedRoomId = availability.selectedRoomId;
 		}
 
 		const result = await txQuery(

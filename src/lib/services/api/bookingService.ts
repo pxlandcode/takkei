@@ -23,7 +23,10 @@ async function notify(data) {
 	await fetch('/api/notifications', {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify(data)
+		body: JSON.stringify({
+			notify_at: 'created_at',
+			...data
+		})
 	});
 }
 
@@ -366,10 +369,7 @@ export async function updateCancelledBooking(
 	}
 }
 
-export async function deletePersonalBooking(
-	bookingId: number,
-	scope: 'all' | 'self' = 'all'
-) {
+export async function deletePersonalBooking(bookingId: number, scope: 'all' | 'self' = 'all') {
 	try {
 		const params = new URLSearchParams();
 		if (scope === 'self') {

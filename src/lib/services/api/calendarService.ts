@@ -116,31 +116,34 @@ export async function fetchBookings(
 	);
 
 	try {
-		// Fetch standard bookings
-		const bookingsResponse = await cachedFetch(standardUrl);
-
-		if (!bookingsResponse.ok) {
-			const errorText = await bookingsResponse.text();
-			throw new Error(`Error fetching bookings (${bookingsResponse.status}): ${errorText}`);
-		}
-
-		const standardBookings = await bookingsResponse.json();
-
-		let transformedPersonalBookings: FullBooking[] = [];
-		// Fetch personal bookings with pagination
-		if (filters.personalBookings && personalUrl) {
-			const personalBookingsResponse = await cachedFetch(personalUrl);
-
-			if (!personalBookingsResponse.ok) {
-				const errorText = await personalBookingsResponse.text();
-				throw new Error(
-					`Error fetching personal bookings (${personalBookingsResponse.status}): ${errorText}`
-				);
+		const standardPromise = cachedFetch(standardUrl).then(async (response) => {
+			if (!response.ok) {
+				const errorText = await response.text();
+				throw new Error(`Error fetching bookings (${response.status}): ${errorText}`);
 			}
+			return response.json();
+		});
 
-			const personalBookings = await personalBookingsResponse.json();
-			transformedPersonalBookings = personalBookings.map(transformPersonalBooking);
-		}
+		const personalPromise =
+			filters.personalBookings && personalUrl
+				? cachedFetch(personalUrl).then(async (response) => {
+						if (!response.ok) {
+							const errorText = await response.text();
+							throw new Error(
+								`Error fetching personal bookings (${response.status}): ${errorText}`
+							);
+						}
+						return response.json();
+					})
+				: Promise.resolve([]);
+
+		const [standardBookings, personalBookings] = await Promise.all([
+			standardPromise,
+			personalPromise
+		]);
+
+		const transformedPersonalBookings: FullBooking[] =
+			personalBookings.map(transformPersonalBooking);
 
 		// 📌 Transform and combine both types of bookings
 		const transformedStandardBookings = standardBookings.map(transformBooking);
@@ -319,13 +322,14 @@ export async function fetchUsersAvailability(
 	to: string,
 	fetchFn: typeof fetch = fetch
 ): Promise<UsersAvailabilityResponse> {
+	const cachedFetch = wrapFetch(fetchFn);
 	const params = new URLSearchParams({ from, to });
 	for (const userId of userIds) {
 		if (!Number.isFinite(userId)) continue;
 		params.append('userId', String(userId));
 	}
 
-	const res = await fetchFn(`/api/availability/users-availability?${params.toString()}`);
+	const res = await cachedFetch(`/api/availability/users-availability?${params.toString()}`);
 	if (!res.ok) throw new Error('Kunde inte hämta tillgänglighet');
 	return await res.json();
 }

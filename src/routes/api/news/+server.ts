@@ -12,10 +12,18 @@ import {
 import { query } from '$lib/db';
 import { sendStyledEmail } from '$lib/services/mail/mailServerService';
 
-function ensureTrainer(locals: any) {
-	const authUser = locals.user;
+type TrainerSessionUser = NonNullable<App.Locals['user']> & {
+	kind: 'trainer';
+	trainerId: number | null;
+	firstname?: string;
+	lastname?: string;
+	email?: string | null;
+};
+
+function ensureTrainer(locals: App.Locals) {
+	const authUser = locals.user as TrainerSessionUser | null;
 	if (!authUser || authUser.kind !== 'trainer') return null;
-	const trainerId = authUser.trainerId ?? authUser.trainer_id;
+	const trainerId = authUser.trainerId;
 	if (!trainerId) return null;
 	return { trainerId, authUser };
 }
@@ -39,8 +47,8 @@ async function createNewsNotification({
 
 	await query(
 		`
-		INSERT INTO events (name, description, user_ids, start_time, end_time, event_type_id, created_by, active, created_at, updated_at)
-		VALUES ($1, $2, $3, NOW(), NOW(), 3, $4, true, NOW(), NOW())
+		INSERT INTO events (name, description, user_ids, start_time, end_time, notify_at, event_type_id, created_by, active, created_at, updated_at)
+		VALUES ($1, $2, $3, NOW(), NULL, 'created_at', 3, $4, true, NOW(), NOW())
 	`,
 		[`Nyhet: ${title}`, description, targetUserIds, creatorId]
 	);
@@ -52,7 +60,8 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 
 	const limit = Number(url.searchParams.get('limit') || '10');
 	const offset = Number(url.searchParams.get('offset') || '0');
-	const recentOnly = url.searchParams.get('latest') === '1' || url.searchParams.get('recent') === '1';
+	const recentOnly =
+		url.searchParams.get('latest') === '1' || url.searchParams.get('recent') === '1';
 
 	const news = await listNewsVisibleToUser(session.trainerId, { limit, offset, recentOnly });
 
@@ -100,6 +109,9 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		try {
 			const to = recipients.map((r) => r.email).filter(Boolean) as string[];
 			if (to.length > 0) {
+				const senderName =
+					`${authUser.firstname ?? ''} ${authUser.lastname ?? ''}`.trim() || 'Takkei';
+				const senderEmail = authUser.email?.trim();
 				await sendStyledEmail({
 					to,
 					subject: `Nyhet: ${news.title}`,
@@ -108,7 +120,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 						? new Date(news.published_at).toLocaleString('sv-SE')
 						: undefined,
 					body: text,
-					from: { name: `${authUser.firstname} ${authUser.lastname}`.trim() || 'Takkei', email: authUser.email }
+					from: senderEmail ? { name: senderName, email: senderEmail } : undefined
 				});
 				emailResult = { sent: true, recipients: to.length };
 			}

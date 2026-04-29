@@ -4,6 +4,7 @@
 
 	export let startHour: number;
 	export let hourHeight: number;
+	export let topOffset = 0;
 
 	let currentTime = new Date();
 	let currentTimeOffset = getCurrentTimeOffset(startHour, hourHeight);
@@ -33,9 +34,12 @@
 	$: currentTimeLabel = currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 </script>
 
-<div class="absolute z-10 flex w-full items-center" style="top: {currentTimeOffset - 16}px;">
+<div
+	class="absolute z-10 flex w-full items-center"
+	style="top: {currentTimeOffset + topOffset - 16}px;"
+>
 	<div
-		class="relative z-20 h-8 w-20 rounded-full bg-blue px-2 py-1 text-center text-[0.9rem] font-light text-white shadow-md"
+		class="bg-blue relative z-20 h-8 w-20 rounded-full px-2 py-1 text-center text-[0.9rem] font-light text-white shadow-md"
 		style="left: 50%; transform: translateX(-50%);"
 	>
 		{currentTimeLabel}

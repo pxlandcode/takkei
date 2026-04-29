@@ -1,7 +1,8 @@
-import { json } from '@sveltejs/kit';
+import { json, type RequestHandler } from '@sveltejs/kit';
 import { query } from '$lib/db';
+import { notifyStandbyTimesAboutCancelledBooking } from '$lib/server/standbyTimes';
 
-export async function POST({ request }) {
+export const POST: RequestHandler = async ({ request }) => {
 	try {
 		const { booking_id, reason, actual_cancel_time } = await request.json();
 
@@ -50,7 +51,14 @@ export async function POST({ request }) {
 				updated_at = NOW()
 			FROM decision d
 			WHERE t.id = d.id
-			RETURNING t.id, t.status, t.cancel_reason, t.cancel_time, t.actual_cancel_time;
+			RETURNING
+				t.id,
+				t.status,
+				t.cancel_reason,
+				t.cancel_time,
+				t.actual_cancel_time,
+				t.start_time,
+				t.location_id;
 			`,
 			[
 				booking_id,
@@ -63,9 +71,23 @@ export async function POST({ request }) {
 			return json({ error: 'Booking not found or not cancelable' }, { status: 404 });
 		}
 
+		const cancelledBooking = result[0];
+
+		try {
+			await notifyStandbyTimesAboutCancelledBooking({
+				startTime: cancelledBooking.start_time ?? null,
+				locationId:
+					cancelledBooking.location_id !== null && cancelledBooking.location_id !== undefined
+						? Number(cancelledBooking.location_id)
+						: null
+			});
+		} catch (notifyError) {
+			console.error('Failed to process standby notifications after cancellation:', notifyError);
+		}
+
 		return json({ success: true, cancelled: result[0] });
 	} catch (err) {
 		console.error('🔥 Error cancelling booking:', err);
 		return json({ error: 'Internal server error' }, { status: 500 });
 	}
-}
+};

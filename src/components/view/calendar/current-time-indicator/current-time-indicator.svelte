@@ -4,6 +4,7 @@
 
 	export let startHour: number;
 	export let hourHeight: number;
+	export let topOffset = 0;
 
 	let currentTime = new Date();
 	let currentTimeOffset = getCurrentTimeOffset(startHour, hourHeight);
@@ -33,6 +34,6 @@
 </script>
 
 <div
-	class="absolute left-10 right-0 z-10 flex h-[2px] items-center bg-blue"
-	style="top: {currentTimeOffset}px;"
+	class="bg-blue absolute right-0 left-10 z-10 flex h-[2px] items-center"
+	style="top: {currentTimeOffset + topOffset}px;"
 ></div>

@@ -1,8 +1,10 @@
 import { json } from '@sveltejs/kit';
+import type { RequestHandler } from '@sveltejs/kit';
 import { query } from '$lib/db';
 import { findUserTravelConflict } from '$lib/server/bookingTravelConflict';
+import { findAvailableRoomForStart } from '$lib/server/roomBlocks';
 
-export async function POST({ request }) {
+export const POST: RequestHandler = async ({ request }) => {
 	try {
 		const data = await request.json();
 
@@ -71,59 +73,21 @@ export async function POST({ request }) {
 
 		if (!hasLocation) {
 			resolvedRoomId = null;
-		} else if (resolvedRoomId) {
-			const validRoom = await query(
-				`SELECT id FROM rooms WHERE id = $1 AND location_id = $2 AND active = true`,
-				[resolvedRoomId, location_id]
-			);
-			if (!validRoom.length) {
-				resolvedRoomId = null;
-			}
 		}
 
 		if (hasLocation && hasStartTime) {
-			if (resolvedRoomId) {
-				const roomConflict = await query(
-					`
-					SELECT 1 FROM bookings
-					WHERE room_id = $1
-					  AND start_time = $2
-					  AND id <> $3
-					  AND (status IS NULL OR LOWER(status) NOT IN ('cancelled', 'late_cancelled'))
-					LIMIT 1
-				`,
-					[resolvedRoomId, start_time, booking_id]
-				);
-				if (roomConflict.length) {
-					resolvedRoomId = null;
-				}
+			const availability = await findAvailableRoomForStart({
+				locationId: Number(location_id),
+				startTime: start_time,
+				ignoreBookingId: Number(booking_id),
+				preferredRoomId: resolvedRoomId
+			});
+
+			if (!availability?.selectedRoomId) {
+				return json({ error: 'No available room at this time.' }, { status: 400 });
 			}
 
-			if (!resolvedRoomId) {
-				const availableRooms = await query(
-					`
-					SELECT r.id FROM rooms r
-					WHERE r.location_id = $1
-					  AND r.active = true
-					  AND NOT EXISTS (
-						SELECT 1 FROM bookings b
-						WHERE b.room_id = r.id
-						  AND b.start_time = $2
-						  AND b.id <> $3
-						  AND (b.status IS NULL OR LOWER(b.status) NOT IN ('cancelled', 'late_cancelled'))
-					  )
-					ORDER BY r.id ASC
-					LIMIT 1
-				`,
-					[location_id, start_time, booking_id]
-				);
-
-				if (!availableRooms.length) {
-					return json({ error: 'No available room at this time.' }, { status: 400 });
-				}
-
-				resolvedRoomId = availableRooms[0].id;
-			}
+			resolvedRoomId = availability.selectedRoomId;
 		}
 
 		const bookingWithoutRoom = !resolvedRoomId;
@@ -178,4 +142,4 @@ export async function POST({ request }) {
 		console.error('🔥 Error updating booking:', error);
 		return json({ error: 'Failed to update booking' }, { status: 500 });
 	}
-}
+};

@@ -25,7 +25,12 @@
 		updateCancelledBooking,
 		updateStandardBooking
 	} from '$lib/services/api/bookingService';
+	import {
+		deleteStandbyTime as removeStandbyTime,
+		fetchBookingStandbyTimes
+	} from '$lib/services/api/standbyTimeService';
 	import { AppToastType } from '$lib/types/toastTypes';
+	import type { StandbyTimeRecord } from '$lib/types/standbyTypes';
 	import Icon from '../../bits/icon-component/Icon.svelte';
 	import { sendMail } from '$lib/services/mail/mailClientService';
 	import { fetchClients, getClientEmails } from '$lib/stores/clientsStore';
@@ -34,7 +39,7 @@
 	import { users, fetchUsers } from '$lib/stores/usersStore';
 	import { locations, fetchLocations } from '$lib/stores/locationsStore';
 	import QuillViewer from '../../bits/quillViewer/QuillViewer.svelte';
-	import { fetchBookingNotes } from '$lib/services/api/bookingNotesService';
+	import { fetchBookingNotes, type BookingNote } from '$lib/services/api/bookingNotesService';
 	import { openPopup, popupStore, closePopup, type PopupState } from '$lib/stores/popupStore';
 	import {
 		cancellationReasonOptions,
@@ -138,6 +143,28 @@
 		unavailable?: boolean;
 		icons?: { icon: string; size?: string }[];
 	};
+	type QuickEditOverride = {
+		trainerId?: number | null;
+		locationId?: number | null;
+		date?: string;
+		time?: string;
+	};
+	type QuickEditPayload = {
+		id: number;
+		clientId: number | null;
+		trainerId: number | null;
+		locationId: number | null;
+		roomId: number | null;
+		date: string;
+		time: string;
+		bookingType: { value: number; label: string } | null;
+		status: string;
+		isTrial: boolean;
+		internalEducation: boolean;
+		internal: boolean;
+		education: boolean;
+		user_id: number | null;
+	};
 
 	let activeQuickEdit: QuickEditField = null;
 	let trainerSwapOptions: SwapOption[] = [];
@@ -160,9 +187,13 @@
 	let isMeetingOwner = false;
 	let canLeaveMeeting = false;
 	let canManageMeetingCancellation = true;
-	let bookingNotes: any[] = [];
+	let bookingNotes: BookingNote[] = [];
 	let isLoadingBookingNotes = false;
 	let lastLoadedBookingNotesId: number | null = null;
+	let matchingStandbyTimes: StandbyTimeRecord[] = [];
+	let isLoadingStandbyTimes = false;
+	let standbyTimesError: string | null = null;
+	let lastLoadedStandbyTimeBookingId: number | null = null;
 	let canSendConfirmation = false;
 	const cancellationReasonDropdownOptions = cancellationReasonOptions.map((option) => ({
 		label: option.label,
@@ -239,10 +270,11 @@
 			};
 	$: currentUserId = $user?.id ?? null;
 	$: meetingOwnerId = isMeetingBooking(currentBooking) ? getMeetingOwnerId(currentBooking) : null;
-	$: meetingParticipantIds = isMeetingBooking(currentBooking) ? getMeetingParticipantIds(currentBooking) : [];
+	$: meetingParticipantIds = isMeetingBooking(currentBooking)
+		? getMeetingParticipantIds(currentBooking)
+		: [];
 	$: hasMeetingOwner = isMeetingBooking(currentBooking) && meetingOwnerId !== null;
-	$: isMeetingOwner =
-		hasMeetingOwner && currentUserId !== null && meetingOwnerId === currentUserId;
+	$: isMeetingOwner = hasMeetingOwner && currentUserId !== null && meetingOwnerId === currentUserId;
 	$: canLeaveMeeting =
 		isMeetingBooking(currentBooking) &&
 		currentUserId !== null &&
@@ -250,7 +282,10 @@
 	$: canManageMeetingCancellation =
 		!isMeetingBooking(currentBooking) || !hasMeetingOwner || isMeetingOwner || canLeaveMeeting;
 	$: meetingCancelOptions =
-		!isCancelled && isMeetingBooking(currentBooking) && hasMeetingOwner && canManageMeetingCancellation
+		!isCancelled &&
+		isMeetingBooking(currentBooking) &&
+		hasMeetingOwner &&
+		canManageMeetingCancellation
 			? {
 					title: 'Hantera möte',
 					description: isMeetingOwner
@@ -319,7 +354,7 @@
 		});
 	}
 
-	function noteIconName(note: any) {
+	function noteIconName(note: BookingNote) {
 		const kindId = note?.note_kind?.id ?? note?.note_kind_id;
 		return noteKindIcons[kindId as number] ?? noteKindIcons.default;
 	}
@@ -328,6 +363,21 @@
 		isLoadingBookingNotes = true;
 		bookingNotes = await fetchBookingNotes(bookingId, fetch);
 		isLoadingBookingNotes = false;
+	}
+
+	async function refreshStandbyTimes(bookingId: number) {
+		isLoadingStandbyTimes = true;
+		standbyTimesError = null;
+
+		try {
+			matchingStandbyTimes = await fetchBookingStandbyTimes(bookingId);
+		} catch (error) {
+			console.error('Failed to fetch matching standby times', error);
+			standbyTimesError =
+				error instanceof Error ? error.message : 'Kunde inte hämta matchande standbytider.';
+		} finally {
+			isLoadingStandbyTimes = false;
+		}
 	}
 
 	async function bootstrapBookingNotes() {
@@ -341,6 +391,20 @@
 
 		lastLoadedBookingNotesId = bookingId;
 		await refreshBookingNotes(bookingId);
+	}
+
+	async function bootstrapStandbyTimes() {
+		const bookingId = currentBooking?.booking?.id;
+
+		if (!bookingId || currentBooking.isPersonalBooking) {
+			matchingStandbyTimes = [];
+			standbyTimesError = null;
+			lastLoadedStandbyTimeBookingId = null;
+			return;
+		}
+
+		lastLoadedStandbyTimeBookingId = bookingId;
+		await refreshStandbyTimes(bookingId);
 	}
 
 	function cloneBookingData(source: FullBooking): FullBooking {
@@ -404,6 +468,23 @@
 		if (!bookingId || currentBooking.isPersonalBooking) {
 			bookingNotes = [];
 			lastLoadedBookingNotesId = null;
+		}
+	}
+
+	$: {
+		const bookingId = currentBooking?.booking?.id;
+		if (
+			bookingId &&
+			!currentBooking.isPersonalBooking &&
+			bookingId !== lastLoadedStandbyTimeBookingId
+		) {
+			void bootstrapStandbyTimes();
+		}
+
+		if (!bookingId || currentBooking.isPersonalBooking) {
+			matchingStandbyTimes = [];
+			standbyTimesError = null;
+			lastLoadedStandbyTimeBookingId = null;
 		}
 	}
 
@@ -501,7 +582,9 @@
 		const actorId = currentUser?.id ?? null;
 		const recipientIds = Array.from(
 			new Set(
-				userIds.filter((userId) => Number.isFinite(userId) && (actorId === null || userId !== actorId))
+				userIds.filter(
+					(userId) => Number.isFinite(userId) && (actorId === null || userId !== actorId)
+				)
 			)
 		);
 
@@ -517,6 +600,7 @@
 					user_ids: recipientIds,
 					start_time: currentBooking.booking.startTime,
 					end_time: currentBooking.booking.endTime ?? null,
+					notify_at: 'created_at',
 					created_by: actorId
 				})
 			});
@@ -621,6 +705,30 @@
 
 		if (emailResult === 'edit') {
 			openConfirmationPopup(recipients, bookedDates, currentUser);
+		}
+	}
+
+	async function handleDeleteStandbyTime(standbyTimeId: number) {
+		try {
+			await removeStandbyTime(standbyTimeId);
+			matchingStandbyTimes = matchingStandbyTimes.filter(
+				(standbyTime) => standbyTime.id !== standbyTimeId
+			);
+			addToast({
+				type: AppToastType.SUCCESS,
+				message: 'Standbytid borttagen',
+				description: 'Standbytiden har tagits bort.'
+			});
+		} catch (error) {
+			console.error('Failed to delete standby time from booking popup', error);
+			addToast({
+				type: AppToastType.CANCEL,
+				message: 'Kunde inte ta bort standbytid',
+				description:
+					error instanceof Error
+						? error.message
+						: 'Något gick fel när standbytiden skulle tas bort.'
+			});
 		}
 	}
 
@@ -814,12 +922,12 @@
 				message: 'Avbokning uppdaterad',
 				description: 'Orsak och avbokningstid har sparats.'
 			});
-		} catch (error: any) {
+		} catch (error: unknown) {
 			console.error('Failed to update cancelled booking', error);
 			addToast({
 				type: AppToastType.CANCEL,
 				message: 'Kunde inte uppdatera avbokning',
-				description: error?.message ?? 'Försök igen om en liten stund.'
+				description: error instanceof Error ? error.message : 'Försök igen om en liten stund.'
 			});
 		} finally {
 			cancelEditSaving = false;
@@ -1081,9 +1189,9 @@
 		quickEditTime = currentBookingTime;
 	}
 
-	function buildQuickEditPayload(overrides: Record<string, any> = {}) {
+	function buildQuickEditPayload(overrides: QuickEditOverride = {}): QuickEditPayload {
 		const start = new Date(currentBooking.booking.startTime);
-		const payload: Record<string, any> = {
+		const payload: QuickEditPayload = {
 			id: currentBooking.booking.id,
 			clientId: currentBooking.client?.id ?? null,
 			trainerId: currentTrainerId,
@@ -1105,7 +1213,7 @@
 			user_id: currentBooking.booking.userId ?? null
 		};
 
-		const merged = { ...payload, ...overrides };
+		const merged: QuickEditPayload = { ...payload, ...overrides };
 		merged.trainerId =
 			merged.trainerId !== null && merged.trainerId !== undefined ? Number(merged.trainerId) : null;
 		merged.locationId =
@@ -1121,7 +1229,7 @@
 		return merged;
 	}
 
-	function applyLocalQuickEdit(field: QuickEditField, value: Record<string, any>) {
+	function applyLocalQuickEdit(field: QuickEditField, value: QuickEditOverride) {
 		const updatedAt = new Date().toISOString();
 
 		if (field === 'trainer') {
@@ -1145,10 +1253,16 @@
 				? { id: match.id, name: match.name, color: match.color ?? '' }
 				: currentBooking.location;
 			let room = currentBooking.room ?? null;
-			if (match?.rooms?.length === 1) {
-				const onlyRoom = match.rooms[0];
+			const activeRooms = match?.rooms?.filter((candidate) => candidate.active) ?? [];
+			const currentRoomId = room?.id ?? null;
+			if (activeRooms.length === 1) {
+				const onlyRoom = activeRooms[0];
 				room = { id: onlyRoom.id, name: onlyRoom.name };
-			} else if (match?.rooms && room && !match.rooms.some((r) => r.id === room.id)) {
+			} else if (
+				activeRooms.length > 0 &&
+				currentRoomId !== null &&
+				!activeRooms.some((candidate) => candidate.id === currentRoomId)
+			) {
 				room = null;
 			}
 			currentBooking = {
@@ -1181,10 +1295,10 @@
 		}
 	}
 
-	async function handleQuickSave(field: QuickEditField, value: Record<string, any>) {
+	async function handleQuickSave(field: QuickEditField, value: QuickEditOverride) {
 		if (!field || quickEditSavingField) return;
 
-		const payloadOverrides: Record<string, any> = {};
+		const payloadOverrides: QuickEditOverride = {};
 		if (field === 'trainer') {
 			payloadOverrides.trainerId = Number(value.trainerId);
 			if (Number(payloadOverrides.trainerId) === currentTrainerId) {
@@ -1227,12 +1341,12 @@
 				description: 'Ändringen sparades.'
 			});
 			resetQuickEditState();
-		} catch (error: any) {
+		} catch (error: unknown) {
 			console.error('Quick edit update failed', error);
 			addToast({
 				type: AppToastType.CANCEL,
 				message: 'Uppdatering misslyckades',
-				description: error?.message ?? 'Försök igen eller öppna redigeraren.'
+				description: error instanceof Error ? error.message : 'Försök igen eller öppna redigeraren.'
 			});
 			quickEditSavingField = null;
 		}
@@ -1748,6 +1862,76 @@
 					</div>
 				{/if}
 			</div>
+
+			{#if !currentBooking.isPersonalBooking && (isLoadingStandbyTimes || standbyTimesError || matchingStandbyTimes.length > 0)}
+				<div
+					class="mt-6 space-y-3 rounded-sm border border-amber-200 bg-amber-50 p-5 text-amber-950"
+				>
+					<div class="flex items-center gap-2">
+						<Icon icon="CircleAlert" size="16px" />
+						<span class="text-sm font-semibold tracking-wide uppercase">Matchande standbytid</span>
+					</div>
+
+					{#if isLoadingStandbyTimes}
+						<p class="text-sm text-amber-900/80">Hämtar matchande standbytider...</p>
+					{:else if standbyTimesError}
+						<p class="text-sm text-red-700">{standbyTimesError}</p>
+					{:else}
+						<p class="text-sm">
+							{matchingStandbyTimes.length === 1
+								? 'Det finns en standbytid som matchar den här bokningen. Standbytiden tas inte bort automatiskt.'
+								: 'Det finns standbytider som matchar den här bokningen. Standbytiderna tas inte bort automatiskt.'}
+						</p>
+
+						<div class="space-y-3">
+							{#each matchingStandbyTimes as standbyTime (standbyTime.id)}
+								<div class="rounded-sm border border-amber-300/70 bg-white/80 p-3">
+									<div class="flex flex-wrap items-start justify-between gap-3">
+										<div class="space-y-2 text-sm text-gray-800">
+											<p class="font-semibold">
+												{standbyTime.date} kl. {standbyTime.startTime} - {standbyTime.endTime}
+											</p>
+											<p>
+												<strong>Platser:</strong>
+												{standbyTime.locations.map((location) => location.name).join(', ')}
+											</p>
+											{#if standbyTime.comment}
+												<p>
+													<strong>Kommentar:</strong>
+													{standbyTime.comment}
+												</p>
+											{/if}
+											{#if standbyTime.owner}
+												<p>
+													<strong>Ägare:</strong>
+													{standbyTime.owner.firstname}
+													{standbyTime.owner.lastname}
+												</p>
+											{/if}
+										</div>
+
+										{#if standbyTime.isOwner}
+											<Button
+												text="Ta bort"
+												variant="danger-outline"
+												small
+												confirmOptions={{
+													title: 'Ta bort standbytid',
+													description: 'Är du säker på att du vill ta bort standbytiden?',
+													actionLabel: 'Ta bort',
+													action: () => {
+														void handleDeleteStandbyTime(standbyTime.id);
+													}
+												}}
+											/>
+										{/if}
+									</div>
+								</div>
+							{/each}
+						</div>
+					{/if}
+				</div>
+			{/if}
 
 			{#if !currentBooking.isPersonalBooking}
 				<div class="mt-6 space-y-3 rounded-sm border border-gray-100 bg-gray-50 p-5 text-gray-700">
