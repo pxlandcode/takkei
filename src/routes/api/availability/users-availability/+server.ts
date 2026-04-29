@@ -1,6 +1,7 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { query } from '$lib/db';
+import { respondJsonWithEtag } from '$lib/server/http-cache';
 import type {
 	UserAvailabilityMap,
 	UserBlockedDaysMap,
@@ -17,6 +18,9 @@ type AvailabilityRow = {
 	end_date?: string | Date | null;
 };
 
+type AvailabilitySlot = { from: string; to: string };
+type DayInfo = { key: string; weekday: number };
+
 function groupRowsByUser<T extends AvailabilityRow>(rows: T[]) {
 	const grouped = new Map<number, T[]>();
 	for (const row of rows) {
@@ -32,7 +36,115 @@ function groupRowsByUser<T extends AvailabilityRow>(rows: T[]) {
 	return grouped;
 }
 
-export const GET: RequestHandler = async ({ url }) => {
+function parseLocalDate(input: string): Date {
+	const [year, month, day] = input.split('-').map(Number);
+	return new Date(year, month - 1, day, 12, 0, 0, 0);
+}
+
+function toDateKey(value: string | Date | null | undefined): string | null {
+	if (!value) return null;
+	if (typeof value === 'string') {
+		const match = value.match(/^(\d{4}-\d{2}-\d{2})/);
+		if (match) return match[1] ?? null;
+	}
+
+	const date = value instanceof Date ? value : new Date(value);
+	if (Number.isNaN(date.getTime())) return null;
+	const year = date.getFullYear();
+	const month = String(date.getMonth() + 1).padStart(2, '0');
+	const day = String(date.getDate()).padStart(2, '0');
+	return `${year}-${month}-${day}`;
+}
+
+function buildDayInfos(from: string, to: string): DayInfo[] {
+	const startDate = parseLocalDate(from);
+	const endDate = parseLocalDate(to);
+	const days: DayInfo[] = [];
+
+	for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+		const key = toDateKey(d);
+		if (!key) continue;
+		days.push({ key, weekday: d.getDay() });
+	}
+
+	return days;
+}
+
+function indexWeeklySlots(rows: AvailabilityRow[]): Map<number, AvailabilitySlot[]> {
+	const indexed = new Map<number, AvailabilitySlot[]>();
+	for (const row of rows) {
+		const weekday = row.weekday;
+		if (weekday == null || !row.start_time || !row.end_time) continue;
+		const existing = indexed.get(weekday);
+		if (existing) {
+			existing.push({ from: row.start_time, to: row.end_time });
+		} else {
+			indexed.set(weekday, [{ from: row.start_time, to: row.end_time }]);
+		}
+	}
+	return indexed;
+}
+
+function indexDateSlots(rows: AvailabilityRow[]): Map<string, AvailabilitySlot[]> {
+	const indexed = new Map<string, AvailabilitySlot[]>();
+	for (const row of rows) {
+		const key = toDateKey(row.date);
+		if (!key || !row.start_time || !row.end_time) continue;
+		const existing = indexed.get(key);
+		if (existing) {
+			existing.push({ from: row.start_time, to: row.end_time });
+		} else {
+			indexed.set(key, [{ from: row.start_time, to: row.end_time }]);
+		}
+	}
+	return indexed;
+}
+
+function markBlockedDays(
+	target: UserBlockedDaysMap,
+	rows: AvailabilityRow[],
+	from: string,
+	to: string,
+	reason: 'vacation' | 'absence'
+) {
+	const rangeStart = parseLocalDate(from);
+	rangeStart.setHours(0, 0, 0, 0);
+	const rangeEnd = parseLocalDate(to);
+	rangeEnd.setHours(23, 59, 59, 999);
+
+	for (const row of rows) {
+		const rawStart = reason === 'vacation' ? row.start_date : row.start_time;
+		const rawEnd = reason === 'vacation' ? row.end_date : row.end_time;
+		if (!rawStart) continue;
+
+		const start = rawStart instanceof Date ? new Date(rawStart) : new Date(rawStart);
+		const end = rawEnd
+			? rawEnd instanceof Date
+				? new Date(rawEnd)
+				: new Date(rawEnd)
+			: new Date(rangeEnd);
+		if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) continue;
+
+		start.setHours(0, 0, 0, 0);
+		end.setHours(23, 59, 59, 999);
+
+		const effectiveStart = start < rangeStart ? new Date(rangeStart) : start;
+		const effectiveEnd = end > rangeEnd ? new Date(rangeEnd) : end;
+		if (effectiveStart > effectiveEnd) continue;
+
+		for (
+			let current = new Date(effectiveStart);
+			current <= effectiveEnd;
+			current.setDate(current.getDate() + 1)
+		) {
+			const key = toDateKey(current);
+			if (!key) continue;
+			target[key] = reason;
+		}
+	}
+}
+
+export const GET: RequestHandler = async ({ url, request }) => {
 	const userIds = Array.from(
 		new Set(
 			url.searchParams
@@ -49,40 +161,37 @@ export const GET: RequestHandler = async ({ url }) => {
 	}
 
 	try {
-		const startDate = new Date(from);
-		const endDate = new Date(to);
-		const days: string[] = [];
+		const dayInfos = buildDayInfos(from, to);
 
-		for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
-			const copy = new Date(d);
-			days.push(copy.toLocaleDateString('sv-SE')); // ✅ Use local date string
-		}
-
-		const weeklyAvailabilities = (await query(
-			`SELECT * FROM weekly_availabilities WHERE user_id = ANY($1::int[])`,
-			[userIds]
-		)) as AvailabilityRow[];
-
-		const dateAvailabilities = (await query(
-			`SELECT * FROM date_availabilities
-             WHERE user_id = ANY($1::int[]) AND date BETWEEN $2 AND $3 AND available = true`,
-			[userIds, from, to]
-		)) as AvailabilityRow[];
-
-		const vacations = (await query(
-			`SELECT * FROM vacations
-             WHERE user_id = ANY($1::int[]) AND NOT (end_date < $2 OR start_date > $3)`,
-			[userIds, from, to]
-		)) as AvailabilityRow[];
-
-		const absences = (await query(
-			`SELECT * FROM absences
-			 WHERE user_id = ANY($1::int[]) AND (
-			   (start_time <= $3 AND end_time >= $2)
-			   OR (start_time <= $3 AND end_time IS NULL)
-			 )`,
-			[userIds, from, to]
-		)) as AvailabilityRow[];
+		const [weeklyAvailabilities, dateAvailabilities, vacations, absences] = (await Promise.all([
+			query(
+				`SELECT user_id, weekday, start_time, end_time
+				 FROM weekly_availabilities
+				 WHERE user_id = ANY($1::int[])`,
+				[userIds]
+			),
+			query(
+				`SELECT user_id, date, start_time, end_time
+				 FROM date_availabilities
+	             WHERE user_id = ANY($1::int[]) AND date BETWEEN $2 AND $3 AND available = true`,
+				[userIds, from, to]
+			),
+			query(
+				`SELECT user_id, start_date, end_date
+				 FROM vacations
+	             WHERE user_id = ANY($1::int[]) AND NOT (end_date < $2 OR start_date > $3)`,
+				[userIds, from, to]
+			),
+			query(
+				`SELECT user_id, start_time, end_time
+				 FROM absences
+				 WHERE user_id = ANY($1::int[]) AND (
+				   (start_time <= $3 AND end_time >= $2)
+				   OR (start_time <= $3 AND end_time IS NULL)
+				 )`,
+				[userIds, from, to]
+			)
+		])) as [AvailabilityRow[], AvailabilityRow[], AvailabilityRow[], AvailabilityRow[]];
 
 		const weeklyByUser = groupRowsByUser(weeklyAvailabilities);
 		const dateByUser = groupRowsByUser(dateAvailabilities);
@@ -95,75 +204,33 @@ export const GET: RequestHandler = async ({ url }) => {
 		for (const userId of userIds) {
 			const result: UserAvailabilityMap = {};
 			const userBlockedDays: UserBlockedDaysMap = {};
-			const userWeeklyAvailabilities = weeklyByUser.get(userId) ?? [];
-			const userDateAvailabilities = dateByUser.get(userId) ?? [];
-			const userVacations = vacationsByUser.get(userId) ?? [];
-			const userAbsences = absencesByUser.get(userId) ?? [];
+			const userWeeklySlots = indexWeeklySlots(weeklyByUser.get(userId) ?? []);
+			const userDateSlots = indexDateSlots(dateByUser.get(userId) ?? []);
 
-			for (const dateStr of days) {
-				const currentDate = new Date(dateStr);
-				const weekday = currentDate.getDay(); // Matches DB convention: Sun=0, Mon=1..Sat=6
+			markBlockedDays(userBlockedDays, vacationsByUser.get(userId) ?? [], from, to, 'vacation');
+			markBlockedDays(userBlockedDays, absencesByUser.get(userId) ?? [], from, to, 'absence');
 
-				// 1️⃣ Absence check (highest priority)
-				const isAbsent = userAbsences.some((a) => {
-					const start = new Date(a.start_time ?? '');
-					const end = a.end_time ? new Date(a.end_time) : null;
-
-					const dayStart = new Date(currentDate);
-					dayStart.setHours(0, 0, 0, 0);
-
-					const dayEnd = new Date(currentDate);
-					dayEnd.setHours(23, 59, 59, 999);
-
-					return start <= dayEnd && (!end || end >= dayStart);
-				});
-				if (isAbsent) {
-					result[dateStr] = null;
-					userBlockedDays[dateStr] = 'absence';
+			for (const day of dayInfos) {
+				if (userBlockedDays[day.key]) {
+					result[day.key] = null;
 					continue;
 				}
 
-				// 2️⃣ Vacation check
-				const isVacationDay = userVacations.some((v) => {
-					const start = new Date(v.start_date ?? '');
-					const end = new Date(v.end_date ?? '');
-					return (
-						currentDate.getTime() >= start.setHours(0, 0, 0, 0) &&
-						currentDate.getTime() <= end.setHours(23, 59, 59, 999)
-					);
-				});
-				if (isVacationDay) {
-					result[dateStr] = null;
-					userBlockedDays[dateStr] = 'vacation';
+				const dateSlots = userDateSlots.get(day.key);
+				if (dateSlots && dateSlots.length > 0) {
+					result[day.key] = dateSlots;
 					continue;
 				}
 
-				// 3️⃣ Date-based override (fix timezone comparison)
-				const dateSlots = userDateAvailabilities
-					.filter((a) => {
-						const dbDate = new Date(a.date ?? '').toLocaleDateString('sv-SE');
-						return dbDate === dateStr;
-					})
-					.map((a) => ({ from: a.start_time ?? '', to: a.end_time ?? '' }));
-
-				if (dateSlots.length > 0) {
-					result[dateStr] = dateSlots;
-					continue;
-				}
-
-				// 4️⃣ Weekly fallback
-				const weekSlots = userWeeklyAvailabilities
-					.filter((a) => a.weekday === weekday)
-					.map((a) => ({ from: a.start_time ?? '', to: a.end_time ?? '' }));
-
-				result[dateStr] = weekSlots.length > 0 ? weekSlots : null;
+				const weekSlots = userWeeklySlots.get(day.weekday) ?? [];
+				result[day.key] = weekSlots.length > 0 ? weekSlots : null;
 			}
 
 			availability[userId] = result;
 			blockedDays[userId] = userBlockedDays;
 		}
 
-		return json({ success: true, availability, blockedDays });
+		return respondJsonWithEtag(request, { success: true, availability, blockedDays });
 	} catch (err) {
 		console.error('❌ Failed to fetch availability:', err);
 		return json({ error: 'Internal server error' }, { status: 500 });

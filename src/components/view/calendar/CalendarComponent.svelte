@@ -50,6 +50,23 @@
 		columnIndex: number;
 		columnCount: number;
 	};
+	type TimestampRange = {
+		startMs: number;
+		endMs: number;
+	};
+	type MinuteRange = {
+		startMin: number;
+		endMin: number;
+	};
+	type ResolvedDayAvailability = {
+		trainerId: number | null;
+		blockedReason: CalendarBlockedDayReason | null;
+		availableRanges: MinuteRange[] | null;
+	};
+	type DaySlotRenderState = {
+		emptySlots: { top: number; start: Date }[];
+		unavailableBlocks: UnavailableBlock[];
+	};
 
 	let calendarContainer: HTMLDivElement | null = null;
 
@@ -685,6 +702,15 @@
 	const hasSplitLocationLane = $derived.by(
 		() => shouldSplitBySelectedFilters && selectedLocationSummaries.length > 0
 	);
+	const showSplitHeaders = $derived.by(
+		() => shouldSplitBySelectedFilters && splitLaneSummaries.length > 1
+	);
+
+	let splitHeaderProbeHeight = $state(0);
+
+	const splitHeaderOffset = $derived.by(() =>
+		showSplitHeaders ? splitHeaderProbeHeight + (singleDayView ? 4 : 0) : 0
+	);
 
 	const splitColumnsByDay = $derived.by<SplitColumnView[][]>(() => {
 		if (!shouldSplitBySelectedFilters) return [];
@@ -712,6 +738,14 @@
 			return splitLaneSummaries.map((lane) => {
 				if (lane.kind === 'trainer') {
 					const trainerBookings = laneBookings.get(lane.key) ?? [];
+					const slotRenderState = buildDaySlotRenderState(
+						fullDate,
+						trainerBookings,
+						filters,
+						availability,
+						blockedDays,
+						lane.id
+					);
 					return {
 						key: lane.key,
 						kind: lane.kind,
@@ -719,21 +753,8 @@
 						shortLabel: lane.shortLabel,
 						accentColor: lane.accentColor,
 						layout: layoutDayBookings(trainerBookings),
-						unavailableBlocks: computeUnavailableBlocks(
-							fullDate,
-							filters,
-							availability,
-							blockedDays,
-							lane.id
-						),
-						emptySlots: computeEmptySlotBlocks(
-							fullDate,
-							trainerBookings,
-							filters,
-							availability,
-							blockedDays,
-							lane.id
-						),
+						unavailableBlocks: slotRenderState.unavailableBlocks,
+						emptySlots: slotRenderState.emptySlots,
 						locationId: null,
 						trainerId: lane.id,
 						clientId: null
@@ -742,6 +763,13 @@
 
 				if (lane.kind === 'location') {
 					const locationBookings = laneBookings.get(lane.key) ?? [];
+					const slotRenderState = buildDaySlotRenderState(
+						fullDate,
+						locationBookings,
+						filters,
+						availability,
+						blockedDays
+					);
 					return {
 						key: lane.key,
 						kind: lane.kind,
@@ -749,14 +777,8 @@
 						shortLabel: lane.shortLabel,
 						accentColor: lane.accentColor,
 						layout: layoutDayBookings(locationBookings),
-						unavailableBlocks: [],
-						emptySlots: computeEmptySlotBlocks(
-							fullDate,
-							locationBookings,
-							filters,
-							availability,
-							blockedDays
-						),
+						unavailableBlocks: slotRenderState.unavailableBlocks,
+						emptySlots: slotRenderState.emptySlots,
 						locationId: lane.id,
 						trainerId: null,
 						clientId: null
@@ -764,6 +786,13 @@
 				}
 
 				const clientBookings = laneBookings.get(lane.key) ?? [];
+				const slotRenderState = buildDaySlotRenderState(
+					fullDate,
+					clientBookings,
+					filters,
+					availability,
+					blockedDays
+				);
 				return {
 					key: lane.key,
 					kind: lane.kind,
@@ -771,14 +800,8 @@
 					shortLabel: lane.shortLabel,
 					accentColor: lane.accentColor,
 					layout: layoutDayBookings(clientBookings),
-					unavailableBlocks: [],
-					emptySlots: computeEmptySlotBlocks(
-						fullDate,
-						clientBookings,
-						filters,
-						availability,
-						blockedDays
-					),
+					unavailableBlocks: slotRenderState.unavailableBlocks,
+					emptySlots: slotRenderState.emptySlots,
 					locationId: null,
 					trainerId: null,
 					clientId: lane.id
@@ -787,16 +810,24 @@
 		});
 	});
 
-	const emptySlotBlocksByDay = $derived.by(() =>
+	const daySlotRenderStateByDay = $derived.by(() =>
 		weekDays.map(({ fullDate }, idx) =>
-			computeEmptySlotBlocks(fullDate, bookingsByDay[idx] ?? [], filters, availability, blockedDays)
+			buildDaySlotRenderState(
+				fullDate,
+				bookingsByDay[idx] ?? [],
+				filters,
+				availability,
+				blockedDays
+			)
 		)
 	);
 
+	const emptySlotBlocksByDay = $derived.by(() =>
+		daySlotRenderStateByDay.map(({ emptySlots }) => emptySlots)
+	);
+
 	const unavailableBlocksByDay = $derived.by(() =>
-		weekDays.map(({ fullDate }) =>
-			computeUnavailableBlocks(fullDate, filters, availability, blockedDays)
-		)
+		daySlotRenderStateByDay.map(({ unavailableBlocks }) => unavailableBlocks)
 	);
 
 	type SlotDialogActionsConfig = {
@@ -892,29 +923,80 @@
 		return getStart(booking) + 60 * 60 * 1000;
 	}
 
-	function isTimeSlotOccupied(start: Date, end: Date, bookingsForDay: FullBooking[]): boolean {
-		const startMs = start.getTime();
-		const endMs = end.getTime();
+	function parseTimeToMinutes(value: string): number | null {
+		const [hours, minutes] = value.split(':').map(Number);
+		if (!Number.isFinite(hours) || !Number.isFinite(minutes)) {
+			return null;
+		}
+		return hours * 60 + minutes;
+	}
 
-		return bookingsForDay.some((b) => {
-			const bStart = getStart(b);
-			const bEnd = getEnd(b);
-			return !(bEnd <= startMs || bStart >= endMs);
-		});
+	function normalizeMinuteRanges(ranges: MinuteRange[]): MinuteRange[] {
+		if (ranges.length <= 1) {
+			return ranges;
+		}
+
+		const sorted = [...ranges].sort((a, b) => a.startMin - b.startMin || a.endMin - b.endMin);
+		const merged: MinuteRange[] = [{ ...sorted[0] }];
+
+		for (let index = 1; index < sorted.length; index += 1) {
+			const current = sorted[index];
+			const previous = merged[merged.length - 1];
+			if (!previous || current.startMin > previous.endMin) {
+				merged.push({ ...current });
+				continue;
+			}
+			previous.endMin = Math.max(previous.endMin, current.endMin);
+		}
+
+		return merged;
+	}
+
+	function buildBookingTimestampRanges(bookingsForDay: FullBooking[]): TimestampRange[] {
+		return bookingsForDay
+			.map((booking) => ({
+				startMs: getStart(booking),
+				endMs: getEnd(booking)
+			}))
+			.filter(
+				(range): range is TimestampRange =>
+					Number.isFinite(range.startMs) &&
+					Number.isFinite(range.endMs) &&
+					range.endMs > range.startMs
+			)
+			.sort((a, b) => a.startMs - b.startMs || a.endMs - b.endMs);
+	}
+
+	function resolveAvailableMinuteRanges(
+		dayAvailability: AvailabilitySlots | undefined
+	): MinuteRange[] | null {
+		if (dayAvailability == null) {
+			return null;
+		}
+
+		if (!Array.isArray(dayAvailability) || dayAvailability.length === 0) {
+			return [];
+		}
+
+		const parsed = dayAvailability
+			.map((slot) => {
+				const startMin = parseTimeToMinutes(slot.from);
+				const endMin = parseTimeToMinutes(slot.to);
+				if (startMin == null || endMin == null || endMin <= startMin) {
+					return null;
+				}
+				return { startMin, endMin };
+			})
+			.filter((range): range is MinuteRange => range != null);
+
+		return normalizeMinuteRanges(parsed);
 	}
 
 	function layoutDayBookings(bookingsForDay: FullBooking[]): LayoutInfo[] {
 		const sortedBookings = [...bookingsForDay].sort((a, b) => getStart(a) - getStart(b));
-
 		const results: LayoutInfo[] = [];
-		let active: { booking: FullBooking; endTime: number; columnIndex: number }[] = [];
-
-		function getFreeColumnIndex(): number {
-			const used = active.map((a) => a.columnIndex);
-			let index = 0;
-			while (used.includes(index)) index++;
-			return index;
-		}
+		const layoutByBooking = new Map<FullBooking, LayoutInfo>();
+		let active: { layout: LayoutInfo; endTime: number }[] = [];
 
 		for (const booking of sortedBookings) {
 			const start = getStart(booking);
@@ -922,22 +1004,26 @@
 
 			active = active.filter((a) => a.endTime > start);
 
-			const concurrency = active.length + 1;
-			const colIndex = getFreeColumnIndex();
-			active.push({ booking, endTime: end, columnIndex: colIndex });
+			const usedColumns = new Set(active.map((item) => item.layout.columnIndex));
+			let columnIndex = 0;
+			while (usedColumns.has(columnIndex)) {
+				columnIndex += 1;
+			}
 
-			for (const a of active) {
-				let existing = results.find((r) => r.booking === a.booking);
-				if (!existing) {
-					existing = {
-						booking: a.booking,
-						columnIndex: a.columnIndex,
-						columnCount: concurrency
-					};
-					results.push(existing);
-				}
-				existing.columnIndex = a.columnIndex;
-				existing.columnCount = concurrency;
+			const layout: LayoutInfo = {
+				booking,
+				columnIndex,
+				columnCount: active.length + 1
+			};
+			layoutByBooking.set(booking, layout);
+			results.push(layout);
+			active.push({ layout, endTime: end });
+
+			const concurrency = active.length;
+			for (const item of active) {
+				const activeLayout = layoutByBooking.get(item.layout.booking);
+				if (!activeLayout) continue;
+				activeLayout.columnCount = Math.max(activeLayout.columnCount, concurrency);
 			}
 		}
 
@@ -1187,137 +1273,72 @@
 		};
 	}
 
-	function computeEmptySlotBlocks(
+	function resolveDayAvailability(
 		dayDateInput: Date,
-		dayBookings: FullBooking[],
 		currentFilters: CalendarFilters | undefined,
 		availabilityByTrainer: CalendarAvailability,
 		blockedDaysByTrainer: CalendarBlockedDays,
 		trainerId?: number | null
-	): { top: number; start: Date }[] {
-		if (!dayDateInput) return [];
-		const results: { top: number; start: Date }[] = [];
-
-		const dayDate = new Date(dayDateInput);
-		dayDate.setHours(0, 0, 0, 0);
+	): ResolvedDayAvailability {
 		const {
 			trainerId: activeTrainerId,
 			dayAvailability,
 			blockedReason
 		} = getDayAvailabilityState(
-			dayDate,
+			dayDateInput,
 			currentFilters,
 			availabilityByTrainer,
 			blockedDaysByTrainer,
 			trainerId
 		);
 
-		if (blockedReason) {
-			return results;
-		}
-
-		for (let i = 1; i < totalHours * 2 - 1; i += 2) {
-			const slotStart = new Date(dayDate);
-			slotStart.setHours(startHour + Math.floor(i / 2), 30, 0, 0);
-
-			const slotEnd = new Date(slotStart);
-			slotEnd.setMinutes(slotEnd.getMinutes() + 60);
-
-			const isOccupied = isTimeSlotOccupied(slotStart, slotEnd, dayBookings);
-
-			let isAvailable = true;
-			if (activeTrainerId != null) {
-				if (dayAvailability == null) {
-					isAvailable = true;
-				} else if (Array.isArray(dayAvailability) && dayAvailability.length === 0) {
-					isAvailable = false;
-				} else if (Array.isArray(dayAvailability)) {
-					isAvailable = dayAvailability.some((slot) => {
-						const [fromHour, fromMin] = slot.from.split(':').map(Number);
-						const [toHour, toMin] = slot.to.split(':').map(Number);
-
-						const availableStart = new Date(dayDate);
-						availableStart.setHours(fromHour, fromMin, 0, 0);
-						const availableEnd = new Date(dayDate);
-						availableEnd.setHours(toHour, toMin, 0, 0);
-
-						return slotStart >= availableStart && slotEnd <= availableEnd;
-					});
-				}
-			}
-
-			if (!isOccupied && isAvailable) {
-				results.push({ top: i * (hourHeight / 2), start: slotStart });
-			}
-		}
-
-		return results;
+		return {
+			trainerId: activeTrainerId,
+			blockedReason,
+			availableRanges: resolveAvailableMinuteRanges(dayAvailability)
+		};
 	}
 
-	function computeUnavailableBlocks(
-		dayDateInput: Date,
-		currentFilters: CalendarFilters | undefined,
-		availabilityByTrainer: CalendarAvailability,
-		blockedDaysByTrainer: CalendarBlockedDays,
-		trainerId?: number | null
+	function buildUnavailableBlocksFromAvailability(
+		availabilityState: ResolvedDayAvailability
 	): UnavailableBlock[] {
-		const date = new Date(dayDateInput);
-		date.setHours(0, 0, 0, 0);
-		const {
-			trainerId: activeTrainerId,
-			dayAvailability,
-			blockedReason
-		} = getDayAvailabilityState(
-			date,
-			currentFilters,
-			availabilityByTrainer,
-			blockedDaysByTrainer,
-			trainerId
-		);
 		const blocks: UnavailableBlock[] = [];
 
-		if (activeTrainerId == null) {
+		if (availabilityState.trainerId == null) {
 			return blocks;
 		}
 
-		if (blockedReason) {
+		if (availabilityState.blockedReason) {
 			return [
 				{
 					top: 0,
 					height: totalHours * hourHeight,
-					label: getBlockedDayLabel(blockedReason),
-					reason: blockedReason
+					label: getBlockedDayLabel(availabilityState.blockedReason),
+					reason: availabilityState.blockedReason
 				}
 			];
 		}
 
-		if (dayAvailability == null) {
+		const availableRanges = availabilityState.availableRanges;
+		if (availableRanges == null) {
 			return blocks;
 		}
 
-		if (Array.isArray(dayAvailability) && dayAvailability.length === 0) {
+		if (availableRanges.length === 0) {
 			blocks.push({ top: 0, height: totalHours * hourHeight });
 			return blocks;
 		}
 
-		if (!Array.isArray(dayAvailability)) {
-			return blocks;
-		}
-
-		const available = [...dayAvailability].sort((a, b) =>
-			a.from < b.from ? -1 : a.from > b.from ? 1 : 0
-		);
-
 		const dayStartMin = startHour * 60;
 		const dayEndMin = (startHour + totalHours) * 60;
-
 		let cursor = dayStartMin;
 
-		for (const slot of available) {
-			const [fh, fm] = slot.from.split(':').map(Number);
-			const [th, tm] = slot.to.split(':').map(Number);
-			const slotStartMin = fh * 60 + fm;
-			const slotEndMin = th * 60 + tm;
+		for (const range of availableRanges) {
+			const slotStartMin = Math.max(range.startMin, dayStartMin);
+			const slotEndMin = Math.min(range.endMin, dayEndMin);
+			if (slotEndMin <= dayStartMin || slotStartMin >= dayEndMin) {
+				continue;
+			}
 
 			if (slotStartMin > cursor) {
 				blocks.push({
@@ -1336,6 +1357,101 @@
 		}
 
 		return blocks;
+	}
+
+	function buildEmptySlotBlocksFromState(
+		dayDate: Date,
+		bookingRanges: TimestampRange[],
+		availabilityState: ResolvedDayAvailability
+	): { top: number; start: Date }[] {
+		const results: { top: number; start: Date }[] = [];
+
+		if (availabilityState.blockedReason) {
+			return results;
+		}
+
+		const dayStartMs = dayDate.getTime();
+		const availableRanges = availabilityState.availableRanges;
+		let bookingIndex = 0;
+		let availabilityIndex = 0;
+
+		for (let slotIndex = 0; slotIndex < totalHours - 1; slotIndex += 1) {
+			const slotStartMin = (startHour + slotIndex) * 60 + 30;
+			const slotEndMin = slotStartMin + 60;
+			const slotStartMs = dayStartMs + slotStartMin * 60 * 1000;
+			const slotEndMs = dayStartMs + slotEndMin * 60 * 1000;
+
+			while (
+				bookingIndex < bookingRanges.length &&
+				bookingRanges[bookingIndex].endMs <= slotStartMs
+			) {
+				bookingIndex += 1;
+			}
+
+			const currentBooking = bookingRanges[bookingIndex];
+			const isOccupied = Boolean(
+				currentBooking && currentBooking.startMs < slotEndMs && currentBooking.endMs > slotStartMs
+			);
+
+			let isAvailable = true;
+			if (availabilityState.trainerId != null && availableRanges != null) {
+				if (availableRanges.length === 0) {
+					isAvailable = false;
+				} else {
+					while (
+						availabilityIndex < availableRanges.length &&
+						availableRanges[availabilityIndex].endMin <= slotStartMin
+					) {
+						availabilityIndex += 1;
+					}
+
+					const currentAvailability = availableRanges[availabilityIndex];
+					isAvailable = Boolean(
+						currentAvailability &&
+							slotStartMin >= currentAvailability.startMin &&
+							slotEndMin <= currentAvailability.endMin
+					);
+				}
+			}
+
+			if (!isOccupied && isAvailable) {
+				results.push({
+					top: (slotIndex * 2 + 1) * (hourHeight / 2),
+					start: new Date(slotStartMs)
+				});
+			}
+		}
+
+		return results;
+	}
+
+	function buildDaySlotRenderState(
+		dayDateInput: Date,
+		dayBookings: FullBooking[],
+		currentFilters: CalendarFilters | undefined,
+		availabilityByTrainer: CalendarAvailability,
+		blockedDaysByTrainer: CalendarBlockedDays,
+		trainerId?: number | null
+	): DaySlotRenderState {
+		if (!dayDateInput) {
+			return { emptySlots: [], unavailableBlocks: [] };
+		}
+
+		const dayDate = new Date(dayDateInput);
+		dayDate.setHours(0, 0, 0, 0);
+		const availabilityState = resolveDayAvailability(
+			dayDate,
+			currentFilters,
+			availabilityByTrainer,
+			blockedDaysByTrainer,
+			trainerId
+		);
+
+		const bookingRanges = buildBookingTimestampRanges(dayBookings);
+		return {
+			emptySlots: buildEmptySlotBlocksFromState(dayDate, bookingRanges, availabilityState),
+			unavailableBlocks: buildUnavailableBlocksFromAvailability(availabilityState)
+		};
 	}
 
 	function openBookingPopup(
@@ -1376,6 +1492,20 @@
 </script>
 
 <div class="flex h-full flex-col overflow-x-auto rounded-tl-md rounded-tr-md md:gap-10">
+	{#if showSplitHeaders}
+		<div class="pointer-events-none absolute -z-10 opacity-0" aria-hidden="true">
+			<div
+				bind:offsetHeight={splitHeaderProbeHeight}
+				class="text-gray-dark border-gray-bright/70 flex min-w-0 overflow-hidden rounded border bg-white/80 text-xs font-semibold"
+				class:px-2={singleDayView}
+				class:px-1={!singleDayView}
+				class:py-1={singleDayView}
+				class:py-0.5={!singleDayView}
+			>
+				<span class="block min-w-0 flex-1 truncate text-center tracking-wide">TT</span>
+			</div>
+		</div>
+	{/if}
 	<!-- WEEK HEADER -->
 	<div
 		class="relative grid"
@@ -1469,10 +1599,13 @@
 		class:overflow-x-auto={isCompactWeek}
 		style={`grid-template-columns: ${gridTemplateColumns};`}
 	>
-		<CurrentTimeIndicator {startHour} {hourHeight} />
+		<CurrentTimeIndicator {startHour} {hourHeight} topOffset={splitHeaderOffset} />
 
-		<div class="relative flex flex-col items-center">
-			<CurrentTimePill {startHour} {hourHeight} />
+		<div
+			class="relative flex flex-col items-center"
+			style={showSplitHeaders ? `padding-top: ${splitHeaderOffset}px;` : undefined}
+		>
+			<CurrentTimePill {startHour} {hourHeight} topOffset={splitHeaderOffset} />
 			{#each Array.from({ length: totalHours }, (_, i) => (startHour + i) % 24) as hour, index}
 				<HourSlot {hour} {index} {hourHeight} hideLabel={index === 0} />
 			{/each}
@@ -1527,7 +1660,6 @@
 
 				{#if shouldSplitBySelectedFilters}
 					{@const dayColumns = splitColumnsByDay[dayIndex] ?? []}
-					{@const showSplitHeaders = dayColumns.length > 1}
 					<div class="flex h-full" class:gap-1={singleDayView} class:gap-0={!singleDayView}>
 						{#each dayColumns as column, columnIndex (column.key)}
 							{@const headerText = singleDayView
