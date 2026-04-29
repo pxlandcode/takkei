@@ -111,8 +111,6 @@
 	}
 
 	async function checkRepeatAvailability() {
-		const filterHalfHourTimes = (times?: string[]) =>
-			(times ?? []).filter((time) => time.split(':')[1] === '30');
 		const res = await fetch('/api/bookings/check-repeat', {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
@@ -132,7 +130,7 @@
 
 		if (data.success && data.repeatedBookings) {
 			repeatedBookings = data.repeatedBookings.map((week) => {
-				const suggestedTimes = filterHalfHourTimes(week.suggestedTimes);
+				const suggestedTimes = week.suggestedTimes ?? [];
 				return {
 					...week,
 					suggestedTimes,
@@ -288,7 +286,7 @@
 	// Auto-assign room if only one available
 	$: {
 		const selectedLocation = $locations.find((loc) => loc.id === bookingObject.locationId);
-		availableRooms = selectedLocation?.rooms ?? [];
+		availableRooms = selectedLocation?.rooms?.filter((room) => room.active) ?? [];
 
 		const locationChanged = bookingObject.locationId !== previousLocationId;
 

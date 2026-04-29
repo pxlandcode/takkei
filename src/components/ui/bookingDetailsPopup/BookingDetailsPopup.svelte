@@ -1253,10 +1253,16 @@
 				? { id: match.id, name: match.name, color: match.color ?? '' }
 				: currentBooking.location;
 			let room = currentBooking.room ?? null;
-			if (match?.rooms?.length === 1) {
-				const onlyRoom = match.rooms[0];
+			const activeRooms = match?.rooms?.filter((candidate) => candidate.active) ?? [];
+			const currentRoomId = room?.id ?? null;
+			if (activeRooms.length === 1) {
+				const onlyRoom = activeRooms[0];
 				room = { id: onlyRoom.id, name: onlyRoom.name };
-			} else if (match?.rooms && room && !match.rooms.some((r) => r.id === room.id)) {
+			} else if (
+				activeRooms.length > 0 &&
+				currentRoomId !== null &&
+				!activeRooms.some((candidate) => candidate.id === currentRoomId)
+			) {
 				room = null;
 			}
 			currentBooking = {

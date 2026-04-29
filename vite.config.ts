@@ -3,6 +3,8 @@ import { defineConfig } from 'vitest/config';
 import { sveltekit } from '@sveltejs/kit/vite';
 
 export default defineConfig({
+	cacheDir: process.env.VITE_CACHE_DIR ?? '.vite-cache',
+
 	plugins: [
 		sveltekit(),
 		paraglide({

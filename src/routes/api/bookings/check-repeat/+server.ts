@@ -1,9 +1,14 @@
 import { query } from '$lib/db';
+import {
+	addDaysToDateString,
+	buildRoomBlockTimestamp,
+	evaluateRoomAvailabilityAtStart,
+	loadLocationRoomAvailabilityContext
+} from '$lib/server/roomBlocks';
 import { extractStockholmMinutes } from '$lib/server/stockholm-time';
 import type { RequestHandler } from '@sveltejs/kit';
 
 type Interval = { start: number; end: number };
-type RoomInterval = Interval & { roomId: number | null };
 type LocationInterval = Interval & { locationId: number | null };
 
 const SLOT_LENGTH_MINUTES = 60;
@@ -68,33 +73,21 @@ export const POST: RequestHandler = async ({ request }) => {
 
 	const repeatedBookings = [];
 
-	// rooms at location
-	const roomResult = await query(`SELECT id FROM rooms WHERE location_id = $1 AND active = true`, [
-		locationId
-	]);
-	const roomIds: number[] = roomResult.map((r: any) => r.id);
-	if (roomIds.length === 0) {
-		return new Response(JSON.stringify({ error: 'No rooms at this location' }), { status: 400 });
-	}
-
 	for (let i = 0; i < repeatWeeks; i++) {
 		const checkDate = new Date(baseDate);
 		checkDate.setDate(baseDate.getDate() + i * 7);
 		const dateString = checkDate.toISOString().split('T')[0];
 		const dayStart = `${dateString} 00:00:00`;
-		const dayEnd = `${dateString} 23:59:59`;
+		const dayEnd = `${addDaysToDateString(dateString, 1)} 00:00:00`;
+		const roomAvailabilityContext = await loadLocationRoomAvailabilityContext({
+			locationId: Number(locationId),
+			windowStart: dayStart,
+			windowEnd: dayEnd
+		});
 
-		// room bookings
-		const bookings = await query(
-			`
-        SELECT room_id, start_time
-        FROM bookings
-        WHERE start_time BETWEEN $1 AND $2
-          AND LOWER(status) NOT IN ('cancelled', 'late_cancelled')
-          AND room_id = ANY($3::int[])
-      `,
-			[dayStart, dayEnd, roomIds]
-		);
+		if (roomAvailabilityContext.rooms.length === 0) {
+			return new Response(JSON.stringify({ error: 'No rooms at this location' }), { status: 400 });
+		}
 
 		// trainer personal bookings
 		const personalBookings = await query(
@@ -112,18 +105,6 @@ export const POST: RequestHandler = async ({ request }) => {
 				const end = extractStockholmMinutes(b.end_time);
 				if (start === null || end === null) return null;
 				return { start, end };
-			})
-			.filter(isNotNull);
-
-		const bookingIntervals: RoomInterval[] = bookings
-			.map((b: any): RoomInterval | null => {
-				const start = extractStockholmMinutes(b.start_time);
-				if (start === null) return null;
-				return {
-					start,
-					end: start + SLOT_LENGTH_MINUTES,
-					roomId: b.room_id === null ? null : Number(b.room_id)
-				};
 			})
 			.filter(isNotNull);
 
@@ -236,12 +217,11 @@ export const POST: RequestHandler = async ({ request }) => {
 		}
 
 		// room conflicts
-		const roomConflicts = new Set(
-			bookingIntervals
-				.filter((booking) => overlaps(slotStart, slotEnd, booking.start, booking.end))
-				.map((booking) => booking.roomId)
-		);
-		const allRoomsTaken = roomConflicts.size >= roomIds.length;
+		const roomAvailability = evaluateRoomAvailabilityAtStart({
+			context: roomAvailabilityContext,
+			startTime: buildRoomBlockTimestamp(dateString, time)
+		});
+		const allRoomsTaken = roomAvailability.availableRoomIds.length === 0;
 
 		// user conflicts
 		const trainerBusy = [...trainerPersonalIntervals, ...trainerBookingIntervals];
@@ -283,11 +263,11 @@ export const POST: RequestHandler = async ({ request }) => {
 					const altStart = h * 60 + m;
 					const altEnd = altStart + SLOT_LENGTH_MINUTES;
 
-					const altRoomConflicts = new Set(
-						bookingIntervals
-							.filter((booking) => overlaps(altStart, altEnd, booking.start, booking.end))
-							.map((booking) => booking.roomId)
-					);
+					const altLabel = `${h.toString().padStart(2, '0')}:${m === 0 ? '00' : '30'}`;
+					const altRoomAvailability = evaluateRoomAvailabilityAtStart({
+						context: roomAvailabilityContext,
+						startTime: buildRoomBlockTimestamp(dateString, altLabel)
+					});
 					const altTrainer = trainerBusy.some((b) => overlaps(altStart, altEnd, b.start, b.end));
 					const altTrainee = traineeBusy.some((b) => overlaps(altStart, altEnd, b.start, b.end));
 					const altTrainerTravel = hasTravelConflictForIntervals(
@@ -306,13 +286,13 @@ export const POST: RequestHandler = async ({ request }) => {
 						);
 
 					if (
-						altRoomConflicts.size < roomIds.length &&
+						altRoomAvailability.availableRoomIds.length > 0 &&
 						!altTrainer &&
 						!altTrainee &&
 						!altTrainerTravel &&
 						!altTraineeTravel
 					) {
-						suggestedTimes.push(`${h.toString().padStart(2, '0')}:${m === 0 ? '00' : '30'}`);
+						suggestedTimes.push(altLabel);
 					}
 				}
 			}
