@@ -30,7 +30,7 @@
 	}
 
 	$: buttonClasses = `
-		flex-1 flex flex-row gap-1 text-center font-semibold transition-all duration-200 active:scale-90  hover:text-white items-center justify-center cursor-pointer 
+		flex-1 flex flex-row gap-1 text-center font-semibold transition-colors transition-transform duration-150 hover:text-white items-center justify-center cursor-pointer active:translate-y-0.5
 		${size === 'small' ? 'h-8 text-xs' : 'h-[46px] text-sm'} 
 		${variant === 'black' ? 'text-black hover:bg-black ' : '  '}
          ${variant === 'gray' ? 'text-gray hover:bg-gray' : ''}

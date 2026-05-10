@@ -82,7 +82,7 @@
 
 	// Dynamic class setup
 	$: buttonClasses = `
-		relative flex items-center justify-center gap-2 rounded-sm shadow-xs transition-all duration-200 cursor-pointer
+		relative flex items-center justify-center gap-2 rounded-sm shadow-xs transition-colors transition-transform duration-150 cursor-pointer
 		${variant === 'primary' ? 'bg-primary text-white hover:bg-primary-hover border border-gray/30' : ''}
 		${variant === 'secondary' ? 'bg-white text-gray border border-gray hover:bg-white/80' : ''}
 		${
@@ -96,7 +96,7 @@
 		${transparent && variant === 'cancel' ? 'hover:text-red' : ''}
 		${sizeClasses}
 		${full ? 'w-full' : ''}
-		focus:outline-hidden active:translate-y-1 active:scale-95 active:shadow-xs
+		focus:outline-hidden active:translate-y-0.5
 		disabled:opacity-60 disabled:cursor-not-allowed disabled:pointer-events-none disabled:bg-gray-100 disabled:text-gray-500 disabled:border-gray/40
 	`;
 </script>
