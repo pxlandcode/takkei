@@ -27,12 +27,15 @@ if (useProdDb) {
 	console.log('✅ Using LOCAL database');
 }
 
-const defaultPoolSize = isProduction || useProdDb ? 5 : 10;
+const defaultPoolSize = isProduction || useProdDb ? 1 : 10;
 
 export const pool = new Pool({
-        connectionString,
-        ssl: isProduction || useProdDb ? { rejectUnauthorized: false } : false,
-        max: Number(process.env.DATABASE_POOL_MAX ?? defaultPoolSize)
+	connectionString,
+	ssl: isProduction || useProdDb ? { rejectUnauthorized: false } : false,
+	max: Number(process.env.DATABASE_POOL_MAX ?? defaultPoolSize),
+	idleTimeoutMillis: Number(process.env.DATABASE_IDLE_TIMEOUT_MS ?? 10_000),
+	connectionTimeoutMillis: Number(process.env.DATABASE_CONNECTION_TIMEOUT_MS ?? 5_000),
+	allowExitOnIdle: isProduction || useProdDb
 });
 
 // Detects strings like 'YYYY-MM-DD HH:mm' or 'YYYY-MM-DD HH:mm:ss' or 'YYYY-MM-DD'
@@ -148,7 +151,7 @@ function normalizeParam(p) {
 }
 
 export const query = async (text, params = []) => {
-        const client = await pool.connect();
+	const client = await pool.connect();
 	try {
 		return await queryWithClient(client, text, params);
 	} finally {

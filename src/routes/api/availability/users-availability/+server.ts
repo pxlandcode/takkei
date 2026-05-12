@@ -1,6 +1,6 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { query } from '$lib/db';
+import { pool, queryWithClient } from '$lib/db';
 import { respondJsonWithEtag } from '$lib/server/http-cache';
 import type {
 	UserAvailabilityMap,
@@ -162,27 +162,37 @@ export const GET: RequestHandler = async ({ url, request }) => {
 
 	try {
 		const dayInfos = buildDayInfos(from, to);
+		const client = await pool.connect();
 
-		const [weeklyAvailabilities, dateAvailabilities, vacations, absences] = (await Promise.all([
-			query(
+		let weeklyAvailabilities: AvailabilityRow[];
+		let dateAvailabilities: AvailabilityRow[];
+		let vacations: AvailabilityRow[];
+		let absences: AvailabilityRow[];
+
+		try {
+			weeklyAvailabilities = await queryWithClient(
+				client,
 				`SELECT user_id, weekday, start_time, end_time
 				 FROM weekly_availabilities
 				 WHERE user_id = ANY($1::int[])`,
 				[userIds]
-			),
-			query(
+			);
+			dateAvailabilities = await queryWithClient(
+				client,
 				`SELECT user_id, date, start_time, end_time
 				 FROM date_availabilities
 	             WHERE user_id = ANY($1::int[]) AND date BETWEEN $2 AND $3 AND available = true`,
 				[userIds, from, to]
-			),
-			query(
+			);
+			vacations = await queryWithClient(
+				client,
 				`SELECT user_id, start_date, end_date
 				 FROM vacations
 	             WHERE user_id = ANY($1::int[]) AND NOT (end_date < $2 OR start_date > $3)`,
 				[userIds, from, to]
-			),
-			query(
+			);
+			absences = await queryWithClient(
+				client,
 				`SELECT user_id, start_time, end_time
 				 FROM absences
 				 WHERE user_id = ANY($1::int[]) AND (
@@ -190,8 +200,10 @@ export const GET: RequestHandler = async ({ url, request }) => {
 				   OR (start_time <= $3 AND end_time IS NULL)
 				 )`,
 				[userIds, from, to]
-			)
-		])) as [AvailabilityRow[], AvailabilityRow[], AvailabilityRow[], AvailabilityRow[]];
+			);
+		} finally {
+			client.release();
+		}
 
 		const weeklyByUser = groupRowsByUser(weeklyAvailabilities);
 		const dateByUser = groupRowsByUser(dateAvailabilities);

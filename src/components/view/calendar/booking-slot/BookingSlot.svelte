@@ -22,8 +22,10 @@
 		booking: FullBooking;
 		startHour: number;
 		hourHeight: number;
+		laneCount?: number;
 		columnIndex?: number;
 		columnCount?: number;
+		compact?: boolean;
 		onbookingselected: (event: MouseEvent) => void;
 		variant?: SlotVariant;
 		onclear?: (() => void) | null;
@@ -34,8 +36,10 @@
 		booking,
 		startHour,
 		hourHeight,
+		laneCount = 1,
 		columnIndex = 0,
 		columnCount = 1,
+		compact = false,
 		onbookingselected,
 		variant = 'default',
 		onclear = null,
@@ -87,6 +91,12 @@
 	const meetingHeight = $derived(getMeetingHeight(booking.booking.startTime, endTime, hourHeight));
 	const bookingColor = $derived(booking.location?.color ?? '#000000');
 	const isSelectedVariant = $derived(variant === 'selected');
+	const compactWidthPressure = $derived(
+		Math.max(1, columnCount) * Math.max(1, compact ? laneCount : 1)
+	);
+	const shouldUseCompactContent = $derived(compactWidthPressure > 1);
+	const shouldUseAdaptiveLayout = $derived(!shouldUseCompactContent);
+	const effectiveShowIcon = $derived(shouldUseAdaptiveLayout && showIcon);
 
 	const colWidth = $derived(100 / columnCount);
 	const colLeft = $derived(columnIndex * colWidth);
@@ -105,9 +115,11 @@
 		);
 	}
 
-	function getParticipant():
-		| { firstname?: string | null; lastname?: string | null; active?: boolean }
-		| null {
+	function getParticipant(): {
+		firstname?: string | null;
+		lastname?: string | null;
+		active?: boolean;
+	} | null {
 		if (booking.isPersonalBooking) return null;
 		return isTraineeParticipant() ? (booking.trainee ?? null) : (booking.client ?? null);
 	}
@@ -188,6 +200,90 @@
 		const full = `${first} ${last}`.trim();
 		return full || (isTraineeParticipant() ? 'Trainee saknas' : 'Klient saknas');
 	}
+
+	function getCompactPersonalDisplay() {
+		const name = booking.personalBooking?.name?.trim();
+		const text = booking.personalBooking?.text?.trim();
+		if (compactWidthPressure <= 2) {
+			return personalDisplayText;
+		}
+		if (name) return name;
+		if (compactWidthPressure <= 3 && text) return text;
+		return isMeetingSlot() ? 'Möte' : 'Personlig bokning';
+	}
+
+	function getCompactCharacterBudget(widthPressure: number, mode: 'full' | 'last') {
+		if (mode === 'full') {
+			if (widthPressure <= 1) return 100;
+			if (widthPressure <= 2) return 8;
+			return 0;
+		}
+
+		if (widthPressure <= 1) return 100;
+		if (widthPressure <= 2) return 8;
+		if (widthPressure <= 3) return 5;
+		return 0;
+	}
+
+	function normalizeCompactTextLength(text: string) {
+		return text.replace(/\s+/g, '').length;
+	}
+
+	function getCompactDisplayMode(
+		fullText: string,
+		lastText: string,
+		initialsText: string,
+		widthPressure: number
+	): NameDisplayMode {
+		const normalizedFull = fullText.trim();
+		const normalizedLast = lastText.trim() || normalizedFull;
+		const normalizedInitials = initialsText.trim();
+
+		if (
+			normalizedFull &&
+			normalizeCompactTextLength(normalizedFull) <= getCompactCharacterBudget(widthPressure, 'full')
+		) {
+			return 'full';
+		}
+
+		if (
+			normalizedLast &&
+			normalizeCompactTextLength(normalizedLast) <= getCompactCharacterBudget(widthPressure, 'last')
+		) {
+			return 'last';
+		}
+
+		if (normalizedInitials) {
+			return 'initials';
+		}
+
+		if (normalizedLast) {
+			return 'last';
+		}
+
+		if (normalizedFull) {
+			return 'full';
+		}
+
+		return 'none';
+	}
+
+	const compactTrainerDisplayMode = $derived(
+		getCompactDisplayMode(
+			getTrainerDisplay(),
+			getTrainerLastName(),
+			trainerInitials,
+			compactWidthPressure
+		)
+	);
+	const compactParticipantDisplayMode = $derived(
+		getCompactDisplayMode(
+			getParticipantDisplay(),
+			getParticipantLastName(),
+			getParticipantInitials(),
+			compactWidthPressure
+		)
+	);
 
 	// $: colWidth = 100 / columnCount;
 	// $: colLeft = columnIndex * colWidth;
@@ -274,7 +370,10 @@
 	}
 
 	async function measurePersonalText(_displayText?: string) {
-		if (!isBrowser || !booking.isPersonalBooking) return;
+		if (!isBrowser || !booking.isPersonalBooking || shouldUseCompactContent) {
+			personalLineClamp = 1;
+			return;
+		}
 		void _displayText;
 		await tick();
 		requestAnimationFrame(() => {
@@ -299,7 +398,7 @@
 	}
 
 	async function measureNameWidths(names: NameStrings = nameStrings) {
-		if (!isBrowser || booking.isPersonalBooking) return;
+		if (!isBrowser || booking.isPersonalBooking || shouldUseCompactContent) return;
 		await tick();
 		requestAnimationFrame(() => {
 			if (!trainerNameElement || !clientNameElement) return;
@@ -323,7 +422,7 @@
 	}
 
 	function checkNameWidths() {
-		if (!bookingSlot || booking.isPersonalBooking) return;
+		if (!bookingSlot || booking.isPersonalBooking || shouldUseCompactContent) return;
 
 		const containerWidth = bookingSlot.offsetWidth;
 		const availableWithIcon = Math.max(containerWidth - ICON_SPACE, 0);
@@ -372,11 +471,39 @@
 		await tick(); // Ensure DOM elements are rendered
 
 		isMounted = true;
+		if (shouldUseCompactContent) {
+			showIcon = false;
+			personalLineClamp = 1;
+		} else {
+			if (booking.isPersonalBooking) {
+				void measurePersonalText(personalDisplayText);
+			} else {
+				measureNameWidths(nameStrings);
+			}
+		}
+
+		return () => {
+			if (debounceTimer) clearTimeout(debounceTimer);
+		};
+	});
+
+	$effect(() => {
+		if (!isMounted || !booking) return;
+		if (shouldUseCompactContent) {
+			showIcon = false;
+			personalLineClamp = 1;
+			return;
+		}
 		if (booking.isPersonalBooking) {
 			void measurePersonalText(personalDisplayText);
-		} else {
-			measureNameWidths(nameStrings);
+			return;
 		}
+		const names = nameStrings;
+		measureNameWidths(names);
+	});
+
+	$effect(() => {
+		if (!isMounted || !bookingSlot || shouldUseCompactContent) return;
 
 		const resizeObserver = new ResizeObserver(() => {
 			if (debounceTimer) clearTimeout(debounceTimer);
@@ -391,24 +518,12 @@
 			}, 100);
 		});
 
-		if (bookingSlot) {
-			resizeObserver.observe(bookingSlot);
-		}
+		resizeObserver.observe(bookingSlot);
 
 		return () => {
 			resizeObserver.disconnect();
 			if (debounceTimer) clearTimeout(debounceTimer);
 		};
-	});
-
-	$effect(() => {
-		if (!isMounted || !booking) return;
-		if (booking.isPersonalBooking) {
-			void measurePersonalText(personalDisplayText);
-			return;
-		}
-		const names = nameStrings;
-		measureNameWidths(names);
 	});
 </script>
 
@@ -416,7 +531,7 @@
 	type="button"
 	bind:this={bookingSlot}
 	on:click={onbookingselected}
-	class="absolute z-20 flex cursor-pointer flex-col gap-[2px] p-1 text-xs shadow-xs {showIcon
+	class="absolute z-20 flex cursor-pointer flex-col gap-[2px] overflow-hidden p-1 text-xs shadow-xs {effectiveShowIcon
 		? 'items-start'
 		: 'items-center'} {booking.trainer?.id === $user?.id
 		? 'border-2'
@@ -446,7 +561,7 @@
 >
 	{#if participantIsInactive}
 		<span
-			class="pointer-events-none absolute top-0 right-0 z-0 h-3 w-3 bg-error"
+			class="bg-error pointer-events-none absolute top-0 right-0 z-0 h-3 w-3"
 			style="clip-path: polygon(100% 0, 0 0, 100% 100%);"
 			title="Inaktiv deltagare"
 			aria-label="Inaktiv deltagare"
@@ -454,36 +569,53 @@
 	{/if}
 
 	{#if !booking.isPersonalBooking}
-		<div class="relative z-10 flex flex-row">
+		<div class="relative z-10 flex w-full flex-row overflow-hidden">
 			<div
-				class="relative flex items-center justify-center gap-2 rounded-xs px-1"
+				class="relative flex min-w-0 items-center justify-center gap-2 rounded-xs px-1"
 				style="color: {bookingColor}"
 			>
-				{#if showIcon}
+				{#if effectiveShowIcon}
 					<svelte:component this={bookingIcon} size="20px" extraClasses="relative z-10" />
 				{/if}
 
-				<div class="flex flex-row text-xs">
-					<div class="flex flex-col gap-1 text-left whitespace-nowrap">
-						<p class="" bind:this={trainerNameElement} class:hidden={trainerDisplayMode === 'none'}>
-							{resolveTrainerDisplay(trainerDisplayMode)}
-						</p>
-						<p bind:this={clientNameElement} class:hidden={participantDisplayMode === 'none'}>
-							{resolveParticipantDisplay(participantDisplayMode)}
-						</p>
+				<div class="flex min-w-0 flex-row text-xs">
+					<div class="flex min-w-0 flex-col gap-1 text-left whitespace-nowrap">
+						{#if shouldUseCompactContent}
+							<p class="max-w-full truncate">
+								{resolveTrainerDisplay(compactTrainerDisplayMode)}
+							</p>
+							<p class="max-w-full truncate">
+								{resolveParticipantDisplay(compactParticipantDisplayMode)}
+							</p>
+						{:else}
+							<p
+								class=""
+								bind:this={trainerNameElement}
+								class:hidden={trainerDisplayMode === 'none'}
+							>
+								{resolveTrainerDisplay(trainerDisplayMode)}
+							</p>
+							<p bind:this={clientNameElement} class:hidden={participantDisplayMode === 'none'}>
+								{resolveParticipantDisplay(participantDisplayMode)}
+							</p>
+						{/if}
 					</div>
 				</div>
 			</div>
 		</div>
 	{:else}
-		<div class="relative z-10 flex w-full flex-col text-xs">
-			<p
-				class={`personal-text ${isMeetingSlot() ? 'personal-text--single' : ''}`}
-				bind:this={personalTextElement}
-				style={`-webkit-line-clamp: ${personalLineClamp}; line-clamp: ${personalLineClamp};`}
-			>
-				{personalDisplayText}
-			</p>
+		<div class="relative z-10 flex w-full flex-col overflow-hidden text-xs">
+			{#if shouldUseCompactContent}
+				<p class="max-w-full truncate">{getCompactPersonalDisplay()}</p>
+			{:else}
+				<p
+					class={`personal-text ${isMeetingSlot() ? 'personal-text--single' : ''}`}
+					bind:this={personalTextElement}
+					style={`-webkit-line-clamp: ${personalLineClamp}; line-clamp: ${personalLineClamp};`}
+				>
+					{personalDisplayText}
+				</p>
+			{/if}
 		</div>
 	{/if}
 </button>

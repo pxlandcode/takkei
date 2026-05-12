@@ -14,7 +14,6 @@ import type {
 import { fetchHolidays as fetchHolidayRange } from '$lib/services/api/holidayService';
 import type { FullBooking } from '$lib/types/calendarTypes';
 import type { Holiday } from '$lib/types/holiday';
-import { loadingStore } from './loading';
 import { getCachedJson } from '$lib/services/api/apiCache';
 
 /**
@@ -178,13 +177,20 @@ const createCalendarStore = () => {
 		persistFiltersToCookie(nextFilters);
 	}
 
-	function startLoading(text: string = 'Hämtar kalender...') {
+	function beginRefreshState(nextFilters?: CalendarFilters) {
 		pendingRequests += 1;
-		if (pendingRequests === 1) {
-			update((store) => ({ ...store, isLoading: true }));
-			if (isBrowser) {
-				loadingStore.loading(true, text);
-			}
+		const shouldMarkLoading = pendingRequests === 1;
+
+		if (nextFilters || shouldMarkLoading) {
+			update((store) => ({
+				...store,
+				...(nextFilters ? { filters: nextFilters } : {}),
+				...(shouldMarkLoading ? { isLoading: true } : {})
+			}));
+		}
+
+		if (nextFilters) {
+			persistFiltersToCookie(nextFilters);
 		}
 	}
 
@@ -193,9 +199,6 @@ const createCalendarStore = () => {
 		pendingRequests -= 1;
 		if (pendingRequests === 0) {
 			update((store) => ({ ...store, isLoading: false }));
-			if (isBrowser) {
-				loadingStore.loading(false);
-			}
 		}
 	}
 
@@ -203,7 +206,11 @@ const createCalendarStore = () => {
 	 * Fetch & Update Bookings based on current filters
 	 */
 
-	async function refresh(fetchFn: typeof fetch, overrideFilters?: CalendarFilters): Promise<void> {
+	async function refresh(
+		fetchFn: typeof fetch,
+		overrideFilters?: CalendarFilters,
+		options?: { loadingStarted?: boolean }
+	): Promise<void> {
 		const requestId = ++latestRequestId;
 		const base = { ...(overrideFilters ?? getCurrentFilters()) };
 
@@ -217,14 +224,9 @@ const createCalendarStore = () => {
 			base.personalBookings = computePersonalBookingsFlag(base);
 		}
 
-		update((store) => ({
-			...store,
-			availability: {},
-			blockedDays: {},
-			holidays: [],
-			holidaySet: new Set()
-		}));
-		startLoading();
+		if (!options?.loadingStarted) {
+			beginRefreshState();
+		}
 
 		try {
 			const urls = buildBookingUrls(base, undefined, 0, false);
@@ -332,8 +334,8 @@ const createCalendarStore = () => {
 			merged.personalBookings = computePersonalBookingsFlag(merged);
 		}
 
-		setFiltersState(merged);
-		await refresh(fetchFn, merged);
+		beginRefreshState(merged);
+		await refresh(fetchFn, merged, { loadingStarted: true });
 	}
 
 	async function setNewFilters(
@@ -350,8 +352,8 @@ const createCalendarStore = () => {
 			filters.personalBookings = computePersonalBookingsFlag(filters);
 		}
 
-		setFiltersState(filters);
-		await refresh(fetchFn, filters);
+		beginRefreshState(filters);
+		await refresh(fetchFn, filters, { loadingStarted: true });
 	}
 	/**
 	 * Set Week (from Monday → Sunday)
@@ -529,11 +531,13 @@ const createCalendarStore = () => {
 			...(needsWeekUpdate ? { from: weekStart, to: weekEnd } : {})
 		};
 
-		setFiltersState(nextFilters);
-
 		if (needsWeekUpdate) {
-			await refresh(fetchFn);
+			beginRefreshState(nextFilters);
+			await refresh(fetchFn, nextFilters, { loadingStarted: true });
+			return;
 		}
+
+		setFiltersState(nextFilters);
 	}
 
 	return {

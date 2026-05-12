@@ -67,6 +67,10 @@
 		emptySlots: { top: number; start: Date }[];
 		unavailableBlocks: UnavailableBlock[];
 	};
+	type PreparedDayBookings = {
+		layout: LayoutInfo[];
+		bookingRanges: TimestampRange[];
+	};
 
 	let calendarContainer: HTMLDivElement | null = null;
 
@@ -367,17 +371,6 @@
 		const columnCount = pinnedLayout?.columnCount ?? 1;
 		return { slot, dayIndex, booking, top, height, columnIndex, columnCount };
 	});
-
-	const layoutByDay = $derived(
-		weekDays.map((_, dayIndex) => {
-			const dayBookings = bookingsByDay[dayIndex] ?? [];
-			if (pinnedSlotView && pinnedSlotView.dayIndex === dayIndex) {
-				const combined = layoutDayBookings([...dayBookings, pinnedSlotView.booking]);
-				return combined.filter((layout) => layout.booking !== pinnedSlotView.booking);
-			}
-			return layoutDayBookings(dayBookings);
-		})
-	);
 
 	type LocationSummary = {
 		id: number;
@@ -738,9 +731,10 @@
 			return splitLaneSummaries.map((lane) => {
 				if (lane.kind === 'trainer') {
 					const trainerBookings = laneBookings.get(lane.key) ?? [];
-					const slotRenderState = buildDaySlotRenderState(
+					const preparedBookings = prepareDayBookings(trainerBookings);
+					const slotRenderState = buildDaySlotRenderStateFromRanges(
 						fullDate,
-						trainerBookings,
+						preparedBookings.bookingRanges,
 						filters,
 						availability,
 						blockedDays,
@@ -752,7 +746,7 @@
 						title: lane.title,
 						shortLabel: lane.shortLabel,
 						accentColor: lane.accentColor,
-						layout: layoutDayBookings(trainerBookings),
+						layout: preparedBookings.layout,
 						unavailableBlocks: slotRenderState.unavailableBlocks,
 						emptySlots: slotRenderState.emptySlots,
 						locationId: null,
@@ -763,9 +757,10 @@
 
 				if (lane.kind === 'location') {
 					const locationBookings = laneBookings.get(lane.key) ?? [];
-					const slotRenderState = buildDaySlotRenderState(
+					const preparedBookings = prepareDayBookings(locationBookings);
+					const slotRenderState = buildDaySlotRenderStateFromRanges(
 						fullDate,
-						locationBookings,
+						preparedBookings.bookingRanges,
 						filters,
 						availability,
 						blockedDays
@@ -776,7 +771,7 @@
 						title: lane.title,
 						shortLabel: lane.shortLabel,
 						accentColor: lane.accentColor,
-						layout: layoutDayBookings(locationBookings),
+						layout: preparedBookings.layout,
 						unavailableBlocks: slotRenderState.unavailableBlocks,
 						emptySlots: slotRenderState.emptySlots,
 						locationId: lane.id,
@@ -786,9 +781,10 @@
 				}
 
 				const clientBookings = laneBookings.get(lane.key) ?? [];
-				const slotRenderState = buildDaySlotRenderState(
+				const preparedBookings = prepareDayBookings(clientBookings);
+				const slotRenderState = buildDaySlotRenderStateFromRanges(
 					fullDate,
-					clientBookings,
+					preparedBookings.bookingRanges,
 					filters,
 					availability,
 					blockedDays
@@ -799,7 +795,7 @@
 					title: lane.title,
 					shortLabel: lane.shortLabel,
 					accentColor: lane.accentColor,
-					layout: layoutDayBookings(clientBookings),
+					layout: preparedBookings.layout,
 					unavailableBlocks: slotRenderState.unavailableBlocks,
 					emptySlots: slotRenderState.emptySlots,
 					locationId: null,
@@ -810,8 +806,33 @@
 		});
 	});
 
-	const daySlotRenderStateByDay = $derived.by(() =>
-		weekDays.map(({ fullDate }, idx) =>
+	const layoutByDay = $derived.by(() => {
+		if (shouldSplitBySelectedFilters) {
+			return weekDays.map(() => [] as LayoutInfo[]);
+		}
+
+		return weekDays.map((_, dayIndex) => {
+			const dayBookings = bookingsByDay[dayIndex] ?? [];
+			if (pinnedSlotView && pinnedSlotView.dayIndex === dayIndex) {
+				const combined = layoutDayBookings([...dayBookings, pinnedSlotView.booking]);
+				return combined.filter((layout) => layout.booking !== pinnedSlotView.booking);
+			}
+			return layoutDayBookings(dayBookings);
+		});
+	});
+
+	const daySlotRenderStateByDay = $derived.by(() => {
+		if (shouldSplitBySelectedFilters) {
+			return weekDays.map(
+				() =>
+					({
+						emptySlots: [],
+						unavailableBlocks: []
+					}) satisfies DaySlotRenderState
+			);
+		}
+
+		return weekDays.map(({ fullDate }, idx) =>
 			buildDaySlotRenderState(
 				fullDate,
 				bookingsByDay[idx] ?? [],
@@ -819,8 +840,8 @@
 				availability,
 				blockedDays
 			)
-		)
-	);
+		);
+	});
 
 	const emptySlotBlocksByDay = $derived.by(() =>
 		daySlotRenderStateByDay.map(({ emptySlots }) => emptySlots)
@@ -952,7 +973,17 @@
 		return merged;
 	}
 
-	function buildBookingTimestampRanges(bookingsForDay: FullBooking[]): TimestampRange[] {
+	function sortBookingsByStart(bookingsForDay: FullBooking[]): FullBooking[] {
+		if (bookingsForDay.length <= 1) {
+			return [...bookingsForDay];
+		}
+
+		return [...bookingsForDay].sort((a, b) => getStart(a) - getStart(b));
+	}
+
+	function buildBookingTimestampRangesFromSortedBookings(
+		bookingsForDay: FullBooking[]
+	): TimestampRange[] {
 		return bookingsForDay
 			.map((booking) => ({
 				startMs: getStart(booking),
@@ -963,8 +994,11 @@
 					Number.isFinite(range.startMs) &&
 					Number.isFinite(range.endMs) &&
 					range.endMs > range.startMs
-			)
-			.sort((a, b) => a.startMs - b.startMs || a.endMs - b.endMs);
+			);
+	}
+
+	function buildBookingTimestampRanges(bookingsForDay: FullBooking[]): TimestampRange[] {
+		return buildBookingTimestampRangesFromSortedBookings(sortBookingsByStart(bookingsForDay));
 	}
 
 	function resolveAvailableMinuteRanges(
@@ -992,13 +1026,12 @@
 		return normalizeMinuteRanges(parsed);
 	}
 
-	function layoutDayBookings(bookingsForDay: FullBooking[]): LayoutInfo[] {
-		const sortedBookings = [...bookingsForDay].sort((a, b) => getStart(a) - getStart(b));
+	function layoutSortedDayBookings(bookingsForDay: FullBooking[]): LayoutInfo[] {
 		const results: LayoutInfo[] = [];
 		const layoutByBooking = new Map<FullBooking, LayoutInfo>();
 		let active: { layout: LayoutInfo; endTime: number }[] = [];
 
-		for (const booking of sortedBookings) {
+		for (const booking of bookingsForDay) {
 			const start = getStart(booking);
 			const end = getEnd(booking);
 
@@ -1028,6 +1061,18 @@
 		}
 
 		return results;
+	}
+
+	function layoutDayBookings(bookingsForDay: FullBooking[]): LayoutInfo[] {
+		return layoutSortedDayBookings(sortBookingsByStart(bookingsForDay));
+	}
+
+	function prepareDayBookings(bookingsForDay: FullBooking[]): PreparedDayBookings {
+		const sortedBookings = sortBookingsByStart(bookingsForDay);
+		return {
+			layout: layoutSortedDayBookings(sortedBookings),
+			bookingRanges: buildBookingTimestampRangesFromSortedBookings(sortedBookings)
+		};
 	}
 
 	function shouldShowSplitSlotTime(
@@ -1425,9 +1470,9 @@
 		return results;
 	}
 
-	function buildDaySlotRenderState(
+	function buildDaySlotRenderStateFromRanges(
 		dayDateInput: Date,
-		dayBookings: FullBooking[],
+		bookingRanges: TimestampRange[],
 		currentFilters: CalendarFilters | undefined,
 		availabilityByTrainer: CalendarAvailability,
 		blockedDaysByTrainer: CalendarBlockedDays,
@@ -1447,11 +1492,28 @@
 			trainerId
 		);
 
-		const bookingRanges = buildBookingTimestampRanges(dayBookings);
 		return {
 			emptySlots: buildEmptySlotBlocksFromState(dayDate, bookingRanges, availabilityState),
 			unavailableBlocks: buildUnavailableBlocksFromAvailability(availabilityState)
 		};
+	}
+
+	function buildDaySlotRenderState(
+		dayDateInput: Date,
+		dayBookings: FullBooking[],
+		currentFilters: CalendarFilters | undefined,
+		availabilityByTrainer: CalendarAvailability,
+		blockedDaysByTrainer: CalendarBlockedDays,
+		trainerId?: number | null
+	): DaySlotRenderState {
+		return buildDaySlotRenderStateFromRanges(
+			dayDateInput,
+			buildBookingTimestampRanges(dayBookings),
+			currentFilters,
+			availabilityByTrainer,
+			blockedDaysByTrainer,
+			trainerId
+		);
 	}
 
 	function openBookingPopup(
@@ -1471,6 +1533,12 @@
 	function handleDaySelection(fullDate: Date) {
 		if (!fullDate) return;
 		dispatch('daySelected', { date: ymdLocal(fullDate) });
+	}
+
+	function getEmptySlotTooltip(slotStart: Date) {
+		return {
+			content: `${slotStart.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - ${new Date(slotStart.getTime() + 60 * 60 * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+		};
 	}
 
 	onMount(() => {
@@ -1733,9 +1801,7 @@
 													column.trainerId,
 													column.clientId
 												)}
-											use:tooltip={{
-												content: `${slot.start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - ${new Date(slot.start.getTime() + 60 * 60 * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
-											}}
+											use:tooltip={singleDayView ? getEmptySlotTooltip(slot.start) : undefined}
 										>
 											{#if singleDayView || shouldShowSplitSlotTime(dayColumns, columnIndex, slot.start)}
 												<span class="empty-slot-time">
@@ -1752,6 +1818,8 @@
 											booking={layoutItem.booking}
 											{startHour}
 											{hourHeight}
+											laneCount={dayColumns.length}
+											compact={true}
 											columnIndex={layoutItem.columnIndex}
 											columnCount={layoutItem.columnCount}
 											onbookingselected={(event) =>
@@ -1785,9 +1853,7 @@
 							class="hover:bg-orange/20 absolute right-0 left-0 cursor-pointer"
 							style="top: {slot.top}px; height: {hourHeight}px; z-index: 0;"
 							on:click={() => openBookingPopup(slot.start)}
-							use:tooltip={{
-								content: `${slot.start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - ${new Date(slot.start.getTime() + 60 * 60 * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
-							}}
+							use:tooltip={singleDayView ? getEmptySlotTooltip(slot.start) : undefined}
 						>
 							<span class="empty-slot-time">
 								{slot.start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -1903,10 +1969,7 @@
 	}
 
 	.calendar-location-header {
-		position: sticky;
-		top: 0;
 		z-index: 5;
-		backdrop-filter: blur(2px);
 	}
 
 	.empty-slot-time {
