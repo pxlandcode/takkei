@@ -1,10 +1,12 @@
 import { writable } from 'svelte/store';
 import {
+	buildUsersAvailabilityUrl,
 	buildBookingUrls,
 	fetchBookings,
 	fetchUsersAvailability,
 	transformBooking,
-	transformPersonalBooking
+	transformPersonalBooking,
+	type UsersAvailabilityResponse
 } from '$lib/services/api/calendarService';
 import type {
 	UserAvailabilityMap,
@@ -252,6 +254,21 @@ const createCalendarStore = () => {
 			const trainerIds = Array.isArray(base.trainerIds)
 				? base.trainerIds.filter((id): id is number => typeof id === 'number')
 				: [];
+
+			const cachedAvailability =
+				trainerIds.length > 0 && base.from && base.to
+					? getCachedJson<UsersAvailabilityResponse>(
+							buildUsersAvailabilityUrl(trainerIds, base.from, base.to)
+						)
+					: null;
+
+			if (cachedAvailability) {
+				update((store) => ({
+					...store,
+					availability: cachedAvailability.availability ?? {},
+					blockedDays: cachedAvailability.blockedDays ?? {}
+				}));
+			}
 
 			const bookingsPromise = fetchBookings(base, fetchFn);
 			const availabilityPromise: Promise<CalendarAvailabilityPayload> =

@@ -22,6 +22,14 @@ export type UsersAvailabilityResponse = {
 	blockedDays: Record<number, UserBlockedDaysMap>;
 };
 
+export function buildUsersAvailabilityUrl(userIds: number[], from: string, to: string): string {
+	const params = new URLSearchParams({ from, to });
+	for (const userId of [...userIds].filter(Number.isFinite).sort((a, b) => a - b)) {
+		params.append('userId', String(userId));
+	}
+	return `/api/availability/users-availability?${params.toString()}`;
+}
+
 function collectPersonalBookingUserIds(raw: any): number[] {
 	const ids = new Set<number>();
 	const add = (value: unknown) => {
@@ -323,13 +331,7 @@ export async function fetchUsersAvailability(
 	fetchFn: typeof fetch = fetch
 ): Promise<UsersAvailabilityResponse> {
 	const cachedFetch = wrapFetch(fetchFn);
-	const params = new URLSearchParams({ from, to });
-	for (const userId of userIds) {
-		if (!Number.isFinite(userId)) continue;
-		params.append('userId', String(userId));
-	}
-
-	const res = await cachedFetch(`/api/availability/users-availability?${params.toString()}`);
+	const res = await cachedFetch(buildUsersAvailabilityUrl(userIds, from, to));
 	if (!res.ok) throw new Error('Kunde inte hämta tillgänglighet');
 	return await res.json();
 }
