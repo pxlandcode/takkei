@@ -372,21 +372,6 @@
 		return { slot, dayIndex, booking, top, height, columnIndex, columnCount };
 	});
 
-	const layoutByDay = $derived.by(() => {
-		if (shouldSplitBySelectedFilters) {
-			return weekDays.map(() => [] as LayoutInfo[]);
-		}
-
-		return weekDays.map((_, dayIndex) => {
-			const dayBookings = bookingsByDay[dayIndex] ?? [];
-			if (pinnedSlotView && pinnedSlotView.dayIndex === dayIndex) {
-				const combined = layoutDayBookings([...dayBookings, pinnedSlotView.booking]);
-				return combined.filter((layout) => layout.booking !== pinnedSlotView.booking);
-			}
-			return layoutDayBookings(dayBookings);
-		});
-	});
-
 	type LocationSummary = {
 		id: number;
 		name: string;
@@ -818,6 +803,21 @@
 					clientId: lane.id
 				};
 			});
+		});
+	});
+
+	const layoutByDay = $derived.by(() => {
+		if (shouldSplitBySelectedFilters) {
+			return weekDays.map(() => [] as LayoutInfo[]);
+		}
+
+		return weekDays.map((_, dayIndex) => {
+			const dayBookings = bookingsByDay[dayIndex] ?? [];
+			if (pinnedSlotView && pinnedSlotView.dayIndex === dayIndex) {
+				const combined = layoutDayBookings([...dayBookings, pinnedSlotView.booking]);
+				return combined.filter((layout) => layout.booking !== pinnedSlotView.booking);
+			}
+			return layoutDayBookings(dayBookings);
 		});
 	});
 
@@ -1818,6 +1818,7 @@
 											booking={layoutItem.booking}
 											{startHour}
 											{hourHeight}
+											laneCount={dayColumns.length}
 											compact={true}
 											columnIndex={layoutItem.columnIndex}
 											columnCount={layoutItem.columnCount}

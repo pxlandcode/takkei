@@ -22,6 +22,7 @@
 		booking: FullBooking;
 		startHour: number;
 		hourHeight: number;
+		laneCount?: number;
 		columnIndex?: number;
 		columnCount?: number;
 		compact?: boolean;
@@ -35,6 +36,7 @@
 		booking,
 		startHour,
 		hourHeight,
+		laneCount = 1,
 		columnIndex = 0,
 		columnCount = 1,
 		compact = false,
@@ -89,7 +91,11 @@
 	const meetingHeight = $derived(getMeetingHeight(booking.booking.startTime, endTime, hourHeight));
 	const bookingColor = $derived(booking.location?.color ?? '#000000');
 	const isSelectedVariant = $derived(variant === 'selected');
-	const shouldUseAdaptiveLayout = $derived(!compact);
+	const compactWidthPressure = $derived(
+		Math.max(1, columnCount) * Math.max(1, compact ? laneCount : 1)
+	);
+	const shouldUseCompactContent = $derived(compactWidthPressure > 1);
+	const shouldUseAdaptiveLayout = $derived(!shouldUseCompactContent);
 	const effectiveShowIcon = $derived(shouldUseAdaptiveLayout && showIcon);
 
 	const colWidth = $derived(100 / columnCount);
@@ -195,19 +201,89 @@
 		return full || (isTraineeParticipant() ? 'Trainee saknas' : 'Klient saknas');
 	}
 
-	function getCompactTrainerDisplay() {
-		return getTrainerLastName() || trainerInitials;
-	}
-
-	function getCompactParticipantDisplay() {
-		return getParticipantLastName() || getParticipantInitials();
-	}
-
 	function getCompactPersonalDisplay() {
 		const name = booking.personalBooking?.name?.trim();
+		const text = booking.personalBooking?.text?.trim();
+		if (compactWidthPressure <= 2) {
+			return personalDisplayText;
+		}
 		if (name) return name;
-		return isMeetingSlot() ? 'Mote' : 'Personlig bokning';
+		if (compactWidthPressure <= 3 && text) return text;
+		return isMeetingSlot() ? 'Möte' : 'Personlig bokning';
 	}
+
+	function getCompactCharacterBudget(widthPressure: number, mode: 'full' | 'last') {
+		if (mode === 'full') {
+			if (widthPressure <= 1) return 100;
+			if (widthPressure <= 2) return 8;
+			return 0;
+		}
+
+		if (widthPressure <= 1) return 100;
+		if (widthPressure <= 2) return 8;
+		if (widthPressure <= 3) return 5;
+		return 0;
+	}
+
+	function normalizeCompactTextLength(text: string) {
+		return text.replace(/\s+/g, '').length;
+	}
+
+	function getCompactDisplayMode(
+		fullText: string,
+		lastText: string,
+		initialsText: string,
+		widthPressure: number
+	): NameDisplayMode {
+		const normalizedFull = fullText.trim();
+		const normalizedLast = lastText.trim() || normalizedFull;
+		const normalizedInitials = initialsText.trim();
+
+		if (
+			normalizedFull &&
+			normalizeCompactTextLength(normalizedFull) <= getCompactCharacterBudget(widthPressure, 'full')
+		) {
+			return 'full';
+		}
+
+		if (
+			normalizedLast &&
+			normalizeCompactTextLength(normalizedLast) <= getCompactCharacterBudget(widthPressure, 'last')
+		) {
+			return 'last';
+		}
+
+		if (normalizedInitials) {
+			return 'initials';
+		}
+
+		if (normalizedLast) {
+			return 'last';
+		}
+
+		if (normalizedFull) {
+			return 'full';
+		}
+
+		return 'none';
+	}
+
+	const compactTrainerDisplayMode = $derived(
+		getCompactDisplayMode(
+			getTrainerDisplay(),
+			getTrainerLastName(),
+			trainerInitials,
+			compactWidthPressure
+		)
+	);
+	const compactParticipantDisplayMode = $derived(
+		getCompactDisplayMode(
+			getParticipantDisplay(),
+			getParticipantLastName(),
+			getParticipantInitials(),
+			compactWidthPressure
+		)
+	);
 
 	// $: colWidth = 100 / columnCount;
 	// $: colLeft = columnIndex * colWidth;
@@ -294,7 +370,7 @@
 	}
 
 	async function measurePersonalText(_displayText?: string) {
-		if (!isBrowser || !booking.isPersonalBooking || compact) {
+		if (!isBrowser || !booking.isPersonalBooking || shouldUseCompactContent) {
 			personalLineClamp = 1;
 			return;
 		}
@@ -322,7 +398,7 @@
 	}
 
 	async function measureNameWidths(names: NameStrings = nameStrings) {
-		if (!isBrowser || booking.isPersonalBooking || compact) return;
+		if (!isBrowser || booking.isPersonalBooking || shouldUseCompactContent) return;
 		await tick();
 		requestAnimationFrame(() => {
 			if (!trainerNameElement || !clientNameElement) return;
@@ -346,7 +422,7 @@
 	}
 
 	function checkNameWidths() {
-		if (!bookingSlot || booking.isPersonalBooking || compact) return;
+		if (!bookingSlot || booking.isPersonalBooking || shouldUseCompactContent) return;
 
 		const containerWidth = bookingSlot.offsetWidth;
 		const availableWithIcon = Math.max(containerWidth - ICON_SPACE, 0);
@@ -395,17 +471,39 @@
 		await tick(); // Ensure DOM elements are rendered
 
 		isMounted = true;
-		if (compact) {
+		if (shouldUseCompactContent) {
+			showIcon = false;
+			personalLineClamp = 1;
+		} else {
+			if (booking.isPersonalBooking) {
+				void measurePersonalText(personalDisplayText);
+			} else {
+				measureNameWidths(nameStrings);
+			}
+		}
+
+		return () => {
+			if (debounceTimer) clearTimeout(debounceTimer);
+		};
+	});
+
+	$effect(() => {
+		if (!isMounted || !booking) return;
+		if (shouldUseCompactContent) {
 			showIcon = false;
 			personalLineClamp = 1;
 			return;
 		}
-
 		if (booking.isPersonalBooking) {
 			void measurePersonalText(personalDisplayText);
-		} else {
-			measureNameWidths(nameStrings);
+			return;
 		}
+		const names = nameStrings;
+		measureNameWidths(names);
+	});
+
+	$effect(() => {
+		if (!isMounted || !bookingSlot || shouldUseCompactContent) return;
 
 		const resizeObserver = new ResizeObserver(() => {
 			if (debounceTimer) clearTimeout(debounceTimer);
@@ -420,24 +518,12 @@
 			}, 100);
 		});
 
-		if (bookingSlot) {
-			resizeObserver.observe(bookingSlot);
-		}
+		resizeObserver.observe(bookingSlot);
 
 		return () => {
 			resizeObserver.disconnect();
 			if (debounceTimer) clearTimeout(debounceTimer);
 		};
-	});
-
-	$effect(() => {
-		if (!isMounted || !booking || compact) return;
-		if (booking.isPersonalBooking) {
-			void measurePersonalText(personalDisplayText);
-			return;
-		}
-		const names = nameStrings;
-		measureNameWidths(names);
 	});
 </script>
 
@@ -494,9 +580,13 @@
 
 				<div class="flex min-w-0 flex-row text-xs">
 					<div class="flex min-w-0 flex-col gap-1 text-left whitespace-nowrap">
-						{#if compact}
-							<p class="max-w-full truncate">{getCompactTrainerDisplay()}</p>
-							<p class="max-w-full truncate">{getCompactParticipantDisplay()}</p>
+						{#if shouldUseCompactContent}
+							<p class="max-w-full truncate">
+								{resolveTrainerDisplay(compactTrainerDisplayMode)}
+							</p>
+							<p class="max-w-full truncate">
+								{resolveParticipantDisplay(compactParticipantDisplayMode)}
+							</p>
 						{:else}
 							<p
 								class=""
@@ -515,7 +605,7 @@
 		</div>
 	{:else}
 		<div class="relative z-10 flex w-full flex-col overflow-hidden text-xs">
-			{#if compact}
+			{#if shouldUseCompactContent}
 				<p class="max-w-full truncate">{getCompactPersonalDisplay()}</p>
 			{:else}
 				<p
