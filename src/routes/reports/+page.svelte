@@ -7,7 +7,7 @@
 	import ClientReport from '../../components/ui/reports/clientReport/ClientReport.svelte';
 	import BookingReport from '../../components/ui/reports/bookingReport/BookingReport.svelte';
 	import PackageReport from '../../components/ui/reports/packageReport/PackageReport.svelte';
-	import PackageRenewalReport from '../../components/ui/reports/packageRenewalReport/PackageRenewalReport.svelte';
+	import PackageRenewalCombinedReport from '../../components/ui/reports/packageRenewalCombinedReport/PackageRenewalCombinedReport.svelte';
 	import TargetsReport from '../../components/ui/reports/targets/TargetsReport.svelte';
 	import SalaryReport from '../../components/ui/reports/salaryReport/SalaryReport.svelte';
 	import NewClientsReport from '../../components/ui/reports/newClientsReport/NewClientsReport.svelte';
@@ -46,7 +46,7 @@
 		{
 			label: 'Paketförnyelse',
 			icon: 'Package',
-			component: PackageRenewalReport,
+			component: PackageRenewalCombinedReport,
 			requiredRoles: ['Administrator', 'Economy', 'Trainer', 'LocationAdmin']
 		},
 		{
