@@ -13,6 +13,10 @@
 	import Dropdown from '../../../bits/dropdown/Dropdown.svelte';
 	import Input from '../../../bits/Input/Input.svelte';
 
+	export let showHeader = true;
+	export let showExportButton = true;
+	export let embedded = false;
+
 	type PriorityValue = 'attention' | 'urgent' | 'watch' | 'ok' | 'all';
 	type CapacityValue = 'all' | 'full' | 'near_full' | 'open';
 	type ClientValue = 'all' | 'active' | 'inactive';
@@ -438,7 +442,7 @@
 		...locations.map((option) => ({ value: String(option.id), label: option.label }))
 	];
 
-	async function exportExcel() {
+	export async function exportExcel() {
 		let success = false;
 		try {
 			const params = buildParams(false);
@@ -473,15 +477,30 @@
 	}
 </script>
 
-<div class="custom-scrollbar m-4 h-full overflow-x-auto">
-	<div class="mb-4 flex items-center justify-between gap-3">
-		<div class="flex items-center gap-2">
-			<div class="bg-text flex h-7 w-7 items-center justify-center rounded-full text-white">
-				<Icon icon="Package" size="14px" />
+<div class={`custom-scrollbar h-full overflow-x-auto ${embedded ? '' : 'm-4'}`}>
+	{#if showHeader}
+		<div class="mb-4 flex items-center justify-between gap-3">
+			<div class="flex items-center gap-2">
+				<div class="bg-text flex h-7 w-7 items-center justify-center rounded-full text-white">
+					<Icon icon="Package" size="14px" />
+				</div>
+				<h2 class="text-text text-3xl font-semibold">Paketförnyelse</h2>
 			</div>
-			<h2 class="text-text text-3xl font-semibold">Paketförnyelse</h2>
+			{#if showExportButton}
+				<div class="flex justify-end">
+					<Button
+						text="Exportera"
+						variant="primary"
+						iconLeft="Download"
+						iconColor="white"
+						iconSize="12px"
+						on:click={exportExcel}
+					/>
+				</div>
+			{/if}
 		</div>
-		<div class="flex justify-end">
+	{:else if showExportButton}
+		<div class="mb-4 flex justify-end">
 			<Button
 				text="Exportera"
 				variant="primary"
@@ -491,7 +510,7 @@
 				on:click={exportExcel}
 			/>
 		</div>
-	</div>
+	{/if}
 
 	<div class="mb-6 flex flex-col gap-3">
 		<OptionButton
@@ -613,8 +632,11 @@
 
 	{#if summary}
 		<p class="text-text/60 mb-3 text-sm">
-			Genomsnitt kvar att boka: <strong>{summary.avgRemainingByBooked}</strong> pass. Genomsnitt kvar att
-			genomföra: <strong>{summary.avgRemainingByPassed}</strong> pass. Uppdaterad {formatDate(summary.generatedAt, true)}.
+			Genomsnitt kvar att boka: <strong>{summary.avgRemainingByBooked}</strong> pass. Genomsnitt
+			kvar att genomföra: <strong>{summary.avgRemainingByPassed}</strong> pass. Uppdaterad {formatDate(
+				summary.generatedAt,
+				true
+			)}.
 		</p>
 	{/if}
 
