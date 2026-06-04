@@ -22,12 +22,39 @@ export type UsersAvailabilityResponse = {
 	blockedDays: Record<number, UserBlockedDaysMap>;
 };
 
+export type LocationRoomBlockSlot = {
+	startTime: string;
+	endTime: string;
+	label: string | null;
+	reasons: string[];
+	blockedRoomIds: number[];
+};
+
+export type LocationRoomBlocksMap = Record<number, Record<string, LocationRoomBlockSlot[]>>;
+
+export type LocationRoomBlocksResponse = {
+	success: boolean;
+	roomBlocks: LocationRoomBlocksMap;
+};
+
 export function buildUsersAvailabilityUrl(userIds: number[], from: string, to: string): string {
 	const params = new URLSearchParams({ from, to });
 	for (const userId of [...userIds].filter(Number.isFinite).sort((a, b) => a - b)) {
 		params.append('userId', String(userId));
 	}
 	return `/api/availability/users-availability?${params.toString()}`;
+}
+
+export function buildLocationRoomBlocksUrl(
+	locationIds: number[],
+	from: string,
+	to: string
+): string {
+	const params = new URLSearchParams({ from, to });
+	for (const locationId of [...locationIds].filter(Number.isFinite).sort((a, b) => a - b)) {
+		params.append('locationId', String(locationId));
+	}
+	return `/api/calendar/location-room-blocks?${params.toString()}`;
 }
 
 function collectPersonalBookingUserIds(raw: any): number[] {
@@ -170,6 +197,27 @@ export async function fetchBookings(
 		console.error('Error in fetchBookings:', error);
 		return [];
 	}
+}
+
+export async function fetchLocationRoomBlocks(
+	locationIds: number[],
+	from: string,
+	to: string,
+	fetchFn: typeof fetch
+): Promise<LocationRoomBlocksResponse> {
+	const cachedFetch = wrapFetch(fetchFn);
+	const response = await cachedFetch(buildLocationRoomBlocksUrl(locationIds, from, to));
+
+	if (!response.ok) {
+		const errorText = await response.text();
+		throw new Error(`Error fetching room blocks (${response.status}): ${errorText}`);
+	}
+
+	const data = (await response.json()) as LocationRoomBlocksResponse;
+	return {
+		success: data?.success === true,
+		roomBlocks: data?.roomBlocks ?? {}
+	};
 }
 
 /**

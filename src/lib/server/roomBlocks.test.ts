@@ -5,6 +5,7 @@ import {
 	buildRoomBlockTimestamp,
 	createRoomBlocks,
 	evaluateRoomAvailabilityAtStart,
+	listLocationCalendarRoomBlockSlots,
 	RoomBlockHttpError,
 	type RoomAvailabilityContext,
 	type SqlQueryFn
@@ -133,6 +134,65 @@ describe('room block helpers', () => {
 	it('normalizes Stockholm timestamps for inserts', () => {
 		expect(buildRoomBlockTimestamp('2026-04-18', '6:30')).toBe('2026-04-18 06:30:00');
 		expect(buildRoomBlockTimestamp('2026-04-18', '16:00')).toBe('2026-04-18 16:00:00');
+	});
+
+	it('builds calendar room-block overlays for fully unavailable location slots', async () => {
+		const queryFn: SqlQueryFn = async (text, params = []) => {
+			if (text.includes('FROM rooms')) {
+				return [
+					{ id: 2, location_id: 68, name: 'Träningsrum 1', half_hour_start: true, active: true },
+					{ id: 6, location_id: 68, name: 'Träningsrum 2', half_hour_start: true, active: true }
+				];
+			}
+
+			if (text.includes('FROM bookings')) {
+				return [];
+			}
+
+			if (text.includes('FROM unavailable_rooms')) {
+				return [
+					{
+						id: 397,
+						room_id: 2,
+						start_time: '2026-05-01 10:00:00',
+						end_time: '2026-05-01 18:00:00',
+						reason: 'Städning',
+						added_by_id: 4
+					},
+					{
+						id: 398,
+						room_id: 6,
+						start_time: '2026-05-01 13:00:00',
+						end_time: '2026-05-01 22:00:00',
+						reason: 'Städning',
+						added_by_id: 4
+					}
+				];
+			}
+
+			return [];
+		};
+
+		const roomBlocks = await listLocationCalendarRoomBlockSlots({
+			locationIds: [68],
+			from: '2026-05-01',
+			to: '2026-05-01',
+			queryFn
+		});
+
+		expect(roomBlocks).toEqual({
+			68: {
+				'2026-05-01': [
+					{
+						startTime: '13:30',
+						endTime: '17:30',
+						label: 'Städning',
+						reasons: ['Städning'],
+						blockedRoomIds: [2, 6]
+					}
+				]
+			}
+		});
 	});
 });
 

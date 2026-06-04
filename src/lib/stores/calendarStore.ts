@@ -1,9 +1,13 @@
 import { writable } from 'svelte/store';
 import {
 	buildUsersAvailabilityUrl,
+	buildLocationRoomBlocksUrl,
 	buildBookingUrls,
 	fetchBookings,
+	fetchLocationRoomBlocks,
 	fetchUsersAvailability,
+	type LocationRoomBlocksMap,
+	type LocationRoomBlocksResponse,
 	transformBooking,
 	transformPersonalBooking,
 	type UsersAvailabilityResponse
@@ -139,10 +143,15 @@ function computePersonalBookingsFlag(f: CalendarFilters): boolean {
 export type CalendarBlockedDayReason = UserBlockedDayReason;
 export type CalendarAvailability = Record<number, UserAvailabilityMap>;
 export type CalendarBlockedDays = Record<number, UserBlockedDaysMap>;
+export type CalendarLocationRoomBlocks = LocationRoomBlocksMap;
 
 type CalendarAvailabilityPayload = {
 	availability: CalendarAvailability;
 	blockedDays: CalendarBlockedDays;
+};
+
+type CalendarLocationRoomBlocksPayload = {
+	locationRoomBlocks: CalendarLocationRoomBlocks;
 };
 
 type CalendarStoreState = {
@@ -150,6 +159,7 @@ type CalendarStoreState = {
 	bookings: FullBooking[];
 	availability: CalendarAvailability;
 	blockedDays: CalendarBlockedDays;
+	locationRoomBlocks: CalendarLocationRoomBlocks;
 	holidays: Holiday[];
 	holidaySet: Set<string>;
 	isLoading: boolean;
@@ -166,6 +176,7 @@ const createCalendarStore = () => {
 		bookings: [],
 		availability: {},
 		blockedDays: {},
+		locationRoomBlocks: {},
 		holidays: [],
 		holidaySet: new Set(),
 		isLoading: false
@@ -270,6 +281,25 @@ const createCalendarStore = () => {
 				}));
 			}
 
+			const locationIds = Array.isArray(base.locationIds)
+				? base.locationIds.filter((id): id is number => typeof id === 'number')
+				: [];
+			const rangeFrom = base.from ?? base.date ?? new Date().toISOString().slice(0, 10);
+			const rangeTo = base.to ?? base.date ?? rangeFrom;
+			const cachedLocationRoomBlocks =
+				locationIds.length > 0 && rangeFrom && rangeTo
+					? getCachedJson<LocationRoomBlocksResponse>(
+							buildLocationRoomBlocksUrl(locationIds, rangeFrom, rangeTo)
+						)
+					: null;
+
+			if (cachedLocationRoomBlocks) {
+				update((store) => ({
+					...store,
+					locationRoomBlocks: cachedLocationRoomBlocks.roomBlocks ?? {}
+				}));
+			}
+
 			const bookingsPromise = fetchBookings(base, fetchFn);
 			const availabilityPromise: Promise<CalendarAvailabilityPayload> =
 				trainerIds.length > 0 && base.from && base.to
@@ -289,9 +319,22 @@ const createCalendarStore = () => {
 							availability: {},
 							blockedDays: {}
 						} satisfies CalendarAvailabilityPayload);
+			const locationRoomBlocksPromise: Promise<CalendarLocationRoomBlocksPayload> =
+				locationIds.length > 0 && rangeFrom && rangeTo
+					? fetchLocationRoomBlocks(locationIds, rangeFrom, rangeTo, fetchFn)
+							.then((response) => ({
+								locationRoomBlocks: response.roomBlocks ?? {}
+							}))
+							.catch((err) => {
+								console.error('❌ Failed to fetch location room blocks:', err);
+								return {
+									locationRoomBlocks: {}
+								} satisfies CalendarLocationRoomBlocksPayload;
+							})
+					: Promise.resolve({
+							locationRoomBlocks: {}
+						} satisfies CalendarLocationRoomBlocksPayload);
 
-			const rangeFrom = base.from ?? base.date ?? new Date().toISOString().slice(0, 10);
-			const rangeTo = base.to ?? base.date ?? rangeFrom;
 			const holidaysPromise: Promise<Holiday[]> = fetchHolidayRange(
 				{ from: rangeFrom, to: rangeTo },
 				fetchFn
@@ -300,11 +343,13 @@ const createCalendarStore = () => {
 				return [];
 			});
 
-			const [newBookings, availabilityData, newHolidays] = await Promise.all([
-				bookingsPromise,
-				availabilityPromise,
-				holidaysPromise
-			]);
+			const [newBookings, availabilityData, locationRoomBlocksData, newHolidays] =
+				await Promise.all([
+					bookingsPromise,
+					availabilityPromise,
+					locationRoomBlocksPromise,
+					holidaysPromise
+				]);
 
 			if (requestId === latestRequestId) {
 				update((store) => ({
@@ -312,6 +357,7 @@ const createCalendarStore = () => {
 					bookings: newBookings,
 					availability: availabilityData.availability,
 					blockedDays: availabilityData.blockedDays,
+					locationRoomBlocks: locationRoomBlocksData.locationRoomBlocks,
 					holidays: newHolidays,
 					holidaySet: new Set(newHolidays.map((holiday) => holiday.date))
 				}));
@@ -323,6 +369,7 @@ const createCalendarStore = () => {
 					...store,
 					availability: {},
 					blockedDays: {},
+					locationRoomBlocks: {},
 					holidays: [],
 					holidaySet: new Set()
 				}));
