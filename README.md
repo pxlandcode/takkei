@@ -41,6 +41,10 @@ You can preview the production build with `npm run preview`.
 
 ## Database migrations
 
+The app connects to PostgreSQL through `src/lib/db.js`. Production can use `SUPABASE_DATABASE_URL` or `DATABASE_URL`; local development can use `PGUSER`/`PGPASSWORD`/`PGHOST`/`PGPORT`/`PGDATABASE` or a full `DATABASE_URL`. See [`.env.example`](./.env.example) for the supported variables.
+
+For the Heroku Postgres to Supabase move, follow [`docs/supabase-migration.md`](./docs/supabase-migration.md).
+
 Certain features rely on SQL scripts that are not executed automatically. When new scripts are added under the `scripts/` directory, apply them manually against your PostgreSQL database, for example:
 
 ```bash

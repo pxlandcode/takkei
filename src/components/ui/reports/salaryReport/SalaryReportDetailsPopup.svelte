@@ -74,6 +74,10 @@
 		return values.reduce((acc, item) => acc + extractor(item), 0);
 	}
 
+	function formatPrimaryPerson(entry: SalaryReportDetail) {
+		return entry.clientName ?? entry.traineeName ?? 'Okänd person';
+	}
+
 	$: detailBuckets = trainer
 		? [
 				{
@@ -105,6 +109,12 @@
 					label: 'Utbildning',
 					entries: trainer.education,
 					minutes: bucketMinutes(trainer.education, (item) => item.durationMinutes)
+				},
+				{
+					key: 'practice',
+					label: 'Praktik',
+					entries: trainer.practice,
+					minutes: bucketMinutes(trainer.practice, (item) => item.durationMinutes)
 				},
 				{
 					key: 'tryOut',
@@ -165,9 +175,12 @@
 										h ({entry.durationMinutes} min)
 									</p>
 									<p class="text-text/70">
-										{entry.clientName ?? 'Okänd klient'}
+										{formatPrimaryPerson(entry)}
 										{#if entry.customerName}
 											· {entry.customerName}
+										{/if}
+										{#if entry.clientName && entry.traineeName}
+											· Deltagare: {entry.traineeName}
 										{/if}
 										{#if entry.bookingType}
 											· {entry.bookingType}

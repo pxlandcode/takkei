@@ -25,6 +25,7 @@ export type SalaryReportDetail = {
 	customerName: string | null;
 	bookingType: string | null;
 	locationName: string | null;
+	traineeName: string | null;
 };
 
 export type SalaryReportExtraDuty = {
@@ -68,6 +69,7 @@ export type SalaryReportTrainer = {
 	weekendHours: number;
 	holidayHours: number;
 	educationHours: number;
+	practiceHours: number;
 	tryOutHours: number;
 	internalHours: number;
 	totalHours: number;
@@ -83,6 +85,7 @@ export type SalaryReportTrainer = {
 	weekend: SalaryReportDetail[];
 	holiday: SalaryReportDetail[];
 	education: SalaryReportDetail[];
+	practice: SalaryReportDetail[];
 	tryOut: SalaryReportDetail[];
 	internal: SalaryReportDetail[];
 	extraDuties: SalaryReportExtraDuty[];
@@ -144,6 +147,8 @@ type BookingRow = {
 	booking_content_kind: string | null;
 	client_firstname: string | null;
 	client_lastname: string | null;
+	trainee_firstname: string | null;
+	trainee_lastname: string | null;
 	customer_name: string | null;
 	location_name: string | null;
 	status: string | null;
@@ -213,6 +218,7 @@ type TrainerAccumulator = {
 	weekendMinutes: number;
 	holidayMinutes: number;
 	educationMinutes: number;
+	practiceMinutes: number;
 	tryOutMinutes: number;
 	internalMinutes: number;
 	sessionCount: number;
@@ -227,13 +233,21 @@ type TrainerAccumulator = {
 	weekend: SalaryReportDetail[];
 	holiday: SalaryReportDetail[];
 	education: SalaryReportDetail[];
+	practice: SalaryReportDetail[];
 	tryOut: SalaryReportDetail[];
 	internal: SalaryReportDetail[];
 	extraDuties: SalaryReportExtraDuty[];
 	absenceGroups: Map<string, SalaryReportAbsenceGroup>;
 };
 
-type BookingCategory = 'weekday' | 'weekend' | 'holiday' | 'education' | 'tryOut' | 'internal';
+type BookingCategory =
+	| 'weekday'
+	| 'weekend'
+	| 'holiday'
+	| 'education'
+	| 'practice'
+	| 'tryOut'
+	| 'internal';
 
 export function minutesToHours(minutes: number) {
 	if (!minutes) return 0;
@@ -307,6 +321,7 @@ function ensureTrainer(
 			weekendMinutes: 0,
 			holidayMinutes: 0,
 			educationMinutes: 0,
+			practiceMinutes: 0,
 			tryOutMinutes: 0,
 			internalMinutes: 0,
 			sessionCount: 0,
@@ -321,6 +336,7 @@ function ensureTrainer(
 			weekend: [],
 			holiday: [],
 			education: [],
+			practice: [],
 			tryOut: [],
 			internal: [],
 			extraDuties: [],
@@ -449,6 +465,8 @@ function buildBookingsQuery(includeEndTime: boolean) {
                         bc.kind AS booking_content_kind,
                         c.firstname AS client_firstname,
                         c.lastname AS client_lastname,
+                        trainee.firstname AS trainee_firstname,
+                        trainee.lastname AS trainee_lastname,
                         cu.name AS customer_name,
                         l.name AS location_name,
                         b.status
@@ -456,6 +474,7 @@ function buildBookingsQuery(includeEndTime: boolean) {
                  JOIN users u ON u.id = b.trainer_id
                  LEFT JOIN locations tl ON tl.id = u.default_location_id
                  LEFT JOIN clients c ON c.id = b.client_id
+                 LEFT JOIN users trainee ON trainee.id = b.user_id
                  LEFT JOIN customers cu ON cu.id = c.customer_id
                  LEFT JOIN booking_contents bc ON bc.id = b.booking_content_id
 		LEFT JOIN locations l ON l.id = b.location_id
@@ -812,11 +831,14 @@ export async function getSalaryReport(params: SalaryReportParams): Promise<Salar
 		const isHoliday = holidaySet.has(dateKey);
 		const isTryOut = row.try_out === true;
 		const isInternal = row.internal === true;
-		const isEducation = row.education === true || row.internal_education === true;
+		const isEducation = row.education === true;
+		const isPractice = row.internal_education === true;
 
 		let category: BookingCategory;
 		if (isTryOut) {
 			category = 'tryOut';
+		} else if (isPractice) {
+			category = 'practice';
 		} else if (isInternal) {
 			category = 'internal';
 		} else if (isEducation) {
@@ -861,7 +883,8 @@ export async function getSalaryReport(params: SalaryReportParams): Promise<Salar
 			clientName: normalizeClientName(row.client_firstname, row.client_lastname, row.customer_name),
 			customerName: row.customer_name,
 			bookingType: row.booking_content_kind,
-			locationName: row.location_name
+			locationName: row.location_name,
+			traineeName: formatName(row.trainee_firstname, row.trainee_lastname) || null
 		};
 
 		trainer.sessionCount += 1;
@@ -878,6 +901,10 @@ export async function getSalaryReport(params: SalaryReportParams): Promise<Salar
 			case 'education':
 				trainer.educationMinutes += durationMinutes;
 				trainer.education.push(detail);
+				break;
+			case 'practice':
+				trainer.practiceMinutes += durationMinutes;
+				trainer.practice.push(detail);
 				break;
 			case 'weekend':
 				trainer.weekendMinutes += durationMinutes;
@@ -997,6 +1024,7 @@ export async function getSalaryReport(params: SalaryReportParams): Promise<Salar
 		sortDetails(trainer.weekend);
 		sortDetails(trainer.holiday);
 		sortDetails(trainer.education);
+		sortDetails(trainer.practice);
 		sortDetails(trainer.tryOut);
 		sortDetails(trainer.internal);
 
@@ -1019,6 +1047,7 @@ export async function getSalaryReport(params: SalaryReportParams): Promise<Salar
 			trainer.weekendMinutes +
 			trainer.holidayMinutes +
 			trainer.educationMinutes +
+			trainer.practiceMinutes +
 			trainer.tryOutMinutes +
 			trainer.internalMinutes;
 
@@ -1033,6 +1062,7 @@ export async function getSalaryReport(params: SalaryReportParams): Promise<Salar
 			weekendHours: minutesToHours(trainer.weekendMinutes),
 			holidayHours: minutesToHours(trainer.holidayMinutes),
 			educationHours: minutesToHours(trainer.educationMinutes),
+			practiceHours: minutesToHours(trainer.practiceMinutes),
 			tryOutHours: minutesToHours(trainer.tryOutMinutes),
 			internalHours: minutesToHours(trainer.internalMinutes),
 			totalHours: minutesToHours(totalMinutes),
@@ -1048,6 +1078,7 @@ export async function getSalaryReport(params: SalaryReportParams): Promise<Salar
 			weekend: trainer.weekend,
 			holiday: trainer.holiday,
 			education: trainer.education,
+			practice: trainer.practice,
 			tryOut: trainer.tryOut,
 			internal: trainer.internal,
 			extraDuties: trainer.extraDuties,
@@ -1106,6 +1137,7 @@ function formatTotals(trainers: SalaryReportTrainer[]) {
 			acc.weekendHours += trainer.weekendHours;
 			acc.holidayHours += trainer.holidayHours;
 			acc.educationHours += trainer.educationHours;
+			acc.practiceHours += trainer.practiceHours;
 			acc.tryOutHours += trainer.tryOutHours;
 			acc.internalHours += trainer.internalHours;
 			acc.sessionCount += trainer.sessionCount;
@@ -1120,6 +1152,7 @@ function formatTotals(trainers: SalaryReportTrainer[]) {
 			weekendHours: 0,
 			holidayHours: 0,
 			educationHours: 0,
+			practiceHours: 0,
 			tryOutHours: 0,
 			internalHours: 0,
 			sessionCount: 0,
@@ -1148,6 +1181,7 @@ export async function buildSalaryWorkbook(params: SalaryReportParams) {
 		'Helgtimmar',
 		'Helgdagstimmar',
 		'Utbildningstimmar',
+		'Praktiktimmar',
 		'Prova-på-timmar',
 		'Interna timmar',
 		'Antal pass',
@@ -1165,6 +1199,7 @@ export async function buildSalaryWorkbook(params: SalaryReportParams) {
 			formatHours(trainer.weekendHours),
 			formatHours(trainer.holidayHours),
 			formatHours(trainer.educationHours),
+			formatHours(trainer.practiceHours),
 			formatHours(trainer.tryOutHours),
 			formatHours(trainer.internalHours),
 			trainer.sessionCount,
@@ -1181,6 +1216,7 @@ export async function buildSalaryWorkbook(params: SalaryReportParams) {
 	summarySheet.getColumn(7).numFmt = '0.00';
 	summarySheet.getColumn(8).numFmt = '0.00';
 	summarySheet.getColumn(9).numFmt = '0.00';
+	summarySheet.getColumn(10).numFmt = '0.00';
 
 	autoFitColumns(summarySheet);
 	summarySheet.views = [{ state: 'frozen', ySplit: 1 }];
@@ -1195,11 +1231,12 @@ export async function buildSalaryWorkbook(params: SalaryReportParams) {
 	totalsRow.getCell(5).value = formatHours(totals.weekendHours);
 	totalsRow.getCell(6).value = formatHours(totals.holidayHours);
 	totalsRow.getCell(7).value = formatHours(totals.educationHours);
-	totalsRow.getCell(8).value = formatHours(totals.tryOutHours);
-	totalsRow.getCell(9).value = formatHours(totals.internalHours);
-	totalsRow.getCell(10).value = totals.sessionCount;
-	totalsRow.getCell(11).value = totals.approvedExtra;
-	totalsRow.getCell(12).value = totals.pendingExtra;
+	totalsRow.getCell(8).value = formatHours(totals.practiceHours);
+	totalsRow.getCell(9).value = formatHours(totals.tryOutHours);
+	totalsRow.getCell(10).value = formatHours(totals.internalHours);
+	totalsRow.getCell(11).value = totals.sessionCount;
+	totalsRow.getCell(12).value = totals.approvedExtra;
+	totalsRow.getCell(13).value = totals.pendingExtra;
 
 	const obSheet = workbook.addWorksheet('OB-detaljer');
 	obSheet.addRow([
@@ -1212,6 +1249,7 @@ export async function buildSalaryWorkbook(params: SalaryReportParams) {
 		'Total timmar',
 		'Klient',
 		'Kund',
+		'Deltagare',
 		'Typ'
 	]);
 	obSheet.getRow(1).font = { bold: true };
@@ -1229,6 +1267,7 @@ export async function buildSalaryWorkbook(params: SalaryReportParams) {
 				formatHours(booking.durationMinutes / 60),
 				booking.clientName ?? '',
 				booking.customerName ?? '',
+				booking.traineeName ?? '',
 				booking.bookingType ?? ''
 			]);
 		}

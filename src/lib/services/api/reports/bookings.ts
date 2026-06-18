@@ -13,12 +13,14 @@ type DbRow = {
 	status: string | null;
 	client_id: number | null;
 	trainer_id: number | null;
+	trainee_id: number | null;
 	location_id: number | null;
 	room_id: number | null;
 	package_id: number | null;
 	booking_type_key: string;
 	client_name: string | null;
 	trainer_name: string | null;
+	trainee_name: string | null;
 	location_name: string | null;
 	room_name: string | null;
 	booking_content_id: number | null;
@@ -115,6 +117,8 @@ export type BookingReportRow = {
 	clientName: string | null;
 	trainerId: number | null;
 	trainerName: string | null;
+	traineeId: number | null;
+	traineeName: string | null;
 	locationId: number | null;
 	locationName: string | null;
 	roomId: number | null;
@@ -316,6 +320,8 @@ function mapRow(row: DbRow): BookingReportRow {
 		clientName: trimOrNull(row.client_name),
 		trainerId: row.trainer_id,
 		trainerName: trimOrNull(row.trainer_name),
+		traineeId: row.trainee_id,
+		traineeName: trimOrNull(row.trainee_name),
 		locationId: row.location_id,
 		locationName: trimOrNull(row.location_name),
 		roomId: row.room_id,
@@ -397,12 +403,14 @@ WITH booking_base AS (
 		b.status,
 		b.client_id,
 		b.trainer_id,
+		b.user_id AS trainee_id,
 		b.location_id,
 		b.room_id,
 		b.package_id,
 		${bookingTypeExpr} AS booking_type_key,
 		NULLIF(BTRIM(CONCAT_WS(' ', c.firstname, c.lastname)), '') AS client_name,
 		NULLIF(BTRIM(CONCAT_WS(' ', u.firstname, u.lastname)), '') AS trainer_name,
+		NULLIF(BTRIM(CONCAT_WS(' ', trainee.firstname, trainee.lastname)), '') AS trainee_name,
 		l.name AS location_name,
 		r.name AS room_name,
 		bc.id AS booking_content_id,
@@ -421,6 +429,7 @@ WITH booking_base AS (
 	FROM bookings b
 	LEFT JOIN clients c ON c.id = b.client_id
 	LEFT JOIN users u ON u.id = b.trainer_id
+	LEFT JOIN users trainee ON trainee.id = b.user_id
 	LEFT JOIN locations l ON l.id = b.location_id
 	LEFT JOIN rooms r ON r.id = b.room_id
 	LEFT JOIN booking_contents bc ON bc.id = b.booking_content_id
@@ -513,6 +522,7 @@ function buildWhereSql(
 			booking_base.booking_id::text ILIKE ${searchParam}
 			OR COALESCE(booking_base.client_name, '') ILIKE ${searchParam}
 			OR COALESCE(booking_base.trainer_name, '') ILIKE ${searchParam}
+			OR COALESCE(booking_base.trainee_name, '') ILIKE ${searchParam}
 			OR COALESCE(booking_base.location_name, '') ILIKE ${searchParam}
 			OR COALESCE(booking_base.room_name, '') ILIKE ${searchParam}
 			OR COALESCE(booking_base.status, '') ILIKE ${searchParam}
@@ -552,12 +562,14 @@ SELECT
 	booking_base.status,
 	booking_base.client_id,
 	booking_base.trainer_id,
+	booking_base.trainee_id,
 	booking_base.location_id,
 	booking_base.room_id,
 	booking_base.package_id,
 	booking_base.booking_type_key,
 	booking_base.client_name,
 	booking_base.trainer_name,
+	booking_base.trainee_name,
 	booking_base.location_name,
 	booking_base.room_name,
 	booking_base.booking_content_id,
@@ -792,6 +804,7 @@ export async function buildBookingReportWorkbook(
 		'Markeringar',
 		'Klient',
 		'Tränare',
+		'Utbildad/deltagare',
 		'Studio',
 		'Rum',
 		'Typ av träning',
@@ -810,6 +823,7 @@ export async function buildBookingReportWorkbook(
 			row.markings.join(', '),
 			row.clientName ?? '',
 			row.trainerName ?? '',
+			row.traineeName ?? '',
 			row.locationName ?? '',
 			row.roomName ?? '',
 			row.trainingTypeKind ?? '',

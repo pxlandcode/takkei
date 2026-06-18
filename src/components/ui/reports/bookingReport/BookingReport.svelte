@@ -68,6 +68,8 @@
 		clientName: string | null;
 		trainerId: number | null;
 		trainerName: string | null;
+		traineeId: number | null;
+		traineeName: string | null;
 		locationId: number | null;
 		locationName: string | null;
 		roomId: number | null;
@@ -194,6 +196,7 @@
 		},
 		{ label: 'Klient', key: 'client', sort: true, isSearchable: true, width: '170px' },
 		{ label: 'Tränare', key: 'trainer', sort: true, isSearchable: true, width: '170px' },
+		{ label: 'Deltagare', key: 'trainee', sort: true, isSearchable: true, width: '170px' },
 		{ label: 'Studio', key: 'location', sort: true, isSearchable: true, width: '150px' },
 		{ label: 'Rum', key: 'room', sort: true, isSearchable: true, width: '130px' },
 		{ label: 'Pakettyp', key: 'packageArticle', sort: true, isSearchable: true, width: '180px' },
@@ -413,6 +416,17 @@
 					]
 				: (row.trainerName ?? '—');
 
+		const traineeCell =
+			row.traineeId && row.traineeName
+				? [
+						{
+							type: 'link',
+							label: row.traineeName,
+							action: () => onGoToTrainer(row.traineeId)
+						}
+					]
+				: (row.traineeName ?? '—');
+
 		const packageCell =
 			row.packageId !== null
 				? [
@@ -433,6 +447,7 @@
 			trainingType: row.trainingTypeKind ?? '—',
 			client: clientCell,
 			trainer: trainerCell,
+			trainee: traineeCell,
 			location: row.locationName ?? '—',
 			room: row.roomName ?? '—',
 			packageArticle: row.packageArticleName ?? '—',
@@ -1032,7 +1047,7 @@
 		display: none;
 	}
 
-	details[open] > .booking-report-summary .booking-report-summary-chevron {
+	:global(details[open] > .booking-report-summary .booking-report-summary-chevron) {
 		transform: rotate(90deg);
 	}
 </style>

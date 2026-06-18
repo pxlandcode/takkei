@@ -8,6 +8,7 @@ export type SalaryReportDetail = {
 	customerName: string | null;
 	bookingType: string | null;
 	locationName: string | null;
+	traineeName: string | null;
 };
 
 export type SalaryReportExtraDuty = {
@@ -51,6 +52,7 @@ export type SalaryReportTrainer = {
 	weekendHours: number;
 	holidayHours: number;
 	educationHours: number;
+	practiceHours: number;
 	tryOutHours: number;
 	internalHours: number;
 	totalHours: number;
@@ -66,6 +68,7 @@ export type SalaryReportTrainer = {
 	weekend: SalaryReportDetail[];
 	holiday: SalaryReportDetail[];
 	education: SalaryReportDetail[];
+	practice: SalaryReportDetail[];
 	tryOut: SalaryReportDetail[];
 	internal: SalaryReportDetail[];
 	extraDuties: SalaryReportExtraDuty[];

@@ -6,36 +6,98 @@ dotenv.config();
 const { Pool, types } = pkg;
 
 const isProduction = process.env.NODE_ENV === 'production';
-const useProdDb = process.env.USE_PROD_DB === 'true';
+const useRemoteDb = process.env.USE_REMOTE_DB === 'true' || process.env.USE_PROD_DB === 'true';
 
-let connectionString;
-
-// ✅ Priority order:
-if (useProdDb) {
-	// Local or production forced to use production DB
-	connectionString = process.env.DATABASE_URL_PROD;
-	console.log('⚠️  Using PRODUCTION database (from local or prod)');
-} else if (isProduction) {
-	// Heroku production: use Heroku-injected DATABASE_URL
-	connectionString = process.env.DATABASE_URL;
-	console.log('✅ Using Heroku DATABASE_URL (production)');
-} else {
-	// Local dev DB
-	connectionString =
-		process.env.DATABASE_URL ||
-		`postgres://${process.env.PGUSER}:${process.env.PGPASSWORD}@${process.env.PGHOST}:${process.env.PGPORT}/${process.env.PGDATABASE}`;
-	console.log('✅ Using LOCAL database');
+function firstPresent(keys) {
+	return keys.map((key) => process.env[key]).find(Boolean);
 }
 
-const defaultPoolSize = isProduction || useProdDb ? 1 : 10;
+function localConnectionString() {
+	if (process.env.DATABASE_URL) return process.env.DATABASE_URL;
+
+	const requiredKeys = ['PGUSER', 'PGPASSWORD', 'PGHOST', 'PGPORT', 'PGDATABASE'];
+	const missingKeys = requiredKeys.filter((key) => !process.env[key]);
+	if (missingKeys.length) return undefined;
+
+	return `postgres://${process.env.PGUSER}:${process.env.PGPASSWORD}@${process.env.PGHOST}:${process.env.PGPORT}/${process.env.PGDATABASE}`;
+}
+
+function resolveConnection() {
+	if (useRemoteDb) {
+		return {
+			connectionString: firstPresent([
+				'SUPABASE_DATABASE_URL',
+				'DATABASE_URL_PROD',
+				'DATABASE_URL'
+			]),
+			label: 'remote database'
+		};
+	}
+
+	if (isProduction) {
+		const hasSupabaseUrl = Boolean(process.env.SUPABASE_DATABASE_URL);
+		return {
+			connectionString: firstPresent(['SUPABASE_DATABASE_URL', 'DATABASE_URL']),
+			label: hasSupabaseUrl ? 'Supabase database' : 'DATABASE_URL database'
+		};
+	}
+
+	return {
+		connectionString: localConnectionString(),
+		label: 'local database'
+	};
+}
+
+function boolEnv(name) {
+	const value = process.env[name];
+	if (value === undefined || value === '') return undefined;
+	return ['1', 'true', 'yes'].includes(value.toLowerCase());
+}
+
+function connectionRequiresSsl(connectionString) {
+	const explicitSsl = boolEnv('DATABASE_SSL');
+	if (explicitSsl !== undefined) return explicitSsl;
+	if (isProduction || useRemoteDb) return true;
+
+	try {
+		const url = new URL(connectionString);
+		const sslMode = url.searchParams.get('sslmode');
+		if (sslMode === 'disable') return false;
+		if (sslMode) return true;
+
+		return url.hostname.endsWith('.supabase.co') || url.hostname.includes('.pooler.supabase.com');
+	} catch {
+		return false;
+	}
+}
+
+function sslConfig(connectionString) {
+	if (!connectionRequiresSsl(connectionString)) return false;
+
+	return {
+		rejectUnauthorized: process.env.DATABASE_SSL_REJECT_UNAUTHORIZED === 'true'
+	};
+}
+
+const { connectionString, label } = resolveConnection();
+
+if (!connectionString) {
+	throw new Error(
+		'Database connection is not configured. Set DATABASE_URL, SUPABASE_DATABASE_URL, or PGUSER/PGPASSWORD/PGHOST/PGPORT/PGDATABASE.'
+	);
+}
+
+console.log(`Using ${label}`);
+
+const defaultPoolSize = isProduction || useRemoteDb ? 1 : 10;
 
 export const pool = new Pool({
 	connectionString,
-	ssl: isProduction || useProdDb ? { rejectUnauthorized: false } : false,
+	ssl: sslConfig(connectionString),
 	max: Number(process.env.DATABASE_POOL_MAX ?? defaultPoolSize),
 	idleTimeoutMillis: Number(process.env.DATABASE_IDLE_TIMEOUT_MS ?? 10_000),
 	connectionTimeoutMillis: Number(process.env.DATABASE_CONNECTION_TIMEOUT_MS ?? 5_000),
-	allowExitOnIdle: isProduction || useProdDb
+	allowExitOnIdle: isProduction || useRemoteDb
 });
 
 // Detects strings like 'YYYY-MM-DD HH:mm' or 'YYYY-MM-DD HH:mm:ss' or 'YYYY-MM-DD'
