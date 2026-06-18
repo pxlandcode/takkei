@@ -2,8 +2,8 @@ import { json, type RequestHandler } from '@sveltejs/kit';
 import * as db from '$lib/db';
 import { resolveAdministratorRequest } from '$lib/server/adminAccess';
 import { resolvePackageAssignmentForCreate } from '$lib/server/createBookingPackageAssignment';
+import { reallocateFuturePackageAssignmentsForClient } from '$lib/server/packageReallocation';
 import { getStockholmYmd } from '$lib/server/packageSemantics';
-import { enqueuePackageReallocation } from '$lib/server/scheduledItems';
 import type { PoolClient } from 'pg';
 
 type SqlClient = Pick<PoolClient, 'query'>;
@@ -184,10 +184,10 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 			});
 		}
 
-		await enqueuePackageReallocation({
+		const reallocation = await reallocateFuturePackageAssignmentsForClient({
 			client,
 			clientId,
-			createdByEvent: 'saldojustering'
+			actorUserId: trainerId
 		});
 
 		await client.query('COMMIT');
@@ -198,7 +198,8 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 				ok: true,
 				createdCount: created.length,
 				bookingIds: created.map((item) => item.id),
-				packageIds: Array.from(new Set(created.map((item) => item.package_id)))
+				packageIds: Array.from(new Set(created.map((item) => item.package_id))),
+				reallocation
 			},
 			{ status: 201 }
 		);

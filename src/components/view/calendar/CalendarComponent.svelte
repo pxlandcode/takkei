@@ -6,7 +6,8 @@
 		CalendarFilters,
 		CalendarAvailability,
 		CalendarBlockedDays,
-		CalendarBlockedDayReason
+		CalendarBlockedDayReason,
+		CalendarLocationRoomBlocks
 	} from '$lib/stores/calendarStore';
 	import HourSlot from './hour-slot/HourSlot.svelte';
 	import CurrentTimePill from './current-time-pill/CurrentTimePill.svelte';
@@ -43,7 +44,7 @@
 		top: number;
 		height: number;
 		label?: string;
-		reason?: CalendarBlockedDayReason;
+		reason?: CalendarBlockedDayReason | 'room-block';
 	};
 	type LayoutInfo = {
 		booking: FullBooking;
@@ -58,10 +59,15 @@
 		startMin: number;
 		endMin: number;
 	};
+	type LabeledMinuteRange = MinuteRange & {
+		label: string | null;
+		reason: 'room-block';
+	};
 	type ResolvedDayAvailability = {
 		trainerId: number | null;
 		blockedReason: CalendarBlockedDayReason | null;
 		availableRanges: MinuteRange[] | null;
+		roomBlockedRanges: LabeledMinuteRange[];
 	};
 	type DaySlotRenderState = {
 		emptySlots: { top: number; start: Date }[];
@@ -81,6 +87,7 @@
 	const filters = $derived(storeValue.filters);
 	const availability = $derived(storeValue.availability);
 	const blockedDays = $derived(storeValue.blockedDays);
+	const locationRoomBlocks = $derived(storeValue.locationRoomBlocks);
 	const calendarIsLoading = $derived(storeValue.isLoading);
 	const holidays = $derived(storeValue.holidays ?? []);
 	const holidayLookup = $derived.by(() => {
@@ -738,6 +745,7 @@
 						filters,
 						availability,
 						blockedDays,
+						locationRoomBlocks,
 						lane.id
 					);
 					return {
@@ -763,7 +771,10 @@
 						preparedBookings.bookingRanges,
 						filters,
 						availability,
-						blockedDays
+						blockedDays,
+						locationRoomBlocks,
+						undefined,
+						lane.id
 					);
 					return {
 						key: lane.key,
@@ -787,7 +798,8 @@
 					preparedBookings.bookingRanges,
 					filters,
 					availability,
-					blockedDays
+					blockedDays,
+					locationRoomBlocks
 				);
 				return {
 					key: lane.key,
@@ -838,7 +850,8 @@
 				bookingsByDay[idx] ?? [],
 				filters,
 				availability,
-				blockedDays
+				blockedDays,
+				locationRoomBlocks
 			)
 		);
 	});
@@ -950,6 +963,21 @@
 			return null;
 		}
 		return hours * 60 + minutes;
+	}
+
+	function resolveLocationRoomBlockLocationId(
+		currentFilters: CalendarFilters | undefined,
+		locationId?: number | null
+	): number | null {
+		if (typeof locationId === 'number' && Number.isFinite(locationId)) {
+			return locationId;
+		}
+
+		const locationIds = Array.isArray(currentFilters?.locationIds)
+			? currentFilters.locationIds.filter((id): id is number => typeof id === 'number')
+			: [];
+
+		return locationIds.length === 1 ? locationIds[0] : null;
 	}
 
 	function normalizeMinuteRanges(ranges: MinuteRange[]): MinuteRange[] {
@@ -1165,6 +1193,29 @@
 			});
 	}
 
+	function isLocationSlotBlockedByRoomBlocks(locationId: number, startTimeInput: string | Date) {
+		const slotStart = startTimeInput instanceof Date ? startTimeInput : new Date(startTimeInput);
+		if (Number.isNaN(slotStart.getTime())) {
+			return false;
+		}
+
+		const dateKey = ymdLocal(slotStart);
+		const slotStartMin = slotStart.getHours() * 60 + slotStart.getMinutes();
+		const slotEndMin = slotStartMin + 60;
+		const blockedSlots = locationRoomBlocks?.[locationId]?.[dateKey] ?? [];
+
+		return blockedSlots.some((slot) => {
+			const blockedStart = parseTimeToMinutes(slot.startTime);
+			const blockedEnd = parseTimeToMinutes(slot.endTime);
+			return (
+				blockedStart != null &&
+				blockedEnd != null &&
+				slotStartMin >= blockedStart &&
+				slotEndMin <= blockedEnd
+			);
+		});
+	}
+
 	function handleBookingSlotClick(event: MouseEvent, booking: FullBooking) {
 		event.preventDefault();
 		event.stopPropagation();
@@ -1193,6 +1244,11 @@
 		const activeRooms = selectedLocation?.rooms?.filter((room) => room.active) ?? [];
 
 		if (!selectedLocation || activeRooms.length <= 1) {
+			openBookingDetails(booking);
+			return;
+		}
+
+		if (isLocationSlotBlockedByRoomBlocks(bookingLocationId, booking.booking.startTime)) {
 			openBookingDetails(booking);
 			return;
 		}
@@ -1318,12 +1374,48 @@
 		};
 	}
 
+	function resolveLocationRoomBlockedRanges(
+		dayDateInput: Date,
+		currentFilters: CalendarFilters | undefined,
+		locationRoomBlocksByLocation: CalendarLocationRoomBlocks,
+		locationId?: number | null
+	): LabeledMinuteRange[] {
+		const targetLocationId = resolveLocationRoomBlockLocationId(currentFilters, locationId);
+		if (targetLocationId == null) {
+			return [];
+		}
+
+		const dayDate = new Date(dayDateInput);
+		dayDate.setHours(0, 0, 0, 0);
+		const dateStr = ymdLocal(dayDate);
+		const blockedSlots = locationRoomBlocksByLocation?.[targetLocationId]?.[dateStr] ?? [];
+
+		return blockedSlots
+			.map((slot) => {
+				const startMin = parseTimeToMinutes(slot.startTime);
+				const endMin = parseTimeToMinutes(slot.endTime);
+				if (startMin == null || endMin == null || endMin <= startMin) {
+					return null;
+				}
+
+				return {
+					startMin,
+					endMin,
+					label: slot.label ?? 'Rum blockerat',
+					reason: 'room-block' as const
+				};
+			})
+			.filter((range): range is LabeledMinuteRange => range != null);
+	}
+
 	function resolveDayAvailability(
 		dayDateInput: Date,
 		currentFilters: CalendarFilters | undefined,
 		availabilityByTrainer: CalendarAvailability,
 		blockedDaysByTrainer: CalendarBlockedDays,
-		trainerId?: number | null
+		locationRoomBlocksByLocation: CalendarLocationRoomBlocks,
+		trainerId?: number | null,
+		locationId?: number | null
 	): ResolvedDayAvailability {
 		const {
 			trainerId: activeTrainerId,
@@ -1340,7 +1432,13 @@
 		return {
 			trainerId: activeTrainerId,
 			blockedReason,
-			availableRanges: resolveAvailableMinuteRanges(dayAvailability)
+			availableRanges: resolveAvailableMinuteRanges(dayAvailability),
+			roomBlockedRanges: resolveLocationRoomBlockedRanges(
+				dayDateInput,
+				currentFilters,
+				locationRoomBlocksByLocation,
+				locationId
+			)
 		};
 	}
 
@@ -1348,9 +1446,27 @@
 		availabilityState: ResolvedDayAvailability
 	): UnavailableBlock[] {
 		const blocks: UnavailableBlock[] = [];
+		const dayStartMin = startHour * 60;
+		const dayEndMin = (startHour + totalHours) * 60;
+		const roomBlockedUnavailableBlocks = availabilityState.roomBlockedRanges
+			.map((range) => {
+				const clampedStart = Math.max(range.startMin, dayStartMin);
+				const clampedEnd = Math.min(range.endMin, dayEndMin);
+				if (clampedEnd <= clampedStart) {
+					return null;
+				}
+
+				return {
+					top: ((clampedStart - dayStartMin) / 60) * hourHeight,
+					height: ((clampedEnd - clampedStart) / 60) * hourHeight,
+					label: range.label ?? 'Rum blockerat',
+					reason: range.reason
+				} satisfies UnavailableBlock;
+			})
+			.filter((block): block is UnavailableBlock => block != null);
 
 		if (availabilityState.trainerId == null) {
-			return blocks;
+			return roomBlockedUnavailableBlocks;
 		}
 
 		if (availabilityState.blockedReason) {
@@ -1366,7 +1482,7 @@
 
 		const availableRanges = availabilityState.availableRanges;
 		if (availableRanges == null) {
-			return blocks;
+			return roomBlockedUnavailableBlocks;
 		}
 
 		if (availableRanges.length === 0) {
@@ -1374,8 +1490,6 @@
 			return blocks;
 		}
 
-		const dayStartMin = startHour * 60;
-		const dayEndMin = (startHour + totalHours) * 60;
 		let cursor = dayStartMin;
 
 		for (const range of availableRanges) {
@@ -1401,7 +1515,7 @@
 			});
 		}
 
-		return blocks;
+		return [...blocks, ...roomBlockedUnavailableBlocks];
 	}
 
 	function buildEmptySlotBlocksFromState(
@@ -1437,6 +1551,9 @@
 			const isOccupied = Boolean(
 				currentBooking && currentBooking.startMs < slotEndMs && currentBooking.endMs > slotStartMs
 			);
+			const isRoomBlocked = availabilityState.roomBlockedRanges.some(
+				(range) => slotStartMin >= range.startMin && slotEndMin <= range.endMin
+			);
 
 			let isAvailable = true;
 			if (availabilityState.trainerId != null && availableRanges != null) {
@@ -1459,7 +1576,7 @@
 				}
 			}
 
-			if (!isOccupied && isAvailable) {
+			if (!isOccupied && isAvailable && !isRoomBlocked) {
 				results.push({
 					top: (slotIndex * 2 + 1) * (hourHeight / 2),
 					start: new Date(slotStartMs)
@@ -1476,7 +1593,9 @@
 		currentFilters: CalendarFilters | undefined,
 		availabilityByTrainer: CalendarAvailability,
 		blockedDaysByTrainer: CalendarBlockedDays,
-		trainerId?: number | null
+		locationRoomBlocksByLocation: CalendarLocationRoomBlocks,
+		trainerId?: number | null,
+		locationId?: number | null
 	): DaySlotRenderState {
 		if (!dayDateInput) {
 			return { emptySlots: [], unavailableBlocks: [] };
@@ -1489,7 +1608,9 @@
 			currentFilters,
 			availabilityByTrainer,
 			blockedDaysByTrainer,
-			trainerId
+			locationRoomBlocksByLocation,
+			trainerId,
+			locationId
 		);
 
 		return {
@@ -1504,7 +1625,9 @@
 		currentFilters: CalendarFilters | undefined,
 		availabilityByTrainer: CalendarAvailability,
 		blockedDaysByTrainer: CalendarBlockedDays,
-		trainerId?: number | null
+		locationRoomBlocksByLocation: CalendarLocationRoomBlocks,
+		trainerId?: number | null,
+		locationId?: number | null
 	): DaySlotRenderState {
 		return buildDaySlotRenderStateFromRanges(
 			dayDateInput,
@@ -1512,7 +1635,9 @@
 			currentFilters,
 			availabilityByTrainer,
 			blockedDaysByTrainer,
-			trainerId
+			locationRoomBlocksByLocation,
+			trainerId,
+			locationId
 		);
 	}
 

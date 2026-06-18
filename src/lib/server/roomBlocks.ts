@@ -48,6 +48,19 @@ export type RoomAvailabilityResult = {
 	selectedRoomId: number | null;
 };
 
+export type LocationCalendarRoomBlockSlot = {
+	startTime: string;
+	endTime: string;
+	label: string | null;
+	reasons: string[];
+	blockedRoomIds: number[];
+};
+
+export type LocationCalendarRoomBlockMap = Record<
+	number,
+	Record<string, LocationCalendarRoomBlockSlot[]>
+>;
+
 export type CurrentOrFutureRoomBlock = {
 	id: number;
 	roomId: number;
@@ -251,6 +264,25 @@ function resolveNextDayStart(date: string) {
 	return `${addDaysToDateString(date, 1)} 00:00:00`;
 }
 
+function buildTimeString(totalMinutes: number) {
+	const normalizedHours = Math.floor(totalMinutes / 60);
+	const normalizedMinutes = totalMinutes % 60;
+	return `${pad2(normalizedHours)}:${pad2(normalizedMinutes)}`;
+}
+
+function buildDateRange(from: string, to: string) {
+	const startDate = normalizeDateInput(from, 'from');
+	const endDate = normalizeDateInput(to, 'to');
+	const days: string[] = [];
+
+	for (let current = startDate; compareDateStrings(current, endDate) <= 0; ) {
+		days.push(current);
+		current = addDaysToDateString(current, 1);
+	}
+
+	return days;
+}
+
 function assertValidRoomBlockRange(
 	startDate: string,
 	startTime: string,
@@ -288,9 +320,7 @@ async function ensureRoomExists(
 	if (!roomRows.length) {
 		throw new RoomBlockHttpError(400, 'Rummet hittades inte', {
 			roomId:
-				locationId === null
-					? 'Rummet hittades inte'
-					: 'Rummet finns inte på den valda platsen'
+				locationId === null ? 'Rummet hittades inte' : 'Rummet finns inte på den valda platsen'
 		});
 	}
 }
@@ -495,6 +525,200 @@ export function evaluateRoomAvailabilityAtStart({
 		availableRoomIds: availableRooms.map((room) => room.id),
 		selectedRoomId
 	};
+}
+
+function collectBlockedReasonsForAvailabilityResult(
+	context: RoomAvailabilityContext,
+	result: RoomAvailabilityResult
+) {
+	if (
+		result.startEpoch === null ||
+		result.sessionEndEpoch === null ||
+		result.blockedRoomIds.length === 0
+	) {
+		return [];
+	}
+
+	const blockedRoomIdSet = new Set(result.blockedRoomIds);
+	const reasons: string[] = [];
+	const seen = new Set<string>();
+
+	for (const roomBlock of context.roomBlocks) {
+		const roomId = toInt(roomBlock.roomId);
+		const roomBlockStartEpoch = toEpoch(roomBlock.startTime);
+		const roomBlockEndEpoch = toEpoch(roomBlock.endTime);
+		const reason = normalizeReason(roomBlock.reason);
+
+		if (
+			!roomId ||
+			!blockedRoomIdSet.has(roomId) ||
+			roomBlockStartEpoch === null ||
+			roomBlockEndEpoch === null ||
+			reason === null
+		) {
+			continue;
+		}
+
+		if (
+			roomBlockStartEpoch <= result.startEpoch &&
+			roomBlockEndEpoch >= result.sessionEndEpoch &&
+			!seen.has(reason)
+		) {
+			seen.add(reason);
+			reasons.push(reason);
+		}
+	}
+
+	return reasons;
+}
+
+function mergeCalendarRoomBlockSlots(slots: LocationCalendarRoomBlockSlot[]) {
+	if (slots.length <= 1) {
+		return slots;
+	}
+
+	const withMinuteRanges = slots
+		.map((slot) => ({
+			slot,
+			startMinutes: Number(slot.startTime.slice(0, 2)) * 60 + Number(slot.startTime.slice(3, 5)),
+			endMinutes: Number(slot.endTime.slice(0, 2)) * 60 + Number(slot.endTime.slice(3, 5))
+		}))
+		.sort(
+			(left, right) => left.startMinutes - right.startMinutes || left.endMinutes - right.endMinutes
+		);
+
+	const merged: Array<{
+		startMinutes: number;
+		endMinutes: number;
+		reasons: string[];
+		blockedRoomIds: number[];
+	}> = [];
+
+	for (const current of withMinuteRanges) {
+		const previous = merged[merged.length - 1];
+		if (!previous || current.startMinutes > previous.endMinutes) {
+			merged.push({
+				startMinutes: current.startMinutes,
+				endMinutes: current.endMinutes,
+				reasons: [...current.slot.reasons],
+				blockedRoomIds: [...current.slot.blockedRoomIds]
+			});
+			continue;
+		}
+
+		previous.endMinutes = Math.max(previous.endMinutes, current.endMinutes);
+		previous.reasons = Array.from(new Set([...previous.reasons, ...current.slot.reasons]));
+		previous.blockedRoomIds = Array.from(
+			new Set([...previous.blockedRoomIds, ...current.slot.blockedRoomIds])
+		).sort((left, right) => left - right);
+	}
+
+	return merged.map((slot) => ({
+		startTime: buildTimeString(slot.startMinutes),
+		endTime: buildTimeString(slot.endMinutes),
+		label: slot.reasons.length > 0 ? slot.reasons.join(', ') : 'Rum blockerat',
+		reasons: slot.reasons,
+		blockedRoomIds: slot.blockedRoomIds
+	}));
+}
+
+export async function listLocationCalendarRoomBlockSlots({
+	queryFn = query as SqlQueryFn,
+	locationIds,
+	from,
+	to
+}: {
+	queryFn?: SqlQueryFn;
+	locationIds: number[];
+	from: string;
+	to: string;
+}): Promise<LocationCalendarRoomBlockMap> {
+	const normalizedLocationIds = Array.from(
+		new Set(
+			locationIds
+				.map((locationId) => toInt(locationId))
+				.filter((value): value is number => value != null)
+		)
+	).sort((left, right) => left - right);
+
+	if (normalizedLocationIds.length === 0) {
+		return {};
+	}
+
+	const dateRange = buildDateRange(from, to);
+	if (dateRange.length === 0) {
+		return {};
+	}
+
+	const windowStart = resolveDayStart(dateRange[0]!);
+	const windowEnd = resolveNextDayStart(dateRange[dateRange.length - 1]!);
+
+	const contexts = await Promise.all(
+		normalizedLocationIds.map(async (locationId) => ({
+			locationId,
+			context: await loadLocationRoomAvailabilityContext({
+				queryFn,
+				locationId,
+				windowStart,
+				windowEnd
+			})
+		}))
+	);
+
+	const locationRoomBlocks: LocationCalendarRoomBlockMap = {};
+
+	for (const { locationId, context } of contexts) {
+		if (context.rooms.length === 0) continue;
+
+		const daysForLocation: Record<string, LocationCalendarRoomBlockSlot[]> = {};
+
+		for (const date of dateRange) {
+			const blockedSlots: LocationCalendarRoomBlockSlot[] = [];
+
+			for (let hour = 0; hour < 24; hour += 1) {
+				for (const minute of [0, 30] as const) {
+					const startMinutes = hour * 60 + minute;
+					if (startMinutes + 60 >= 24 * 60) {
+						continue;
+					}
+
+					const startTime = `${date} ${buildTimeString(startMinutes)}:00`;
+					const availabilityResult = evaluateRoomAvailabilityAtStart({
+						context,
+						startTime
+					});
+
+					if (
+						availabilityResult.matchingRoomIds.length === 0 ||
+						availabilityResult.availableRoomIds.length > 0 ||
+						availabilityResult.blockedRoomIds.length === 0
+					) {
+						continue;
+					}
+
+					const reasons = collectBlockedReasonsForAvailabilityResult(context, availabilityResult);
+
+					blockedSlots.push({
+						startTime: buildTimeString(startMinutes),
+						endTime: buildTimeString(startMinutes + 60),
+						label: reasons.length > 0 ? reasons.join(', ') : 'Rum blockerat',
+						reasons,
+						blockedRoomIds: [...availabilityResult.blockedRoomIds]
+					});
+				}
+			}
+
+			if (blockedSlots.length > 0) {
+				daysForLocation[date] = mergeCalendarRoomBlockSlots(blockedSlots);
+			}
+		}
+
+		if (Object.keys(daysForLocation).length > 0) {
+			locationRoomBlocks[locationId] = daysForLocation;
+		}
+	}
+
+	return locationRoomBlocks;
 }
 
 export async function findAvailableRoomForStart({
@@ -741,7 +965,7 @@ export async function updateRoomBlock(
 	}
 
 	const updatedId = toInt(updatedRows[0]?.id);
-	return updatedId ? (await fetchRoomBlocksByIds(queryFn, [updatedId]))[0] ?? null : null;
+	return updatedId ? ((await fetchRoomBlocksByIds(queryFn, [updatedId]))[0] ?? null) : null;
 }
 
 export async function deleteRoomBlock(id: number, queryFn: SqlQueryFn = query as SqlQueryFn) {

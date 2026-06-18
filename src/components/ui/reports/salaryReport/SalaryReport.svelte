@@ -123,6 +123,7 @@
 		{ label: 'Helgtimmar', key: 'weekendHours', sort: true },
 		{ label: 'Helgdagstimmar', key: 'holidayHours', sort: true },
 		{ label: 'Utbildning', key: 'educationHours', sort: true },
+		{ label: 'Praktik', key: 'practiceHours', sort: true },
 		{ label: 'Prova-på', key: 'tryOutHours', sort: true },
 		{ label: 'Interna', key: 'internalHours', sort: true },
 		{ label: 'Pass', key: 'sessionCount', sort: true },
@@ -146,8 +147,7 @@
 		fetchReport();
 	}
 
-	$: if (filtersReady) {
-		searchQuery;
+	$: if (filtersReady && searchQuery !== undefined) {
 		debouncedSearch();
 	}
 
@@ -189,6 +189,7 @@
 			weekendHours: trainer.weekendHours,
 			holidayHours: trainer.holidayHours,
 			educationHours: trainer.educationHours,
+			practiceHours: trainer.practiceHours,
 			tryOutHours: trainer.tryOutHours,
 			internalHours: trainer.internalHours,
 			sessionCount: trainer.sessionCount,

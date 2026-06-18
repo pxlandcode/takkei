@@ -1,8 +1,8 @@
 import { json, type RequestHandler } from '@sveltejs/kit';
 import * as db from '$lib/db';
 import { resolveAdministratorRequest } from '$lib/server/adminAccess';
+import { reallocateFuturePackageAssignmentsForClient } from '$lib/server/packageReallocation';
 import { isSaldoAdjustmentBooking } from '$lib/server/packageSemantics';
-import { enqueuePackageReallocation } from '$lib/server/scheduledItems';
 import type { PoolClient } from 'pg';
 
 type SqlClient = Pick<PoolClient, 'query'>;
@@ -78,10 +78,10 @@ export const DELETE: RequestHandler = async ({ params, locals }) => {
 
 		const clientId = Number(booking.client_id);
 		if (Number.isInteger(clientId) && clientId > 0) {
-			await enqueuePackageReallocation({
+			await reallocateFuturePackageAssignmentsForClient({
 				client,
 				clientId,
-				createdByEvent: 'saldojustering_delete'
+				actorUserId: trainerId
 			});
 		}
 
