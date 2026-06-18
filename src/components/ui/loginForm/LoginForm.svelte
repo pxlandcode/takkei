@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { calendarStore } from '$lib/stores/calendarStore';
 	import { user } from '$lib/stores/userStore';
 	import type { AuthenticatedUser } from '$lib/types/userTypes';
 	import Button from '../../bits/button/Button.svelte';
@@ -14,6 +13,7 @@
 		try {
 			const response = await fetch('/api/login', {
 				method: 'POST',
+				credentials: 'same-origin',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({ email, password, rememberMe })
 			});
@@ -28,8 +28,6 @@
 			user.set(account);
 
 			if (account.kind === 'trainer') {
-				const trainerIds = account.id ? [account.id] : null;
-				calendarStore.updateFilters({ trainerIds }, fetch);
 				goto('/');
 			} else {
 				goto('/client');

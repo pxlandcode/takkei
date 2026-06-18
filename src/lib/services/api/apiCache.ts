@@ -216,7 +216,8 @@ function deriveLastModified(data: any): string | undefined {
 
 	const toTimestampString = (candidate: any): string | undefined => {
 		if (typeof candidate === 'string') return candidate;
-		if (candidate instanceof Date && !Number.isNaN(candidate.getTime())) return candidate.toISOString();
+		if (candidate instanceof Date && !Number.isNaN(candidate.getTime()))
+			return candidate.toISOString();
 		return undefined;
 	};
 
@@ -289,6 +290,11 @@ function cacheableMethod(method: string) {
 	return method.toUpperCase() === 'GET';
 }
 
+function withSameOriginCredentials(init?: CachedFetchInit): CachedFetchInit | undefined {
+	if (!isBrowser() || init?.credentials) return init;
+	return { ...init, credentials: 'same-origin' };
+}
+
 export async function cachedFetch(
 	fetchLike: FetchLike,
 	input: RequestInfo | URL,
@@ -301,7 +307,7 @@ export async function cachedFetch(
 
 	if (!cacheableMethod(method)) {
 		logCache('skip (non-cacheable method)', { method, url: normalizedUrl });
-		return fetchLike(input as any, sanitizedOptions);
+		return fetchLike(input as any, withSameOriginCredentials(sanitizedOptions));
 	}
 
 	if (!isBrowser()) {
@@ -312,7 +318,7 @@ export async function cachedFetch(
 	const bypassReason = cacheBypassReason(url, options);
 	if (bypassReason) {
 		logCache('bypass cache', { method, url: normalizedUrl, reason: bypassReason });
-		return fetchLike(input as any, sanitizedOptions);
+		return fetchLike(input as any, withSameOriginCredentials(sanitizedOptions));
 	}
 
 	const key = buildCacheKey(method, url);
@@ -342,19 +348,23 @@ export async function cachedFetch(
 
 	const resolvedUrl = (() => {
 		try {
-			return new URL(url, typeof window !== 'undefined' && window.location ? window.location.origin : 'http://localhost').toString();
+			return new URL(
+				url,
+				typeof window !== 'undefined' && window.location
+					? window.location.origin
+					: 'http://localhost'
+			).toString();
 		} catch {
 			return url;
 		}
 	})();
 
+	const requestInit = withSameOriginCredentials({ ...init, method, headers });
 	const request =
 		input instanceof Request
-			? new Request(input, { ...init, method, headers })
+			? new Request(input, requestInit)
 			: new Request(typeof input === 'string' || input instanceof URL ? resolvedUrl : input, {
-					...init,
-					method,
-					headers
+					...requestInit
 				});
 
 	const response = await fetchLike(request);
@@ -366,7 +376,11 @@ export async function cachedFetch(
 	}
 
 	if (!response.ok) {
-		logCache('skip caching (non-ok response)', { method, url: normalizedUrl, status: response.status });
+		logCache('skip caching (non-ok response)', {
+			method,
+			url: normalizedUrl,
+			status: response.status
+		});
 		return response;
 	}
 
@@ -412,5 +426,6 @@ export async function cachedFetch(
 }
 
 export function wrapFetch(fetchLike: FetchLike): FetchLike {
-	return ((input: RequestInfo | URL, init?: CachedFetchInit) => cachedFetch(fetchLike, input, init)) as FetchLike;
+	return ((input: RequestInfo | URL, init?: CachedFetchInit) =>
+		cachedFetch(fetchLike, input, init)) as FetchLike;
 }
