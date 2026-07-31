@@ -5,6 +5,10 @@ import {
 	packageFreeExclusionSql,
 	trainingRelationshipSql
 } from '$lib/server/packageSemantics';
+import {
+	assertPackageOwnerProfilesNotGdprDeleted,
+	ProfileLifecycleGuardError
+} from '$lib/server/profileLifecycleGuards';
 
 async function attachEligibleBookings({
         packageId,
@@ -136,7 +140,7 @@ export async function GET({ url }) {
 
                 const result = raw.map((row) => {
                         const yaml = row.payment_installments_per_date || '';
-                        const payments = yaml.split('\n').filter((line) => line.trim().startsWith("'"))
+                        const payments = yaml.split('\n').filter((line: string) => line.trim().startsWith("'"))
                                 .length;
 
                         return {
@@ -171,13 +175,18 @@ export async function POST({ request, locals }) {
         try {
                 const body = await request.json();
 
-                const customerId = body.customerId ?? null;
-                const clientId = body.clientId ?? null;
+                const customerId = body.customerId ? Number(body.customerId) : null;
+                const clientId = body.clientId ? Number(body.clientId) : null;
                 const articleId = Number(body.articleId);
                 const autogiro = !!body.autogiro;
                 const installmentsCount = Number(body.installments ?? 0);
                 const providedFirstPayment = normalizeDate(body.firstPaymentDate) ?? new Date().toISOString().slice(0, 10);
-                const currentUserId = locals?.user?.id ?? null;
+                const currentUserId =
+                        typeof locals?.user?.trainerId === 'number'
+                                ? locals.user.trainerId
+                                : typeof locals?.user?.id === 'number'
+                                        ? locals.user.id
+                                        : null;
 
                 if (!customerId && !clientId) {
                         return new Response(JSON.stringify({ error: 'Kund eller klient måste anges' }), { status: 400 });
@@ -185,6 +194,8 @@ export async function POST({ request, locals }) {
                 if (!articleId || Number.isNaN(articleId)) {
                         return new Response(JSON.stringify({ error: 'Ogiltig produkt' }), { status: 400 });
                 }
+
+                await assertPackageOwnerProfilesNotGdprDeleted({ customerId, clientId });
 
                 const [article] = await query(
                         `SELECT price, sessions, validity_start_date, validity_end_date FROM articles WHERE id = $1`,
@@ -290,6 +301,12 @@ export async function POST({ request, locals }) {
 
                 return new Response(JSON.stringify({ id: result[0].id }), { status: 201 });
         } catch (err) {
+                if (err instanceof ProfileLifecycleGuardError) {
+                        return new Response(JSON.stringify({ error: err.message, code: err.code }), {
+                                status: err.status
+                        });
+                }
+
                 console.error('Error creating package:', err);
                 return new Response(JSON.stringify({ error: 'Internal Server Error' }), { status: 500 });
         }

@@ -8,6 +8,7 @@ import {
 	packageFreeExclusionSql,
 	trainingRelationshipSql
 } from '$lib/server/packageSemantics';
+import { ProfileLifecycleGuardError } from '$lib/server/profileLifecycleGuards';
 import type { PoolClient } from 'pg';
 
 type SqlClient = Pick<PoolClient, 'query'>;
@@ -308,11 +309,25 @@ async function fetchPackageUsageCounts(client: SqlClient | null, packageIds: num
 async function loadClientWorkspace(client: SqlClient | null, clientId: number, lockPackages = false) {
 	const [subject] = await runQuery(
 		client,
-		`SELECT id, firstname, lastname FROM clients WHERE id = $1`,
+		`
+		SELECT c.id, c.firstname, c.lastname, lifecycle.gdpr_deleted_at
+		FROM clients c
+		LEFT JOIN gdpr_profile_lifecycle lifecycle
+		  ON lifecycle.profile_type = 'client'
+		 AND lifecycle.client_id = c.id
+		WHERE c.id = $1
+		`,
 		[clientId]
 	);
 	if (!subject) {
 		throw new Error('Client not found');
+	}
+	if (subject.gdpr_deleted_at) {
+		throw new ProfileLifecycleGuardError(
+			409,
+			'Klienten är GDPR-raderad och kan inte ändras.',
+			'profile_gdpr_deleted'
+		);
 	}
 
 	const packageRows = (await runQuery(
@@ -415,11 +430,25 @@ async function loadClientWorkspace(client: SqlClient | null, clientId: number, l
 async function loadCustomerWorkspace(client: SqlClient | null, customerId: number, lockPackages = false) {
 	const [subject] = await runQuery(
 		client,
-		`SELECT id, name FROM customers WHERE id = $1`,
+		`
+		SELECT c.id, c.name, lifecycle.gdpr_deleted_at
+		FROM customers c
+		LEFT JOIN gdpr_profile_lifecycle lifecycle
+		  ON lifecycle.profile_type = 'customer'
+		 AND lifecycle.customer_id = c.id
+		WHERE c.id = $1
+		`,
 		[customerId]
 	);
 	if (!subject) {
 		throw new Error('Customer not found');
+	}
+	if (subject.gdpr_deleted_at) {
+		throw new ProfileLifecycleGuardError(
+			409,
+			'Kunden är GDPR-raderad och kan inte ändras.',
+			'profile_gdpr_deleted'
+		);
 	}
 
 	const packageRows = (await runQuery(

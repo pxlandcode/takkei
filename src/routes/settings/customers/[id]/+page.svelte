@@ -9,38 +9,55 @@
 	import MailComponent from '../../../../components/ui/mailComponent/MailComponent.svelte';
 	import Button from '../../../../components/bits/button/Button.svelte';
 	import { openPopup } from '$lib/stores/popupStore';
+	import ProfileLifecycleManager from '../../../../components/ui/ProfileLifecycleManager.svelte';
 
 	let customerId: number;
 	let customer: any = null;
 	let isLoading = true;
-	let selectedTabProps: Record<string, unknown> | null = null;
+	let selectedTabProps: any = null;
 	let canRenderSelectedTab = false;
 	let isAwaitingTabData = false;
+	let hasMounted = false;
+	let requestedCustomerId: number | null = null;
 
 	$: customerId = Number($page.params.id);
+	$: isDeleted = Boolean(customer?.gdpr_deleted_at);
 
 	function handleCustomerChange(updatedCustomer: any) {
 		customer = updatedCustomer;
 	}
 
-	async function loadCustomer() {
-		if (!customerId) {
+	async function loadCustomerProfile(id: number) {
+		if (!Number.isFinite(id) || id <= 0) {
+			requestedCustomerId = null;
+			customer = null;
 			isLoading = false;
 			return;
 		}
 
+		requestedCustomerId = id;
 		isLoading = true;
+		customer = null;
 		loadingStore.loading(true, 'Hämtar kund...');
 		try {
-			const res = await fetch(`/api/customers/${customerId}`);
+			const res = await fetch(`/api/customers/${id}`);
 			if (!res.ok) throw new Error('Failed to fetch customer');
-			customer = await res.json();
+			const payload = await res.json();
+			if (requestedCustomerId === id) {
+				customer = payload;
+			}
 		} catch (error) {
 			console.error('Error loading customer:', error);
 		} finally {
-			loadingStore.loading(false);
-			isLoading = false;
+			if (requestedCustomerId === id) {
+				loadingStore.loading(false);
+				isLoading = false;
+			}
 		}
+	}
+
+	async function loadCustomer() {
+		await loadCustomerProfile(customerId);
 	}
 
 	const menuItems = [
@@ -53,8 +70,10 @@
 					? {
 							customer,
 							onCustomerChange: handleCustomerChange,
-							refreshCustomer: loadCustomer
-					  }
+							refreshCustomer: loadCustomer,
+							allowEditing: !isDeleted,
+							allowManagement: !isDeleted
+						}
 					: {}
 		},
 		{
@@ -66,7 +85,25 @@
 			label: 'Anteckningar',
 			icon: 'Notes',
 			component: ProfileNotesComponent,
-			props: () => (customerId ? { targetId: customerId, targetType: 'Customer' } : {})
+			props: () =>
+				customerId ? { targetId: customerId, targetType: 'Customer', readOnly: isDeleted } : {}
+		},
+		{
+			label: 'Hantering',
+			icon: 'Trash',
+			component: ProfileLifecycleManager,
+			requiredRoles: ['Administrator'],
+			props: () =>
+				customerId && customer
+					? {
+							entity: 'customer',
+							entityId: customerId,
+							displayName: customer.name ?? '',
+							isDeleted,
+							onDeleted: handleLifecycleDeleted,
+							onMerged: handleLifecycleMerged
+						}
+					: {}
 		}
 	];
 
@@ -75,6 +112,16 @@
 
 	$: if (!selectedTab && defaultTab) {
 		selectedTab = defaultTab;
+	}
+
+	$: if (
+		hasMounted &&
+		Number.isFinite(customerId) &&
+		customerId > 0 &&
+		customerId !== requestedCustomerId
+	) {
+		selectedTab = defaultTab;
+		void loadCustomerProfile(customerId);
 	}
 
 	$: {
@@ -91,7 +138,7 @@
 	}
 
 	function openMailPopup() {
-		if (!customer) return;
+		if (!customer || isDeleted) return;
 		const recipients = customer.email ? [customer.email] : [];
 		openPopup({
 			header: `Maila ${customer.name ?? ''}`.trim(),
@@ -107,8 +154,16 @@
 	}
 
 	onMount(() => {
-		loadCustomer();
+		hasMounted = true;
+		void loadCustomer();
 	});
+
+	function handleLifecycleDeleted(event: CustomEvent<any>) {
+		const result = event.detail;
+		if (!result?.hardDeleted) void loadCustomer();
+	}
+
+	function handleLifecycleMerged(_event: CustomEvent<any>) {}
 </script>
 
 <div class="m-4 flex flex-wrap items-center justify-between gap-2">
@@ -122,7 +177,12 @@
 	</div>
 
 	<div class="mr-14 flex space-x-2 md:mr-0">
-		<Button icon="Mail" variant="secondary" on:click={openMailPopup} />
+		<Button
+			icon="Mail"
+			variant="secondary"
+			disabled={isDeleted || !customer?.email}
+			on:click={openMailPopup}
+		/>
 	</div>
 </div>
 

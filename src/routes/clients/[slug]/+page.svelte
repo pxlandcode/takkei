@@ -15,37 +15,56 @@
 	import { getCalendarUrl } from '$lib/helpers/calendarHelpers/calendarNavigation';
 	import BookingPopup from '../../../components/ui/bookingPopup/BookingPopup.svelte';
 	import { openPopup } from '$lib/stores/popupStore';
+	import ProfileLifecycleManager from '../../../components/ui/ProfileLifecycleManager.svelte';
+	import type { Client } from '$lib/types/clientTypes';
 
 	let clientId: number;
-	let client = null;
+	let client: { client: Client; bookingsShort?: unknown[] } | null = null;
 	let isLoading = true;
-	let selectedTabProps: Record<string, unknown> | null = null;
+	let selectedTabProps: any = null;
 	let canRenderSelectedTab = false;
 	let isAwaitingTabData = false;
+	let hasMounted = false;
+	let requestedClientId: number | null = null;
 
 	$: clientId = Number($page.params.slug);
+	$: currentClient = client?.client ?? null;
+	$: isDeleted = Boolean(currentClient?.gdpr_deleted_at);
 
-	onMount(async () => {
-		if (!clientId) {
+	async function loadClientProfile(id: number) {
+		if (!Number.isFinite(id) || id <= 0) {
+			requestedClientId = null;
+			client = null;
 			isLoading = false;
 			return;
 		}
 
+		requestedClientId = id;
 		isLoading = true;
+		client = null;
 		try {
-			await clientProfileStore.loadClient(clientId, fetch);
+			await clientProfileStore.loadClient(id, fetch, { fresh: true });
 		} catch (error) {
 			console.error('Failed to load client profile:', error);
 		} finally {
-			isLoading = false;
+			if (requestedClientId === id) {
+				isLoading = false;
+			}
 		}
+	}
+
+	onMount(() => {
+		hasMounted = true;
+		void loadClientProfile(clientId);
 	});
 
 	$: {
 		const storeData = $clientProfileStore.clients[clientId];
-		if (storeData) {
+		if (storeData && requestedClientId === clientId) {
 			client = storeData;
 			isLoading = false;
+		} else if (isLoading) {
+			client = null;
 		}
 	}
 
@@ -54,7 +73,15 @@
 			label: 'Profil',
 			icon: 'Person',
 			component: ProfileClientInfo,
-			props: () => (client?.client ? { client: client.client } : {})
+			props: () =>
+				client?.client
+					? {
+							client: client.client,
+							allowEditing: !isDeleted,
+							allowMailPopup: !isDeleted,
+							allowPackageManagement: !isDeleted
+						}
+					: {}
 		},
 		{
 			label: 'Bokningar',
@@ -66,7 +93,28 @@
 			label: 'Anteckningar',
 			icon: 'Notes',
 			component: ProfileNotesComponent,
-			props: () => (clientId ? { targetId: clientId, isClient: true, targetType: 'Client' } : {})
+			props: () =>
+				clientId
+					? { targetId: clientId, isClient: true, targetType: 'Client', readOnly: isDeleted }
+					: {}
+		},
+		{
+			label: 'Hantering',
+			icon: 'Trash',
+			component: ProfileLifecycleManager,
+			requiredRoles: ['Administrator'],
+			props: () =>
+				clientId && currentClient
+					? {
+							entity: 'client',
+							entityId: clientId,
+							displayName:
+								`${currentClient.firstname ?? ''} ${currentClient.lastname ?? ''}`.trim(),
+							isDeleted,
+							onDeleted: handleLifecycleDeleted,
+							onMerged: handleLifecycleMerged
+						}
+					: {}
 		}
 	];
 	const defaultTab = menuItems.find((item) => item.label === 'Profil') ?? menuItems[0];
@@ -74,6 +122,16 @@
 
 	$: if (!selectedTab && defaultTab) {
 		selectedTab = defaultTab;
+	}
+
+	$: if (
+		hasMounted &&
+		Number.isFinite(clientId) &&
+		clientId > 0 &&
+		clientId !== requestedClientId
+	) {
+		selectedTab = defaultTab;
+		void loadClientProfile(clientId);
 	}
 
 	$: {
@@ -90,6 +148,7 @@
 	}
 
 	function goToCalendar() {
+		if (isDeleted) return;
 		const filters: Partial<CalendarFilters> = { clientIds: [clientId] };
 		calendarStore.setNewFilters(filters, fetch);
 		goto(getCalendarUrl(filters));
@@ -97,7 +156,7 @@
 
 	function openMailPopup() {
 		const target = client?.client;
-		if (!target?.email) return;
+		if (!target?.email || isDeleted) return;
 		openPopup({
 			header: `Maila ${target.firstname ?? ''} ${target.lastname ?? ''}`.trim(),
 			icon: 'Mail',
@@ -112,7 +171,7 @@
 	}
 
 	function openBookingPopup() {
-		if (!clientId) return;
+		if (!clientId || isDeleted) return;
 		openPopup({
 			header: 'Bokning',
 			icon: 'Plus',
@@ -121,6 +180,17 @@
 			maxWidth: '650px'
 		});
 	}
+
+	async function reloadClientProfile() {
+		await loadClientProfile(clientId);
+	}
+
+	function handleLifecycleDeleted(event: CustomEvent<any>) {
+		const result = event.detail;
+		if (!result?.hardDeleted) void reloadClientProfile();
+	}
+
+	function handleLifecycleMerged(_event: CustomEvent<any>) {}
 </script>
 
 <!-- Header -->
@@ -135,14 +205,20 @@
 	</div>
 
 	<div class="mr-14 flex space-x-2 md:mr-0">
-		<Button icon="Mail" variant="secondary" on:click={openMailPopup} />
-		<Button icon="Calendar" variant="secondary" on:click={goToCalendar} />
+		<Button
+			icon="Mail"
+			variant="secondary"
+			disabled={isDeleted || !currentClient?.email}
+			on:click={openMailPopup}
+		/>
+		<Button icon="Calendar" variant="secondary" disabled={isDeleted} on:click={goToCalendar} />
 		<Button
 			iconLeft="Plus"
 			iconLeftSize="12px"
 			text="Boka"
 			variant="primary"
 			icon="Plus"
+			disabled={isDeleted}
 			on:click={openBookingPopup}
 		/>
 	</div>

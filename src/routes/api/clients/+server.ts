@@ -6,6 +6,7 @@ export async function GET({ url, request }) {
 	const customerId = url.searchParams.get('customerId');
 	const short = url.searchParams.get('short') === 'true';
 	const available = url.searchParams.get('available') === 'true';
+	const includeDeleted = url.searchParams.get('includeDeleted') === 'true';
 
 	// New filtering/sorting/pagination options
 	const search = url.searchParams.get('search')?.trim() || '';
@@ -35,6 +36,9 @@ export async function GET({ url, request }) {
       clients.phone,
       clients.active,
       clients.membership_status,
+      lifecycle.gdpr_deleted_at,
+      lifecycle.gdpr_delete_token,
+      lifecycle.merged_into_client_id,
       clients.primary_trainer_id,
       users.id AS trainer_id,
       users.firstname AS trainer_firstname,
@@ -46,6 +50,9 @@ export async function GET({ url, request }) {
     FROM clients
     LEFT JOIN users ON clients.primary_trainer_id = users.id
     LEFT JOIN locations ON clients.primary_location_id = locations.id
+    LEFT JOIN gdpr_profile_lifecycle lifecycle
+      ON lifecycle.profile_type = 'client'
+     AND lifecycle.client_id = clients.id
   `;
 
 	// --- 2. FILTERS ---
@@ -99,6 +106,10 @@ export async function GET({ url, request }) {
 		whereClauses.push(`clients.active = true`);
 	} else if (active === 'false') {
 		whereClauses.push(`clients.active = false`);
+	}
+
+	if (!includeDeleted) {
+		whereClauses.push(`lifecycle.gdpr_deleted_at IS NULL`);
 	}
 
 	// Trainer ID filter

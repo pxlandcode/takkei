@@ -1,5 +1,9 @@
 import { query } from '$lib/db';
 import { recalculatePackagesBatch } from '$lib/server/packageRecalculation';
+import {
+	assertProfileNotGdprDeleted,
+	ProfileLifecycleGuardError
+} from '$lib/server/profileLifecycleGuards';
 
 function parseBoolean(value: unknown) {
 	return value === true || value === 'true' || value === 1 || value === '1';
@@ -20,6 +24,8 @@ export async function POST({ params, request }) {
 	const dryRun = parseBoolean(body?.dry_run);
 
 	try {
+		await assertProfileNotGdprDeleted('customer', customerId);
+
 		const rows = await query(
 			`SELECT id FROM packages WHERE customer_id = $1 ORDER BY id ASC`,
 			[customerId]
@@ -34,6 +40,12 @@ export async function POST({ params, request }) {
 
 		return new Response(JSON.stringify({ ok: true, ...result, message }), { status: 200 });
 	} catch (error) {
+		if (error instanceof ProfileLifecycleGuardError) {
+			return new Response(JSON.stringify({ error: error.message, code: error.code }), {
+				status: error.status
+			});
+		}
+
 		console.error('Customer package recalculation failed:', error);
 		return new Response(
 			JSON.stringify({
@@ -43,4 +55,3 @@ export async function POST({ params, request }) {
 		);
 	}
 }
-

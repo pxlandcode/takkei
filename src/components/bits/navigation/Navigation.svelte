@@ -1,20 +1,34 @@
 <script lang="ts">
 	import Icon from '../icon-component/Icon.svelte';
 	import { user } from '$lib/stores/userStore';
-	import { get } from 'svelte/store';
 	import { hasRole } from '$lib/helpers/userHelpers/roleHelper';
 
-	export let menuItems = [];
-	export let selectedTab;
+	type MenuItem = {
+		label: string;
+		icon: string;
+		requiredRoles?: string | string[];
+		[key: string]: any;
+	};
 
-	const currentUser = get(user);
-	const userRoles = currentUser?.roles?.map((r) => r.name) || [];
+	export let menuItems: MenuItem[] = [];
+	export let selectedTab: MenuItem | undefined;
 
-	$: visibleMenuItems = menuItems.filter((item) => {
-		return !item.requiredRoles || hasRole(item.requiredRoles);
-	});
+	let visibleMenuItems: MenuItem[] = [];
 
-	function selectTab(item) {
+	function ensureSelectedTabIsVisible() {
+		if (!selectedTab) return;
+		if (visibleMenuItems.some((item) => item.label === selectedTab?.label)) return;
+		selectedTab = visibleMenuItems[0];
+	}
+
+	$: {
+		visibleMenuItems = menuItems.filter((item) => {
+			return !item.requiredRoles || hasRole(item.requiredRoles, $user as any);
+		});
+		ensureSelectedTabIsVisible();
+	}
+
+	function selectTab(item: MenuItem) {
 		selectedTab = item;
 	}
 </script>
@@ -27,14 +41,17 @@
 	>
 		<ul class="space-y-2 text-gray-600">
 			{#each visibleMenuItems as item}
-				<li
-					class="hover:text-orange flex cursor-pointer items-center gap-2 rounded-sm p-2 underline-offset-4 hover:underline"
-					class:font-semibold={selectedTab.label === item.label}
-					class:text-orange={selectedTab.label === item.label}
-					on:click={() => selectTab(item)}
-				>
-					<Icon icon={item.icon} size="18px" />
-					{item.label}
+				<li>
+					<button
+						type="button"
+						class="hover:text-orange flex w-full cursor-pointer items-center gap-2 rounded-sm p-2 text-left underline-offset-4 hover:underline"
+						class:font-semibold={selectedTab?.label === item.label}
+						class:text-orange={selectedTab?.label === item.label}
+						on:click={() => selectTab(item)}
+					>
+						<Icon icon={item.icon} size="18px" />
+						{item.label}
+					</button>
 				</li>
 			{/each}
 		</ul>
@@ -49,9 +66,9 @@
 					type="button"
 					on:click={() => selectTab(item)}
 					class="hover:text-orange flex items-center gap-2 rounded-sm p-2 hover:bg-gray-200"
-					class:text-gray-600={selectedTab.label !== item.label}
-					class:text-orange={selectedTab.label === item.label}
-					class:font-semibold={selectedTab.label === item.label}
+					class:text-gray-600={selectedTab?.label !== item.label}
+					class:text-orange={selectedTab?.label === item.label}
+					class:font-semibold={selectedTab?.label === item.label}
 				>
 					<Icon icon={item.icon} size="18px" />
 					{item.label}

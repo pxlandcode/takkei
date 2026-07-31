@@ -1,6 +1,17 @@
 // /api/customers/[id]/+server.ts (list view payload)
 import { query } from '$lib/db';
 import { chargeablePackageBookingSql, getNextStockholmDayStartLocal } from '$lib/server/packageSemantics';
+import { resolveAdministratorRequest } from '$lib/server/adminAccess';
+import {
+	deleteCustomerProfile,
+	ProfileLifecycleError,
+	resolveLifecycleActorId,
+	withProfileLifecycleTransaction
+} from '$lib/server/profileLifecycle';
+import {
+	assertProfileNotGdprDeleted,
+	ProfileLifecycleGuardError
+} from '$lib/server/profileLifecycleGuards';
 
 export async function GET({ params }) {
 	const id = params.id;
@@ -13,9 +24,26 @@ export async function GET({ params }) {
 
 	// customer
 	const [customer] = await query(
-		`SELECT id, name, email, phone, customer_no, organization_number,
-            invoice_address, invoice_zip, invoice_city, invoice_reference, active
-     FROM customers WHERE id = $1`,
+		`SELECT
+            customers.id,
+            customers.name,
+            customers.email,
+            customers.phone,
+            customers.customer_no,
+            customers.organization_number,
+            customers.invoice_address,
+            customers.invoice_zip,
+            customers.invoice_city,
+            customers.invoice_reference,
+            customers.active,
+            lifecycle.gdpr_deleted_at,
+            lifecycle.gdpr_delete_token,
+            lifecycle.merged_into_customer_id
+     FROM customers
+     LEFT JOIN gdpr_profile_lifecycle lifecycle
+       ON lifecycle.profile_type = 'customer'
+      AND lifecycle.customer_id = customers.id
+     WHERE customers.id = $1`,
 		[id]
 	);
 	if (!customer)
@@ -127,6 +155,19 @@ export async function PATCH({ params, request }) {
 		return new Response(JSON.stringify({ error: 'Ogiltigt kund-id' }), { status: 400 });
 	}
 
+	try {
+		await assertProfileNotGdprDeleted('customer', customerId);
+	} catch (error) {
+		if (error instanceof ProfileLifecycleGuardError) {
+			return new Response(JSON.stringify({ error: error.message, code: error.code }), {
+				status: error.status
+			});
+		}
+
+		console.error('Failed to check GDPR profile lifecycle before customer update:', error);
+		return new Response(JSON.stringify({ error: 'Kunde inte kontrollera kunden' }), { status: 500 });
+	}
+
 	let body: any;
 	try {
 		body = await request.json();
@@ -208,4 +249,37 @@ export async function PATCH({ params, request }) {
 	}
 
 	return new Response(JSON.stringify(updated), { status: 200 });
+}
+
+export async function DELETE({ params, locals }) {
+	const admin = await resolveAdministratorRequest(locals);
+	if (!admin.ok) {
+		return new Response(JSON.stringify({ error: admin.message }), { status: admin.status });
+	}
+
+	const customerId = Number(params.id);
+	if (!Number.isFinite(customerId) || customerId <= 0) {
+		return new Response(JSON.stringify({ error: 'Ogiltigt kund-id' }), { status: 400 });
+	}
+
+	try {
+		const result = await withProfileLifecycleTransaction((client) =>
+			deleteCustomerProfile({
+				client,
+				customerId,
+				actorUserId: resolveLifecycleActorId(admin.authUser)
+			})
+		);
+
+		return new Response(JSON.stringify(result), { status: 200 });
+	} catch (error) {
+		if (error instanceof ProfileLifecycleError) {
+			return new Response(JSON.stringify({ error: error.message, code: error.code }), {
+				status: error.status
+			});
+		}
+
+		console.error('Error deleting customer profile:', error);
+		return new Response(JSON.stringify({ error: 'Kunde inte ta bort kunden' }), { status: 500 });
+	}
 }

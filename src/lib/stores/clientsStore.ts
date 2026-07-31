@@ -13,6 +13,9 @@ export type Client = {
 	email: string | null;
 	phone: string | null;
 	isActive: boolean;
+	gdpr_deleted_at?: string | null;
+	gdpr_delete_token?: string | null;
+	merged_into_client_id?: number | null;
 	primary_location_id?: number | null;
 	primary_location?: string | null;
 	trainer?: Trainer | null;
@@ -35,6 +38,9 @@ export async function fetchClients() {
 			email: client.email,
 			phone: client.phone,
 			isActive: client.active,
+			gdpr_deleted_at: client.gdpr_deleted_at ?? null,
+			gdpr_delete_token: client.gdpr_delete_token ?? null,
+			merged_into_client_id: client.merged_into_client_id ?? null,
 			primary_location_id: client.primary_location_id ?? null,
 			primary_location: client.primary_location ?? null,
 			trainer: client.trainer_id
@@ -77,6 +83,9 @@ export async function fetchTrialEligibleClients({
 		email: client.email,
 		phone: client.phone,
 		isActive: client.active,
+		gdpr_deleted_at: client.gdpr_deleted_at ?? null,
+		gdpr_delete_token: client.gdpr_delete_token ?? null,
+		merged_into_client_id: client.merged_into_client_id ?? null,
 		primary_location_id: client.primary_location_id ?? null,
 		primary_location: client.primary_location ?? null,
 		trainer: client.trainer_id

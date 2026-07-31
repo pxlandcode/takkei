@@ -19,8 +19,16 @@ const createClientProfileStore = () => {
 	/**
 	 * Fetch Client Details Using `clientService`
 	 */
-	async function loadClient(clientId: number, fetchFn: typeof fetch) {
-		const data = await fetchClient(clientId, fetchFn);
+	async function loadClient(clientId: number, fetchFn: typeof fetch, options: { fresh?: boolean } = {}) {
+		if (options.fresh) {
+			update((store) => {
+				const newClients = { ...store.clients };
+				delete newClients[clientId];
+				return { ...store, clients: newClients };
+			});
+		}
+
+		const data = await fetchClient(clientId, fetchFn, options);
 
 		if (data) {
 			update((store) => {

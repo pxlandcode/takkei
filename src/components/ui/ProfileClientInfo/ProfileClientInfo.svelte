@@ -7,6 +7,7 @@
 	import MailComponent from '../mailComponent/MailComponent.svelte';
 	import { openPopup } from '$lib/stores/popupStore';
 	import { fetchLocations, locations } from '$lib/stores/locationsStore';
+	import type { Client } from '$lib/types/clientTypes';
 
 	type ProfileField = {
 		label: string;
@@ -15,12 +16,13 @@
 		action?: () => void;
 	};
 
-	export let client;
+	export let client: Client;
 	export let readOnly = false;
 	export let showPackages = true;
 	export let showBookingGrid = true;
 	export let allowEditing = true;
 	export let allowMailPopup = true;
+	export let allowPackageManagement = true;
 
 	let isEditing = false;
 	let locationsLoaded = false;
@@ -87,17 +89,17 @@
 		{ label: 'Förnamn', value: client?.firstname },
 		{ label: 'Efternamn', value: client?.lastname },
 		{
-			label: 'E-post',
-			value: client?.email,
-			action: client?.email && canUseMailPopup ? () => openMailPopup(client.email) : undefined
+				label: 'E-post',
+				value: client?.email,
+				action: client?.email && canUseMailPopup ? () => openMailPopup(client.email as string) : undefined
 		},
 		{
 			label: 'Alternativ e-post',
 			value: client?.alternative_email,
-			action:
-				client?.alternative_email && canUseMailPopup
-					? () => openMailPopup(client.alternative_email)
-					: undefined
+				action:
+					client?.alternative_email && canUseMailPopup
+						? () => openMailPopup(client.alternative_email as string)
+						: undefined
 		},
 		{
 			label: 'Telefon',
@@ -189,7 +191,7 @@
 	</div>
 
 	{#if canShowPackages && client?.id}
-		<ProfileClientPackages clientId={client.id} />
+		<ProfileClientPackages clientId={client.id} allowManagement={allowPackageManagement} />
 	{/if}
 
 	{#if shouldShowBookingGrid}
