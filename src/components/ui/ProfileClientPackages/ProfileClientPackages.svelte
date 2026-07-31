@@ -29,6 +29,7 @@
 	}
 
 	export let clientId: number;
+	export let allowManagement = true;
 
 	let loading = true;
 	let error: string | null = null;
@@ -77,7 +78,7 @@
 	onMount(loadPackages);
 
 	async function recalculateAllClientPackages() {
-		if (!clientId) return;
+		if (!clientId || !allowManagement) return;
 		recalcPending = true;
 		recalcInfo = null;
 		recalcError = null;
@@ -139,7 +140,7 @@
 	}
 
 	function openAssignmentPopup(initialFilter: 'all' | 'linked' | 'missing' = 'all') {
-		if (!clientId || !isAdmin) return;
+		if (!clientId || !isAdmin || !allowManagement) return;
 		openPackageAssignmentPopup({
 			scope: 'client',
 			scopeId: clientId,
@@ -151,7 +152,7 @@
 	}
 
 	function openSaldoAdjustmentPopup() {
-		if (!clientId || !isAdmin) return;
+		if (!clientId || !isAdmin || !allowManagement) return;
 		openPopup({
 			header: 'Saldojustering',
 			icon: 'Calculator',
@@ -207,7 +208,7 @@
 	<div class="mb-4 flex items-center justify-between">
 		<h4 class="text-xl font-semibold">Paket</h4>
 		<div class="flex flex-wrap gap-2">
-			{#if isAdmin}
+			{#if isAdmin && allowManagement}
 				<Button
 					text="Saldojustering"
 					iconLeft="Calculator"
@@ -230,7 +231,7 @@
 				icon="Refresh"
 				variant="secondary"
 				small
-				disabled={recalcPending || loading}
+				disabled={recalcPending || loading || !allowManagement}
 				confirmOptions={{
 					title: 'Räkna om klientens paket?',
 					description:

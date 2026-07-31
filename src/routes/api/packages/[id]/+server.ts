@@ -1,6 +1,10 @@
 import { query } from '$lib/db';
 import { normalizeDate, serializeInstallments, type InstallmentInput } from '$lib/server/packageUtils';
 import { chargeablePackageBookingSql } from '$lib/server/packageSemantics';
+import {
+	assertPackageOwnerProfilesNotGdprDeleted,
+	ProfileLifecycleGuardError
+} from '$lib/server/profileLifecycleGuards';
 
 // --- tiny YAML-ish parser for Rails :payment_installments_per_date ---
 // Accepts the serialized hash and returns [{ date: 'YYYY-MM-DD', sum: number, invoice_no?: string }]
@@ -179,8 +183,8 @@ export async function PUT({ params, request }) {
 
 	try {
 		const body = await request.json();
-		const customerId = body.customerId ?? null;
-		const clientId = body.clientId ?? null;
+		const customerId = body.customerId ? Number(body.customerId) : null;
+		const clientId = body.clientId ? Number(body.clientId) : null;
 		const articleId = Number(body.articleId);
 		const autogiro = !!body.autogiro;
 		const installmentsCount = Number(body.installments ?? 0);
@@ -193,6 +197,8 @@ export async function PUT({ params, request }) {
 		if (!articleId || Number.isNaN(articleId)) {
 			return new Response(JSON.stringify({ error: 'Ogiltig produkt' }), { status: 400 });
 		}
+
+		await assertPackageOwnerProfilesNotGdprDeleted({ customerId, clientId });
 
 		const [article] = await query(
 			`SELECT price, sessions FROM articles WHERE id = $1`,
@@ -294,6 +300,12 @@ export async function PUT({ params, request }) {
 
 		return new Response(JSON.stringify({ id: result[0].id }), { status: 200 });
 	} catch (err) {
+		if (err instanceof ProfileLifecycleGuardError) {
+			return new Response(JSON.stringify({ error: err.message, code: err.code }), {
+				status: err.status
+			});
+		}
+
 		console.error('Error updating package:', err);
 		return new Response(JSON.stringify({ error: 'Internal Server Error' }), { status: 500 });
 	}

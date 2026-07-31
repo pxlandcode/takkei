@@ -6,6 +6,9 @@ export type Customer = {
 	email: string;
 	phone: string;
 	active: boolean;
+	gdpr_deleted_at?: string | null;
+	gdpr_delete_token?: string | null;
+	merged_into_customer_id?: number | null;
 	customer_no?: string;
 	organization_number?: string;
 	invoice_reference?: string | null;
@@ -26,6 +29,9 @@ export async function fetchCustomers() {
 			email: customer.email,
 			phone: customer.phone,
 			active: customer.active,
+			gdpr_deleted_at: customer.gdpr_deleted_at ?? null,
+			gdpr_delete_token: customer.gdpr_delete_token ?? null,
+			merged_into_customer_id: customer.merged_into_customer_id ?? null,
 			customer_no: customer.customer_no,
 			organization_number: customer.organization_number,
 			invoice_reference: customer.invoice_reference
@@ -50,6 +56,9 @@ export async function fetchCustomersPaginated(limit = 50, offset = 0) {
 			email: customer.email,
 			phone: customer.phone,
 			active: customer.active,
+			gdpr_deleted_at: customer.gdpr_deleted_at ?? null,
+			gdpr_delete_token: customer.gdpr_delete_token ?? null,
+			merged_into_customer_id: customer.merged_into_customer_id ?? null,
 			customer_no: customer.customer_no,
 			organization_number: customer.organization_number,
 			invoice_reference: customer.invoice_reference

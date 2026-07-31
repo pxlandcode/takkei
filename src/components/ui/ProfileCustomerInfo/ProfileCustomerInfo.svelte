@@ -42,14 +42,21 @@
 	export let customer: CustomerProfile;
 	export let onCustomerChange: (value: any) => void = () => {};
 	export let refreshCustomer: (() => Promise<void> | void) | null = null;
+	export let allowEditing = true;
+	export let allowManagement = true;
 	let isEditing = false;
 	let recalcPending = false;
 	let recalcInfo: string | null = null;
 	let recalcError: string | null = null;
 	let recalcDetachedCount = 0;
 	let isAdmin = false;
+	let canManageCustomerClients = false;
 
 	$: isAdmin = hasRole('Administrator');
+	$: canManageCustomerClients = allowManagement && isAdmin;
+	$: if (!allowEditing && isEditing) {
+		isEditing = false;
+	}
 
 	function handleClientsUpdated(event: CustomEvent<any[]>) {
 		const updatedClients = event.detail ?? [];
@@ -127,6 +134,7 @@
 	}
 
 	function openPackagePopup() {
+		if (!allowManagement) return;
 		openPopup({
 			header: 'Lägg till paket',
 			icon: 'Plus',
@@ -140,6 +148,7 @@
 	}
 
 	async function recalculateCustomerPackages() {
+		if (!allowManagement) return;
 		recalcPending = true;
 		recalcInfo = null;
 		recalcError = null;
@@ -177,7 +186,7 @@
 	}
 
 	function openAssignmentPopup(initialFilter: 'all' | 'linked' | 'missing' = 'all') {
-		if (!customer?.id || !isAdmin) return;
+		if (!customer?.id || !isAdmin || !allowManagement) return;
 		openPackageAssignmentPopup({
 			scope: 'customer',
 			scopeId: customer.id,
@@ -191,7 +200,7 @@
 	}
 
 	function openSaldoAdjustmentPopup() {
-		if (!customer?.id || !isAdmin) return;
+		if (!customer?.id || !isAdmin || !allowManagement) return;
 		openPopup({
 			header: 'Saldojustering',
 			icon: 'Calculator',
@@ -217,11 +226,13 @@
 	<div class="rounded-sm bg-white p-6 shadow-md">
 		<div class="mb-4 flex items-center justify-between">
 			<h4 class="text-xl font-semibold">{!isEditing ? 'Profil' : 'Redigera kund'}</h4>
-			<Button
-				text={isEditing ? 'Avbryt' : 'Redigera'}
-				on:click={() => (isEditing = !isEditing)}
-				variant="primary"
-			/>
+			{#if allowEditing}
+				<Button
+					text={isEditing ? 'Avbryt' : 'Redigera'}
+					on:click={() => (isEditing = !isEditing)}
+					variant="primary"
+				/>
+			{/if}
 		</div>
 
 		{#if !isEditing}
@@ -243,17 +254,28 @@
 		{/if}
 	</div>
 
-	<ProfileCustomerClients
-		customerId={customer.id}
-		clients={customer.clients ?? []}
-		on:clientsUpdated={handleClientsUpdated}
-	/>
+	{#if canManageCustomerClients}
+		<ProfileCustomerClients
+			customerId={customer.id}
+			clients={customer.clients ?? []}
+			on:clientsUpdated={handleClientsUpdated}
+		/>
+	{:else}
+		<div class="rounded-sm bg-white p-6 shadow-md">
+			<h3 class="text-xl font-semibold text-text">Klientkopplingar</h3>
+			<p class="mt-1 text-sm text-gray-500">
+				{allowManagement
+					? 'Endast administratörer kan ändra klientkopplingar.'
+					: 'Kopplingar är låsta eftersom kunden är raderad.'}
+			</p>
+		</div>
+	{/if}
 
 	<div class="rounded-sm bg-white p-6 shadow-md">
 		<div class="mb-4 flex items-center justify-between">
 			<h4 class="text-xl font-semibold">Paket</h4>
 			<div class="flex flex-wrap gap-2">
-				{#if isAdmin}
+				{#if isAdmin && allowManagement}
 					<Button
 						text="Saldojustering"
 						variant="secondary"
@@ -277,7 +299,7 @@
 					iconLeft="Refresh"
 					iconLeftSize="14px"
 					small
-					disabled={recalcPending}
+					disabled={recalcPending || !allowManagement}
 					confirmOptions={{
 						title: 'Räkna om kundens paket?',
 						description:
@@ -292,6 +314,7 @@
 					iconLeft="Plus"
 					iconLeftSize="14px"
 					small
+					disabled={!allowManagement}
 					on:click={openPackagePopup}
 				/>
 			</div>

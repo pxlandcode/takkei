@@ -15,37 +15,60 @@
 	import { AppToastType } from '$lib/types/toastTypes';
 	import NoteBookingSelectPopup from './NoteBookingSelectPopup.svelte';
 	import { openPopup } from '$lib/stores/popupStore';
+	import type { ComponentType } from 'svelte';
+
+	type NoteKind = {
+		id: number | null;
+		title: string | null;
+	};
+
+	type ProfileNote = {
+		id: number;
+		text: string;
+		created_at: string;
+		linked_booking_id?: number | null;
+		note_kind?: NoteKind | null;
+		note_kind_id?: number | null;
+		[key: string]: any;
+	};
+
+	type SelectedKind = {
+		value: 'all' | number | null;
+		label: string;
+	};
 
 	export let targetId: number | null = null;
 	export let isClient: boolean = false;
 	export let targetType: 'User' | 'Client' | 'Customer' | null = null;
+	export let readOnly = false;
 
-	let writerId: number = $user?.id;
+	let writerId = Number($user?.id ?? 0);
 	let resolvedTargetType: 'User' | 'Client' | 'Customer' = 'User';
 
-	let allNotes = writable([]);
-	let notes = writable([]);
+	let allNotes = writable<ProfileNote[]>([]);
+	let notes = writable<ProfileNote[]>([]);
 	let newNoteText = '';
 	let isSubmitting = writable(false);
-	let noteKinds = writable([]);
-	let selectedKind = writable({ value: 'all', label: 'Alla anteckningar' });
-	let selectedNoteKindForNewNote = null;
-	let noteKindId = null;
+	let noteKinds = writable<NoteKind[]>([]);
+	let selectedKind = writable<SelectedKind>({ value: 'all', label: 'Alla anteckningar' });
+	let selectedNoteKindForNewNote: number | null = null;
+	let noteKindId: number | null = null;
 	let isLinkingNoteId: number | null = null;
 	let editingNoteId: number | null = null;
 	let editingNoteText = '';
 	let editingNoteKindId: number | null = null;
 	let isSavingEdit = false;
-	let linkedBookingLabels: Record<number, string> = {};
+	let linkedBookingLabels: Record<number, string | undefined> = {};
 	let linkedBookingData: Record<number, any> = {};
 
-	const noteKindIcons = {
+	const noteKindIcons: Record<string, string> = {
 		1: 'BasicInfo',
 		2: 'HandoverInfo',
 		3: 'CircleInfo',
 		default: 'Notes'
 	};
 
+	$: writerId = Number($user?.id ?? 0);
 	$: noteKindId = selectedNoteKindForNewNote;
 	$: resolvedTargetType = targetType ?? (isClient ? 'Client' : 'User');
 
@@ -77,7 +100,7 @@
 		}
 	}
 
-	function setSelectedKind(kind) {
+	function setSelectedKind(kind: SelectedKind) {
 		selectedKind.set(kind);
 		filterNotes();
 	}
@@ -87,7 +110,7 @@
 	}
 
 	async function submitNote() {
-		if (!newNoteText.trim() || !targetId || !resolvedTargetType) return;
+		if (readOnly || !newNoteText.trim() || !targetId || !resolvedTargetType || !writerId) return;
 		isSubmitting.set(true);
 
 		const newNote = await addNote(
@@ -96,7 +119,7 @@
 			writerId,
 			newNoteText,
 			fetch,
-			noteKindId
+			noteKindId ?? undefined
 		);
 		if (newNote) {
 			allNotes.update((existing) => [newNote, ...existing]);
@@ -108,7 +131,8 @@
 		isSubmitting.set(false);
 	}
 
-	function startEditing(note) {
+	function startEditing(note: ProfileNote) {
+		if (readOnly) return;
 		editingNoteId = note.id;
 		editingNoteText = note.text ?? '';
 		editingNoteKindId = note.note_kind?.id ?? note.note_kind_id ?? null;
@@ -139,7 +163,7 @@
 	}
 
 	async function openBookingLinkPopup(noteId: number) {
-		if (!isClient || !targetId) return;
+		if (readOnly || !isClient || !targetId) return;
 
 		openPopup({
 			header: 'Koppla till bokning',
@@ -148,7 +172,15 @@
 			maxWidth: '800px',
 			props: {
 				clientId: targetId,
-				onSelect: async ({ bookingId, bookingLabel, booking }) => {
+				onSelect: async ({
+					bookingId,
+					bookingLabel,
+					booking
+				}: {
+					bookingId: number;
+					bookingLabel?: string;
+					booking?: any;
+				}) => {
 					if (!bookingId) return;
 
 					isLinkingNoteId = noteId;
@@ -176,7 +208,7 @@
 		});
 	}
 
-	async function openLinkedBooking(note: any) {
+	async function openLinkedBooking(note: ProfileNote) {
 		const bookingId = note?.linked_booking_id;
 		if (!bookingId) return;
 
@@ -197,15 +229,15 @@
 		openPopup({
 			header: 'Bokningsdetaljer',
 			icon: 'CircleInfo',
-			component: BookingDetailsPopup,
+			component: BookingDetailsPopup as unknown as ComponentType,
 			props: { booking },
 			maxWidth: '650px',
 			height: '850px'
 		});
 	}
 
-	async function unlinkBooking(note: any) {
-		if (!note?.id) return;
+	async function unlinkBooking(note: ProfileNote) {
+		if (readOnly || !note?.id) return;
 		isLinkingNoteId = note.id;
 		const success = await unlinkNoteFromBooking(note.id, fetch);
 		isLinkingNoteId = null;
@@ -236,60 +268,62 @@
 </script>
 
 <div class="custom-scrollbar flex h-full flex-col gap-4 overflow-y-auto">
-	<div class="">
-		<QuillEditor content={newNoteText} on:change={handleTextChange} />
-	</div>
+	{#if !readOnly}
+		<div class="">
+			<QuillEditor content={newNoteText} on:change={handleTextChange} />
+		</div>
 
-	{#if isClient}
-		<div class="full-w flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end">
-			<div class="flex w-40 max-w-40">
-				<Dropdown
-					id="noteKind"
-					label="Anteckningstyp"
-					placeholder="Anteckning"
-					options={[
-						{ label: 'Anteckning', value: null },
-						...$noteKinds.map((k) => ({
-							label: k.title,
-							value: k.id
-						}))
-					]}
-					bind:selectedValue={selectedNoteKindForNewNote}
+		{#if isClient}
+			<div class="full-w flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end">
+				<div class="flex w-40 max-w-40">
+					<Dropdown
+						id="noteKind"
+						label="Anteckningstyp"
+						placeholder="Anteckning"
+						options={[
+							{ label: 'Anteckning', value: null },
+								...$noteKinds.map((k) => ({
+									label: k.title ?? 'Anteckning',
+									value: k.id
+								}))
+						]}
+						bind:selectedValue={selectedNoteKindForNewNote}
+					/>
+				</div>
+
+				<div class="pt-8">
+					{#if noteKindId == 1}
+						<Button
+							text="Lägg till anteckning"
+							variant="primary"
+							confirmOptions={{
+								title: 'Är du säker?',
+								description:
+									'När du lägger till ny Grundinformation byter den ut informationen på klientens profilsida. Den gamla informationen finns såklart fortfarande kvar bland anteckningar.',
+								action: submitNote
+							}}
+							disabled={$isSubmitting}
+						/>
+					{:else}
+						<Button
+							text="Lägg till anteckning"
+							variant="primary"
+							on:click={submitNote}
+							disabled={$isSubmitting}
+						/>
+					{/if}
+				</div>
+			</div>
+		{:else}
+			<div class="full-w flex justify-end">
+				<Button
+					text="Lägg till anteckning"
+					variant="primary"
+					on:click={submitNote}
+					disabled={$isSubmitting}
 				/>
 			</div>
-
-			<div class="pt-8">
-				{#if noteKindId == 1}
-					<Button
-						text="Lägg till anteckning"
-						variant="primary"
-						confirmOptions={{
-							title: 'Är du säker?',
-							description:
-								'När du lägger till ny Grundinformation byter den ut informationen på klientens profilsida. Den gamla informationen finns såklart fortfarande kvar bland anteckningar.',
-							action: submitNote
-						}}
-						disabled={$isSubmitting}
-					/>
-				{:else}
-					<Button
-						text="Lägg till anteckning"
-						variant="primary"
-						on:click={submitNote}
-						disabled={$isSubmitting}
-					/>
-				{/if}
-			</div>
-		</div>
-	{:else}
-		<div class="full-w flex justify-end">
-			<Button
-				text="Lägg till anteckning"
-				variant="primary"
-				on:click={submitNote}
-				disabled={$isSubmitting}
-			/>
-		</div>
+		{/if}
 	{/if}
 
 	<div class="border-gray-bright flex w-full flex-row items-center justify-between border-b pb-2">
@@ -315,10 +349,10 @@
 				<button
 					class="flex items-center gap-2 rounded-sm px-3 py-1 transition hover:bg-gray-100
 			{$selectedKind.value === kind.id ? 'bg-gray-200 font-semibold text-black' : ''}"
-					on:click={() => setSelectedKind({ value: kind.id, label: kind.title })}
+					on:click={() => setSelectedKind({ value: kind.id, label: kind.title ?? 'Anteckning' })}
 				>
-					<Icon icon={noteKindIcons[kind.id] || noteKindIcons.default} size="18px" />
-					<span class="hidden sm:inline">{kind.title}</span>
+					<Icon icon={noteKindIcons[String(kind.id)] || noteKindIcons.default} size="18px" />
+							<span class="hidden sm:inline">{kind.title ?? 'Anteckning'}</span>
 				</button>
 			{/each}
 		</div>
@@ -357,7 +391,6 @@
 								icon="Calendar"
 								small
 								on:click={() => openLinkedBooking(note)}
-								title={linkedBookingLabels[note.id] ?? `Bokning #${note.linked_booking_id}`}
 							/>
 						</div>
 					{/if}
@@ -379,7 +412,7 @@
 										options={[
 											{ label: 'Anteckning', value: null },
 											...$noteKinds.map((k) => ({
-												label: k.title,
+												label: k.title ?? 'Anteckning',
 												value: k.id
 											}))
 										]}
@@ -399,7 +432,7 @@
 							</div>
 						</div>
 					{:else}
-						<QuillViewer content={note.text} key={note.id} />
+						<QuillViewer content={note.text ?? ''} />
 					{/if}
 				</div>
 
@@ -408,7 +441,7 @@
 				>
 					<p>{new Date(note.created_at).toLocaleString()}</p>
 					<div class="flex flex-wrap gap-2">
-						{#if isClient && !note.linked_booking_id && editingNoteId !== note.id}
+						{#if !readOnly && isClient && !note.linked_booking_id && editingNoteId !== note.id}
 							<Button
 								text={isLinkingNoteId === note.id ? 'Kopplar...' : 'Koppla bokning'}
 								variant="primary"
@@ -418,7 +451,7 @@
 							/>
 						{/if}
 
-						{#if isClient && note.linked_booking_id && editingNoteId !== note.id}
+						{#if !readOnly && isClient && note.linked_booking_id && editingNoteId !== note.id}
 							<Button
 								text={isLinkingNoteId === note.id ? 'Tar bort...' : 'Ta bort koppling'}
 								variant="danger-outline"
@@ -432,7 +465,7 @@
 							/>
 						{/if}
 
-						{#if editingNoteId !== note.id}
+						{#if !readOnly && editingNoteId !== note.id}
 							<Button
 								text="Redigera"
 								variant="secondary"

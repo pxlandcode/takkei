@@ -1,6 +1,7 @@
 import { json, type RequestEvent } from '@sveltejs/kit';
 import { resolveAdministratorRequest } from '$lib/server/adminAccess';
 import { applyScopedPackageAssignmentChanges } from '$lib/server/packageAssignmentWorkspace';
+import { ProfileLifecycleGuardError } from '$lib/server/profileLifecycleGuards';
 
 export async function POST({ params, request, locals }: RequestEvent) {
 	const admin = await resolveAdministratorRequest(locals);
@@ -29,6 +30,10 @@ export async function POST({ params, request, locals }: RequestEvent) {
 		});
 		return json(result, { status: result.ok ? 200 : 400 });
 	} catch (error) {
+		if (error instanceof ProfileLifecycleGuardError) {
+			return json({ error: error.message, code: error.code }, { status: error.status });
+		}
+
 		const message = (error as Error)?.message || 'Failed to apply package assignments';
 		console.error('Failed to apply customer package assignment changes:', error);
 		return json({ error: message }, { status: 500 });

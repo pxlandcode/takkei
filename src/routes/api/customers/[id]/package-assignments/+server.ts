@@ -1,6 +1,7 @@
 import { json, type RequestEvent } from '@sveltejs/kit';
 import { resolveAdministratorRequest } from '$lib/server/adminAccess';
 import { loadPackageAssignmentWorkspace } from '$lib/server/packageAssignmentWorkspace';
+import { ProfileLifecycleGuardError } from '$lib/server/profileLifecycleGuards';
 
 export async function GET({ params, locals }: RequestEvent) {
 	const admin = await resolveAdministratorRequest(locals);
@@ -20,6 +21,10 @@ export async function GET({ params, locals }: RequestEvent) {
 		});
 		return json(workspace);
 	} catch (error) {
+		if (error instanceof ProfileLifecycleGuardError) {
+			return json({ error: error.message, code: error.code }, { status: error.status });
+		}
+
 		const message = (error as Error)?.message || 'Failed to load package assignments';
 		const status = message === 'Customer not found' ? 404 : 500;
 		console.error('Failed to load customer package assignment workspace:', error);

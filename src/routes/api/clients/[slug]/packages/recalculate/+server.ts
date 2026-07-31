@@ -1,6 +1,10 @@
 import { query } from '$lib/db';
 import { recalculatePackagesBatch } from '$lib/server/packageRecalculation';
 import { getStockholmYmd, trainingRelationshipSql } from '$lib/server/packageSemantics';
+import {
+	assertProfileNotGdprDeleted,
+	ProfileLifecycleGuardError
+} from '$lib/server/profileLifecycleGuards';
 
 function parseBoolean(value: unknown) {
 	return value === true || value === 'true' || value === 1 || value === '1';
@@ -28,6 +32,8 @@ export async function POST({ params, request }) {
 	}
 
 	try {
+		await assertProfileNotGdprDeleted('client', clientId);
+
 		// Match the client package list scope: all personal + currently eligible shared packages.
 		const rows = await query(
 			`
@@ -63,6 +69,12 @@ export async function POST({ params, request }) {
 
 		return new Response(JSON.stringify({ ok: true, ...result, message }), { status: 200 });
 	} catch (error) {
+		if (error instanceof ProfileLifecycleGuardError) {
+			return new Response(JSON.stringify({ error: error.message, code: error.code }), {
+				status: error.status
+			});
+		}
+
 		console.error('Client package recalculation failed:', error);
 		return new Response(
 			JSON.stringify({ error: (error as Error)?.message || 'Failed to recalculate client packages' }),
@@ -70,4 +82,3 @@ export async function POST({ params, request }) {
 		);
 	}
 }
-

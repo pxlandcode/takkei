@@ -2,6 +2,11 @@ import { query } from '$lib/db';
 import { resolveAdministratorRequest } from '$lib/server/adminAccess';
 import { trainingRelationshipSql } from '$lib/server/packageSemantics';
 import { json, type RequestHandler } from '@sveltejs/kit';
+import {
+	assertProfileNotGdprDeleted,
+	assertProfilesNotGdprDeleted,
+	ProfileLifecycleGuardError
+} from '$lib/server/profileLifecycleGuards';
 
 interface RelationshipRow {
 	id: number;
@@ -63,7 +68,12 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 	});
 };
 
-export const PATCH: RequestHandler = async ({ params, request }) => {
+export const PATCH: RequestHandler = async ({ params, request, locals }) => {
+	const admin = await resolveAdministratorRequest(locals);
+	if (!admin.ok) {
+		return json({ error: admin.message }, { status: admin.status });
+	}
+
 	const customerId = Number(params.id);
 
 	if (!Number.isFinite(customerId) || customerId <= 0) {
@@ -82,6 +92,18 @@ export const PATCH: RequestHandler = async ({ params, request }) => {
 		return new Response(JSON.stringify({ error: 'clientIds måste vara en lista' }), {
 			status: 400
 		});
+	}
+
+	try {
+		await assertProfileNotGdprDeleted('customer', customerId);
+		await assertProfilesNotGdprDeleted('client', clientIds);
+	} catch (error) {
+		if (error instanceof ProfileLifecycleGuardError) {
+			return json({ error: error.message, code: error.code }, { status: error.status });
+		}
+
+		console.error('Failed to check GDPR profile lifecycle before relationship update:', error);
+		return json({ error: 'Kunde inte kontrollera profilen' }, { status: 500 });
 	}
 
 	// Ensure customer exists

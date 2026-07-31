@@ -86,13 +86,33 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 		await client.query('BEGIN');
 		inTx = true;
 
-		const existingClient = await txQuery(client, `SELECT id FROM clients WHERE id = $1`, [
-			clientId
-		]);
+		const existingClient = await txQuery(
+			client,
+			`
+			SELECT c.id, lifecycle.gdpr_deleted_at
+			FROM clients c
+			LEFT JOIN gdpr_profile_lifecycle lifecycle
+			  ON lifecycle.profile_type = 'client'
+			 AND lifecycle.client_id = c.id
+			WHERE c.id = $1
+			`,
+			[clientId]
+		);
 		if (!existingClient.length) {
 			await client.query('ROLLBACK');
 			inTx = false;
 			return json({ error: 'Klienten hittades inte' }, { status: 404 });
+		}
+		if (existingClient[0]?.gdpr_deleted_at) {
+			await client.query('ROLLBACK');
+			inTx = false;
+			return json(
+				{
+					error: 'Klienten är GDPR-raderad och kan inte ändras.',
+					code: 'profile_gdpr_deleted'
+				},
+				{ status: 409 }
+			);
 		}
 
 		const created: Array<{ id: number; package_id: number }> = [];

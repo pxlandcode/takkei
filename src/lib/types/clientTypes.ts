@@ -13,6 +13,9 @@ export type Client = {
 	primary_location_id?: number | null;
 	primary_location?: string | null;
 	active: boolean;
+	gdpr_deleted_at?: string | null;
+	gdpr_delete_token?: string | null;
+	merged_into_client_id?: number | null;
 	created_at?: string | null;
 	updated_at?: string | null;
 };

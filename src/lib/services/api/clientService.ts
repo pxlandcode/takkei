@@ -1,27 +1,35 @@
 import type { Client } from '$lib/types/clientTypes';
 import type { FullBooking, BookingFilters } from '$lib/types/calendarTypes';
 import { fetchBookings } from '$lib/services/api/calendarService';
-import { cacheFirstJson } from '$lib/services/api/apiCache';
+import { buildCacheKey, cacheFirstJson, removeCacheEntry } from '$lib/services/api/apiCache';
 
 /**
  * Fetch Client Details and Bookings Using `fetchBookings`
  */
 export async function fetchClient(
 	clientId: number,
-	fetchFn: typeof fetch
+	fetchFn: typeof fetch,
+	options: { fresh?: boolean } = {}
 ): Promise<{ client: Client; bookings: FullBooking[] } | null> {
 	try {
 		// Fetch client details
 		const clientUrl = `/api/clients/${clientId}`;
 		let clientData: Client | null = null;
-		const { cached, fresh } = cacheFirstJson<Client>(fetchFn, clientUrl);
-		if (cached) {
-			clientData = cached;
-		}
-		try {
-			clientData = await fresh;
-		} catch {
-			// keep cached if fresh fails
+		if (options.fresh) {
+			removeCacheEntry(buildCacheKey('GET', clientUrl));
+			const response = await fetchFn(`${clientUrl}?nocache=${Date.now()}`);
+			if (!response.ok) throw new Error('Client not found');
+			clientData = await response.json();
+		} else {
+			const { cached, fresh } = cacheFirstJson<Client>(fetchFn, clientUrl);
+			if (cached) {
+				clientData = cached;
+			}
+			try {
+				clientData = await fresh;
+			} catch {
+				// keep cached if fresh fails
+			}
 		}
 		if (!clientData) throw new Error('Client not found');
 
