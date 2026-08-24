@@ -3,8 +3,6 @@
 	import { user } from '$lib/stores/userStore';
 
 	import {
-		targetMeta,
-		updateTargets,
 		locationTargetMeta,
 		updateLocationTargets,
 		companyTargetMeta,
@@ -21,9 +19,6 @@
 	onMount(() => {
 		if ($user?.id) {
 			const formattedDate = selectedDate.toISOString().slice(0, 10);
-
-			// Trainer targets
-			updateTargets('trainer', $user.id, formattedDate);
 
 			// Achievements
 			updateAchievements($user.id, formattedDate);
@@ -63,48 +58,6 @@
 			<div>Månad</div>
 			<div>Vecka</div>
 		</div>
-
-		<!-- User Goals Row -->
-		{#if $targetMeta}
-			<div class="grid grid-cols-4 items-center gap-2">
-				<div class="flex items-center gap-2">
-					<Icon icon="Person" size="16px" color="primary" />
-					<span class="truncate text-sm font-medium text-gray-700">Mina mål</span>
-				</div>
-				<div class="flex justify-center">
-					<ProgressCircle
-						value={$targetMeta.achievedYear}
-						max={$targetMeta.yearGoal ?? 0}
-						size={70}
-						strokeWidth={6}
-					/>
-				</div>
-				<div class="flex justify-center">
-					<ProgressCircle
-						value={$targetMeta.achievedMonth}
-						max={$targetMeta.monthGoal ?? 0}
-						size={70}
-						strokeWidth={6}
-					/>
-				</div>
-				<div class="flex justify-center">
-					<ProgressCircle
-						value={$targetMeta.achievedWeek}
-						max={$targetMeta.weekGoal ?? 0}
-						size={70}
-						strokeWidth={6}
-					/>
-				</div>
-			</div>
-		{:else}
-			<div class="grid grid-cols-4 items-center gap-2">
-				<div class="flex items-center gap-2">
-					<Icon icon="Person" size="16px" color="primary" />
-					<span class="text-sm font-medium text-gray-700">Mina mål</span>
-				</div>
-				<div class="col-span-3 text-center text-sm text-gray-400 italic">Hämtar...</div>
-			</div>
-		{/if}
 
 		<!-- Location Goals Row -->
 		{#if $locationTargetMeta && ($locationTargetMeta.yearGoal !== null || $locationTargetMeta.monthGoal !== null)}

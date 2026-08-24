@@ -7,6 +7,7 @@
 
 	let mounted = false;
 	let holidayPayAmount: number | null = null;
+	let holidayPayUpdatedAt: string | null = null;
 	let holidayPayLoading = false;
 	let hasLoadedHolidayPay = false;
 	let holidayPayUserId: number | null = null;
@@ -24,6 +25,8 @@
 
 	$: if (mounted && $user?.id && $user.id !== holidayPayUserId) {
 		holidayPayUserId = $user.id;
+		holidayPayAmount = null;
+		holidayPayUpdatedAt = null;
 		hasLoadedHolidayPay = false;
 		void loadHolidayPay();
 	}
@@ -31,6 +34,7 @@
 	$: if (mounted && !$user?.id && holidayPayUserId !== null) {
 		holidayPayUserId = null;
 		holidayPayAmount = null;
+		holidayPayUpdatedAt = null;
 		hasLoadedHolidayPay = true;
 	}
 
@@ -41,12 +45,22 @@
 		try {
 			const entry = await fetchHolidayPayForUser();
 			holidayPayAmount = entry?.amount ?? 0;
+			holidayPayUpdatedAt = entry?.updatedAt ?? entry?.createdAt ?? null;
 		} catch (error) {
 			console.error('Failed to load holiday pay', error);
 		} finally {
 			holidayPayLoading = false;
 			hasLoadedHolidayPay = true;
 		}
+	}
+
+	function getUpdatedAtText(value: string | null) {
+		if (!value) return 'Ingen uppdatering registrerad ännu.';
+		const parsed = new Date(value);
+		const formatted = Number.isNaN(parsed.getTime())
+			? value
+			: parsed.toLocaleString('sv-SE', { dateStyle: 'medium', timeStyle: 'short' });
+		return `Senast uppdaterad ${formatted}`;
 	}
 </script>
 
@@ -60,6 +74,11 @@
 				{holidayPayLoading && !hasLoadedHolidayPay ? '–' : formatCurrency(holidayPayAmount)}
 			</p>
 			<p class="text-xs text-gray-500">Semesterersättning</p>
+			<p class="mt-1 text-xs text-gray-500">
+				{holidayPayLoading && !hasLoadedHolidayPay
+					? 'Hämtar uppdatering...'
+					: getUpdatedAtText(holidayPayUpdatedAt)}
+			</p>
 		</div>
 	</div>
 </section>
