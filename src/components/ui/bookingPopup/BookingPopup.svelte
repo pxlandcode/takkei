@@ -2,7 +2,7 @@
 	import { createEventDispatcher, onMount, tick } from 'svelte';
 	import { users, fetchUsers } from '$lib/stores/usersStore';
 	import { locations, fetchLocations } from '$lib/stores/locationsStore';
-	import { clients, fetchClients } from '$lib/stores/clientsStore';
+	import { clients, fetchClients, getClientEmails } from '$lib/stores/clientsStore';
 	import { bookingContents, fetchBookingContents } from '$lib/stores/bookingContentStore';
 	import { capitalizeFirstLetter } from '$lib/helpers/generic/genericHelpers';
 	import Button from '../../bits/button/Button.svelte';
@@ -16,11 +16,12 @@
 	import {
 		BOOKING_EMAIL_RECIPIENT_DEFAULT,
 		buildBookingConfirmationEmailBody,
-		createClientCalendarEmailLinks,
 		handleBookingEmail,
 		handleMeetingOrPersonalBooking,
 		handleTrainingBooking,
-		resolveBookingConfirmationRecipients
+		requireClientCalendarEmailLinks,
+		resolveBookingConfirmationRecipients,
+		type ClientCalendarEmailLinks
 	} from '$lib/helpers/bookingHelpers/bookingHelpers';
 	import { openPopup, popupStore, closePopup, type PopupState } from '$lib/stores/popupStore';
 	import MailComponent from '../mailComponent/MailComponent.svelte';
@@ -29,6 +30,8 @@
 	import type { SelectedSlot } from '$lib/stores/selectedSlotStore';
 	import { clearSelectedSlot } from '$lib/stores/selectedSlotStore';
 	import { loadingStore } from '$lib/stores/loading';
+	import { addToast } from '$lib/stores/toastStore';
+	import { AppToastType } from '$lib/types/toastTypes';
 
 	export let startTime: Date | null = null;
 	export let clientId: number | null = null;
@@ -465,34 +468,50 @@
 						recipientEmails: recipients,
 						fromUser: currentUser,
 						bookedDates,
-						clientId: bookingObject.clientId
+						clientId: bookingObject.clientId,
+						clientRecipientEmails:
+							typeof bookingObject.clientId === 'number' && Number.isFinite(bookingObject.clientId)
+								? getClientEmails(bookingObject.clientId)
+								: []
 					});
 
 					if (emailResult === 'edit') {
-						const calendarLinks =
-							recipientTarget === 'client'
-								? await createClientCalendarEmailLinks(bookingObject.clientId)
-								: null;
-						openPopup({
-							header: `Maila bokningsbekräftelse till ${recipients.join(', ')}`,
-							icon: 'Mail',
-							component: MailComponent,
-							maxWidth: '900px',
-							props: {
-								prefilledRecipients: recipients,
-								subject: 'Bokningsbekräftelse',
-								header: 'Bekräftelse på dina bokningar',
-								subheader: 'Tack för din bokning!',
-								body: buildBookingConfirmationEmailBody({
-									bookedDates,
-									fromUser: currentUser,
-									calendarSyncUrl: calendarLinks?.syncPageUrl ?? null,
-									bookingsPageUrl: calendarLinks?.bookingsPageUrl ?? null
-								}),
-								lockedFields: ['recipients'],
-								autoFetchUsersAndClients: false
-							}
-						});
+						try {
+							const calendarLinks: ClientCalendarEmailLinks | null =
+								recipientTarget === 'client'
+									? await requireClientCalendarEmailLinks(bookingObject.clientId)
+									: null;
+							openPopup({
+								header: `Maila bokningsbekräftelse till ${recipients.join(', ')}`,
+								icon: 'Mail',
+								component: MailComponent,
+								maxWidth: '900px',
+								props: {
+									prefilledRecipients: recipients,
+									subject: 'Bokningsbekräftelse',
+									header: 'Bekräftelse på dina bokningar',
+									subheader: 'Tack för din bokning!',
+									body: buildBookingConfirmationEmailBody({
+										bookedDates,
+										fromUser: currentUser,
+										calendarSyncUrl: calendarLinks?.syncPageUrl ?? null,
+										bookingsPageUrl: calendarLinks?.bookingsPageUrl ?? null
+									}),
+									lockedFields: ['recipients'],
+									autoFetchUsersAndClients: false
+								}
+							});
+						} catch (error) {
+							console.error('Failed to create calendar links for booking email editor', error);
+							addToast({
+								type: AppToastType.CANCEL,
+								message: 'Kunde inte skapa kalenderlänkar',
+								description:
+									error instanceof Error
+										? error.message
+										: 'Kunde inte skapa länkarna till kundens bokningar och kalender.'
+							});
+						}
 					}
 				}
 			}

@@ -11,7 +11,7 @@
 	import type { FullBooking } from '$lib/types/calendarTypes';
 	import { locations, fetchLocations } from '$lib/stores/locationsStore';
 	import { users, fetchUsers } from '$lib/stores/usersStore';
-	import { clients, fetchClients } from '$lib/stores/clientsStore';
+	import { clients, fetchClients, getClientEmails } from '$lib/stores/clientsStore';
 	import {
 		bookingContents as bookingContentsStore,
 		fetchBookingContents
@@ -521,7 +521,11 @@
 			recipientEmails: recipients,
 			fromUser: currentUser,
 			bookedDates,
-			clientId: payload.clientId
+			clientId: payload.clientId,
+			clientRecipientEmails:
+				typeof payload.clientId === 'number' && Number.isFinite(payload.clientId)
+					? getClientEmails(payload.clientId)
+					: []
 		});
 
 		if (emailResult === 'edit') {

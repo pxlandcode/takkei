@@ -14,10 +14,11 @@
 		BOOKING_EMAIL_RECIPIENT_DEFAULT,
 		BOOKING_EMAIL_RECIPIENT_OPTIONS,
 		buildBookingConfirmationEmailBody,
-		createClientCalendarEmailLinks,
 		handleBookingEmail,
+		requireClientCalendarEmailLinks,
 		resolveBookingConfirmationRecipients,
-		type BookingEmailRecipientTarget
+		type BookingEmailRecipientTarget,
+		type ClientCalendarEmailLinks
 	} from '$lib/helpers/bookingHelpers/bookingHelpers';
 	import {
 		cancelBooking,
@@ -38,7 +39,7 @@
 	import { fetchClients, getClientEmails } from '$lib/stores/clientsStore';
 	import { get } from 'svelte/store';
 	import { user } from '$lib/stores/userStore';
-	import { users, fetchUsers } from '$lib/stores/usersStore';
+	import { users, fetchUsers, getUserEmails } from '$lib/stores/usersStore';
 	import { locations, fetchLocations } from '$lib/stores/locationsStore';
 	import QuillViewer from '../../bits/quillViewer/QuillViewer.svelte';
 	import { fetchBookingNotes, type BookingNote } from '$lib/services/api/bookingNotesService';
@@ -533,10 +534,6 @@
 	async function resolveClientRecipients(clientId: number, inlineEmail?: string | null) {
 		let emails = getClientEmails(clientId);
 
-		if (!emails.length && inlineEmail) {
-			emails = [inlineEmail];
-		}
-
 		if (!emails.length) {
 			try {
 				await fetchClients();
@@ -544,6 +541,10 @@
 			} catch (error) {
 				console.error('Failed to fetch clients for booking email', error);
 			}
+		}
+
+		if (!emails.length && inlineEmail) {
+			emails = [inlineEmail];
 		}
 
 		return emails;
@@ -691,18 +692,40 @@
 			trainerId: currentBooking.trainer?.id ?? null
 		});
 
-		if (!recipients.length && recipientTarget === 'both') {
+		if (recipientTarget === 'both') {
+			const trainerId = currentBooking.trainer?.id ?? null;
+			const needsClientEmails = getClientEmails(clientId).length === 0;
+			const needsTrainerEmails =
+				typeof trainerId === 'number' &&
+				Number.isFinite(trainerId) &&
+				getUserEmails(trainerId).length === 0;
+
 			try {
-				await Promise.all([fetchClients(), fetchUsers()]);
+				await Promise.all([
+					needsClientEmails ? fetchClients() : Promise.resolve(),
+					needsTrainerEmails ? fetchUsers() : Promise.resolve()
+				]);
 			} catch (error) {
 				console.error('Failed to refresh recipients for booking email', error);
 			}
 
-			recipients = resolveBookingConfirmationRecipients({
-				recipientTarget,
-				clientId,
-				trainerId: currentBooking.trainer?.id ?? null
-			});
+			if (needsClientEmails || needsTrainerEmails || !recipients.length) {
+				recipients = resolveBookingConfirmationRecipients({
+					recipientTarget,
+					clientId,
+					trainerId
+				});
+			}
+		}
+
+		if (
+			recipientTarget === 'both' &&
+			currentBooking.client?.email &&
+			!recipients.some(
+				(email) => email.toLowerCase() === currentBooking.client?.email?.toLowerCase()
+			)
+		) {
+			recipients = [...recipients, currentBooking.client.email];
 		}
 
 		if (!recipients.length && recipientTarget === 'client') {
@@ -719,17 +742,38 @@
 		}
 
 		const bookedDates = buildBookedDatesForConfirmation();
+		let clientRecipientEmails = getClientEmails(clientId);
+		if (!clientRecipientEmails.length && currentBooking.client?.email) {
+			clientRecipientEmails = [currentBooking.client.email];
+		}
+
 		const emailResult = await handleBookingEmail({
 			emailBehavior: behavior,
 			recipientEmails: recipients,
 			fromUser: currentUser,
 			bookedDates,
-			clientId
+			clientId,
+			clientRecipientEmails
 		});
 
 		if (emailResult === 'edit') {
-			const calendarLinks =
-				recipientTarget === 'client' ? await createClientCalendarEmailLinks(clientId) : null;
+			let calendarLinks: ClientCalendarEmailLinks | null = null;
+			try {
+				calendarLinks =
+					recipientTarget === 'client' ? await requireClientCalendarEmailLinks(clientId) : null;
+			} catch (error) {
+				console.error('Failed to create calendar links for booking email editor', error);
+				addToast({
+					type: AppToastType.CANCEL,
+					message: 'Kunde inte skapa kalenderlänkar',
+					description:
+						error instanceof Error
+							? error.message
+							: 'Kunde inte skapa länkarna till kundens bokningar och kalender.'
+				});
+				return;
+			}
+
 			openConfirmationPopup(recipients, bookedDates, currentUser, calendarLinks);
 		}
 	}

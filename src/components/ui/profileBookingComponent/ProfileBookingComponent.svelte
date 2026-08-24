@@ -4,7 +4,7 @@
 	import { writable, get } from 'svelte/store';
 	import { cancelBooking } from '$lib/services/api/bookingService';
 	import { fetchClients, getClientEmails } from '$lib/stores/clientsStore';
-	import { fetchUsers } from '$lib/stores/usersStore';
+	import { fetchUsers, getUserEmails } from '$lib/stores/usersStore';
 	import { sendMail } from '$lib/services/mail/mailClientService';
 	import { addToast } from '$lib/stores/toastStore';
 	import { AppToastType } from '$lib/types/toastTypes';
@@ -12,10 +12,11 @@
 		BOOKING_EMAIL_RECIPIENT_DEFAULT,
 		BOOKING_EMAIL_RECIPIENT_OPTIONS,
 		buildBookingConfirmationEmailBody,
-		createClientCalendarEmailLinks,
 		handleBookingEmail,
+		requireClientCalendarEmailLinks,
 		resolveBookingConfirmationRecipients,
-		type BookingEmailRecipientTarget
+		type BookingEmailRecipientTarget,
+		type ClientCalendarEmailLinks
 	} from '$lib/helpers/bookingHelpers/bookingHelpers';
 
 	import ProfileBookingSlot from '../profileBookingSlot/ProfileBookingSlot.svelte';
@@ -259,22 +260,43 @@
 			trainerId: trainerIds
 		});
 
-		if (!recipients.length && recipientTarget === 'both') {
+		if (recipientTarget === 'both') {
+			const needsClientEmails =
+				typeof resolvedClientId === 'number' &&
+				Number.isFinite(resolvedClientId) &&
+				getClientEmails(resolvedClientId).length === 0;
+			const needsTrainerEmails =
+				trainerIds.length > 0 && getUserEmails(trainerIds).length < trainerIds.length;
+
 			try {
-				await Promise.all([fetchClients(), fetchUsers()]);
+				await Promise.all([
+					needsClientEmails ? fetchClients() : Promise.resolve(),
+					needsTrainerEmails ? fetchUsers() : Promise.resolve()
+				]);
 			} catch (error) {
 				console.error('Failed to refresh recipients for booking email', error);
 			}
 
-			recipients = resolveBookingConfirmationRecipients({
-				recipientTarget,
-				clientId: resolvedClientId,
-				trainerId: trainerIds
-			});
+			if (needsClientEmails || needsTrainerEmails || !recipients.length) {
+				recipients = resolveBookingConfirmationRecipients({
+					recipientTarget,
+					clientId: resolvedClientId,
+					trainerId: trainerIds
+				});
+			}
+		}
+
+		if (
+			recipientTarget === 'both' &&
+			client?.email &&
+			(clientId == null || clientId === resolvedClientId) &&
+			!recipients.some((email) => email.toLowerCase() === client.email.toLowerCase())
+		) {
+			recipients = [...recipients, client.email];
 		}
 
 		if (!recipients.length && recipientTarget === 'client') {
-			recipients = await resolveClientRecipients();
+			recipients = await resolveClientRecipients(resolvedClientId);
 		}
 
 		if (!recipients.length) {
@@ -286,20 +308,46 @@
 			return;
 		}
 
+		let clientRecipientEmails =
+			typeof resolvedClientId === 'number' && Number.isFinite(resolvedClientId)
+				? getClientEmails(resolvedClientId)
+				: [];
+		if (!clientRecipientEmails.length && client?.email) {
+			clientRecipientEmails = [client.email];
+		}
+
 		const emailResult = await handleBookingEmail({
 			emailBehavior: behavior,
 			recipientEmails: recipients,
 			fromUser: current,
 			bookedDates,
-			clientId: resolvedClientId
+			clientId: resolvedClientId,
+			clientRecipientEmails
 		});
 
 		if (emailResult !== 'edit') {
 			return;
 		}
 
-		const calendarLinks =
-			recipientTarget === 'client' ? await createClientCalendarEmailLinks(resolvedClientId) : null;
+		let calendarLinks: ClientCalendarEmailLinks | null = null;
+		try {
+			calendarLinks =
+				recipientTarget === 'client'
+					? await requireClientCalendarEmailLinks(resolvedClientId)
+					: null;
+		} catch (error) {
+			console.error('Failed to create calendar links for booking email editor', error);
+			addToast({
+				type: AppToastType.CANCEL,
+				message: 'Kunde inte skapa kalenderlänkar',
+				description:
+					error instanceof Error
+						? error.message
+						: 'Kunde inte skapa länkarna till kundens bokningar och kalender.'
+			});
+			return;
+		}
+
 		const body = buildBookingConfirmationEmailBody({
 			bookedDates,
 			fromUser: current,
@@ -324,17 +372,21 @@
 		});
 	}
 
-	async function resolveClientRecipients() {
-		if (!clientId) return [];
-		let emails = client?.email ? [client.email] : getClientEmails(clientId);
+	async function resolveClientRecipients(targetClientId = clientId) {
+		if (!targetClientId) return [];
+		let emails = getClientEmails(targetClientId);
 
 		if (!emails.length) {
 			try {
 				await fetchClients();
-				emails = getClientEmails(clientId);
+				emails = getClientEmails(targetClientId);
 			} catch (error) {
 				console.error('Failed to fetch clients for cancellation email', error);
 			}
+		}
+
+		if (!emails.length && client?.email) {
+			emails = [client.email];
 		}
 
 		return emails;

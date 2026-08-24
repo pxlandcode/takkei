@@ -96,12 +96,18 @@ export function buildBookingConfirmationEmailBody({
       `;
 }
 
-function splitClientRecipients(recipients: string[], clientId?: number | null) {
+function splitClientRecipients(
+	recipients: string[],
+	clientId?: number | null,
+	clientRecipientEmails: string[] = []
+) {
 	if (typeof clientId !== 'number' || !Number.isFinite(clientId)) {
 		return { clientRecipients: [], otherRecipients: recipients };
 	}
 
-	const clientEmails = new Set(getClientEmails(clientId).map((email) => email.toLowerCase()));
+	const clientEmails = new Set(
+		[...getClientEmails(clientId), ...clientRecipientEmails].map((email) => email.toLowerCase())
+	);
 	const clientRecipients = recipients.filter((email) => clientEmails.has(email.toLowerCase()));
 	const otherRecipients = recipients.filter((email) => !clientEmails.has(email.toLowerCase()));
 
@@ -123,9 +129,15 @@ export async function createClientCalendarEmailLinks(
 			body: JSON.stringify({})
 		});
 
-		if (!response.ok) return null;
+		if (!response.ok) {
+			const errorText = await response.text().catch(() => '');
+			console.error('Failed to create client calendar links', response.status, errorText);
+			return null;
+		}
+
 		const payload = await response.json();
 		if (typeof payload?.syncPageUrl !== 'string' || typeof payload?.bookingsPageUrl !== 'string') {
+			console.error('Client calendar link response did not include expected URLs', payload);
 			return null;
 		}
 
@@ -137,6 +149,16 @@ export async function createClientCalendarEmailLinks(
 		console.error('Failed to create client calendar links', error);
 		return null;
 	}
+}
+
+export async function requireClientCalendarEmailLinks(
+	clientId?: number | null
+): Promise<ClientCalendarEmailLinks> {
+	const links = await createClientCalendarEmailLinks(clientId);
+	if (!links) {
+		throw new Error('Kunde inte skapa länkarna till kundens bokningar och kalender.');
+	}
+	return links;
 }
 
 export async function createClientCalendarSyncLink(
@@ -408,29 +430,36 @@ export async function handleBookingEmail({
 	recipientEmails,
 	fromUser,
 	bookedDates,
-	clientId = null
+	clientId = null,
+	clientRecipientEmails = []
 }: {
 	emailBehavior: 'send' | 'edit' | 'none';
 	recipientEmails: string[];
 	fromUser: { firstname: string; lastname: string; email: string };
 	bookedDates: BookedDateLine[];
 	clientId?: number | null;
+	clientRecipientEmails?: string[];
 }): Promise<'sent' | 'edit' | 'skipped'> {
 	const recipients = getUniqueRecipients(recipientEmails);
 	if (recipients.length === 0 || emailBehavior === 'none') return 'skipped';
 	const recipientLabel = recipients.join(', ');
 
 	if (emailBehavior === 'send') {
-		const { clientRecipients, otherRecipients } = splitClientRecipients(recipients, clientId);
-		const calendarLinks = clientRecipients.length
-			? await createClientCalendarEmailLinks(clientId)
-			: null;
+		const { clientRecipients, otherRecipients } = splitClientRecipients(
+			recipients,
+			clientId,
+			clientRecipientEmails
+		);
 		const from = {
 			name: `${fromUser.firstname} ${fromUser.lastname}`,
 			email: fromUser.email
 		};
 
 		try {
+			const calendarLinks = clientRecipients.length
+				? await requireClientCalendarEmailLinks(clientId)
+				: null;
+
 			if (clientRecipients.length) {
 				await sendMail({
 					to: clientRecipients,
@@ -466,10 +495,14 @@ export async function handleBookingEmail({
 			return 'sent';
 		} catch (error) {
 			console.error('Failed to send booking confirmation email', error);
+			const errorMessage =
+				error instanceof Error
+					? error.message
+					: `Kunde inte skicka bekräftelsemail till ${recipientLabel}.`;
 			addToast({
 				type: AppToastType.CANCEL,
 				message: 'Fel vid utskick',
-				description: `Kunde inte skicka bekräftelsemail till ${recipientLabel}.`
+				description: errorMessage
 			});
 			return 'skipped';
 		}
