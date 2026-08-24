@@ -5,6 +5,7 @@ import type { ClientCalendarEvent } from '$lib/helpers/calendarHelpers/client-ca
 const TOKEN_SEPARATOR = '.';
 const DEFAULT_PAST_MONTHS = 12;
 const DEFAULT_FUTURE_MONTHS = 24;
+const DEFAULT_PUBLIC_ORIGIN = 'https://superadmin.takkei.se';
 
 type AuthUserLike = {
 	kind?: 'trainer' | 'client' | string;
@@ -96,6 +97,35 @@ export function buildClientCalendarSubscriptionToken(
 	subscription: Pick<ClientCalendarSubscription, 'id' | 'nonce'>
 ): string {
 	return signClientCalendarToken(subscription.id, subscription.nonce);
+}
+
+function normalizeHttpOrigin(value: string | null | undefined): string | null {
+	if (!value) return null;
+
+	try {
+		const parsed = new URL(value.trim());
+		if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null;
+		return parsed.origin;
+	} catch {
+		return null;
+	}
+}
+
+function isLocalOrigin(origin: string): boolean {
+	const parsed = new URL(origin);
+	return ['localhost', '127.0.0.1', '0.0.0.0', '[::1]'].includes(parsed.hostname);
+}
+
+export function resolveClientCalendarPublicOrigin(requestOrigin: string): string {
+	const configuredOrigin = normalizeHttpOrigin(process.env.PUBLIC_APP_ORIGIN);
+	if (configuredOrigin) return configuredOrigin;
+
+	const normalizedRequestOrigin = normalizeHttpOrigin(requestOrigin);
+	if (!normalizedRequestOrigin || isLocalOrigin(normalizedRequestOrigin)) {
+		return DEFAULT_PUBLIC_ORIGIN;
+	}
+
+	return normalizedRequestOrigin;
 }
 
 export function buildClientCalendarSubscriptionLinks({
