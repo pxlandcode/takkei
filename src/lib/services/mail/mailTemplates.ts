@@ -2,40 +2,58 @@ import { randomInt } from 'crypto';
 
 type EmailImage = {
 	image: string;
-	lines: string[];
 };
 
 const fallbackImages: EmailImage[] = [
 	{
-		image: 'https://takkei.netlify.app/images/neck.png',
-		lines: ['En timme i veckan', 'Hela kroppen', 'Repetera']
+		image: 'https://takkei.netlify.app/images/neck.png'
 	},
 	{
-		image: 'https://takkei.netlify.app/images/leaves.png',
-		lines: ['Kontinuitet är nyckeln till träningsframgång']
+		image: 'https://takkei.netlify.app/images/leaves.png'
 	},
 	{
-		image: 'https://takkei.netlify.app/images/sand-wall.png',
-		lines: ['Smärtfri', 'Smidig', 'Stark', 'Snabb', '(Snygg)']
+		image: 'https://takkei.netlify.app/images/sand-wall.png'
 	}
 ];
+
+const fallbackFooterLines = [
+	['En timme i veckan', 'Hela kroppen', 'Repetera'],
+	['Kontinuitet är nyckeln till träningsframgång'],
+	['Smärtfri', 'Smidig', 'Stark', 'Snabb', '(Snygg)']
+];
+
+function escapeHtml(raw: string): string {
+	return raw
+		.replace(/&/g, '&amp;')
+		.replace(/</g, '&lt;')
+		.replace(/>/g, '&gt;')
+		.replace(/"/g, '&quot;')
+		.replace(/'/g, '&#39;');
+}
 
 export function buildTakkeiEmail({
 	subject,
 	header,
 	subheader,
 	body,
-	image = null
+	image = null,
+	footerLines
 }: {
 	subject: string;
 	header?: string | null;
 	subheader?: string | null;
 	body: string;
 	image?: EmailImage | null;
+	footerLines?: string[] | null;
 }) {
-	const index = image ? -1 : randomInt(fallbackImages.length);
-
-	const selected = image ?? fallbackImages[index];
+	const selected = image ?? fallbackImages[randomInt(fallbackImages.length)];
+	const resolvedFooterLines =
+		footerLines === undefined
+			? fallbackFooterLines[randomInt(fallbackFooterLines.length)]
+			: footerLines;
+	const footerMessageMarkup = resolvedFooterLines?.length
+		? `<p style="margin: 0;">${resolvedFooterLines.map(escapeHtml).join(', ')}</p>`
+		: '';
 	const trimmedHeader = header?.trim() ?? '';
 	const trimmedSubheader = subheader?.trim() ?? '';
 	const documentTitle = trimmedHeader || subject;
@@ -87,7 +105,7 @@ export function buildTakkeiEmail({
 						</tr>
 						<tr>
 							<td colspan="2" style="padding: 32px 24px 16px 24px; text-align: center; background-color: #000000; color: #aaaaaa; font-family: Arial, sans-serif; font-size: 12px;">
-								<p style="margin: 0;">${selected.lines.join(', ')}</p>
+								${footerMessageMarkup}
 								<p style="margin: 8px 0 0 0;">Takkei</p>
 							</td>
 						</tr>

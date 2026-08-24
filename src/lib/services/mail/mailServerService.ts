@@ -1,6 +1,7 @@
 import sgMail from '@sendgrid/mail';
 import { SENDGRID_API_KEY } from '$env/static/private';
 import { buildTakkeiEmail } from './mailTemplates';
+import { getActiveEmailFooterLinesForEmail } from '$lib/server/emailFooterMessages';
 
 sgMail.setApiKey(SENDGRID_API_KEY);
 
@@ -17,14 +18,14 @@ function isValidEmail(email: string): boolean {
 }
 
 type SendEmailResult = {
-        validRecipients: string[];
-        invalidEmails: string[];
-        failedRecipients: { batch: string[]; error: any }[];
+	validRecipients: string[];
+	invalidEmails: string[];
+	failedRecipients: { batch: string[]; error: any }[];
 };
 
 async function sendFailureAlert({
-        invalidEmails,
-        failedRecipients
+	invalidEmails,
+	failedRecipients
 }: {
 	invalidEmails: string[];
 	failedRecipients: { batch: string[]; error: any }[];
@@ -65,9 +66,9 @@ async function sendFailureAlert({
 }
 
 export async function sendEmail({
-        to,
-        subject,
-        text,
+	to,
+	subject,
+	text,
 	html,
 	from
 }: {
@@ -92,25 +93,25 @@ export async function sendEmail({
 		...(replyTo && { reply_to: replyTo })
 	};
 
-        const invalidEmails: string[] = [];
-        const failedBatches: { batch: string[]; error: any }[] = [];
-        const validRecipients: string[] = [];
+	const invalidEmails: string[] = [];
+	const failedBatches: { batch: string[]; error: any }[] = [];
+	const validRecipients: string[] = [];
 
-        if (Array.isArray(to)) {
-                // Filter invalid emails
-                const filteredRecipients = to.filter((email) => {
-                        const isValid = isValidEmail(email);
-                        if (!isValid) invalidEmails.push(email);
-                        return isValid;
-                });
+	if (Array.isArray(to)) {
+		// Filter invalid emails
+		const filteredRecipients = to.filter((email) => {
+			const isValid = isValidEmail(email);
+			if (!isValid) invalidEmails.push(email);
+			return isValid;
+		});
 
-                validRecipients.push(...filteredRecipients);
+		validRecipients.push(...filteredRecipients);
 
-                const CHUNK_SIZE = 100;
-                const batches = chunkArray(filteredRecipients, CHUNK_SIZE);
+		const CHUNK_SIZE = 100;
+		const batches = chunkArray(filteredRecipients, CHUNK_SIZE);
 
-                for (const batch of batches) {
-                        const msg = {
+		for (const batch of batches) {
+			const msg = {
 				...msgBase,
 				personalizations: batch.map((email) => ({
 					to: [{ email }]
@@ -125,31 +126,35 @@ export async function sendEmail({
 			}
 		}
 	} else {
-                if (!isValidEmail(to)) {
-                        invalidEmails.push(to);
-                } else {
-                        const msg = {
-                                ...msgBase,
-                                to
-                        };
+		if (!isValidEmail(to)) {
+			invalidEmails.push(to);
+		} else {
+			const msg = {
+				...msgBase,
+				to
+			};
 
-                        try {
-                                await sgMail.send(msg);
-                                validRecipients.push(to);
-                        } catch (error) {
-                                console.error('❌ SendGrid single error:', error?.response?.body || error.message);
-                                failedBatches.push({ batch: [to], error });
-                        }
-                }
-        }
+			try {
+				await sgMail.send(msg);
+				validRecipients.push(to);
+			} catch (error) {
+				console.error('❌ SendGrid single error:', error?.response?.body || error.message);
+				failedBatches.push({ batch: [to], error });
+			}
+		}
+	}
 
-        await sendFailureAlert({ invalidEmails, failedRecipients: failedBatches });
+	await sendFailureAlert({ invalidEmails, failedRecipients: failedBatches });
 
-        if (invalidEmails.length || failedBatches.length) {
-                throw new Error('Vissa mail misslyckades, se logg/avisering.');
-        }
+	if (invalidEmails.length || failedBatches.length) {
+		throw new Error('Vissa mail misslyckades, se logg/avisering.');
+	}
 
-        return { validRecipients, invalidEmails, failedRecipients: failedBatches } satisfies SendEmailResult;
+	return {
+		validRecipients,
+		invalidEmails,
+		failedRecipients: failedBatches
+	} satisfies SendEmailResult;
 }
 
 export async function sendStyledEmail({
@@ -170,30 +175,32 @@ export async function sendStyledEmail({
 	const trimmedHeader = header?.trim() ? header.trim() : null;
 	const trimmedSubheader = subheader?.trim() ? subheader.trim() : null;
 
+	const footerLines = await getActiveEmailFooterLinesForEmail();
 	const html = buildTakkeiEmail({
 		subject,
 		header: trimmedHeader,
 		subheader: trimmedSubheader,
-		body
+		body,
+		footerLines
 	});
-	const textParts = [trimmedHeader, trimmedSubheader, body].filter(
-		(part): part is string => Boolean(part)
+	const textParts = [trimmedHeader, trimmedSubheader, body].filter((part): part is string =>
+		Boolean(part)
 	);
 	const text = textParts.join('\n\n');
 
-        const { validRecipients } = await sendEmail({
-                to,
-                from,
-                subject,
-                text,
-                html
-        });
+	const { validRecipients } = await sendEmail({
+		to,
+		from,
+		subject,
+		text,
+		html
+	});
 
-        return {
-                validRecipients,
-                header: trimmedHeader,
-                subheader: trimmedSubheader,
-                html,
-                text
-        };
+	return {
+		validRecipients,
+		header: trimmedHeader,
+		subheader: trimmedSubheader,
+		html,
+		text
+	};
 }
