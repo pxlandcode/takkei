@@ -1,7 +1,8 @@
 import { error } from '@sveltejs/kit';
 import {
 	buildClientCalendarSubscriptionLinks,
-	getActiveClientCalendarSubscriptionFromToken
+	getActiveClientCalendarSubscriptionFromToken,
+	resolveClientCalendarPublicOrigin
 } from '$lib/server/clientCalendarSubscriptions';
 import type { PageServerLoad } from './$types';
 
@@ -13,7 +14,8 @@ export const load: PageServerLoad = async ({ params, url, locals }) => {
 		throw error(404, 'Kalenderlänken finns inte längre.');
 	}
 
-	const links = buildClientCalendarSubscriptionLinks({ origin: url.origin, token });
+	const publicOrigin = resolveClientCalendarPublicOrigin(url.origin);
+	const links = buildClientCalendarSubscriptionLinks({ origin: publicOrigin, token });
 	const authUser = locals.user;
 	const authClientId =
 		authUser?.kind === 'client' ? (authUser.clientId ?? authUser.client_id ?? null) : null;
@@ -22,7 +24,7 @@ export const load: PageServerLoad = async ({ params, url, locals }) => {
 		...links,
 		bookingsPageUrl:
 			authClientId === subscription.clientId
-				? new URL('/client/bookings', url.origin).toString()
+				? new URL('/client/bookings', publicOrigin).toString()
 				: links.bookingsPageUrl
 	};
 };

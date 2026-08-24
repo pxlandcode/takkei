@@ -2,7 +2,8 @@ import { error } from '@sveltejs/kit';
 import {
 	buildClientCalendarSubscriptionLinks,
 	getActiveClientCalendarSubscriptionFromToken,
-	getClientCalendarFeedEvents
+	getClientCalendarFeedEvents,
+	resolveClientCalendarPublicOrigin
 } from '$lib/server/clientCalendarSubscriptions';
 import type { FullBooking } from '$lib/types/calendarTypes';
 import type { PageServerLoad } from './$types';
@@ -73,7 +74,10 @@ export const load: PageServerLoad = async ({ params, url }) => {
 	}
 
 	const events = await getClientCalendarFeedEvents(subscription.clientId);
-	const links = buildClientCalendarSubscriptionLinks({ origin: url.origin, token });
+	const links = buildClientCalendarSubscriptionLinks({
+		origin: resolveClientCalendarPublicOrigin(url.origin),
+		token
+	});
 
 	return {
 		syncPageUrl: links.syncPageUrl,

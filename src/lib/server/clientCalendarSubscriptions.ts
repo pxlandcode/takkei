@@ -118,7 +118,7 @@ function isLocalOrigin(origin: string): boolean {
 
 export function resolveClientCalendarPublicOrigin(requestOrigin: string): string {
 	const configuredOrigin = normalizeHttpOrigin(process.env.PUBLIC_APP_ORIGIN);
-	if (configuredOrigin) return configuredOrigin;
+	if (configuredOrigin && !isLocalOrigin(configuredOrigin)) return configuredOrigin;
 
 	const normalizedRequestOrigin = normalizeHttpOrigin(requestOrigin);
 	if (!normalizedRequestOrigin || isLocalOrigin(normalizedRequestOrigin)) {

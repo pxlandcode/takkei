@@ -61,6 +61,14 @@ describe('client calendar subscription tokens', () => {
 		);
 	});
 
+	it('ignores local configured origins for generated client calendar links', () => {
+		process.env.PUBLIC_APP_ORIGIN = 'http://localhost:5173';
+
+		expect(resolveClientCalendarPublicOrigin('http://localhost:5173')).toBe(
+			'https://superadmin.takkei.se'
+		);
+	});
+
 	it('falls back to the Takkei public origin for local request origins', () => {
 		expect(resolveClientCalendarPublicOrigin('http://localhost:5173')).toBe(
 			'https://superadmin.takkei.se'
