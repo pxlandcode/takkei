@@ -41,7 +41,7 @@ You can preview the production build with `npm run preview`.
 
 ## Database migrations
 
-The app connects to PostgreSQL through `src/lib/db.js`. Production can use `SUPABASE_DATABASE_URL` or `DATABASE_URL`; local development can use `PGUSER`/`PGPASSWORD`/`PGHOST`/`PGPORT`/`PGDATABASE` or a full `DATABASE_URL`. See [`.env.example`](./.env.example) for the supported variables.
+The app connects to PostgreSQL through `src/lib/db.js`. Production can use `SUPABASE_DATABASE_URL` or `DATABASE_URL`; local development can use `PGUSER`/`PGPASSWORD`/`PGHOST`/`PGPORT`/`PGDATABASE` or a full `DATABASE_URL`. Calendar subscription feeds also require `CALENDAR_FEED_SECRET` with at least 32 characters.
 
 For the Heroku Postgres to Supabase move, follow [`docs/supabase-migration.md`](./docs/supabase-migration.md).
 
@@ -49,9 +49,10 @@ Certain features rely on SQL scripts that are not executed automatically. When n
 
 ```bash
 psql "$DATABASE_URL" -f scripts/20251201000000_add_mail_history.sql
+psql "$DATABASE_URL" -f scripts/20260818000000_add_client_calendar_subscriptions.sql
 ```
 
-Make sure to run the migration before starting the application so tables such as `mail_history` are available.
+Make sure to run the migrations before starting the application so tables such as `mail_history` and `client_calendar_subscriptions` are available.
 
 ## Rapporter
 

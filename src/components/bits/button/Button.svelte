@@ -101,7 +101,7 @@
 	`;
 </script>
 
-<div class="relative inline-block">
+<div class={full ? 'relative block w-full' : 'relative inline-block'}>
 	{#if confirmOptions}
 		<button
 			aria-disabled={isDisabled}

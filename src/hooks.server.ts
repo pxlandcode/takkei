@@ -5,24 +5,34 @@ import { i18n } from '$lib/i18n';
 import { lucia } from '$lib/server/auth';
 
 const PUBLIC_PATHS = new Set(['/login', '/api/login', '/api/signup', '/logout']);
+const CLIENT_READ_ONLY_API_PATHS = new Set(['/api/greetings', '/api/locations']);
+
+function isPublicPath(pathname: string): boolean {
+	return (
+		PUBLIC_PATHS.has(pathname) ||
+		(pathname.startsWith('/calendar/client/') && pathname.endsWith('.ics')) ||
+		pathname.startsWith('/calendar-sync/') ||
+		pathname.startsWith('/calendar-bookings/')
+	);
+}
 
 const handleAuth: Handle = async ({ event, resolve }) => {
-        const { pathname } = event.url;
+	const { pathname } = event.url;
 
-        if (event.request.method === 'OPTIONS') {
-                return resolve(event);
-        }
+	if (event.request.method === 'OPTIONS') {
+		return resolve(event);
+	}
 
-        if (
-                pathname.startsWith('/images') ||
-                pathname.startsWith('/static') ||
-                pathname.startsWith('/build') ||
-                pathname.startsWith('/_app') ||
-                pathname.startsWith('/favicon') ||
-                pathname.startsWith('/service-worker')
-        ) {
-                return resolve(event);
-        }
+	if (
+		pathname.startsWith('/images') ||
+		pathname.startsWith('/static') ||
+		pathname.startsWith('/build') ||
+		pathname.startsWith('/_app') ||
+		pathname.startsWith('/favicon') ||
+		pathname.startsWith('/service-worker')
+	) {
+		return resolve(event);
+	}
 
 	const sessionId = event.cookies.get(lucia.sessionCookieName) ?? null;
 	type ValidationResult = Awaited<ReturnType<typeof lucia.validateSession>>;
@@ -74,10 +84,10 @@ const handleAuth: Handle = async ({ event, resolve }) => {
 	event.locals.session = session;
 	event.locals.user = user;
 
-        const isPublic = PUBLIC_PATHS.has(pathname);
-        if (isPublic) {
-                return resolve(event);
-        }
+	const isPublic = isPublicPath(pathname);
+	if (isPublic) {
+		return resolve(event);
+	}
 
 	const authUser = event.locals.user;
 
@@ -95,8 +105,8 @@ const handleAuth: Handle = async ({ event, resolve }) => {
 		throw redirect(302, '/login');
 	}
 
-        const kind = authUser.kind;
-	const clientId = authUser.kind === 'client' ? authUser.clientId ?? authUser.client_id : null;
+	const kind = authUser.kind;
+	const clientId = authUser.kind === 'client' ? (authUser.clientId ?? authUser.client_id) : null;
 
 	const isClientArea = pathname === '/client' || pathname.startsWith('/client/');
 	let isClientApi =
@@ -111,6 +121,13 @@ const handleAuth: Handle = async ({ event, resolve }) => {
 		) {
 			isClientApi = true;
 		} else if (pathname === '/api/bookings' || pathname.startsWith('/api/bookings/')) {
+			isClientApi = true;
+		} else if (
+			event.request.method === 'GET' &&
+			(CLIENT_READ_ONLY_API_PATHS.has(pathname) ||
+				pathname.startsWith('/api/locations/') ||
+				pathname.startsWith('/api/greetings/'))
+		) {
 			isClientApi = true;
 		} else if (pathname === '/api/logout' || pathname === '/logout') {
 			isClientApi = true;
@@ -146,7 +163,7 @@ const handleAuth: Handle = async ({ event, resolve }) => {
 		throw redirect(303, '/client');
 	}
 
-        return resolve(event);
+	return resolve(event);
 };
 
 const handleParaglide: Handle = i18n.handle();

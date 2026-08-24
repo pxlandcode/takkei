@@ -13,6 +13,8 @@
 	import {
 		BOOKING_EMAIL_RECIPIENT_DEFAULT,
 		BOOKING_EMAIL_RECIPIENT_OPTIONS,
+		buildBookingConfirmationEmailBody,
+		createClientCalendarEmailLinks,
 		handleBookingEmail,
 		resolveBookingConfirmationRecipients,
 		type BookingEmailRecipientTarget
@@ -520,29 +522,11 @@
 		return [{ date: bookingDate, time: bookingTime, locationName }];
 	}
 
-	function buildConfirmationBody(
-		bookedDates: BookedDateLine[],
-		currentUser: { firstname: string }
-	) {
-		const lines = bookedDates
-			.map((b) => `${b.date} kl. ${b.time}${b.locationName ? ` på ${b.locationName}` : ''}`)
-			.join('<br>');
-
-		return `
-			Hej!<br><br>
-			Jag har bokat in dig följande tider:<br>
-			${lines}<br><br>
-			Du kan boka av eller om din träningstid senast klockan 12.00 dagen innan träning genom att kontakta någon i ditt tränarteam via sms, e‑post eller telefon.<br><br>
-			Hälsningar,<br>
-			${currentUser.firstname}<br>
-			Takkei Trainingsystems
-		`;
-	}
-
 	function openConfirmationPopup(
 		recipients: string[],
 		bookedDates: BookedDateLine[],
-		currentUser: { firstname: string }
+		currentUser: { firstname: string },
+		calendarLinks: { syncPageUrl: string; bookingsPageUrl: string } | null
 	) {
 		openPopup({
 			header: `Maila bokningsbekräftelse till ${recipients.join(', ')}`,
@@ -554,7 +538,12 @@
 				subject: 'Bokningsbekräftelse',
 				header: 'Bekräftelse på dina bokningar',
 				subheader: 'Tack för din bokning!',
-				body: buildConfirmationBody(bookedDates, currentUser),
+				body: buildBookingConfirmationEmailBody({
+					bookedDates,
+					fromUser: currentUser,
+					calendarSyncUrl: calendarLinks?.syncPageUrl ?? null,
+					bookingsPageUrl: calendarLinks?.bookingsPageUrl ?? null
+				}),
 				lockedFields: ['recipients'],
 				autoFetchUsersAndClients: false
 			}
@@ -700,11 +689,14 @@
 			emailBehavior: behavior,
 			recipientEmails: recipients,
 			fromUser: currentUser,
-			bookedDates
+			bookedDates,
+			clientId
 		});
 
 		if (emailResult === 'edit') {
-			openConfirmationPopup(recipients, bookedDates, currentUser);
+			const calendarLinks =
+				recipientTarget === 'client' ? await createClientCalendarEmailLinks(clientId) : null;
+			openConfirmationPopup(recipients, bookedDates, currentUser, calendarLinks);
 		}
 	}
 

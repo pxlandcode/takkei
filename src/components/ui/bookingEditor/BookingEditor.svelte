@@ -512,7 +512,8 @@
 			emailBehavior: behavior,
 			recipientEmails: recipients,
 			fromUser: currentUser,
-			bookedDates
+			bookedDates,
+			clientId: payload.clientId
 		});
 
 		if (emailResult === 'edit') {

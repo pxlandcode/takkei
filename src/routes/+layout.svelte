@@ -69,6 +69,8 @@
 	let absencePromptLoadToken = 0;
 
 	$: currentRoute = $page.url.pathname;
+	$: isStandaloneCalendarRoute =
+		currentRoute.startsWith('/calendar-sync/') || currentRoute.startsWith('/calendar-bookings/');
 
 	$: navigating.to && loadingStore.loading(!!navigating.to);
 
@@ -366,6 +368,14 @@
 	</div>
 	{#if currentRoute === '/login'}
 		<slot />
+	{:else if isStandaloneCalendarRoute && !currentAccount}
+		<main class="bg-background-gradient relative flex h-dvh w-full overflow-hidden p-4">
+			<section class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-sm bg-white">
+				<div class="flex-1 overflow-y-auto">
+					<slot />
+				</div>
+			</section>
+		</main>
 	{:else if isClient}
 		<main class="bg-background-gradient relative flex h-dvh w-full overflow-hidden">
 			<div class="hidden w-full gap-4 md:flex">
