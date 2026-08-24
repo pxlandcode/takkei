@@ -1,10 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import Icon from '../../../bits/icon-component/Icon.svelte';
-	import { updateAchievements } from '$lib/stores/achievementsStore';
 	import {
-		targetMeta,
-		updateTargets,
 		locationTargetMeta,
 		updateLocationTargets,
 		companyTargetMeta,
@@ -38,8 +35,6 @@
 		if (!$user?.id) return;
 
 		const formattedDate = new Date().toISOString().slice(0, 10);
-		void updateTargets('trainer', $user.id, formattedDate);
-		void updateAchievements($user.id, formattedDate);
 
 		const defaultLocationId = $user.kind === 'trainer' ? Number($user.default_location_id ?? 0) : 0;
 		if (defaultLocationId > 0) {
@@ -53,13 +48,9 @@
 <section class="bg-white p-5 shadow-sm">
 	<h2 class="mb-4 flex items-center gap-2 text-lg font-semibold text-gray-900">
 		<Icon icon="Trophy" size="18px" color="primary" />
-		Mål
+		Gemensamma mål
 	</h2>
 	<div class="space-y-4">
-		{#if $targetMeta}
-			<HomeModernTargetProgressGroup icon="Person" label="Mina mål" meta={$targetMeta} />
-		{/if}
-
 		{#if $locationTargetMeta && ($locationTargetMeta.yearGoal !== null || $locationTargetMeta.monthGoal !== null)}
 			<HomeModernTargetProgressGroup
 				icon="Building"

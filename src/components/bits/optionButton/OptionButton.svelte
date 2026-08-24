@@ -4,7 +4,7 @@
 	import Icon from '../icon-component/Icon.svelte';
 
 	export let options: { value: any; label: string; icon?: string }[] = [];
-	export let selectedOption: { value: any; label: string } | null = null;
+	export let selectedOption: { value: any; label: string; icon?: string | null } | null = null;
 	export let variant: 'black' | 'gray' = 'gray';
 	export let size: 'small' | 'medium' = 'medium';
 	export let full: boolean = false;
@@ -23,8 +23,9 @@
 	const dispatch = createEventDispatcher();
 
 	$: resolvedErrorKey = errorKey ?? id ?? undefined;
+	$: labelId = id ? `${id}-label` : undefined;
 
-	function selectOption(option: { value: any; label: string }) {
+	function selectOption(option: { value: any; label: string; icon?: string | null }) {
 		selectedOption = option;
 		dispatch('select', option.value);
 	}
@@ -57,14 +58,20 @@
 				<Icon icon={labelIcon} size={labelIconSize} color="gray" />
 			{/if}
 
-			<label for={id} class="text-gray mb-1 block text-sm font-medium">{label}</label>
+			<span id={labelId} class="text-gray mb-1 block text-sm font-medium">{label}</span>
 		</div>
 	{/if}
 	<div class={wrapperClasses}>
-		<div {id} class="flex gap-[2px] rounded-sm">
+		<div
+			{id}
+			class="flex gap-[2px] rounded-sm"
+			role="group"
+			aria-labelledby={label ? labelId : undefined}
+		>
 			{#each options as option, index}
 				<button
 					type="button"
+					aria-pressed={selectedOption?.value === option.value}
 					class={`${buttonClasses} ${selectedOption?.value === option.value ? selectedClasses : ''} 
 					${index === 0 ? 'rounded-l' : ''} 
 					${index === options.length - 1 ? 'rounded-r' : ''}`}

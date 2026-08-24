@@ -12,8 +12,11 @@
 	import Navigation from '../../components/bits/navigation/Navigation.svelte';
 	import UserForm from '../../components/ui/userForm/UserForm.svelte';
 	import Button from '../../components/bits/button/Button.svelte';
+	import EmailFooterSettings from '../../components/ui/emailFooterSettings/EmailFooterSettings.svelte';
 	import GreetingSettings from '../../components/ui/greetingSettings/GreetingSettings.svelte';
 	import HolidayPaySettings from '../../components/ui/holidayPaySettings/HolidayPaySettings.svelte';
+	import CancellationReasonSettings from '../../components/ui/cancellationReasonSettings/CancellationReasonSettings.svelte';
+	import PassTypeSettings from '../../components/ui/passTypeSettings/PassTypeSettings.svelte';
 	import StandbySettings from '../../components/ui/standbySettings/StandbySettings.svelte';
 	import AnonymizedProfilesSettings from '../../components/ui/anonymizedProfilesSettings/AnonymizedProfilesSettings.svelte';
 
@@ -22,86 +25,134 @@
 
 	const menuItems = [
 		{
-			label: 'Kunder',
 			icon: 'Customer',
-			component: CustomerSettings
-		},
-		{ label: 'Paket', icon: 'Package', component: PackagesSettings },
-		{
-			label: 'Artiklar',
-			icon: 'Package',
-			component: ArticlesSettings,
-			requiredRoles: ['Administrator', 'Economy', 'Economy Admin']
-		},
-		{ label: 'Mailutskick', icon: 'Mail', component: MailComponent },
-		{ label: 'Mailhistorik', icon: 'HistoryList', component: MailHistory },
-		{ label: 'Standbytid', icon: 'Clock', component: StandbySettings },
-		{
-			label: 'Notifikationer',
-			icon: 'Notification',
-			component: NotificationAdministration,
-			requiredRoles: ['Administrator', 'LocationAdmin']
+			label: 'Klienter och paket',
+			children: [
+				{
+					label: 'Kunder',
+					icon: 'Customer',
+					component: CustomerSettings
+				},
+				{ label: 'Paket', icon: 'Package', component: PackagesSettings },
+				{
+					label: 'Anonymiserade',
+					icon: 'EyeOff',
+					component: AnonymizedProfilesSettings,
+					requiredRoles: ['Administrator']
+				}
+			]
 		},
 		{
-			label: 'Hälsningar',
-			icon: 'ShiningStar',
-			component: GreetingSettings,
-			requiredRoles: ['Administrator']
-		},
-		{
-			label: 'Semester',
-			icon: 'Money',
-			component: HolidayPaySettings,
-			requiredRoles: ['Administrator']
-		},
-		{
-			label: 'Ny användare',
-			icon: 'Person',
-			component: UserForm,
-			requiredRoles: ['Administrator']
-		},
-		{
-			label: 'Lokaler',
 			icon: 'Building',
-			component: LocationSettings,
-			requiredRoles: ['Administrator']
+			label: 'Drift',
+			children: [
+				{
+					label: 'Lokaler',
+					icon: 'Building',
+					component: LocationSettings,
+					requiredRoles: ['Administrator']
+				},
+				{
+					label: 'Ny användare',
+					icon: 'Person',
+					component: UserForm,
+					requiredRoles: ['Administrator']
+				},
+				{
+					label: 'Notifikationer',
+					icon: 'Notification',
+					component: NotificationAdministration,
+					requiredRoles: ['Administrator', 'LocationAdmin']
+				}
+			]
 		},
 		{
-			label: 'Mål',
-			icon: 'Trophy',
-			component: TargetsSettings,
-			requiredRoles: ['Administrator']
+			icon: 'Mail',
+			label: 'Kommunikation',
+			children: [
+				{ label: 'Mailutskick', icon: 'Mail', component: MailComponent },
+				{ label: 'Mailhistorik', icon: 'HistoryList', component: MailHistory },
+				{
+					label: 'Mailfot',
+					icon: 'Mail',
+					component: EmailFooterSettings,
+					requiredRoles: ['Administrator']
+				},
+				{
+					label: 'Hälsningar',
+					icon: 'ShiningStar',
+					component: GreetingSettings,
+					requiredRoles: ['Administrator']
+				}
+			]
 		},
 		{
-			label: 'Schema',
 			icon: 'Calendar',
-			component: SchedulingSettings,
-			requiredRoles: ['Administrator']
+			label: 'Admin',
+			children: [
+				{ label: 'Standbytid', icon: 'Clock', component: StandbySettings },
+				{
+					label: 'Mål',
+					icon: 'Trophy',
+					component: TargetsSettings,
+					requiredRoles: ['Administrator']
+				},
+				{
+					label: 'Passtyper',
+					icon: 'Training',
+					component: PassTypeSettings,
+					requiredRoles: ['Administrator']
+				},
+				{
+					label: 'Avbokningsorsaker',
+					icon: 'Cancel',
+					component: CancellationReasonSettings,
+					requiredRoles: ['Administrator']
+				},
+				{
+					label: 'Schema',
+					icon: 'Calendar',
+					component: SchedulingSettings,
+					requiredRoles: ['Administrator']
+				},
+				{
+					label: 'Helgdagar',
+					icon: 'CalendarSun',
+					component: HolidaySettings,
+					requiredRoles: ['Administrator']
+				}
+			]
 		},
 		{
-			label: 'OB-fönster',
-			icon: 'Clock',
-			component: ObSettings,
-			requiredRoles: ['Administrator']
-		},
-		{
-			label: 'Helgdagar',
-			icon: 'CalendarSun',
-			component: HolidaySettings,
-			requiredRoles: ['Administrator']
-		},
-		{
-			label: 'Anonymiserade',
-			icon: 'EyeOff',
-			component: AnonymizedProfilesSettings,
-			requiredRoles: ['Administrator']
+			icon: 'Money',
+			label: 'Ekonomi',
+			children: [
+				{
+					label: 'Artiklar',
+					icon: 'Package',
+					component: ArticlesSettings,
+					requiredRoles: ['Administrator', 'Economy', 'Economy Admin']
+				},
+				{
+					label: 'Semester',
+					icon: 'Money',
+					component: HolidayPaySettings,
+					requiredRoles: ['Administrator']
+				},
+				{
+					label: 'OB-fönster',
+					icon: 'Clock',
+					component: ObSettings,
+					requiredRoles: ['Administrator']
+				}
+			]
 		}
 	];
 
 	import { onMount } from 'svelte';
 	import { headerState } from '$lib/stores/headerState.svelte';
 
-	let selectedTab = menuItems[0];
+	let selectedTab = menuItems[0].children[0];
 
 	async function logout() {
 		await fetch('/api/logout', { method: 'POST' });

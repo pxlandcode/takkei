@@ -44,7 +44,7 @@
 		| 'meeting'
 		| 'personal';
 
-	type BookingTypeOption = { value: string | number; label: string };
+	type BookingTypeOption = { value: string | number; label: string; icon?: string | null };
 
 	export let booking: FullBooking;
 	export let bookingContentOptions: BookingTypeOption[] = [];
@@ -101,7 +101,8 @@
 		? bookingContentOptions
 		: ($bookingContentsStore || []).map((content) => ({
 				value: content.id,
-				label: capitalizeFirstLetter(content.kind)
+				label: capitalizeFirstLetter(content.kind),
+				icon: content.icon
 			}));
 
 	$: currentUser = $user;
@@ -220,7 +221,7 @@
 					packageId: null,
 					education: false,
 					internal: false,
-					bookingContent: { id: null, kind: '' },
+					bookingContent: { id: null, kind: '', icon: null },
 					addedToPackageBy: null,
 					addedToPackageDate: null,
 					actualCancelTime: null
@@ -229,7 +230,7 @@
 			cloned.additionalInfo.education = !!payload.education;
 			cloned.additionalInfo.internal = !!payload.internal;
 			if (!cloned.additionalInfo.bookingContent) {
-				cloned.additionalInfo.bookingContent = { id: null, kind: '' };
+				cloned.additionalInfo.bookingContent = { id: null, kind: '', icon: null };
 			}
 			if (payload.bookingType) {
 				cloned.additionalInfo.bookingContent.id = payload.bookingType.value ?? null;
@@ -238,6 +239,11 @@
 					matchedOption?.label ??
 					payload.bookingType.label ??
 					cloned.additionalInfo.bookingContent.kind;
+				cloned.additionalInfo.bookingContent.icon =
+					matchedOption?.icon ??
+					payload.bookingType.icon ??
+					cloned.additionalInfo.bookingContent.icon ??
+					null;
 			}
 
 			const allUsers = get(users) ?? [];
@@ -314,11 +320,13 @@
 		if (standardTypes.has(type)) {
 			const bookingContentId = full.additionalInfo?.bookingContent?.id ?? null;
 			const bookingContentLabel = full.additionalInfo?.bookingContent?.kind ?? 'Okänd';
+			const bookingContentIcon = full.additionalInfo?.bookingContent?.icon ?? null;
 			const bookingTypeOption =
 				bookingContentId !== null
 					? (typeOptions.find((opt) => opt.value === bookingContentId) ?? {
 							value: bookingContentId,
-							label: capitalizeFirstLetter(bookingContentLabel)
+							label: capitalizeFirstLetter(bookingContentLabel),
+							icon: bookingContentIcon
 						})
 					: null;
 
@@ -512,7 +520,8 @@
 			emailBehavior: behavior,
 			recipientEmails: recipients,
 			fromUser: currentUser,
-			bookedDates
+			bookedDates,
+			clientId: payload.clientId
 		});
 
 		if (emailResult === 'edit') {

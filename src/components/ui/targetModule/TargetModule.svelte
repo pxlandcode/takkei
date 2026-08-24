@@ -30,7 +30,7 @@
 
 <div class="glass relative w-[320px] rounded-sm p-4 text-sm font-light">
 	<div class="mb-4 flex items-center justify-between">
-		<h2 class="text-xl text-white">Mål</h2>
+		<h2 class="text-xl text-white">Mina mål</h2>
 		<Button
 			small
 			text="Min sida"

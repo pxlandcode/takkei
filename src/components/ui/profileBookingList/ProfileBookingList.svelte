@@ -2,19 +2,21 @@
 	import { browser } from '$app/environment';
 	import type { FullBooking } from '$lib/types/calendarTypes';
 	import OptionButton from '../../bits/optionButton/OptionButton.svelte';
+	import Button from '../../bits/button/Button.svelte';
 	import { formatTime } from '$lib/helpers/calendarHelpers/calendar-utils';
-	import { downloadBookingsAsICS } from '$lib/helpers/calendarHelpers/booking-ics';
 	import {
 		IconCancel,
 		IconTraining,
 		IconShiningStar,
 		IconGraduationCap,
-		IconPlane,
-		IconDownload
+		IconPlane
 	} from '$lib/icons';
 	import IconWrench from '$icons/IconWrench.svelte';
 
 	export let bookings: FullBooking[] = [];
+	export let clientId: number | null = null;
+	export let syncPageUrl: string | null = null;
+	export let privacyMode = false;
 	export let filterOptions = [
 		{ value: 'active', label: 'Visa bokade' },
 		{ value: 'cancelled', label: 'Visa avbokade' },
@@ -22,6 +24,8 @@
 	];
 
 	let selectedFilter = filterOptions[0];
+	let isCreatingSyncLink = false;
+	let syncError = '';
 
 	const today = new Date();
 	const defaultStart = new Date(today);
@@ -72,6 +76,7 @@
 
 	function getBookingIcon(booking: FullBooking) {
 		if (booking.booking.status && isCancelledStatus(booking.booking.status)) return IconCancel;
+		if (privacyMode) return IconTraining;
 		if (booking.booking.tryOut) return IconShiningStar;
 		if (booking.booking.internalEducation) return IconWrench;
 		if (booking.additionalInfo?.education) return IconGraduationCap;
@@ -92,13 +97,57 @@
 		);
 	}
 
-	function getDownloadFileName() {
-		return 'Takkei - Träning';
+	function getBookingMeta(booking: FullBooking) {
+		const parts = [booking.location?.name ?? 'Okänd plats'];
+
+		if (!privacyMode) {
+			const trainerName = `${booking.trainer?.firstname ?? ''} ${
+				booking.trainer?.lastname ?? ''
+			}`.trim();
+			if (trainerName) {
+				parts.push(trainerName);
+			}
+		}
+
+		return parts.join(' · ');
 	}
 
-	function handleDownloadAll() {
-		if (!browser || visibleBookings.length === 0) return;
-		downloadBookingsAsICS(visibleBookings, getDownloadFileName());
+	async function handleSyncCalendar() {
+		if (!browser || isCreatingSyncLink) return;
+
+		if (syncPageUrl) {
+			window.location.assign(syncPageUrl);
+			return;
+		}
+
+		if (!clientId) return;
+
+		isCreatingSyncLink = true;
+		syncError = '';
+
+		try {
+			const response = await fetch(`/api/clients/${clientId}/calendar-subscription`, {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({})
+			});
+
+			if (!response.ok) {
+				throw new Error('Kunde inte skapa kalenderlänken.');
+			}
+
+			const payload = await response.json();
+			if (typeof payload?.syncPageUrl !== 'string') {
+				throw new Error('Kalenderlänken saknas i svaret.');
+			}
+
+			window.location.assign(payload.syncPageUrl);
+		} catch (error) {
+			console.error('Failed to create calendar sync link', error);
+			syncError = 'Kunde inte skapa kalenderlänken. Försök igen eller kontakta din tränare.';
+		} finally {
+			isCreatingSyncLink = false;
+		}
 	}
 </script>
 
@@ -106,13 +155,20 @@
 	<div class="controls">
 		<div class="filters">
 			<div class="date-filter w-full md:max-w-xs">
-				<label class="text-xs font-semibold uppercase tracking-wide text-gray-500"
-					>Från datum</label
+				<label
+					class="text-xs font-semibold tracking-wide text-gray-500 uppercase"
+					for="booking-list-start-date">Från datum</label
 				>
-				<input type="date" bind:value={selectedDate} class="date-input" />
+				<input
+					id="booking-list-start-date"
+					type="date"
+					bind:value={selectedDate}
+					class="date-input"
+				/>
 			</div>
 			<div class="filter-toggle">
 				<OptionButton
+					label="Status"
 					options={filterOptions}
 					bind:selectedOption={selectedFilter}
 					size="medium"
@@ -120,16 +176,20 @@
 				/>
 			</div>
 		</div>
-		<button
-			type="button"
-			class="download-button"
-			on:click={handleDownloadAll}
-			disabled={visibleBookings.length === 0}
-		>
-			<IconDownload size="16px" />
-			<span>Lägg till i kalender</span>
-		</button>
+		<div class="calendar-actions">
+			<Button
+				text={isCreatingSyncLink ? 'Skapar länk...' : 'Prenumerera'}
+				iconLeft="CalendarCheck"
+				iconLeftSize="16px"
+				variant="primary"
+				disabled={(!clientId && !syncPageUrl) || isCreatingSyncLink}
+				on:click={handleSyncCalendar}
+			/>
+		</div>
 	</div>
+	{#if syncError}
+		<p class="text-sm text-red-600">{syncError}</p>
+	{/if}
 	{#if visibleBookings.length === 0}
 		<p class="text-sm text-gray-500">Inga bokningar hittades.</p>
 	{:else}
@@ -138,7 +198,9 @@
 				class="booking-slot w-full rounded-sm border p-4 text-left text-sm transition-all"
 				class:cancelled={booking.booking.status === 'Cancelled'}
 				class:late-cancelled={booking.booking.status === 'Late_cancelled'}
-				style="background-color: {getLocationColor(booking)}22; border-color: {getLocationColor(booking)};"
+				style="background-color: {getLocationColor(booking)}22; border-color: {getLocationColor(
+					booking
+				)};"
 			>
 				{#if booking.booking.status === 'Cancelled'}
 					<div class="cancelled-overlay"></div>
@@ -153,11 +215,12 @@
 					<div class="flex flex-col gap-1 text-gray-800">
 						<p class="text-base font-semibold">{getHeadline(booking)}</p>
 						<p class="text-sm text-gray-600">
-							{formatDate(booking.booking.startTime)} {formatTime(booking.booking.startTime)} -
+							{formatDate(booking.booking.startTime)}
+							{formatTime(booking.booking.startTime)} -
 							{formatTime(getEndTime(booking))}
 						</p>
 						<p class="text-xs text-gray-500">
-							{booking.location?.name ?? 'Okänd plats'} &middot; {booking.trainer?.firstname} {booking.trainer?.lastname}
+							{getBookingMeta(booking)}
 						</p>
 					</div>
 				</div>
@@ -176,7 +239,7 @@
 	@media (min-width: 768px) {
 		.controls {
 			flex-direction: row;
-			align-items: center;
+			align-items: flex-end;
 			justify-content: space-between;
 		}
 	}
@@ -191,7 +254,7 @@
 	@media (min-width: 768px) {
 		.filters {
 			flex-direction: row;
-			align-items: center;
+			align-items: flex-end;
 			gap: 1rem;
 		}
 	}
@@ -209,11 +272,12 @@
 
 	.date-input {
 		width: 100%;
-		border-radius: 0.375rem;
-		border: 1px solid #cbd5f5;
-		padding: 0.45rem 0.65rem;
+		height: 46px;
+		border-radius: 0.25rem;
+		border: 1px solid #3e3e3e;
+		padding: 0 0.65rem;
 		font-size: 0.9rem;
-		color: #0f172a;
+		color: #3e3e3e;
 		background: white;
 	}
 
@@ -227,7 +291,9 @@
 		overflow: hidden;
 		border-radius: 0.5rem;
 		border-width: 1px;
-		transition: transform 0.2s ease, box-shadow 0.2s ease;
+		transition:
+			transform 0.2s ease,
+			box-shadow 0.2s ease;
 		box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
 	}
 
@@ -250,37 +316,18 @@
 		opacity: 0.85;
 	}
 
-	.download-button {
-		width: 100%;
-		border: 1px solid #0284c7;
-		border-radius: 0.5rem;
-		background: #e0f2fe;
-		color: #0f172a;
-		font-weight: 600;
-		font-size: 0.95rem;
-		padding: 0.55rem 0.9rem;
+	.calendar-actions {
 		display: flex;
-		align-items: center;
-		justify-content: center;
-		gap: 0.4rem;
-		box-shadow: 0 4px 10px rgba(15, 23, 42, 0.08);
-		transition: background-color 0.2s ease, transform 0.2s ease, opacity 0.2s ease;
-	}
-
-	.download-button:hover:not(:disabled) {
-		background-color: #bae6fd;
-		transform: translateY(-1px);
-	}
-
-	.download-button:disabled {
-		cursor: not-allowed;
-		opacity: 0.6;
-		box-shadow: none;
+		width: 100%;
+		flex-direction: column;
+		gap: 0.5rem;
 	}
 
 	@media (min-width: 768px) {
-		.download-button {
+		.calendar-actions {
 			width: auto;
+			flex-direction: row;
+			align-items: center;
 		}
 	}
 

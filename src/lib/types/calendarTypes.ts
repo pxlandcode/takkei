@@ -45,8 +45,9 @@ export interface Location {
 }
 
 export interface BookingContent {
-	id: number;
+	id: number | string | null;
 	kind: string;
+	icon?: string | null;
 }
 
 export interface AdditionalInfo {

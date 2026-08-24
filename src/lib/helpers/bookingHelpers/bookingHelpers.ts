@@ -9,8 +9,12 @@ import { getUserEmails } from '$lib/stores/usersStore';
 import { addToast } from '$lib/stores/toastStore';
 import { AppToastType } from '$lib/types/toastTypes';
 
-type BookedDateLine = { date: string; time: string; locationName?: string };
+export type BookedDateLine = { date: string; time: string; locationName?: string };
 export type BookingEmailRecipientTarget = 'both' | 'client';
+export type ClientCalendarEmailLinks = {
+	syncPageUrl: string;
+	bookingsPageUrl: string;
+};
 
 export const BOOKING_EMAIL_RECIPIENT_OPTIONS: {
 	value: BookingEmailRecipientTarget;
@@ -38,6 +42,107 @@ function minutesToTimeString(totalMinutes: number): string {
 
 function getUniqueRecipients(recipients: string[]): string[] {
 	return Array.from(new Set(recipients.filter((email): email is string => Boolean(email))));
+}
+
+function escapeHtmlAttribute(raw: string): string {
+	return raw
+		.replace(/&/g, '&amp;')
+		.replace(/"/g, '&quot;')
+		.replace(/</g, '&lt;')
+		.replace(/>/g, '&gt;');
+}
+
+export function buildBookingConfirmationEmailBody({
+	bookedDates,
+	fromUser,
+	calendarSyncUrl = null,
+	bookingsPageUrl = null
+}: {
+	bookedDates: BookedDateLine[];
+	fromUser: { firstname: string };
+	calendarSyncUrl?: string | null;
+	bookingsPageUrl?: string | null;
+}): string {
+	const lines = bookedDates
+		.map((b) =>
+			b.locationName ? `${b.date} kl. ${b.time} på ${b.locationName}` : `${b.date} kl. ${b.time}`
+		)
+		.join('<br>');
+
+	const calendarLinks =
+		calendarSyncUrl || bookingsPageUrl
+			? `<br><br><div>
+				${
+					calendarSyncUrl
+						? `<a href="${escapeHtmlAttribute(calendarSyncUrl)}" style="display:inline-block;background:#dd890b;color:#ffffff;text-decoration:none;border-radius:4px;padding:10px 14px;font-weight:600;margin:0 8px 8px 0;">Prenumerera i din kalender</a>`
+						: ''
+				}
+				${
+					bookingsPageUrl
+						? `<a href="${escapeHtmlAttribute(bookingsPageUrl)}" style="display:inline-block;background:#ffffff;color:#3e3e3e;text-decoration:none;border:1px solid #3e3e3e;border-radius:4px;padding:10px 14px;font-weight:600;margin:0 0 8px 0;">Se alla dina bokningar</a>`
+						: ''
+				}
+			</div>`
+			: '';
+
+	return `
+        Hej!<br><br>
+        Jag har bokat in dig följande tider:<br>
+        ${lines}<br><br>
+        Du kan boka av eller om din träningstid senast klockan 12.00 dagen innan träning genom att kontakta någon i ditt tränarteam via sms, e‑post eller telefon.${calendarLinks}<br><br>
+        Hälsningar,<br>
+        ${fromUser.firstname}<br>
+        Takkei Trainingsystems
+      `;
+}
+
+function splitClientRecipients(recipients: string[], clientId?: number | null) {
+	if (typeof clientId !== 'number' || !Number.isFinite(clientId)) {
+		return { clientRecipients: [], otherRecipients: recipients };
+	}
+
+	const clientEmails = new Set(getClientEmails(clientId).map((email) => email.toLowerCase()));
+	const clientRecipients = recipients.filter((email) => clientEmails.has(email.toLowerCase()));
+	const otherRecipients = recipients.filter((email) => !clientEmails.has(email.toLowerCase()));
+
+	return {
+		clientRecipients: getUniqueRecipients(clientRecipients),
+		otherRecipients: getUniqueRecipients(otherRecipients)
+	};
+}
+
+export async function createClientCalendarEmailLinks(
+	clientId?: number | null
+): Promise<ClientCalendarEmailLinks | null> {
+	if (typeof clientId !== 'number' || !Number.isFinite(clientId)) return null;
+
+	try {
+		const response = await fetch(`/api/clients/${clientId}/calendar-subscription`, {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({})
+		});
+
+		if (!response.ok) return null;
+		const payload = await response.json();
+		if (typeof payload?.syncPageUrl !== 'string' || typeof payload?.bookingsPageUrl !== 'string') {
+			return null;
+		}
+
+		return {
+			syncPageUrl: payload.syncPageUrl,
+			bookingsPageUrl: payload.bookingsPageUrl
+		};
+	} catch (error) {
+		console.error('Failed to create client calendar links', error);
+		return null;
+	}
+}
+
+export async function createClientCalendarSyncLink(
+	clientId?: number | null
+): Promise<string | null> {
+	return (await createClientCalendarEmailLinks(clientId))?.syncPageUrl ?? null;
 }
 
 export function resolveBookingConfirmationRecipients({
@@ -302,52 +407,65 @@ export async function handleBookingEmail({
 	emailBehavior,
 	recipientEmails,
 	fromUser,
-	bookedDates
+	bookedDates,
+	clientId = null
 }: {
 	emailBehavior: 'send' | 'edit' | 'none';
 	recipientEmails: string[];
 	fromUser: { firstname: string; lastname: string; email: string };
 	bookedDates: BookedDateLine[];
+	clientId?: number | null;
 }): Promise<'sent' | 'edit' | 'skipped'> {
 	const recipients = getUniqueRecipients(recipientEmails);
 	if (recipients.length === 0 || emailBehavior === 'none') return 'skipped';
 	const recipientLabel = recipients.join(', ');
 
 	if (emailBehavior === 'send') {
-		const lines = bookedDates
-			.map((b) =>
-				b.locationName ? `${b.date} kl. ${b.time} på ${b.locationName}` : `${b.date} kl. ${b.time}`
-			)
-			.join('<br>');
+		const { clientRecipients, otherRecipients } = splitClientRecipients(recipients, clientId);
+		const calendarLinks = clientRecipients.length
+			? await createClientCalendarEmailLinks(clientId)
+			: null;
+		const from = {
+			name: `${fromUser.firstname} ${fromUser.lastname}`,
+			email: fromUser.email
+		};
 
-		const result = await sendMail({
-			to: recipients,
-			subject: 'Bokningsbekräftelse',
-			header: 'Bekräftelse på dina bokningar',
-			subheader: 'Tack för din bokning!',
-			body: `
-        Hej!<br><br>
-        Jag har bokat in dig följande tider:<br>
-        ${lines}<br><br>
-        Du kan boka av eller om din träningstid senast klockan 12.00 dagen innan träning genom att kontakta någon i ditt tränarteam via sms, e‑post eller telefon.<br><br>
-        Hälsningar,<br>
-        ${fromUser.firstname}<br>
-        Takkei Trainingsystems
-      `,
-			from: {
-				name: `${fromUser.firstname} ${fromUser.lastname}`,
-				email: fromUser.email
+		try {
+			if (clientRecipients.length) {
+				await sendMail({
+					to: clientRecipients,
+					subject: 'Bokningsbekräftelse',
+					header: 'Bekräftelse på dina bokningar',
+					subheader: 'Tack för din bokning!',
+					body: buildBookingConfirmationEmailBody({
+						bookedDates,
+						fromUser,
+						calendarSyncUrl: calendarLinks?.syncPageUrl ?? null,
+						bookingsPageUrl: calendarLinks?.bookingsPageUrl ?? null
+					}),
+					from
+				});
 			}
-		});
 
-		if (result.ok) {
+			if (otherRecipients.length) {
+				await sendMail({
+					to: otherRecipients,
+					subject: 'Bokningsbekräftelse',
+					header: 'Bekräftelse på dina bokningar',
+					subheader: 'Tack för din bokning!',
+					body: buildBookingConfirmationEmailBody({ bookedDates, fromUser }),
+					from
+				});
+			}
+
 			addToast({
 				type: AppToastType.SUCCESS,
 				message: 'Bekräftelsemail skickat',
 				description: `Ett bekräftelsemail skickades till ${recipientLabel}.`
 			});
 			return 'sent';
-		} else {
+		} catch (error) {
+			console.error('Failed to send booking confirmation email', error);
 			addToast({
 				type: AppToastType.CANCEL,
 				message: 'Fel vid utskick',

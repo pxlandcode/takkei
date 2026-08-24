@@ -330,7 +330,8 @@
 				internal: slot.source === 'flight',
 				bookingContent: {
 					id: bookingContentId,
-					kind: bookingContentKind
+					kind: bookingContentKind,
+					icon: slot.bookingType?.icon ?? null
 				}
 			},
 			personalBooking: null

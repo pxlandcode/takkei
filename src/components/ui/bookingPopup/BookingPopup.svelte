@@ -15,6 +15,8 @@
 	import { get } from 'svelte/store';
 	import {
 		BOOKING_EMAIL_RECIPIENT_DEFAULT,
+		buildBookingConfirmationEmailBody,
+		createClientCalendarEmailLinks,
 		handleBookingEmail,
 		handleMeetingOrPersonalBooking,
 		handleTrainingBooking,
@@ -449,9 +451,10 @@
 				| 'none';
 
 			if (success && emailBehavior !== 'none') {
+				const recipientTarget =
+					bookingObject.emailRecipient?.value ?? BOOKING_EMAIL_RECIPIENT_DEFAULT.value;
 				const recipients = resolveBookingConfirmationRecipients({
-					recipientTarget:
-						bookingObject.emailRecipient?.value ?? BOOKING_EMAIL_RECIPIENT_DEFAULT.value,
+					recipientTarget,
 					clientId: bookingObject.clientId,
 					trainerId: bookingObject.trainerId
 				});
@@ -461,10 +464,15 @@
 						emailBehavior,
 						recipientEmails: recipients,
 						fromUser: currentUser,
-						bookedDates
+						bookedDates,
+						clientId: bookingObject.clientId
 					});
 
 					if (emailResult === 'edit') {
+						const calendarLinks =
+							recipientTarget === 'client'
+								? await createClientCalendarEmailLinks(bookingObject.clientId)
+								: null;
 						openPopup({
 							header: `Maila bokningsbekräftelse till ${recipients.join(', ')}`,
 							icon: 'Mail',
@@ -475,19 +483,12 @@
 								subject: 'Bokningsbekräftelse',
 								header: 'Bekräftelse på dina bokningar',
 								subheader: 'Tack för din bokning!',
-								body: `
-							Hej!<br><br>
-							Jag har bokat in dig följande tider:<br>
-							${bookedDates
-								.map(
-									(b) => `${b.date} kl. ${b.time}${b.locationName ? ` på ${b.locationName}` : ''}`
-								)
-								.join('<br>')}<br><br>
-							Du kan boka av eller om din träningstid senast klockan 12.00 dagen innan träning genom att kontakta någon i ditt tränarteam via sms, e‑post eller telefon.<br><br>
-							Hälsningar,<br>
-							${currentUser.firstname}<br>
-							Takkei Trainingsystems
-						`,
+								body: buildBookingConfirmationEmailBody({
+									bookedDates,
+									fromUser: currentUser,
+									calendarSyncUrl: calendarLinks?.syncPageUrl ?? null,
+									bookingsPageUrl: calendarLinks?.bookingsPageUrl ?? null
+								}),
 								lockedFields: ['recipients'],
 								autoFetchUsersAndClients: false
 							}
@@ -528,7 +529,8 @@
 			bind:repeatedBookings
 			bookingContents={($bookingContents || []).map((content) => ({
 				value: content.id,
-				label: capitalizeFirstLetter(content.kind)
+				label: capitalizeFirstLetter(content.kind),
+				icon: content.icon
 			}))}
 			isTrial={bookingObject.isTrial}
 			isFlight={bookingObject.internal}

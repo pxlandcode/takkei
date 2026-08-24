@@ -11,6 +11,8 @@
 	import {
 		BOOKING_EMAIL_RECIPIENT_DEFAULT,
 		BOOKING_EMAIL_RECIPIENT_OPTIONS,
+		buildBookingConfirmationEmailBody,
+		createClientCalendarEmailLinks,
 		handleBookingEmail,
 		resolveBookingConfirmationRecipients,
 		type BookingEmailRecipientTarget
@@ -205,27 +207,6 @@
 		}
 	}
 
-	function buildBookingConfirmationBody(bookedDates, fromUser) {
-		const linesHtml = bookedDates
-			.map((bd) =>
-				bd.locationName
-					? `${bd.date} kl. ${bd.time} på ${bd.locationName}`
-					: `${bd.date} kl. ${bd.time}`
-			)
-			.join('<br>');
-
-		return [
-			'Hej!',
-			'',
-			'<b>Jag har bokat in dig följande tider:</b>',
-			linesHtml,
-			'Du kan boka av eller om din träningstid senast klockan 12.00 dagen innan träning genom att kontakta någon i ditt tränarteam via sms, e-post eller telefon.',
-			'',
-			'Hälsningar,',
-			`${fromUser.firstname}, Takkei Trainingsystems`
-		].join('<br>');
-	}
-
 	async function sendBookingConfirmations(
 		behavior: 'send' | 'edit',
 		recipientTarget: BookingEmailRecipientTarget = BOOKING_EMAIL_RECIPIENT_DEFAULT.value
@@ -305,18 +286,26 @@
 			return;
 		}
 
-		const body = buildBookingConfirmationBody(bookedDates, current);
-
 		const emailResult = await handleBookingEmail({
 			emailBehavior: behavior,
 			recipientEmails: recipients,
 			fromUser: current,
-			bookedDates
+			bookedDates,
+			clientId: resolvedClientId
 		});
 
 		if (emailResult !== 'edit') {
 			return;
 		}
+
+		const calendarLinks =
+			recipientTarget === 'client' ? await createClientCalendarEmailLinks(resolvedClientId) : null;
+		const body = buildBookingConfirmationEmailBody({
+			bookedDates,
+			fromUser: current,
+			calendarSyncUrl: calendarLinks?.syncPageUrl ?? null,
+			bookingsPageUrl: calendarLinks?.bookingsPageUrl ?? null
+		});
 
 		openPopup({
 			header: `Maila bokningsbekräftelse till ${recipients.join(', ')}`,

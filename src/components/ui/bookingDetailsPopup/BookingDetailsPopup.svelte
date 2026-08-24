@@ -13,6 +13,8 @@
 	import {
 		BOOKING_EMAIL_RECIPIENT_DEFAULT,
 		BOOKING_EMAIL_RECIPIENT_OPTIONS,
+		buildBookingConfirmationEmailBody,
+		createClientCalendarEmailLinks,
 		handleBookingEmail,
 		resolveBookingConfirmationRecipients,
 		type BookingEmailRecipientTarget
@@ -43,11 +45,18 @@
 	import { openPopup, popupStore, closePopup, type PopupState } from '$lib/stores/popupStore';
 	import {
 		cancellationReasonOptions,
+		getCancellationReasonLabel,
 		getCancellationStatusLabel,
 		getEditableCancellationTime,
 		isLateCancellation,
 		type CancellationEmailBehavior
 	} from '$lib/helpers/bookingHelpers/cancellation';
+	import {
+		allCancellationReasons,
+		cancellationReasons,
+		fetchAllCancellationReasons,
+		fetchCancellationReasons
+	} from '$lib/stores/cancellationReasonStore';
 
 	type BookingComponentType =
 		| 'training'
@@ -157,7 +166,7 @@
 		roomId: number | null;
 		date: string;
 		time: string;
-		bookingType: { value: number; label: string } | null;
+		bookingType: { value: number; label: string; icon?: string | null } | null;
 		status: string;
 		isTrial: boolean;
 		internalEducation: boolean;
@@ -195,10 +204,6 @@
 	let standbyTimesError: string | null = null;
 	let lastLoadedStandbyTimeBookingId: number | null = null;
 	let canSendConfirmation = false;
-	const cancellationReasonDropdownOptions = cancellationReasonOptions.map((option) => ({
-		label: option.label,
-		value: option.value
-	}));
 	let cancelEditOpen = false;
 	let cancelEditSaving = false;
 	let cancelEditReason = currentBooking.booking.cancelReason ?? '';
@@ -208,6 +213,30 @@
 	);
 	let cancellationStatusLabel = getCancellationStatusLabel(currentBooking.booking.status);
 	let cancellationPreviewLabel = cancellationStatusLabel;
+	let cancellationReasonDropdownOptions = cancellationReasonOptions.map((option) => ({
+		label: option.label,
+		value: option.value
+	}));
+	let displayedCancellationReason = getCancellationReasonLabel(currentBooking.booking.cancelReason);
+
+	function buildCancellationReasonDropdownOptions(currentReason?: string | null) {
+		const options = $cancellationReasons.map((option) => ({
+			label: option.label,
+			value: option.value
+		}));
+		const trimmedCurrent = currentReason?.trim();
+		if (
+			trimmedCurrent &&
+			!options.some((option) => option.value === trimmedCurrent || option.label === trimmedCurrent)
+		) {
+			options.push({
+				value: trimmedCurrent,
+				label: getCancellationReasonLabel(trimmedCurrent, $allCancellationReasons)
+			});
+		}
+
+		return options;
+	}
 
 	function normalizeKind(kind?: string | null) {
 		if (!kind) return '';
@@ -336,6 +365,11 @@
 						: 'Cancelled'
 				)
 			: cancellationStatusLabel;
+	$: cancellationReasonDropdownOptions = buildCancellationReasonDropdownOptions(cancelEditReason);
+	$: displayedCancellationReason = getCancellationReasonLabel(
+		currentBooking.booking.cancelReason,
+		$allCancellationReasons
+	);
 	$: if (!activeQuickEdit) {
 		pendingTrainerSelection = currentTrainerId;
 		pendingLocationSelection = currentLocationId;
@@ -433,6 +467,8 @@
 
 	onMount(async () => {
 		syncCancelledEditFields();
+		void fetchCancellationReasons();
+		void fetchAllCancellationReasons();
 
 		if (currentBooking.isPersonalBooking && get(users).length === 0) {
 			await fetchUsers();
@@ -520,29 +556,11 @@
 		return [{ date: bookingDate, time: bookingTime, locationName }];
 	}
 
-	function buildConfirmationBody(
-		bookedDates: BookedDateLine[],
-		currentUser: { firstname: string }
-	) {
-		const lines = bookedDates
-			.map((b) => `${b.date} kl. ${b.time}${b.locationName ? ` på ${b.locationName}` : ''}`)
-			.join('<br>');
-
-		return `
-			Hej!<br><br>
-			Jag har bokat in dig följande tider:<br>
-			${lines}<br><br>
-			Du kan boka av eller om din träningstid senast klockan 12.00 dagen innan träning genom att kontakta någon i ditt tränarteam via sms, e‑post eller telefon.<br><br>
-			Hälsningar,<br>
-			${currentUser.firstname}<br>
-			Takkei Trainingsystems
-		`;
-	}
-
 	function openConfirmationPopup(
 		recipients: string[],
 		bookedDates: BookedDateLine[],
-		currentUser: { firstname: string }
+		currentUser: { firstname: string },
+		calendarLinks: { syncPageUrl: string; bookingsPageUrl: string } | null
 	) {
 		openPopup({
 			header: `Maila bokningsbekräftelse till ${recipients.join(', ')}`,
@@ -554,7 +572,12 @@
 				subject: 'Bokningsbekräftelse',
 				header: 'Bekräftelse på dina bokningar',
 				subheader: 'Tack för din bokning!',
-				body: buildConfirmationBody(bookedDates, currentUser),
+				body: buildBookingConfirmationEmailBody({
+					bookedDates,
+					fromUser: currentUser,
+					calendarSyncUrl: calendarLinks?.syncPageUrl ?? null,
+					bookingsPageUrl: calendarLinks?.bookingsPageUrl ?? null
+				}),
 				lockedFields: ['recipients'],
 				autoFetchUsersAndClients: false
 			}
@@ -700,11 +723,14 @@
 			emailBehavior: behavior,
 			recipientEmails: recipients,
 			fromUser: currentUser,
-			bookedDates
+			bookedDates,
+			clientId
 		});
 
 		if (emailResult === 'edit') {
-			openConfirmationPopup(recipients, bookedDates, currentUser);
+			const calendarLinks =
+				recipientTarget === 'client' ? await createClientCalendarEmailLinks(clientId) : null;
+			openConfirmationPopup(recipients, bookedDates, currentUser, calendarLinks);
 		}
 	}
 
@@ -1202,7 +1228,8 @@
 			bookingType: currentBooking.additionalInfo?.bookingContent
 				? {
 						value: currentBooking.additionalInfo.bookingContent.id,
-						label: currentBooking.additionalInfo.bookingContent.kind
+						label: currentBooking.additionalInfo.bookingContent.kind,
+						icon: currentBooking.additionalInfo.bookingContent.icon
 					}
 				: null,
 			status: currentBooking.booking.status ?? 'New',
@@ -1384,7 +1411,11 @@
 	<div class="w-full">
 		<BookingEditor
 			booking={editedBooking}
-			bookingContentOptions={$bookingContents.map((b) => ({ value: b.id, label: b.kind }))}
+			bookingContentOptions={$bookingContents.map((b) => ({
+				value: b.id,
+				label: b.kind,
+				icon: b.icon
+			}))}
 			on:close={handleCloseEditor}
 		/>
 	</div>
@@ -1473,7 +1504,7 @@
 				</div>
 
 				{#if currentBooking.booking.cancelReason}
-					<p class="mt-1 text-sm"><strong>Orsak:</strong> {currentBooking.booking.cancelReason}</p>
+					<p class="mt-1 text-sm"><strong>Orsak:</strong> {displayedCancellationReason}</p>
 				{/if}
 
 				<div class="mt-1 space-y-1 text-xs">

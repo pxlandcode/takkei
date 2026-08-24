@@ -1,4 +1,5 @@
 import { writable } from 'svelte/store';
+import type { BookingContentIcon } from '$lib/helpers/bookingContentIcons';
 
 export type SelectedSlotSource = 'training' | 'trial' | 'flight' | 'practice' | 'education';
 
@@ -10,7 +11,7 @@ export type SelectedSlot = {
 	locationId: number | null;
 	clientId?: number | null;
 	traineeId?: number | null;
-	bookingType?: { label: string; value: string | number } | null;
+	bookingType?: { label: string; value: string | number; icon?: BookingContentIcon | null } | null;
 	trainerName?: string | null;
 	trainerFirstName?: string | null;
 	trainerLastName?: string | null;

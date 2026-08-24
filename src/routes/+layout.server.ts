@@ -4,12 +4,19 @@ import { redirect } from '@sveltejs/kit';
 export async function load({ locals, url }) {
         const currentRoute = url.pathname;
         const publicRoutes = ['/login'];
+        const isPublicCalendarRoute =
+                currentRoute.startsWith('/calendar-sync/') ||
+                currentRoute.startsWith('/calendar-bookings/');
 
         if (publicRoutes.includes(currentRoute)) {
                 return { user: null };
         }
 
         const authUser = locals.user;
+
+        if (isPublicCalendarRoute && !authUser) {
+                return { user: null };
+        }
 
         if (!authUser) {
                 throw redirect(302, '/login');
