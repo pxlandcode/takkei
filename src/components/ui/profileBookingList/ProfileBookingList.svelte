@@ -17,6 +17,7 @@
 	export let clientId: number | null = null;
 	export let syncPageUrl: string | null = null;
 	export let privacyMode = false;
+	export let allowCancelledBookings = true;
 	export let filterOptions = [
 		{ value: 'active', label: 'Visa bokade' },
 		{ value: 'cancelled', label: 'Visa avbokade' },
@@ -57,6 +58,9 @@
 		if (selectedDate) {
 			const cutoff = new Date(`${selectedDate}T00:00:00`);
 			filtered = filtered.filter((b) => new Date(b.booking.startTime) >= cutoff);
+		}
+		if (!allowCancelledBookings) {
+			return filtered.filter((b) => !isCancelledStatus(b.booking.status));
 		}
 		if (selectedFilter.value === 'cancelled') {
 			return filtered.filter((b) => isCancelledStatus(b.booking.status));
@@ -166,15 +170,17 @@
 					class="date-input"
 				/>
 			</div>
-			<div class="filter-toggle">
-				<OptionButton
-					label="Status"
-					options={filterOptions}
-					bind:selectedOption={selectedFilter}
-					size="medium"
-					full
-				/>
-			</div>
+			{#if allowCancelledBookings}
+				<div class="filter-toggle">
+					<OptionButton
+						label="Status"
+						options={filterOptions}
+						bind:selectedOption={selectedFilter}
+						size="medium"
+						full
+					/>
+				</div>
+			{/if}
 		</div>
 		<div class="calendar-actions">
 			<Button

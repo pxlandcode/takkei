@@ -81,6 +81,6 @@ export const load: PageServerLoad = async ({ params, url }) => {
 
 	return {
 		syncPageUrl: links.syncPageUrl,
-		bookings: events.map(toPublicBooking)
+		bookings: events.filter((event) => !isCancelledStatus(event.status)).map(toPublicBooking)
 	};
 };

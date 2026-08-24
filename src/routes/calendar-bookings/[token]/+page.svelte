@@ -12,4 +12,9 @@
 	<title>Dina bokningar | Takkei</title>
 </svelte:head>
 
-<ClientBookingsPage bookings={data.bookings} syncPageUrl={data.syncPageUrl} privacyMode />
+<ClientBookingsPage
+	bookings={data.bookings}
+	syncPageUrl={data.syncPageUrl}
+	privacyMode
+	allowCancelledBookings={false}
+/>

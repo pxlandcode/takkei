@@ -6,6 +6,7 @@
 	export let clientId: number | null = null;
 	export let syncPageUrl: string | null = null;
 	export let privacyMode = false;
+	export let allowCancelledBookings = true;
 </script>
 
 <div class="flex flex-1 flex-col gap-6 p-6">
@@ -18,6 +19,12 @@
 	</header>
 
 	<section class="rounded-sm border border-gray-200 bg-white p-6 shadow-md">
-		<ProfileBookingList {bookings} {clientId} {syncPageUrl} {privacyMode} />
+		<ProfileBookingList
+			{bookings}
+			{clientId}
+			{syncPageUrl}
+			{privacyMode}
+			{allowCancelledBookings}
+		/>
 	</section>
 </div>
