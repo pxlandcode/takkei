@@ -1,15 +1,17 @@
 import { query } from '$lib/db';
 import type { RequestHandler } from '@sveltejs/kit';
+import { mapBookingContentRow, type BookingContentRow } from '$lib/server/bookingContents';
 
 export const GET: RequestHandler = async () => {
 	try {
-		// Fetch booking contents from the database
-		const result = await query(
-			`SELECT id, kind, created_at, updated_at FROM booking_contents ORDER BY id ASC`
+		const result = await query<BookingContentRow>(
+			`SELECT id, kind, icon, active, created_at, updated_at
+			 FROM booking_contents
+			 WHERE active = TRUE
+			 ORDER BY LOWER(kind) ASC, id ASC`
 		);
 
-		// Return the booking contents as JSON
-		return new Response(JSON.stringify(result), {
+		return new Response(JSON.stringify(result.map((row) => mapBookingContentRow(row))), {
 			status: 200,
 			headers: { 'Content-Type': 'application/json' }
 		});

@@ -529,7 +529,8 @@
 			bind:repeatedBookings
 			bookingContents={($bookingContents || []).map((content) => ({
 				value: content.id,
-				label: capitalizeFirstLetter(content.kind)
+				label: capitalizeFirstLetter(content.kind),
+				icon: content.icon
 			}))}
 			isTrial={bookingObject.isTrial}
 			isFlight={bookingObject.internal}

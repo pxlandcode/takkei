@@ -15,6 +15,8 @@
 	import EmailFooterSettings from '../../components/ui/emailFooterSettings/EmailFooterSettings.svelte';
 	import GreetingSettings from '../../components/ui/greetingSettings/GreetingSettings.svelte';
 	import HolidayPaySettings from '../../components/ui/holidayPaySettings/HolidayPaySettings.svelte';
+	import CancellationReasonSettings from '../../components/ui/cancellationReasonSettings/CancellationReasonSettings.svelte';
+	import PassTypeSettings from '../../components/ui/passTypeSettings/PassTypeSettings.svelte';
 	import StandbySettings from '../../components/ui/standbySettings/StandbySettings.svelte';
 	import AnonymizedProfilesSettings from '../../components/ui/anonymizedProfilesSettings/AnonymizedProfilesSettings.svelte';
 
@@ -86,13 +88,25 @@
 		},
 		{
 			icon: 'Calendar',
-			label: 'Planering och mål',
+			label: 'Admin',
 			children: [
 				{ label: 'Standbytid', icon: 'Clock', component: StandbySettings },
 				{
 					label: 'Mål',
 					icon: 'Trophy',
 					component: TargetsSettings,
+					requiredRoles: ['Administrator']
+				},
+				{
+					label: 'Passtyper',
+					icon: 'Training',
+					component: PassTypeSettings,
+					requiredRoles: ['Administrator']
+				},
+				{
+					label: 'Avbokningsorsaker',
+					icon: 'Cancel',
+					component: CancellationReasonSettings,
 					requiredRoles: ['Administrator']
 				},
 				{

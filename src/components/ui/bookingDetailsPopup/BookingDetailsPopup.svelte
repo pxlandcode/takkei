@@ -45,11 +45,18 @@
 	import { openPopup, popupStore, closePopup, type PopupState } from '$lib/stores/popupStore';
 	import {
 		cancellationReasonOptions,
+		getCancellationReasonLabel,
 		getCancellationStatusLabel,
 		getEditableCancellationTime,
 		isLateCancellation,
 		type CancellationEmailBehavior
 	} from '$lib/helpers/bookingHelpers/cancellation';
+	import {
+		allCancellationReasons,
+		cancellationReasons,
+		fetchAllCancellationReasons,
+		fetchCancellationReasons
+	} from '$lib/stores/cancellationReasonStore';
 
 	type BookingComponentType =
 		| 'training'
@@ -159,7 +166,7 @@
 		roomId: number | null;
 		date: string;
 		time: string;
-		bookingType: { value: number; label: string } | null;
+		bookingType: { value: number; label: string; icon?: string | null } | null;
 		status: string;
 		isTrial: boolean;
 		internalEducation: boolean;
@@ -197,10 +204,6 @@
 	let standbyTimesError: string | null = null;
 	let lastLoadedStandbyTimeBookingId: number | null = null;
 	let canSendConfirmation = false;
-	const cancellationReasonDropdownOptions = cancellationReasonOptions.map((option) => ({
-		label: option.label,
-		value: option.value
-	}));
 	let cancelEditOpen = false;
 	let cancelEditSaving = false;
 	let cancelEditReason = currentBooking.booking.cancelReason ?? '';
@@ -210,6 +213,30 @@
 	);
 	let cancellationStatusLabel = getCancellationStatusLabel(currentBooking.booking.status);
 	let cancellationPreviewLabel = cancellationStatusLabel;
+	let cancellationReasonDropdownOptions = cancellationReasonOptions.map((option) => ({
+		label: option.label,
+		value: option.value
+	}));
+	let displayedCancellationReason = getCancellationReasonLabel(currentBooking.booking.cancelReason);
+
+	function buildCancellationReasonDropdownOptions(currentReason?: string | null) {
+		const options = $cancellationReasons.map((option) => ({
+			label: option.label,
+			value: option.value
+		}));
+		const trimmedCurrent = currentReason?.trim();
+		if (
+			trimmedCurrent &&
+			!options.some((option) => option.value === trimmedCurrent || option.label === trimmedCurrent)
+		) {
+			options.push({
+				value: trimmedCurrent,
+				label: getCancellationReasonLabel(trimmedCurrent, $allCancellationReasons)
+			});
+		}
+
+		return options;
+	}
 
 	function normalizeKind(kind?: string | null) {
 		if (!kind) return '';
@@ -338,6 +365,11 @@
 						: 'Cancelled'
 				)
 			: cancellationStatusLabel;
+	$: cancellationReasonDropdownOptions = buildCancellationReasonDropdownOptions(cancelEditReason);
+	$: displayedCancellationReason = getCancellationReasonLabel(
+		currentBooking.booking.cancelReason,
+		$allCancellationReasons
+	);
 	$: if (!activeQuickEdit) {
 		pendingTrainerSelection = currentTrainerId;
 		pendingLocationSelection = currentLocationId;
@@ -435,6 +467,8 @@
 
 	onMount(async () => {
 		syncCancelledEditFields();
+		void fetchCancellationReasons();
+		void fetchAllCancellationReasons();
 
 		if (currentBooking.isPersonalBooking && get(users).length === 0) {
 			await fetchUsers();
@@ -1194,7 +1228,8 @@
 			bookingType: currentBooking.additionalInfo?.bookingContent
 				? {
 						value: currentBooking.additionalInfo.bookingContent.id,
-						label: currentBooking.additionalInfo.bookingContent.kind
+						label: currentBooking.additionalInfo.bookingContent.kind,
+						icon: currentBooking.additionalInfo.bookingContent.icon
 					}
 				: null,
 			status: currentBooking.booking.status ?? 'New',
@@ -1376,7 +1411,11 @@
 	<div class="w-full">
 		<BookingEditor
 			booking={editedBooking}
-			bookingContentOptions={$bookingContents.map((b) => ({ value: b.id, label: b.kind }))}
+			bookingContentOptions={$bookingContents.map((b) => ({
+				value: b.id,
+				label: b.kind,
+				icon: b.icon
+			}))}
 			on:close={handleCloseEditor}
 		/>
 	</div>
@@ -1465,7 +1504,7 @@
 				</div>
 
 				{#if currentBooking.booking.cancelReason}
-					<p class="mt-1 text-sm"><strong>Orsak:</strong> {currentBooking.booking.cancelReason}</p>
+					<p class="mt-1 text-sm"><strong>Orsak:</strong> {displayedCancellationReason}</p>
 				{/if}
 
 				<div class="mt-1 space-y-1 text-xs">

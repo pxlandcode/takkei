@@ -4,7 +4,7 @@
 	import Icon from '../icon-component/Icon.svelte';
 
 	export let options: { value: any; label: string; icon?: string }[] = [];
-	export let selectedOption: { value: any; label: string } | null = null;
+	export let selectedOption: { value: any; label: string; icon?: string | null } | null = null;
 	export let variant: 'black' | 'gray' = 'gray';
 	export let size: 'small' | 'medium' = 'medium';
 	export let full: boolean = false;
@@ -25,7 +25,7 @@
 	$: resolvedErrorKey = errorKey ?? id ?? undefined;
 	$: labelId = id ? `${id}-label` : undefined;
 
-	function selectOption(option: { value: any; label: string }) {
+	function selectOption(option: { value: any; label: string; icon?: string | null }) {
 		selectedOption = option;
 		dispatch('select', option.value);
 	}

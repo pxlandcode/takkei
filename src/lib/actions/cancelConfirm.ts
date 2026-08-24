@@ -1,11 +1,14 @@
 import { tick } from 'svelte';
 import { clickOutside } from '$lib/actions/clickOutside';
 import {
-	cancellationReasonOptions,
 	isLateCancellation,
 	toLocalDateTimeInputValue,
 	type CancellationEmailBehavior
 } from '$lib/helpers/bookingHelpers/cancellation';
+import {
+	ensureCancellationReasonsLoaded,
+	getCancellationReasonOptions
+} from '$lib/stores/cancellationReasonStore';
 
 interface CancelParams {
 	onConfirm: (reason: string, time: string, emailBehavior: CancellationEmailBehavior) => void;
@@ -26,15 +29,36 @@ export function cancelConfirm(
 	let removeEmailBehaviorListeners: (() => void) | null = null;
 	let selectedReason = '';
 	let selectedEmailBehavior: CancellationEmailBehavior = defaultEmailBehavior;
+	let opening = false;
+	let destroyed = false;
 
 	function onClick(event: MouseEvent) {
 		event.preventDefault();
 		event.stopPropagation();
-		if (!visible) show();
+		if (!visible) void show();
 	}
 
-	function show() {
-		if (popover) return;
+	function escapeHtml(text: string): string {
+		return text
+			.replace(/&/g, '&amp;')
+			.replace(/</g, '&lt;')
+			.replace(/>/g, '&gt;')
+			.replace(/"/g, '&quot;')
+			.replace(/'/g, '&#039;');
+	}
+
+	async function show() {
+		if (popover || opening || destroyed) return;
+		opening = true;
+
+		let reasonOptions = getCancellationReasonOptions();
+		try {
+			reasonOptions = await ensureCancellationReasonsLoaded();
+		} finally {
+			opening = false;
+		}
+
+		if (popover || destroyed) return;
 
 		popover = document.createElement('div');
 		popover.className =
@@ -43,8 +67,8 @@ export function cancelConfirm(
 		selectedReason = '';
 		selectedEmailBehavior = defaultEmailBehavior;
 
-		const reasonOptionsHTML = cancellationReasonOptions
-			.map(({ value, label }) => `<option value="${value}">${label}</option>`)
+		const reasonOptionsHTML = reasonOptions
+			.map(({ value, label }) => `<option value="${escapeHtml(value)}">${escapeHtml(label)}</option>`)
 			.join('');
 
 		const emailBehaviorOptions = [
@@ -90,6 +114,7 @@ export function cancelConfirm(
 		host.appendChild(popover);
 
 		tick().then(() => {
+			if (destroyed || !popover) return;
 			positionBox();
 
 			cleanupOutside = clickOutside(popover!, hide).destroy;
@@ -197,6 +222,7 @@ export function cancelConfirm(
 
 	return {
 		destroy() {
+			destroyed = true;
 			node.removeEventListener('click', onClick);
 			hide();
 		}

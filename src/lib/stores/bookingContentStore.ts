@@ -1,6 +1,7 @@
 import { writable } from 'svelte/store';
+import type { BookingContent } from '$lib/types/bookingContent';
 
-export const bookingContents = writable<{ id: number; kind: string }[]>([]);
+export const bookingContents = writable<BookingContent[]>([]);
 
 export async function fetchBookingContents() {
 	try {

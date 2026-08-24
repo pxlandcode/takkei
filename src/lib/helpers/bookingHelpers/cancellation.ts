@@ -1,7 +1,12 @@
 export const CANCELLED_STATUS = 'Cancelled' as const;
 export const LATE_CANCELLED_STATUS = 'Late_cancelled' as const;
 
-export const cancellationReasonOptions = [
+export type CancellationReasonOption = {
+	value: string;
+	label: string;
+};
+
+export const fallbackCancellationReasonOptions: CancellationReasonOption[] = [
 	{ value: 'Rebook', label: 'Flyttat träningen' },
 	{ value: 'Family', label: 'Familj' },
 	{ value: 'Work', label: 'Arbete' },
@@ -13,7 +18,32 @@ export const cancellationReasonOptions = [
 	{ value: 'No_show', label: 'Dök inte upp' },
 	{ value: 'Other', label: 'Övrigt' },
 	{ value: 'Unknown', label: 'Vet ej' }
-] as const;
+];
+
+export const cancellationReasonOptions = fallbackCancellationReasonOptions;
+
+export function getCancellationReasonLabel(
+	reason: string | null | undefined,
+	options: CancellationReasonOption[] = fallbackCancellationReasonOptions
+) {
+	const trimmed = reason?.trim();
+	if (!trimmed) return '';
+
+	const normalized = trimmed.toLowerCase();
+	const match =
+		options.find(
+			(option) =>
+				option.value.trim().toLowerCase() === normalized ||
+				option.label.trim().toLowerCase() === normalized
+		) ??
+		fallbackCancellationReasonOptions.find(
+			(option) =>
+				option.value.trim().toLowerCase() === normalized ||
+				option.label.trim().toLowerCase() === normalized
+		);
+
+	return match?.label ?? trimmed;
+}
 
 export type CancellationEmailBehavior = 'send' | 'edit' | 'none';
 

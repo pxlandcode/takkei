@@ -2,6 +2,7 @@
 	import { onMount, tick } from 'svelte';
 	import { bookingTooltip } from '$lib/actions/bookingTooltip';
 	import { getMeetingHeight, getTopOffset } from '$lib/helpers/calendarHelpers/calendar-utils';
+	import { resolveBookingContentIcon } from '$lib/helpers/bookingContentIcons';
 
 	import {
 		IconTraining,
@@ -9,7 +10,10 @@
 		IconGraduationCap,
 		IconPlane,
 		IconGymnastics,
-		IconMobility
+		IconMobility,
+		IconDumbbell,
+		IconRunning,
+		IconTrophy
 	} from '$lib/icons';
 
 	import type { FullBooking } from '$lib/types/calendarTypes';
@@ -294,13 +298,17 @@
 		if (booking.additionalInfo?.education) return IconGraduationCap;
 		if (booking.additionalInfo?.internal) return IconPlane;
 
-		// Check for specific training types
-		const kind = booking.additionalInfo?.bookingContent?.kind?.toLowerCase();
-		if (kind) {
-			if (kind.includes('gymnastics') || kind.includes('gymnastik')) return IconGymnastics;
-			if (kind.includes('mobility') || kind.includes('mobilitet')) return IconMobility;
-			// Weightlifting uses the default training icon
-		}
+		const contentIcon = resolveBookingContentIcon({
+			icon: booking.additionalInfo?.bookingContent?.icon,
+			kind: booking.additionalInfo?.bookingContent?.kind
+		});
+		if (contentIcon === 'Dumbbell') return IconDumbbell;
+		if (contentIcon === 'Gymnastics') return IconGymnastics;
+		if (contentIcon === 'Mobility') return IconMobility;
+		if (contentIcon === 'Running') return IconRunning;
+		if (contentIcon === 'Trophy') return IconTrophy;
+		if (contentIcon === 'GraduationCap') return IconGraduationCap;
+		if (contentIcon === 'ShiningStar') return IconShiningStar;
 
 		return IconTraining;
 	});

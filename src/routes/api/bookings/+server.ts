@@ -35,6 +35,7 @@ export async function GET({ url, request }) {
                clients.active AS client_active,
                booking_contents.id AS booking_content_id,
                booking_contents.kind AS booking_content_kind,
+               booking_contents.icon AS booking_content_icon,
                trainee.id AS trainee_id,
                trainee.firstname AS trainee_firstname,
                trainee.lastname AS trainee_lastname,

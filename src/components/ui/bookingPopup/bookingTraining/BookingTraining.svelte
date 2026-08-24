@@ -27,7 +27,7 @@
 	import RepeatBookingConflictTimePicker from '../RepeatBookingConflictTimePicker.svelte';
 
 	export let bookingObject: any;
-	export let bookingContents: { value: string; label: string }[] = [];
+	export let bookingContents: { value: string | number; label: string; icon?: string | null }[] = [];
 	export let repeatedBookings: any;
 	export let selectedIsUnavailable: boolean = false;
 	export let isTrial: boolean = false;

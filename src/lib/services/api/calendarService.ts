@@ -292,7 +292,8 @@ export function transformBooking(raw: any): FullBooking {
 			internal,
 			bookingContent: {
 				id: raw.booking_content_id,
-				kind: raw.booking_content_kind
+				kind: raw.booking_content_kind,
+				icon: raw.booking_content_icon ?? null
 			},
 			addedToPackageBy: raw.added_to_package_by ?? null,
 			addedToPackageDate: raw.added_to_package_date ?? null,
@@ -356,7 +357,8 @@ export function transformPersonalBooking(raw: any): FullBooking {
 			internal: false,
 			bookingContent: {
 				id: 0,
-				kind: raw.kind
+				kind: raw.kind,
+				icon: null
 			},
 			addedToPackageBy: null,
 			addedToPackageDate: null,
