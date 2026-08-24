@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('$lib/db', () => ({
 	query: vi.fn()
@@ -9,16 +9,31 @@ import {
 	getActiveClientCalendarSubscriptionFromToken,
 	getClientCalendarFeedEvents,
 	parseSignedClientCalendarToken,
+	resolveClientCalendarPublicOrigin,
 	signClientCalendarToken
 } from './clientCalendarSubscriptions';
 
 const SECRET = 'calendar-feed-secret-for-tests-1234567890';
 const mockedQuery = vi.mocked(query);
+const ORIGINAL_PUBLIC_APP_ORIGIN = process.env.PUBLIC_APP_ORIGIN;
 
 describe('client calendar subscription tokens', () => {
 	beforeEach(() => {
 		process.env.CALENDAR_FEED_SECRET = SECRET;
+		if (ORIGINAL_PUBLIC_APP_ORIGIN === undefined) {
+			delete process.env.PUBLIC_APP_ORIGIN;
+		} else {
+			process.env.PUBLIC_APP_ORIGIN = ORIGINAL_PUBLIC_APP_ORIGIN;
+		}
 		mockedQuery.mockReset();
+	});
+
+	afterAll(() => {
+		if (ORIGINAL_PUBLIC_APP_ORIGIN === undefined) {
+			delete process.env.PUBLIC_APP_ORIGIN;
+		} else {
+			process.env.PUBLIC_APP_ORIGIN = ORIGINAL_PUBLIC_APP_ORIGIN;
+		}
 	});
 
 	it('signs and validates a feed token', () => {
@@ -36,6 +51,29 @@ describe('client calendar subscription tokens', () => {
 
 		expect(parseSignedClientCalendarToken('not-a-token', SECRET)).toBeNull();
 		expect(parseSignedClientCalendarToken(tampered, SECRET)).toBeNull();
+	});
+
+	it('uses configured public origin for generated client calendar links', () => {
+		process.env.PUBLIC_APP_ORIGIN = 'https://superadmin.takkei.se/admin';
+
+		expect(resolveClientCalendarPublicOrigin('http://localhost:5173')).toBe(
+			'https://superadmin.takkei.se'
+		);
+	});
+
+	it('falls back to the Takkei public origin for local request origins', () => {
+		expect(resolveClientCalendarPublicOrigin('http://localhost:5173')).toBe(
+			'https://superadmin.takkei.se'
+		);
+		expect(resolveClientCalendarPublicOrigin('http://[::1]:5173')).toBe(
+			'https://superadmin.takkei.se'
+		);
+	});
+
+	it('keeps non-local request origins when no public origin is configured', () => {
+		expect(resolveClientCalendarPublicOrigin('https://staging.takkei.se')).toBe(
+			'https://staging.takkei.se'
+		);
 	});
 
 	it('rejects revoked or unknown subscriptions', async () => {

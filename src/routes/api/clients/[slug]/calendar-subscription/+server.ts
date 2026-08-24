@@ -1,7 +1,8 @@
 import { json } from '@sveltejs/kit';
 import {
 	createOrReuseClientCalendarSubscriptionLinks,
-	getClientCalendarActorId
+	getClientCalendarActorId,
+	resolveClientCalendarPublicOrigin
 } from '$lib/server/clientCalendarSubscriptions';
 
 function parseClientId(value: string | undefined): number | null {
@@ -34,7 +35,7 @@ export async function POST({ params, request, locals, url }) {
 		const links = await createOrReuseClientCalendarSubscriptionLinks({
 			clientId,
 			createdByUserId: getClientCalendarActorId(authUser),
-			origin: url.origin,
+			origin: resolveClientCalendarPublicOrigin(url.origin),
 			rotate
 		});
 
