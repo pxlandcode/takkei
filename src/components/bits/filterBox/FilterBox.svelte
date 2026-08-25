@@ -1,11 +1,29 @@
 <script lang="ts">
 	import { createEventDispatcher } from 'svelte';
 
-	export let selectedUsers = [];
-	export let selectedLocations = [];
-	export let selectedClients = [];
+	type FilterType = 'email' | 'trainer' | 'location' | 'client';
+	type FilterId = number | string;
+	type FilterItem = {
+		type: FilterType;
+		label: string;
+		id: FilterId;
+	};
+	type PersonFilter = {
+		id: FilterId;
+		firstname?: string | null;
+		lastname?: string | null;
+	};
+	type LocationFilter = {
+		id: FilterId;
+		name?: string | null;
+	};
+
+	export let selectedUsers: PersonFilter[] = [];
+	export let selectedLocations: LocationFilter[] = [];
+	export let selectedClients: PersonFilter[] = [];
 	export let selectedEmails: string[] = [];
 	export let title: string = 'Filter';
+	export let getFilterHref: (item: FilterItem) => string | undefined = () => undefined;
 
 	const dispatch = createEventDispatcher();
 	let showAll = false;
@@ -20,36 +38,54 @@
 		location: 'border-blue-500 bg-blue-500/10 text-blue-500',
 		client: 'border-green bg-green/10 text-green'
 	};
-	const removeButtonClass = 'cursor-pointer text-sm font-bold';
+	const removeButtonClass = 'cursor-pointer text-sm font-bold leading-none';
 
 	const defaultPillAccentClass = pillAccentClass.email;
+	const linkClass =
+		'underline-offset-2 transition-colors hover:text-orange hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2';
 
-	function removeFilter(type, id) {
+	function removeFilter(type: FilterType, id: FilterId) {
 		dispatch('removeFilter', { type, id });
+	}
+
+	function getPersonLabel(person: PersonFilter): string {
+		return [person.firstname, person.lastname].filter(Boolean).join(' ').trim() || 'Namnlös';
+	}
+
+	function getLocationLabel(location: LocationFilter): string {
+		return location.name?.trim() || 'Namnlös plats';
 	}
 
 	// Unified list containing all filter selections
 	$: allFilters = [
-		...selectedEmails.map((email) => ({
-			type: 'email',
-			label: email,
-			id: email
-		})),
-		...selectedUsers.map((user) => ({
-			type: 'trainer',
-			label: `${user.firstname} ${user.lastname}`,
-			id: user.id
-		})),
-		...selectedLocations.map((location) => ({
-			type: 'location',
-			label: location.name,
-			id: location.id
-		})),
-		...selectedClients.map((client) => ({
-			type: 'client',
-			label: `${client.firstname} ${client.lastname}`,
-			id: client.id
-		}))
+		...selectedEmails.map(
+			(email): FilterItem => ({
+				type: 'email',
+				label: email,
+				id: email
+			})
+		),
+		...selectedUsers.map(
+			(user): FilterItem => ({
+				type: 'trainer',
+				label: getPersonLabel(user),
+				id: user.id
+			})
+		),
+		...selectedLocations.map(
+			(location): FilterItem => ({
+				type: 'location',
+				label: getLocationLabel(location),
+				id: location.id
+			})
+		),
+		...selectedClients.map(
+			(client): FilterItem => ({
+				type: 'client',
+				label: getPersonLabel(client),
+				id: client.id
+			})
+		)
 	];
 </script>
 
@@ -62,9 +98,21 @@
 	<span class="text-gray-medium text-sm">{title}:</span>
 
 	{#each allFilters as item (item.type + item.id)}
+		{@const href = getFilterHref(item)}
 		<span class={`${pillBaseClass} ${pillAccentClass[item.type] ?? defaultPillAccentClass}`}>
-			{item.label}
-			<span class={removeButtonClass} on:click={() => removeFilter(item.type, item.id)}>×</span>
+			{#if href}
+				<a {href} class={linkClass}>{item.label}</a>
+			{:else}
+				<span>{item.label}</span>
+			{/if}
+			<button
+				type="button"
+				class={removeButtonClass}
+				aria-label={`Ta bort ${item.label}`}
+				on:click={() => removeFilter(item.type, item.id)}
+			>
+				×
+			</button>
 		</span>
 	{/each}
 

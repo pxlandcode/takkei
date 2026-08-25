@@ -5,6 +5,7 @@
 	import Icon from '../../../../components/bits/icon-component/Icon.svelte';
 	import Navigation from '../../../../components/bits/navigation/Navigation.svelte';
 	import ProfileCustomerInfo from '../../../../components/ui/ProfileCustomerInfo/ProfileCustomerInfo.svelte';
+	import ProfileBookingComponent from '../../../../components/ui/profileBookingComponent/ProfileBookingComponent.svelte';
 	import ProfileNotesComponent from '../../../../components/ui/profileNotesComponent/ProfileNotesComponent.svelte';
 	import MailComponent from '../../../../components/ui/mailComponent/MailComponent.svelte';
 	import Button from '../../../../components/bits/button/Button.svelte';
@@ -25,6 +26,15 @@
 
 	function handleCustomerChange(updatedCustomer: any) {
 		customer = updatedCustomer;
+	}
+
+	function getCustomerClientIds(): number[] {
+		if (!Array.isArray(customer?.clients)) return [];
+		const ids: number[] = customer.clients
+			.map((client: { id?: number | string | null }) => Number(client?.id))
+			.filter((id: number) => Number.isInteger(id) && id > 0);
+
+		return [...new Set(ids)].sort((a, b) => a - b);
 	}
 
 	async function loadCustomerProfile(id: number) {
@@ -79,7 +89,8 @@
 		{
 			label: 'Bokningar',
 			icon: 'Calendar',
-			component: null
+			component: ProfileBookingComponent,
+			props: () => (customer ? { clientIds: getCustomerClientIds() } : {})
 		},
 		{
 			label: 'Anteckningar',

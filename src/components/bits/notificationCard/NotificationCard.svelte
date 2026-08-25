@@ -1,8 +1,25 @@
 <script lang="ts">
+	import { tick } from 'svelte';
 	import Icon from '../icon-component/Icon.svelte';
-	import { createEventDispatcher } from 'svelte';
 
-	const {
+	type Props = {
+		icon?: string;
+		title?: string;
+		message?: string;
+		timeAgo?: string;
+		type?: string;
+		startTime?: string | null;
+		endTime?: string | null;
+		createdBy?: string | null;
+		link?: string | null;
+		linkLabel?: string;
+		showActionLink?: boolean;
+		actionLinkLabel?: string;
+		small?: boolean;
+		onDone?: () => void;
+	};
+
+	let {
 		icon = 'Info',
 		title = 'Meddelande',
 		message = '',
@@ -13,36 +30,36 @@
 		createdBy = null,
 		link = null,
 		linkLabel = 'Läs mer',
-		small = false
-	} = $$props;
+		showActionLink = false,
+		actionLinkLabel = 'Läs mer',
+		small = false,
+		onDone
+	}: Props = $props();
 
-	import { tick } from 'svelte';
+	let expanded = $state(false);
+	let messageContainer = $state<HTMLDivElement | null>(null);
+	let hiddenMeasure = $state<HTMLDivElement | null>(null);
+	let fullHeight = $state(0);
 
-	let expanded = false;
-	$: isLong = message.length > 120 || message.includes('\n');
-	let messageContainer: HTMLDivElement | null = null;
-	let hiddenMeasure: HTMLDivElement | null = null;
-	let fullHeight = 0;
-	let collapsedHeight = small ? 64 : 110;
-	const dispatch = createEventDispatcher();
-
-	const borderColors = {
+	const borderColors: Record<string, string> = {
 		client: 'orange',
 		alert: 'error',
 		info: 'success',
 		article: 'primary'
 	};
 
-	const iconMap = {
+	const iconMap: Record<string, string> = {
 		client: 'CircleUser',
 		alert: 'CircleAlert',
 		info: 'CircleInfo',
 		article: 'Newspaper'
 	};
 
-	function handleDone() {
-		dispatch('done');
-	}
+	let isLong = $derived(message.length > 120 || message.includes('\n'));
+	let collapsedHeight = $derived(small ? 64 : 110);
+	let iconName = $derived(iconMap[type] ?? icon);
+	let iconColor = $derived(borderColors[type] ?? borderColors.info);
+	let actionLink = $derived(showActionLink && link ? link : null);
 
 	function formatDate(date: string) {
 		return new Date(date).toLocaleDateString('sv-SE', {
@@ -65,30 +82,36 @@
 		fullHeight = Math.max(measured, collapsedHeight + 4);
 	}
 
-	$: message, link, expanded, updateHeights();
+	$effect(() => {
+		message;
+		link;
+		expanded;
+		small;
+		void updateHeights();
+	});
 </script>
 
 <div
 	class="rounded-sm border border-l-0 shadow-xs"
 	class:border-orange={type === 'client'}
 	class:border-error={type === 'alert'}
-	class:border-success={type === 'info'}
+	class:border-success={type === 'info' || !borderColors[type]}
 	class:border-primary={type === 'article'}
 >
 	<div
 		class="rounded-sm border-l-4 bg-white {small ? 'p-2' : 'p-4'}"
 		class:border-orange={type === 'client'}
 		class:border-error={type === 'alert'}
-		class:border-success={type === 'info'}
+		class:border-success={type === 'info' || !borderColors[type]}
 		class:border-primary={type === 'article'}
 	>
 		<div class="flex items-start justify-between gap-4">
 			<div class="flex-1">
 				<div class="flex items-center justify-between">
 					<div class="flex flex-col gap-0.5">
-						<div class="flex items-center gap-2 color-[{borderColors[type]}]">
-							<Icon icon={iconMap[type]} size="18" color={borderColors[type]} />
-							<span class="text-sm font-semibold text-text">{title}</span>
+						<div class="flex items-center gap-2">
+							<Icon icon={iconName} size="18" color={iconColor} />
+							<span class="text-text text-sm font-semibold">{title}</span>
 						</div>
 						<div class="flex flex-row gap-2 text-xs text-gray-500">
 							{#if startTime}
@@ -104,26 +127,35 @@
 					<div class="flex flex-col items-end">
 						<span class="text-xs text-gray-400">{timeAgo}</span>
 						<button
-							class="mt-1 text-nowrap text-xs text-green-700 hover:underline"
-							on:click={handleDone}
+							class="mt-1 text-xs text-nowrap text-green-700 hover:underline"
+							onclick={() => onDone?.()}
+							type="button"
 						>
 							Markera som klar
 						</button>
+						{#if actionLink}
+							<a
+								href={actionLink}
+								class="text-primary hover:text-primary-hover mt-1 text-xs font-semibold text-nowrap hover:underline"
+							>
+								{actionLinkLabel}
+							</a>
+						{/if}
 					</div>
 				</div>
 
 				<div
 					class="message-wrapper relative mt-2 text-sm text-gray-700"
-					class:expanded={expanded}
+					class:expanded
 					style={`max-height: ${expanded ? fullHeight : collapsedHeight}px`}
 				>
-					<div class="message-body whitespace-pre-line pl-6" bind:this={messageContainer}>
+					<div class="message-body pl-6 whitespace-pre-line" bind:this={messageContainer}>
 						{message}
 						{#if expanded && link}
 							<br />
 							<a
 								href={link}
-								class="text-sm font-semibold text-primary underline hover:text-primary-hover"
+								class="text-primary hover:text-primary-hover text-sm font-semibold underline"
 							>
 								{linkLabel}
 							</a>
@@ -136,13 +168,12 @@
 					{/if}
 				</div>
 
-				<!-- Hidden measure to capture full height for animation -->
-				<div class="invisible absolute pointer-events-none w-full">
-					<div class="whitespace-pre-line pl-6" bind:this={hiddenMeasure}>
+				<div class="pointer-events-none invisible absolute w-full">
+					<div class="pl-6 whitespace-pre-line" bind:this={hiddenMeasure}>
 						{message}
 						{#if link}
 							<br />
-							<a>{linkLabel}</a>
+							<span>{linkLabel}</span>
 						{/if}
 					</div>
 				</div>
@@ -150,10 +181,11 @@
 				{#if isLong}
 					<div class="mt-1 flex justify-center">
 						<button
-							on:click={() => (expanded = !expanded)}
+							onclick={() => (expanded = !expanded)}
 							class="toggle-link"
 							aria-expanded={expanded}
 							aria-label={expanded ? 'Visa mindre' : 'Visa mer'}
+							type="button"
 						>
 							<span>{expanded ? 'Visa mindre' : 'Visa mer'}</span>
 							<span class:rotated={expanded}>
@@ -168,48 +200,17 @@
 </div>
 
 <style>
-	.line-clamp-2 {
-		display: -webkit-box;
-		-webkit-line-clamp: 2;
-		-webkit-box-orient: vertical;
-		overflow: hidden;
-	}
-	.line-clamp-1 {
-		display: -webkit-box;
-		-webkit-line-clamp: 1;
-		-webkit-box-orient: vertical;
-		overflow: hidden;
-	}
-
 	.message-wrapper {
 		max-height: 110px;
 		overflow: hidden;
-		transition: max-height 0.35s ease, opacity 0.25s ease;
+		transition:
+			max-height 0.35s ease,
+			opacity 0.25s ease;
 	}
 
 	.message-wrapper.expanded {
 		max-height: 1200px;
 		overflow: visible;
-	}
-
-	.toggle-btn {
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		width: 28px;
-		height: 28px;
-		border: 1px solid #d1d5db;
-		border-radius: 9999px;
-		background: #fff;
-		transition: transform 0.2s ease, background-color 0.2s ease;
-	}
-
-	.toggle-btn:hover {
-		background-color: #f3f4f6;
-	}
-
-	.toggle-btn :global(.rotated) {
-		transform: rotate(180deg);
 	}
 
 	.toggle-link {

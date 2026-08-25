@@ -10,7 +10,12 @@ export async function GET({ url, request }) {
 	const roomId = url.searchParams.get('roomId');
 	const locationIds = url.searchParams.getAll('locationId');
 	const trainerIds = url.searchParams.getAll('trainerId');
-	const clientId = url.searchParams.get('clientId');
+	const requestedClientIds = url.searchParams.getAll('clientId');
+	const clientIds = [
+		...new Set(
+			requestedClientIds.map((id) => Number(id)).filter((id) => Number.isInteger(id) && id > 0)
+		)
+	];
 
 	// ✅ Optional Pagination
 	const limitParam = url.searchParams.get('limit');
@@ -75,7 +80,7 @@ export async function GET({ url, request }) {
 
 	// ✅ Additional filters
 	let hasTrainer = trainerIds.length > 0;
-	let hasClient = !!clientId;
+	let hasClient = requestedClientIds.length > 0;
 	let hasLocation = locationIds.length > 0;
 
 	let orConditions: string[] = [];
@@ -90,8 +95,8 @@ export async function GET({ url, request }) {
 		);
 	}
 	if (hasClient) {
-		params.push(Number(clientId));
-		orConditions.push(`bookings.client_id = $${params.length}`);
+		params.push(clientIds.length ? clientIds : [-1]);
+		orConditions.push(`bookings.client_id = ANY($${params.length}::int[])`);
 	}
 	if (hasLocation) {
 		params.push(locationIds.map(Number));

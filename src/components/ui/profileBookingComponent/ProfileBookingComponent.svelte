@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import type { ComponentType } from 'svelte';
 	import { fetchBookings } from '$lib/services/api/calendarService';
 	import { writable, get } from 'svelte/store';
 	import { cancelBooking } from '$lib/services/api/bookingService';
@@ -28,31 +29,63 @@
 	import Checkbox from '../../bits/checkbox/Checkbox.svelte';
 	import BookingDetailsPopup from '../bookingDetailsPopup/BookingDetailsPopup.svelte';
 	import MailComponent from '../mailComponent/MailComponent.svelte';
+	import type { FullBooking } from '$lib/types/calendarTypes';
+
+	type CancelEmailBehavior = 'send' | 'edit' | 'none';
+	type CancelledOption = { value: boolean; label: string };
+	type BookedDate = { date: string; time: string; locationName?: string };
+	type CancelConfirmOptions = {
+		onConfirm: (reason: string, time: string, emailBehavior: CancelEmailBehavior) => void;
+		startTimeISO: string;
+		defaultEmailBehavior?: CancelEmailBehavior;
+	} | null;
 
 	export let trainerId: number | null = null;
 	export let clientId: number | null = null;
+	export let clientIds: number[] = [];
 	export let client: any = null;
 	// ✅ Reactive Stores
-	let bookings = writable([]);
+	let bookings = writable<FullBooking[]>([]);
 	let page = writable(0);
 	let isLoading = writable(false);
 	let hasMore = writable(true);
 	let selectAllChecked = false;
 
-	let selectedBookings = writable([]);
-	let cancelableSelected = [];
+	let selectedBookings = writable<FullBooking[]>([]);
+	let cancelableSelected: FullBooking[] = [];
 	let cancelConfirmStartTimeISO = new Date().toISOString();
-	let cancelConfirmOptions = null;
+	let cancelConfirmOptions: CancelConfirmOptions = null;
 
 	const CANCELLED_STATUSES = new Set(['cancelled', 'late_cancelled']);
 
-	const debouncedLoad = debounce((val) => {
+	const debouncedLoad = debounce((val: string) => {
 		if (/^\d{4}-\d{2}-\d{2}$/.test(val)) {
 			loadMoreBookings(true);
 		}
 	}, 300);
 
-	const isClient = clientId !== null;
+	let normalizedClientIds: number[] = [];
+	let isClient = false;
+	let showBookingActions = false;
+	let profileScopeKey = '';
+	let lastProfileScopeKey = '';
+	let hasMounted = false;
+
+	function normalizeClientIds(clientId: number | null, clientIds: number[]): number[] {
+		if (clientId !== null && Number.isFinite(clientId) && clientId > 0) return [clientId];
+		const ids = Array.isArray(clientIds) ? clientIds : [];
+		return [
+			...new Set(ids.map((id) => Number(id)).filter((id) => Number.isInteger(id) && id > 0))
+		].sort((a, b) => a - b);
+	}
+
+	$: normalizedClientIds = normalizeClientIds(clientId, clientIds);
+	$: isClient = clientId !== null && Number.isFinite(clientId) && clientId > 0;
+	$: showBookingActions = isClient || normalizedClientIds.length > 0;
+	$: profileScopeKey = JSON.stringify({
+		trainerId: trainerId ?? null,
+		clientIds: normalizedClientIds
+	});
 
 	function ymdNoon(d: Date): string {
 		const x = new Date(d);
@@ -74,8 +107,15 @@
 	const oneMonthBack = new Date(today);
 	oneMonthBack.setMonth(today.getMonth() - 1);
 
-	let selectedDate = writable(clientId ? ymdNoon(oneMonthBack) : ymdNoon(today));
-	let selectedCancelledOption = writable({ value: false, label: 'Visa inte avbokade' });
+	let selectedDate = writable(ymdNoon(today));
+	let selectedCancelledOption = writable<CancelledOption>({
+		value: false,
+		label: 'Visa inte avbokade'
+	});
+
+	$: if (!hasMounted && normalizedClientIds.length > 0) {
+		selectedDate.set(ymdNoon(oneMonthBack));
+	}
 
 	const LIMIT = 20;
 
@@ -89,12 +129,12 @@
 		selectedBookings.set([]);
 	}
 
-	function isCancelledBooking(booking) {
+	function isCancelledBooking(booking: FullBooking) {
 		const status = String(booking?.booking?.status ?? '').toLowerCase();
 		return CANCELLED_STATUSES.has(status) || Boolean(booking?.booking?.cancelTime);
 	}
 
-	function getEarliestStartTime(bookings) {
+	function getEarliestStartTime(bookings: FullBooking[]) {
 		let earliest = Number.POSITIVE_INFINITY;
 		let earliestIso: string | null = null;
 
@@ -108,6 +148,16 @@
 		}
 
 		return earliestIso;
+	}
+
+	function getUniqueClientIdsFromBookings(bookings: FullBooking[]): number[] {
+		return Array.from(
+			new Set(
+				bookings
+					.map((booking) => Number(booking?.client?.id))
+					.filter((id) => Number.isInteger(id) && id > 0)
+			)
+		);
 	}
 
 	function toggleSelectAllLoaded(checked: boolean) {
@@ -142,7 +192,7 @@
 		getEarliestStartTime(cancelableSelected) ?? new Date().toISOString();
 	$: cancelConfirmOptions = cancelableSelected.length
 		? {
-				onConfirm: (reason: string, time: string, emailBehavior: 'send' | 'edit' | 'none') => {
+				onConfirm: (reason: string, time: string, emailBehavior: CancelEmailBehavior) => {
 					void cancelSelectedBookings({ reason, time, emailBehavior });
 				},
 				startTimeISO: cancelConfirmStartTimeISO,
@@ -151,12 +201,29 @@
 		: null;
 	// ✅ Fetch initial bookings when mounted
 	onMount(() => {
+		lastProfileScopeKey = profileScopeKey;
+		hasMounted = true;
 		loadMoreBookings(true);
 	});
+
+	$: if (hasMounted && profileScopeKey !== lastProfileScopeKey) {
+		lastProfileScopeKey = profileScopeKey;
+		clearAllSelected();
+		loadMoreBookings(true);
+	}
 
 	// ✅ Fetch more bookings when scrolling
 	async function loadMoreBookings(reset = false) {
 		if (get(isLoading) || (!get(hasMore) && !reset)) return;
+
+		if (!trainerId && normalizedClientIds.length === 0) {
+			if (reset) {
+				bookings.set([]);
+				page.set(0);
+			}
+			hasMore.set(false);
+			return;
+		}
 
 		const raw = get(selectedDate);
 
@@ -176,8 +243,8 @@
 
 		if (trainerId) {
 			filters.trainerIds = [trainerId];
-		} else if (clientId) {
-			filters.clientIds = [clientId];
+		} else if (normalizedClientIds.length > 0) {
+			filters.clientIds = normalizedClientIds;
 		}
 
 		if (reset) {
@@ -216,13 +283,14 @@
 
 		if (bookingsToSend.length === 0) return;
 
-		// If more than one unique client is selected, show a warning or handle differently
-		const uniqueClients = Array.from(
-			new Set(bookingsToSend.map((b) => b.client?.email).filter(Boolean))
-		);
+		const selectedClientIds = getUniqueClientIdsFromBookings(bookingsToSend);
 
-		if (uniqueClients.length > 1) {
-			alert('You can only send confirmations to one client at a time.');
+		if (!clientId && selectedClientIds.length > 1) {
+			addToast({
+				type: AppToastType.CANCEL,
+				message: 'Flera klienter valda',
+				description: 'Du kan bara skicka bekräftelser till en klient åt gången.'
+			});
 			return;
 		}
 
@@ -236,8 +304,7 @@
 			return;
 		}
 
-		const resolvedClientId =
-			clientId ?? bookingsToSend.find((booking) => booking.client?.id)?.client?.id ?? null;
+		const resolvedClientId = clientId ?? selectedClientIds[0] ?? null;
 		const trainerIds = Array.from(
 			new Set(
 				bookingsToSend
@@ -392,7 +459,10 @@
 		return emails;
 	}
 
-	function buildCancellationBody(bookedDates, fromUser) {
+	function buildCancellationBody(
+		bookedDates: BookedDate[],
+		fromUser: { firstname?: string | null }
+	) {
 		const lines = bookedDates
 			.map((b) => `${b.date} kl. ${b.time}${b.locationName ? ` på ${b.locationName}` : ''}`)
 			.join('<br>');
@@ -408,7 +478,7 @@
 		].join('<br>');
 	}
 
-	async function handleCancellationEmail(behavior, bookings) {
+	async function handleCancellationEmail(behavior: CancelEmailBehavior, bookings: FullBooking[]) {
 		if (behavior === 'none') return;
 		const current = get(user);
 
@@ -421,7 +491,18 @@
 			return;
 		}
 
-		const recipients = await resolveClientRecipients();
+		const selectedClientIds = getUniqueClientIdsFromBookings(bookings);
+		if (!clientId && selectedClientIds.length > 1) {
+			addToast({
+				type: AppToastType.CANCEL,
+				message: 'Flera klienter valda',
+				description: 'Du kan bara skicka avbokningsbekräftelser till en klient åt gången.'
+			});
+			return;
+		}
+
+		const resolvedClientId = clientId ?? selectedClientIds[0] ?? null;
+		const recipients = await resolveClientRecipients(resolvedClientId);
 		if (!recipients.length) {
 			addToast({
 				type: AppToastType.CANCEL,
@@ -526,8 +607,8 @@
 			cancelable.map((booking) => cancelBooking(booking.booking.id, reason, cancelTime))
 		);
 
-		const successful = [];
-		const failed = [];
+		const successful: FullBooking[] = [];
+		const failed: FullBooking[] = [];
 
 		results.forEach((result, index) => {
 			if (result.success) {
@@ -567,17 +648,18 @@
 	}
 
 	// ✅ Handle Infinite Scroll
-	function handleScroll(event) {
-		const bottom =
-			event.target.scrollHeight - event.target.scrollTop <= event.target.clientHeight + 50;
+	function handleScroll(event: Event) {
+		const target = event.currentTarget as HTMLElement;
+		const bottom = target.scrollHeight - target.scrollTop <= target.clientHeight + 50;
 		if (bottom && get(hasMore) && !get(isLoading)) {
 			loadMoreBookings();
 		}
 	}
 
 	// ✅ Update selected date & re-fetch
-	function updateStartDate(event) {
-		const val = event.target.value;
+	function updateStartDate(event: Event) {
+		const target = event.currentTarget as HTMLInputElement;
+		const val = target.value;
 		selectedDate.set(val);
 
 		debouncedLoad(val);
@@ -593,11 +675,11 @@
 		loadMoreBookings(true);
 	}
 
-	function handleBookingClick(event) {
+	function handleBookingClick(event: CustomEvent<FullBooking>) {
 		openPopup({
 			header: 'Bokningsdetaljer',
 			icon: 'CircleInfo',
-			component: BookingDetailsPopup,
+			component: BookingDetailsPopup as unknown as ComponentType,
 			props: { booking: event.detail },
 			maxWidth: '650px',
 			height: '850px',
@@ -639,7 +721,7 @@
 		</div>
 	</div>
 
-	{#if clientId}
+	{#if showBookingActions}
 		<div
 			class="bg-orange/10 mt-4 flex flex-wrap items-center justify-between gap-3 rounded-sm px-4 py-3 shadow-xs"
 		>
@@ -726,7 +808,7 @@
 			<ProfileBookingSlot
 				{booking}
 				{isClient}
-				showSelect={clientId !== null}
+				showSelect={showBookingActions}
 				selected={$selectedBookings.some((b) => b.booking.id === booking.booking.id)}
 				onSelect={(checked, selectedBooking) => {
 					selectedBookings.update((current) => {
@@ -743,6 +825,10 @@
 
 		{#if $isLoading}
 			<p class="text-gray-bright mt-4 text-center">Laddar fler bokningar...</p>
+		{/if}
+
+		{#if !$isLoading && $bookings.length === 0}
+			<p class="text-gray-bright mt-4 text-center">Inga bokningar hittades.</p>
 		{/if}
 
 		{#if !$hasMore && $bookings.length > 0}

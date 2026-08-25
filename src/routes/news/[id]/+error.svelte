@@ -1,14 +1,20 @@
 <script lang="ts">
-	import Button from '../../../components/bits/button/Button.svelte';
 	import Icon from '../../../components/bits/icon-component/Icon.svelte';
 
-	export let error;
+	type Props = {
+		error?: {
+			status?: number;
+			message?: string;
+		} | null;
+	};
+
+	let { error = null }: Props = $props();
 </script>
 
 <div class="flex h-full flex-col items-center justify-center gap-4 p-6 text-center">
-	<div class="flex items-center gap-2 text-error">
+	<div class="text-error flex items-center gap-2">
 		<Icon icon="Newspaper" size="24px" />
-		<h1 class="text-2xl font-semibold text-text">Nyheten finns inte</h1>
+		<h1 class="text-text text-2xl font-semibold">Nyheten finns inte</h1>
 	</div>
 	<p class="text-gray-600">
 		{#if error?.status === 404}
@@ -18,7 +24,7 @@
 		{/if}
 	</p>
 	<a
-		class="inline-flex items-center gap-2 rounded-sm bg-primary px-4 py-2 text-sm font-semibold text-white shadow-xs transition hover:bg-primary-hover"
+		class="bg-primary hover:bg-primary-hover inline-flex items-center gap-2 rounded-sm px-4 py-2 text-sm font-semibold text-white shadow-xs transition"
 		href="/news"
 	>
 		<Icon icon="ChevronLeft" size="16px" />
