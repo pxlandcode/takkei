@@ -11,6 +11,7 @@ import {
 	stripHtmlToText
 } from '$lib/server/newsService';
 import { query } from '$lib/db';
+import { respondJsonWithEtag } from '$lib/server/http-cache';
 import { sendStyledEmail } from '$lib/services/mail/mailServerService';
 
 type TrainerSessionUser = NonNullable<App.Locals['user']> & {
@@ -55,7 +56,7 @@ async function createNewsNotification({
 	);
 }
 
-export const GET: RequestHandler = async ({ url, locals }) => {
+export const GET: RequestHandler = async ({ url, request, locals }) => {
 	const session = ensureTrainer(locals);
 	if (!session) throw error(401, 'Unauthorized');
 
@@ -74,7 +75,7 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 		filter
 	});
 
-	return json(news);
+	return respondJsonWithEtag(request, news);
 };
 
 export const POST: RequestHandler = async ({ request, locals }) => {

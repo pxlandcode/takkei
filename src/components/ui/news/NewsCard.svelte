@@ -29,6 +29,8 @@
 
 <a
 	href={`/news/${news.id}`}
+	data-sveltekit-preload-code="hover"
+	data-sveltekit-preload-data="hover"
 	class="group block border-b border-gray-100 transition hover:bg-gray-50 {rowBackground} {compact
 		? 'px-3 py-3'
 		: 'px-4 py-4'}"

@@ -5,6 +5,7 @@
 	import Button from '../../bits/button/Button.svelte';
 	import { addToast } from '$lib/stores/toastStore';
 	import { AppToastType } from '$lib/types/toastTypes';
+	import { invalidateByPrefix, wrapFetch } from '$lib/services/api/apiCache';
 
 	type RawClient = { id: number | string; firstname?: string; lastname?: string };
 	type ClientIdSource = { id: number | string } | undefined | null;
@@ -103,7 +104,7 @@
 		clientsLoading = true;
 		clientLoadError = '';
 		try {
-			const res = await fetch('/api/clients?short=true&limit=5000');
+			const res = await wrapFetch(fetch)('/api/clients?short=true&limit=5000');
 			if (!res.ok) {
 				clientLoadError = 'Kunde inte hämta klienter.';
 				return;
@@ -184,6 +185,8 @@
 				.map((client) => clientCache.get(client.id))
 				.filter(Boolean) as ClientOption[];
 			savedClientIdsKey = getClientIdsKey(normalizedClients);
+			invalidateByPrefix('/api/customers');
+			invalidateByPrefix('/api/clients');
 
 			dispatch(
 				'clientsUpdated',

@@ -10,6 +10,7 @@
 	import { loadingStore } from '$lib/stores/loading';
 	import MailComponent from '../mailComponent/MailComponent.svelte';
 	import { openPopup } from '$lib/stores/popupStore';
+	import { getCachedJson, invalidateByPrefix, wrapFetch } from '$lib/services/api/apiCache';
 
 	function openCustomerForm() {
 		openPopup({
@@ -19,7 +20,7 @@
 			maxWidth: '650px',
 			listeners: {
 				created: () => {
-					fetchPaginatedCustomers(true);
+					fetchPaginatedCustomers(true, { force: true });
 				}
 			},
 			closeOn: ['created']
@@ -35,6 +36,7 @@
 	let page = 0;
 	let limit = 50;
 	let isLoading = false;
+	let isFetching = false;
 	let hasMore = true;
 	let sortBy = 'name';
 	let sortOrder = 'asc';
@@ -57,50 +59,77 @@
 		openMailPopup(email);
 	}
 
-	async function handleSortChange(event) {
+	async function handleSortChange(event: CustomEvent<{ column: string; order: 'asc' | 'desc' }>) {
 		const { column, order } = event.detail;
 		sortBy = column;
 		sortOrder = order;
 		await fetchPaginatedCustomers(true);
 	}
 
-	async function fetchPaginatedCustomers(reset = false) {
-		if (isLoading || (!hasMore && !reset)) return;
+	function buildCustomersUrl(pageIndex = page) {
+		return `/api/customers?offset=${pageIndex * limit}&limit=${limit}&sortBy=${sortBy}&sortOrder=${sortOrder}&search=${encodeURIComponent(searchQuery)}`;
+	}
 
-		isLoading = true;
-		loadingStore.loading(true, 'Hämtar kunder...');
+	function mapCustomerRows(fetched: any[]): TableType {
+		return fetched.map((cust) => ({
+			id: cust.id,
+			name: [{ type: 'link', label: cust.name, action: () => onGoToCustomer(cust.id) }],
+			email: [{ type: 'link', label: cust.email, action: () => onSendCustomerEmail(cust.email) }],
+			phone: cust.phone || '',
+			isActive: cust.active
+		}));
+	}
+
+	function applyCustomerRows(fetched: any[], reset: boolean, pageIndex: number) {
+		const newData = mapCustomerRows(fetched);
+		data = reset ? newData : [...data, ...newData];
+		hasMore = newData.length >= limit;
+		page = pageIndex + 1;
+	}
+
+	async function fetchPaginatedCustomers(reset = false, options: { force?: boolean } = {}) {
+		if (isFetching || (!hasMore && !reset)) return;
+
+		const cachedFetch = wrapFetch(fetch);
+		const pageIndex = reset ? 0 : page;
+		const url = buildCustomersUrl(pageIndex);
+
+		if (options.force) {
+			invalidateByPrefix('/api/customers');
+		}
 
 		if (reset) {
 			page = 0;
-			data = [];
 			hasMore = true;
+			const cached = options.force ? null : getCachedJson<any[]>(url);
+			if (cached) {
+				applyCustomerRows(cached, true, pageIndex);
+			} else {
+				data = [];
+			}
+		}
+
+		isFetching = true;
+		isLoading = !(reset && data.length > 0);
+		const showGlobalLoading = isLoading;
+		if (showGlobalLoading) {
+			loadingStore.loading(true, 'Hämtar kunder...');
 		}
 
 		try {
-			const res = await fetch(
-				`/api/customers?offset=${page * limit}&limit=${limit}&sortBy=${sortBy}&sortOrder=${sortOrder}&search=${encodeURIComponent(searchQuery)}`
-			);
+			const res = await cachedFetch(url);
 			if (!res.ok) throw new Error('Failed to fetch customers');
 
 			const fetched = await res.json();
-
-			const newData = fetched.map((cust) => ({
-				id: cust.id,
-				name: [{ type: 'link', label: cust.name, action: () => onGoToCustomer(cust.id) }],
-				email: [{ type: 'link', label: cust.email, action: () => onSendCustomerEmail(cust.email) }],
-				phone: cust.phone || '',
-				isActive: cust.active
-			}));
-
-			data = [...data, ...newData];
-
-			if (newData.length < limit) hasMore = false;
-			page++;
+			applyCustomerRows(fetched, reset, pageIndex);
 		} catch (error) {
 			console.error('Error loading customers:', error);
 		} finally {
+			isFetching = false;
 			isLoading = false;
-			loadingStore.loading(false);
+			if (showGlobalLoading) {
+				loadingStore.loading(false);
+			}
 		}
 	}
 
@@ -123,8 +152,8 @@
 				}
 				if (Array.isArray(value)) {
 					return value.some((item) => {
-						const text = item.content ?? item.label;
-						return text ? text.toLowerCase().includes(query) : false;
+						const text = String(item.content ?? item.label ?? '').toLowerCase();
+						return text.includes(query);
 					});
 				}
 				return false;

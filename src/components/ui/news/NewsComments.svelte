@@ -2,6 +2,7 @@
 	import Icon from '../../bits/icon-component/Icon.svelte';
 	import { addToast } from '$lib/stores/toastStore';
 	import { AppToastType } from '$lib/types/toastTypes';
+	import { invalidateByPrefix } from '$lib/services/api/apiCache';
 	import type { NewsComment } from '$lib/types/newsTypes';
 
 	type Props = {
@@ -65,6 +66,7 @@
 			const created: NewsComment = await res.json();
 			comments = [...comments, created];
 			body = '';
+			invalidateByPrefix('/api/news');
 			emitCount();
 		} catch (err: any) {
 			addToast({
@@ -103,6 +105,7 @@
 
 			const updated: NewsComment = await res.json();
 			comments = comments.map((item) => (item.id === updated.id ? updated : item));
+			invalidateByPrefix('/api/news');
 			cancelEdit();
 		} catch (err: any) {
 			addToast({
@@ -128,6 +131,7 @@
 			if (!res.ok) throw new Error(await res.text());
 
 			comments = comments.filter((item) => item.id !== comment.id);
+			invalidateByPrefix('/api/news');
 			emitCount();
 		} catch (err: any) {
 			addToast({

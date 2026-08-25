@@ -9,6 +9,7 @@
 	import Dropdown from '../../bits/dropdown/Dropdown.svelte';
 	import { user } from '$lib/stores/userStore';
 	import { ROLE_OPTIONS } from '$lib/constants/roles';
+	import { invalidateByPrefix } from '$lib/services/api/apiCache';
 
 	onMount(fetchLocations);
 
@@ -35,7 +36,7 @@
 	const allRoles = ROLE_OPTIONS;
 	let selectedRoles: string[] = [];
 
-	function handleRolesSelection(event) {
+	function handleRolesSelection(event: CustomEvent<{ selected: string[] }>) {
 		selectedRoles = [...event.detail.selected];
 	}
 
@@ -78,6 +79,7 @@
 
 			const data = await res.json();
 			createdUserId = data.userId;
+			invalidateByPrefix('/api/users');
 			dispatch('created', data);
 		} catch (error) {
 			console.error(error);
@@ -89,11 +91,11 @@
 </script>
 
 {#if createdUserId}
-	<div class="mb-4 rounded-sm border border-success bg-green-50 p-6 text-success">
+	<div class="border-success text-success mb-4 rounded-sm border bg-green-50 p-6">
 		<h2 class="text-xl font-semibold">Användare skapad!</h2>
 		<p class="mt-2">
 			Användaren har skapats. Du kan nu gå till
-			<a href={`/users/${createdUserId}`} class="text-success underline hover:text-success-hover">
+			<a href={`/users/${createdUserId}`} class="text-success hover:text-success-hover underline">
 				användarens profilsida
 			</a>.
 		</p>
@@ -199,7 +201,7 @@
 			/>
 		</div>
 		{#if errors.general}
-			<p class="text-sm font-medium text-error">{errors.general}</p>
+			<p class="text-error text-sm font-medium">{errors.general}</p>
 		{/if}
 	</div>
 {/if}

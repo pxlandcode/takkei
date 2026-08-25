@@ -10,9 +10,32 @@
 	import { addToast } from '$lib/stores/toastStore';
 	import { AppToastType } from '$lib/types/toastTypes';
 	import { ROLE_OPTIONS } from '$lib/constants/roles';
+	import { invalidateByPrefix } from '$lib/services/api/apiCache';
 
-	export let trainer;
-	export let onSave;
+	type TrainerRole = {
+		id?: number;
+		user_id?: number;
+		name: string;
+		created_at?: string;
+		updated_at?: string;
+	};
+
+	type TrainerRecord = {
+		id: number;
+		firstname: string;
+		lastname: string;
+		initials?: string;
+		email: string;
+		mobile?: string;
+		default_location_id?: number | null;
+		active: boolean;
+		comment?: string;
+		roles?: TrainerRole[];
+		[key: string]: unknown;
+	};
+
+	export let trainer: TrainerRecord;
+	export let onSave: ((updated?: any) => void) | undefined = undefined;
 
 	let errors: Record<string, string> = {};
 	let selectedRoles: string[] = trainer?.roles?.map((role) => role.name) ?? [];
@@ -31,7 +54,7 @@
 		lastTrainerId = trainer?.id ?? null;
 	}
 
-	function handleRolesSelection(event) {
+	function handleRolesSelection(event: CustomEvent<{ selected: string[] }>) {
 		selectedRoles = [...event.detail.selected];
 		if (errors.roles) {
 			const { roles, ...rest } = errors;
@@ -97,7 +120,7 @@
 
 			if (result.user) {
 				Object.assign(trainer, result.user);
-				selectedRoles = result.user.roles?.map((role) => role.name) ?? [];
+				selectedRoles = result.user.roles?.map((role: TrainerRole) => role.name) ?? [];
 			} else {
 				trainer.roles = selectedRoles.map((name, idx) => ({
 					id: trainer.roles?.[idx]?.id ?? idx,
@@ -113,6 +136,7 @@
 				message: 'Profil uppdaterad',
 				description: `${trainer.firstname} ${trainer.lastname} har uppdaterats korrekt.`
 			});
+			invalidateByPrefix('/api/users');
 
 			newPassword = '';
 			confirmPassword = '';
@@ -155,7 +179,7 @@
 
 	<div class="flex items-center gap-2">
 		<input type="checkbox" bind:checked={trainer.active} class="h-4 w-4" />
-		<span class="text-sm font-medium text-gray">Aktiv</span>
+		<span class="text-gray text-sm font-medium">Aktiv</span>
 	</div>
 
 	<DropdownCheckbox
@@ -172,7 +196,9 @@
 
 	<div class="rounded-sm border border-gray-200 p-4">
 		<p class="mb-2 text-sm font-semibold text-gray-700">Byt lösenord</p>
-		<p class="mb-4 text-xs text-gray-500">Lämna fälten tomma om du vill behålla nuvarande lösenord.</p>
+		<p class="mb-4 text-xs text-gray-500">
+			Lämna fälten tomma om du vill behålla nuvarande lösenord.
+		</p>
 		<div class="grid grid-cols-1 gap-4 md:grid-cols-2">
 			<Input
 				label="Nytt lösenord"
@@ -192,7 +218,7 @@
 	</div>
 
 	{#if errors.general}
-		<p class="text-sm font-medium text-error">{errors.general}</p>
+		<p class="text-error text-sm font-medium">{errors.general}</p>
 	{/if}
 
 	<!-- Save Button -->
