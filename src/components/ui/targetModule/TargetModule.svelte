@@ -1,31 +1,51 @@
 <script lang="ts">
-	import { targetStore, targetMeta, updateTargets } from '$lib/stores/targetsStore';
+	import {
+		targetStore,
+		targetMeta,
+		updateTargets,
+		todayLocalISO,
+		weekNumberForDate
+	} from '$lib/stores/targetsStore';
 	import { onMount } from 'svelte';
 	import Button from '../../bits/button/Button.svelte';
 	import ProgressBar from '../../bits/progress-bar/ProgressBar.svelte';
 	import { goto } from '$app/navigation';
 	import { capitalizeFirstLetter, svMonth } from '$lib/helpers/generic/genericHelpers';
+	import { user } from '$lib/stores/userStore';
 
-	let userId = 19; // trainer id
+	let mounted = false;
+	let loadedUserId: number | null = null;
 	let selectedDate = new Date();
-	let year = selectedDate.getFullYear();
 	let month = capitalizeFirstLetter(svMonth(selectedDate.getMonth() + 1));
 
-	// Get current week number
-	function getWeekNumber(date: Date): number {
-		const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-		const dayNum = d.getUTCDay() || 7;
-		d.setUTCDate(d.getUTCDate() + 4 - dayNum);
-		const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-		return Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
-	}
-
-	let weekNumber = getWeekNumber(selectedDate);
+	let weekNumber = weekNumberForDate(selectedDate);
 
 	onMount(() => {
-		const formattedDate = selectedDate.toISOString().slice(0, 10);
-		updateTargets('trainer', userId, formattedDate);
+		mounted = true;
+		void loadTargetsForCurrentUser();
 	});
+
+	$: if (mounted && $user?.kind === 'trainer' && $user.id !== loadedUserId) {
+		void loadTargetsForCurrentUser();
+	}
+
+	$: if (mounted && $user?.kind !== 'trainer' && loadedUserId !== null) {
+		loadedUserId = null;
+	}
+
+	function updateDateLabels(date = new Date()) {
+		selectedDate = date;
+		month = capitalizeFirstLetter(svMonth(selectedDate.getMonth() + 1));
+		weekNumber = weekNumberForDate(selectedDate);
+	}
+
+	async function loadTargetsForCurrentUser() {
+		if ($user?.kind !== 'trainer') return;
+
+		loadedUserId = $user.id;
+		updateDateLabels();
+		await updateTargets('trainer', $user.id, todayLocalISO(selectedDate));
+	}
 </script>
 
 <div class="glass relative w-[320px] rounded-sm p-4 text-sm font-light">
@@ -41,25 +61,13 @@
 		/>
 	</div>
 
-	<!-- Year + Month summary bars -->
+	<!-- Month + Week summary bars -->
 	{#if $targetMeta}
-		<div class="mb-3 space-y-3">
-			<!-- Årsmål -->
-			<div class="flex flex-col gap-1">
-				<div class="flex items-baseline justify-between">
-					<p class="text-white">{year}</p>
-				</div>
-				<ProgressBar
-					textColor="white"
-					value={$targetMeta.achievedYear ?? 0}
-					max={$targetMeta.yearGoal ?? 0}
-				/>
-			</div>
-
+		<div class="mb-3 space-y-4">
 			<!-- Månadsmål -->
 			<div class="flex flex-col gap-1">
 				<div class="flex items-baseline justify-between">
-					<p class="text-white">{month}</p>
+					<p class="text-base font-medium text-white">{month}</p>
 				</div>
 				<ProgressBar
 					textColor="white"
@@ -71,7 +79,7 @@
 			<!-- Veckomål -->
 			<div class="flex flex-col gap-1">
 				<div class="flex items-baseline justify-between">
-					<p class="text-white">Vecka {weekNumber}</p>
+					<p class="text-base font-medium text-white">Vecka {weekNumber}</p>
 				</div>
 				<ProgressBar
 					textColor="white"

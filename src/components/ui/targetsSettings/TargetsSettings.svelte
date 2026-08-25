@@ -7,7 +7,12 @@
 	import Button from '../../bits/button/Button.svelte';
 	import { addToast } from '$lib/stores/toastStore';
 	import { AppToastType } from '$lib/types/toastTypes';
-	import Icon from '../../bits/icon-component/Icon.svelte';
+	import {
+		todayLocalISO,
+		updateCompanyTargets,
+		updateLocationTargets,
+		updateTargets
+	} from '$lib/stores/targetsStore';
 
 	import {
 		getTargetGoals,
@@ -21,7 +26,6 @@
 		splitYearToMonths,
 		splitMonthToWeeks
 	} from '$lib/helpers/allocGoalHelpers/allocGoalHelpers';
-	import { debounce } from '$lib/utils/debounce';
 
 	import MonthBarInput from '../targets/MonthBarInput.svelte';
 	import WeekBarInput from '../targets/WeekBarInput.svelte';
@@ -125,10 +129,10 @@
 			persistedYearGoal = payload?.yearGoal == null ? null : Math.trunc(Number(payload.yearGoal));
 			yearDraft = persistedYearGoal == null ? '' : persistedYearGoal;
 
-			const lockedMonths = (payload?.months || []).filter((r: any) =>
+			const lockedMonths = (payload?.months || []).filter((r) =>
 				r?.is_anchor === undefined ? true : Boolean(r.is_anchor)
 			);
-			persistedMonthAnchors = lockedMonths.map((r: any) => ({
+			persistedMonthAnchors = lockedMonths.map((r) => ({
 				month: Number(r.month),
 				value: Math.trunc(Number(r.goal_value))
 			}));
@@ -141,7 +145,7 @@
 			weeksView = [];
 			showWeeksForMonth = null;
 		} catch (err) {
-			addToast({ type: AppToastType.ERROR, message: 'Kunde inte hämta mål' });
+			addToast({ type: AppToastType.CANCEL, message: 'Kunde inte hämta mål' });
 			resetLocal();
 			console.error(err);
 		}
@@ -192,100 +196,74 @@
 		monthInputs = monthInputs.slice(); // notify Svelte
 	}
 
-	// Debounced reactions to user typing
-	const applyYearDraft = debounce(() => {
-		recomputeFromDraft(); // keeps total fixed and redistributes unlocked months
-	}, 100);
+	// ----------------------- SAVE ALL (ONE CLICK) -----------------------------
+	async function refreshVisibleTargetSummaries(
+		savedOwnerType: 'trainer' | 'location',
+		savedOwnerId: number,
+		savedYear: number
+	) {
+		const today = new Date();
+		if (savedYear !== today.getFullYear()) return;
 
-	const applyMonthDrafts = debounce(() => {
-		if (!isEditing) return;
+		const dateISO = todayLocalISO(today);
+		const refreshes: Promise<unknown>[] = [updateCompanyTargets(dateISO, { force: true })];
 
-		let changed = false;
-
-		// Only process months the user actually edited
-		for (const m of editedMonths) {
-			const raw = monthInputs[m];
-			const txt = raw == null ? '' : String(raw);
-
-			// Empty => remove local anchor (unlock)
-			if (txt.trim() === '') {
-				const idx = monthDraftAnchors.findIndex((a) => a.month === m);
-				if (idx !== -1) {
-					monthDraftAnchors.splice(idx, 1);
-					changed = true;
-				}
-				continue;
+		if ($user?.kind === 'trainer') {
+			if (savedOwnerType === 'trainer' && savedOwnerId === $user.id) {
+				refreshes.push(updateTargets('trainer', savedOwnerId, dateISO, { force: true }));
 			}
 
-			// Otherwise, parse and upsert anchor
-			const v = Number(txt);
-			if (!Number.isFinite(v)) continue;
-
-			const i = monthDraftAnchors.findIndex((a) => a.month === m);
-			if (i >= 0) {
-				if (monthDraftAnchors[i].value !== v) {
-					monthDraftAnchors[i].value = v;
-					changed = true;
-				}
-			} else {
-				monthDraftAnchors.push({ month: m, value: v });
-				changed = true;
+			const defaultLocationId = Number($user.default_location_id ?? 0);
+			if (
+				savedOwnerType === 'location' &&
+				defaultLocationId > 0 &&
+				savedOwnerId === defaultLocationId
+			) {
+				refreshes.push(updateLocationTargets(savedOwnerId, dateISO, { force: true }));
 			}
 		}
 
-		if (changed) recomputeFromDraft();
-	}, 120);
-
-	// ---------------- LOCK / UNLOCK (LOCAL) -----------------------------------
-	function lockAllMonths() {
-		monthDraftAnchors = monthsView.map(({ month, value }) => ({ month, value }));
-		editedMonths = new Set(monthDraftAnchors.map((a) => a.month));
-		recomputeFromDraft();
-	}
-	function unlockAllMonths() {
-		monthDraftAnchors = [];
-		editedMonths.clear();
-		recomputeFromDraft();
-	}
-	function allLocked() {
-		return monthsView.length > 0 && monthsView.every((m) => m.isAnchor);
-	}
-	function resetDistributionByDays() {
-		monthDraftAnchors = [];
-		editedMonths.clear();
-		recomputeFromDraft();
+		const results = await Promise.allSettled(refreshes);
+		for (const result of results) {
+			if (result.status === 'rejected') {
+				console.error('Failed to refresh target summary after save', result.reason);
+			}
+		}
 	}
 
-	// ----------------------- SAVE ALL (ONE CLICK) -----------------------------
 	async function saveAll() {
 		if (!activeOwnerId) {
 			addToast({ type: AppToastType.CANCEL, message: 'Välj mottagare' });
 			return;
 		}
 		try {
+			const savedOwnerType = ownerType;
+			const savedOwnerId = Number(activeOwnerId);
+			const savedYear = year;
+
 			// 1) Save year goal
 			const yearValueToSave = yearDraft === '' ? 0 : Math.max(0, Math.trunc(Number(yearDraft)));
 			await setYearGoal({
-				ownerType,
-				ownerId: Number(activeOwnerId),
-				year,
+				ownerType: savedOwnerType,
+				ownerId: savedOwnerId,
+				year: savedYear,
 				targetKindId,
 				goalValue: yearValueToSave,
-				title: `Årsmål ${year}`,
+				title: `Årsmål ${savedYear}`,
 				description: ''
 			});
 
 			// 2) Save *every* month (persist what is currently shown in the UI)
 			//    `monthsView` already contains the final values (anchors + auto).
 			const monthPayloads = monthsView.map(({ month, value, isAnchor }) => ({
-				ownerType,
-				ownerId: Number(activeOwnerId),
-				year,
+				ownerType: savedOwnerType,
+				ownerId: savedOwnerId,
+				year: savedYear,
 				month, // 1..12
 				targetKindId,
 				goalValue: Math.max(0, Math.trunc(Number(value))),
 				isAnchor,
-				title: `Månadsmål ${year}-${String(month).padStart(2, '0')}`,
+				title: `Månadsmål ${savedYear}-${String(month).padStart(2, '0')}`,
 				description: ''
 			}));
 
@@ -293,15 +271,15 @@
 			await Promise.all(monthPayloads.map((p) => setMonthGoal(p)));
 
 			// 3) Save week goals for expanded months
-			const weekSavePromises: Promise<any>[] = [];
+			const weekSavePromises: Promise<unknown>[] = [];
 			for (const month of expandedMonths) {
 				const weeks = weekDraftsByMonth[month] || [];
 				for (const w of weeks) {
 					weekSavePromises.push(
 						setWeekGoal({
-							ownerType,
-							ownerId: Number(activeOwnerId),
-							year,
+							ownerType: savedOwnerType,
+							ownerId: savedOwnerId,
+							year: savedYear,
 							month,
 							week_start: w.week_start,
 							week_end: w.week_end,
@@ -317,6 +295,7 @@
 			await Promise.all(weekSavePromises);
 
 			await loadAnchors(); // reload from DB (will now reflect all 12 months)
+			await refreshVisibleTargetSummaries(savedOwnerType, savedOwnerId, savedYear);
 			// Reset week state
 			expandedMonths = [];
 			weekDraftsByMonth = {};
@@ -326,7 +305,7 @@
 		} catch (err) {
 			const detail = err instanceof Error ? err.message : '';
 			const message = detail ? `Kunde inte spara mål: ${detail}` : 'Kunde inte spara mål';
-			addToast({ type: AppToastType.ERROR, message });
+			addToast({ type: AppToastType.CANCEL, message });
 			console.error(err);
 		}
 	}
@@ -415,8 +394,8 @@
 
 			// Build anchors from server (only anchored weeks)
 			const anchors = (serverWeeks || [])
-				.filter((w: any) => w.is_anchor)
-				.map((w: any) => ({
+				.filter((w) => w.is_anchor)
+				.map((w) => ({
 					start: w.week_start,
 					end: w.week_end,
 					value: Math.trunc(Number(w.goal_value))

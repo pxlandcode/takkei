@@ -5,7 +5,8 @@
 		locationTargetMeta,
 		updateLocationTargets,
 		companyTargetMeta,
-		updateCompanyTargets
+		updateCompanyTargets,
+		todayLocalISO
 	} from '$lib/stores/targetsStore';
 	import { user } from '$lib/stores/userStore';
 	import HomeModernTargetProgressGroup from './HomeModernTargetProgressGroup.svelte';
@@ -34,7 +35,7 @@
 	function loadTargets() {
 		if (!$user?.id) return;
 
-		const formattedDate = new Date().toISOString().slice(0, 10);
+		const formattedDate = todayLocalISO();
 
 		const defaultLocationId = $user.kind === 'trainer' ? Number($user.default_location_id ?? 0) : 0;
 		if (defaultLocationId > 0) {
@@ -51,7 +52,7 @@
 		Gemensamma mål
 	</h2>
 	<div class="space-y-4">
-		{#if $locationTargetMeta && ($locationTargetMeta.yearGoal !== null || $locationTargetMeta.monthGoal !== null)}
+		{#if $locationTargetMeta && ($locationTargetMeta.monthGoal !== null || $locationTargetMeta.weekGoal !== null)}
 			<HomeModernTargetProgressGroup
 				icon="Building"
 				label={$locationTargetMeta.locationName ?? 'Plats'}

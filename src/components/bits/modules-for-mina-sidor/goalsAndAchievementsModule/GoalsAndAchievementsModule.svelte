@@ -6,7 +6,10 @@
 		locationTargetMeta,
 		updateLocationTargets,
 		companyTargetMeta,
-		updateCompanyTargets
+		updateCompanyTargets,
+		todayLocalISO,
+		targetMonthLabel,
+		targetWeekLabel
 	} from '$lib/stores/targetsStore';
 	import { achievementStore, updateAchievements } from '$lib/stores/achievementsStore';
 
@@ -16,9 +19,12 @@
 
 	let selectedDate = new Date();
 
+	$: monthLabel = targetMonthLabel(selectedDate.getMonth() + 1);
+	$: weekLabel = targetWeekLabel(todayLocalISO(selectedDate), selectedDate);
+
 	onMount(() => {
 		if ($user?.id) {
-			const formattedDate = selectedDate.toISOString().slice(0, 10);
+			const formattedDate = todayLocalISO(selectedDate);
 
 			// Achievements
 			updateAchievements($user.id, formattedDate);
@@ -34,8 +40,6 @@
 			updateCompanyTargets(formattedDate);
 		}
 	});
-
-	$: $user;
 </script>
 
 <div class="rounded-sm border border-gray-200 bg-white p-4 shadow-md">
@@ -52,17 +56,16 @@
 	<!-- Goals Grid -->
 	<div class="mb-6 space-y-4">
 		<!-- Header Row -->
-		<div class="grid grid-cols-4 gap-2 text-center text-xs font-medium text-gray-500">
+		<div class="grid grid-cols-3 gap-3 text-center text-sm font-semibold text-gray-600">
 			<div></div>
-			<div>År</div>
-			<div>Månad</div>
-			<div>Vecka</div>
+			<div>{monthLabel}</div>
+			<div>{weekLabel}</div>
 		</div>
 
 		<!-- Location Goals Row -->
-		{#if $locationTargetMeta && ($locationTargetMeta.yearGoal !== null || $locationTargetMeta.monthGoal !== null)}
-			<div class="grid grid-cols-4 items-center gap-2">
-				<div class="flex items-center gap-2">
+		{#if $locationTargetMeta && ($locationTargetMeta.monthGoal !== null || $locationTargetMeta.weekGoal !== null)}
+			<div class="grid grid-cols-3 items-center gap-3">
+				<div class="flex min-w-0 items-center gap-2">
 					<Icon icon="Building" size="16px" color="primary" />
 					<span
 						class="truncate text-sm font-medium text-gray-700"
@@ -73,26 +76,18 @@
 				</div>
 				<div class="flex justify-center">
 					<ProgressCircle
-						value={$locationTargetMeta.achievedYear}
-						max={$locationTargetMeta.yearGoal ?? 0}
-						size={70}
-						strokeWidth={6}
-					/>
-				</div>
-				<div class="flex justify-center">
-					<ProgressCircle
 						value={$locationTargetMeta.achievedMonth}
 						max={$locationTargetMeta.monthGoal ?? 0}
-						size={70}
-						strokeWidth={6}
+						size={90}
+						strokeWidth={8}
 					/>
 				</div>
 				<div class="flex justify-center">
 					<ProgressCircle
 						value={$locationTargetMeta.achievedWeek}
 						max={$locationTargetMeta.weekGoal ?? 0}
-						size={70}
-						strokeWidth={6}
+						size={90}
+						strokeWidth={8}
 					/>
 				</div>
 			</div>
@@ -100,43 +95,35 @@
 
 		<!-- Company Goals Row -->
 		{#if $companyTargetMeta}
-			<div class="grid grid-cols-4 items-center gap-2">
-				<div class="flex items-center gap-2">
+			<div class="grid grid-cols-3 items-center gap-3">
+				<div class="flex min-w-0 items-center gap-2">
 					<Icon icon="Takkei" size="16px" color="primary" />
 					<span class="truncate text-sm font-medium text-gray-700">Takkei</span>
 				</div>
 				<div class="flex justify-center">
 					<ProgressCircle
-						value={$companyTargetMeta.achievedYear}
-						max={$companyTargetMeta.yearGoal ?? 0}
-						size={70}
-						strokeWidth={6}
-					/>
-				</div>
-				<div class="flex justify-center">
-					<ProgressCircle
 						value={$companyTargetMeta.achievedMonth}
 						max={$companyTargetMeta.monthGoal ?? 0}
-						size={70}
-						strokeWidth={6}
+						size={90}
+						strokeWidth={8}
 					/>
 				</div>
 				<div class="flex justify-center">
 					<ProgressCircle
 						value={$companyTargetMeta.achievedWeek}
 						max={$companyTargetMeta.weekGoal ?? 0}
-						size={70}
-						strokeWidth={6}
+						size={90}
+						strokeWidth={8}
 					/>
 				</div>
 			</div>
 		{:else}
-			<div class="grid grid-cols-4 items-center gap-2">
-				<div class="flex items-center gap-2">
+			<div class="grid grid-cols-3 items-center gap-3">
+				<div class="flex min-w-0 items-center gap-2">
 					<Icon icon="Takkei" size="16px" color="primary" />
 					<span class="truncate text-sm font-medium text-gray-700">Takkei</span>
 				</div>
-				<div class="col-span-3 text-center text-sm text-gray-400 italic">Hämtar...</div>
+				<div class="col-span-2 text-center text-sm text-gray-400 italic">Hämtar...</div>
 			</div>
 		{/if}
 	</div>
