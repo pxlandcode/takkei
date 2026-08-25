@@ -7,6 +7,7 @@
 	import { ROLE_OPTIONS, roleLabel } from '$lib/constants/roles';
 	import { addToast } from '$lib/stores/toastStore';
 	import { AppToastType } from '$lib/types/toastTypes';
+	import { invalidateByPrefix } from '$lib/services/api/apiCache';
 	import type { NewsItem } from '$lib/types/newsTypes';
 
 	type Props = {
@@ -115,6 +116,7 @@
 
 			const data = await res.json();
 			const savedNews: NewsItem = data.news ?? data;
+			invalidateByPrefix('/api/news');
 
 			addToast({
 				type: AppToastType.SUCCESS,

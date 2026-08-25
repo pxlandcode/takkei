@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { createEventDispatcher, onMount } from 'svelte';
 	import Input from '../../bits/Input/Input.svelte';
 	import DropdownCheckbox from '../../bits/dropdown-checkbox/DropdownCheckbox.svelte';
 	import FilterBox from '../../bits/filterBox/FilterBox.svelte';
@@ -7,8 +7,16 @@
 	import { addToast } from '$lib/stores/toastStore';
 	import { AppToastType } from '$lib/types/toastTypes';
 	import { loadingStore } from '$lib/stores/loading';
+	import { invalidateByPrefix, wrapFetch } from '$lib/services/api/apiCache';
 
 	export let customerId: number | null = null;
+	const dispatch = createEventDispatcher();
+
+	type ClientOption = {
+		id: number;
+		firstname: string;
+		lastname: string;
+	};
 
 	let name = '';
 	let email = '';
@@ -18,8 +26,8 @@
 	let invoice_city = '';
 	let organization_number = '';
 
-	let selectedClients = [];
-	let allClients = [];
+	let selectedClients: ClientOption[] = [];
+	let allClients: ClientOption[] = [];
 
 	$: isLoading = $loadingStore.isLoading;
 
@@ -38,7 +46,7 @@
 			? `/api/clients?customerId=${customerId}&available=true&short=true`
 			: `/api/clients?available=true&short=true`;
 
-		const res = await fetch(url);
+		const res = await wrapFetch(fetch)(url);
 		allClients = await res.json();
 	});
 
@@ -46,7 +54,7 @@
 		selectedClients = selectedClients.filter((c) => c.id !== id);
 	}
 
-	function handleClientSelection(event) {
+	function handleClientSelection(event: CustomEvent<{ selected: ClientOption[] }>) {
 		selectedClients = [...event.detail.selected];
 	}
 
@@ -100,6 +108,9 @@
 				message: 'Kund skapad',
 				description: `${trimmedName} skapades korrekt.`
 			});
+			invalidateByPrefix('/api/customers');
+			invalidateByPrefix('/api/clients');
+			dispatch('created', result);
 
 			// Clear form
 			name = '';
@@ -168,10 +179,5 @@
 		on:removeFilter={(e) => removeClient(e.detail.id)}
 	/>
 
-	<Button
-		text="Skapa kund"
-		variant="primary"
-		on:click={handleSubmit}
-		disabled={isLoading}
-	/>
+	<Button text="Skapa kund" variant="primary" on:click={handleSubmit} disabled={isLoading} />
 </div>

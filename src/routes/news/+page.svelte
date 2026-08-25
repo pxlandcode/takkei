@@ -7,6 +7,7 @@
 	import { headerState } from '$lib/stores/headerState.svelte';
 	import { user } from '$lib/stores/userStore';
 	import { hasRole } from '$lib/helpers/userHelpers/roleHelper';
+	import { wrapFetch } from '$lib/services/api/apiCache';
 	import type { NewsFilter, NewsItem } from '$lib/types/newsTypes';
 	import type { PageData } from './$types';
 
@@ -110,7 +111,7 @@
 
 		try {
 			const offset = reset ? 0 : news.length;
-			const res = await fetch(
+			const res = await wrapFetch(fetch)(
 				`/api/news?limit=${PAGE_SIZE}&offset=${offset}&filter=${selectedFilter}`
 			);
 			if (res.ok) {

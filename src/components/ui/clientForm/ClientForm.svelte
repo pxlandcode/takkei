@@ -8,6 +8,7 @@
 	import Dropdown from '../../bits/dropdown/Dropdown.svelte';
 	import Checkbox from '../../bits/checkbox/Checkbox.svelte';
 	import InfoButton from '../../bits/infoButton/InfoButton.svelte';
+	import { invalidateByPrefix, wrapFetch } from '$lib/services/api/apiCache';
 
 	const dispatch = createEventDispatcher();
 
@@ -19,7 +20,9 @@
 	let primary_trainer_id: number | null = null;
 	let primary_location_id: number | null = null;
 	let selectedCustomerId: number | null = null;
-	let customerOptions: { label: string; value: number | null }[] = [{ label: 'Ingen kund', value: null }];
+	let customerOptions: { label: string; value: number | null }[] = [
+		{ label: 'Ingen kund', value: null }
+	];
 	let customerLoadError = '';
 	let customersLoading = false;
 	let createdClientId: number | null = null;
@@ -40,7 +43,7 @@
 		customersLoading = true;
 		customerLoadError = '';
 		try {
-			const res = await fetch('/api/customers?short=true');
+			const res = await wrapFetch(fetch)('/api/customers?short=true');
 			if (!res.ok) {
 				throw new Error('Failed to fetch customers');
 			}
@@ -48,11 +51,17 @@
 			const rows = await res.json();
 			if (Array.isArray(rows)) {
 				const items = rows
-					.map((row) => ({ id: Number(row.id), name: typeof row.name === 'string' ? row.name.trim() : '' }))
+					.map((row) => ({
+						id: Number(row.id),
+						name: typeof row.name === 'string' ? row.name.trim() : ''
+					}))
 					.filter((row) => Number.isFinite(row.id) && row.id > 0 && row.name.length > 0)
 					.sort((a, b) => customerCollator.compare(a.name, b.name));
 
-				customerOptions = [{ label: 'Ingen kund', value: null }, ...items.map((item) => ({ label: item.name, value: item.id }))];
+				customerOptions = [
+					{ label: 'Ingen kund', value: null },
+					...items.map((item) => ({ label: item.name, value: item.id }))
+				];
 			} else {
 				customerOptions = [{ label: 'Ingen kund', value: null }];
 			}
@@ -110,6 +119,8 @@
 			}
 
 			createdClientId = data.clientId;
+			invalidateByPrefix('/api/clients');
+			invalidateByPrefix('/api/customers');
 			dispatch('created', data);
 		} catch (err) {
 			console.error(err);
@@ -121,13 +132,13 @@
 </script>
 
 {#if createdClientId}
-	<div class="mb-4 rounded-sm border border-success bg-green-50 p-6 text-success">
+	<div class="border-success text-success mb-4 rounded-sm border bg-green-50 p-6">
 		<h2 class="text-xl font-semibold">Klient skapad!</h2>
 		<p class="mt-2">
 			Klienten har skapats. Du kan nu gå till
 			<a
 				href={`/clients/${createdClientId}`}
-				class="text-success underline hover:text-success-hover"
+				class="text-success hover:text-success-hover underline"
 			>
 				kundens profilsida
 			</a>.
@@ -204,17 +215,19 @@
 
 		<Dropdown
 			label="Kund (valfritt)"
-			placeholder={customersLoading && customerOptions.length === 1 ? 'Hämtar kunder...' : 'Välj kund'}
+			placeholder={customersLoading && customerOptions.length === 1
+				? 'Hämtar kunder...'
+				: 'Välj kund'}
 			id="customer_id"
 			options={customerOptions}
 			bind:selectedValue={selectedCustomerId}
 			disabled={customersLoading && customerOptions.length === 1}
 			search
-			errors={errors}
+			{errors}
 		/>
 
 		{#if customerLoadError}
-			<p class="text-sm text-error">{customerLoadError}</p>
+			<p class="text-error text-sm">{customerLoadError}</p>
 		{/if}
 
 		<div class="mt-2 flex items-center gap-2">
@@ -240,7 +253,7 @@
 		</div>
 
 		{#if errors.general}
-			<p class="text-sm font-medium text-error">{errors.general}</p>
+			<p class="text-error text-sm font-medium">{errors.general}</p>
 		{/if}
 	</div>
 {/if}

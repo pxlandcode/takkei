@@ -5,9 +5,10 @@ import {
 	listNewsComments,
 	sanitizeNewsCommentBody
 } from '$lib/server/newsService';
+import { respondJsonWithEtag } from '$lib/server/http-cache';
 import { ensureTrainer, parseNewsId, requireVisibleNews } from '../../helpers';
 
-export const GET: RequestHandler = async ({ params, locals }) => {
+export const GET: RequestHandler = async ({ params, request, locals }) => {
 	const session = ensureTrainer(locals);
 	if (!session) throw error(401, 'Unauthorized');
 
@@ -15,7 +16,7 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 	await requireVisibleNews(session.trainerId, newsId);
 
 	const comments = await listNewsComments(newsId, session.trainerId);
-	return json(comments);
+	return respondJsonWithEtag(request, comments);
 };
 
 export const POST: RequestHandler = async ({ params, request, locals }) => {

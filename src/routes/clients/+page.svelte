@@ -3,7 +3,7 @@
 	import { get } from 'svelte/store';
 	import { user } from '$lib/stores/userStore';
 	import { browser } from '$app/environment';
-	import type { TableType } from '$lib/types/componentTypes';
+	import type { TableCellArrayItem, TableType } from '$lib/types/componentTypes';
 	import Table from '../../components/bits/table/Table.svelte';
 	import { goto } from '$app/navigation';
 	import Icon from '../../components/bits/icon-component/Icon.svelte';
@@ -18,7 +18,7 @@
 	import { debounce } from '$lib/utils/debounce';
 	import { openPopup } from '$lib/stores/popupStore';
 	import { headerState } from '$lib/stores/headerState.svelte';
-	import { wrapFetch } from '$lib/services/api/apiCache';
+	import { getCachedJson, invalidateByPrefix, wrapFetch } from '$lib/services/api/apiCache';
 
 	// Headers (sortable like customers: name + trainer)
 	const headers = [
@@ -40,6 +40,7 @@
 	let page = 0;
 	let limit = 50;
 	let isLoading = false;
+	let isFetching = false;
 	let hasMore = true;
 	let sortBy: 'name' | 'email' | 'trainer' = 'name';
 	let sortOrder: 'asc' | 'desc' = 'asc';
@@ -67,11 +68,11 @@
 		openPopup({
 			header: 'Ny klient',
 			icon: 'Plus',
-			component: ClientForm,
+			component: ClientForm as any,
 			maxWidth: '650px',
 			listeners: {
 				created: () => {
-					fetchPaginatedClients(true);
+					fetchPaginatedClients(true, { force: true });
 				}
 			},
 			closeOn: ['created']
@@ -102,13 +103,13 @@
 		});
 	}
 
-	function buildQueryParams() {
+	function buildQueryParams(pageIndex = page) {
 		const currentUser = get(user);
 		const params = new URLSearchParams();
 
 		// paging
 		params.set('limit', String(limit));
-		params.set('offset', String(page * limit));
+		params.set('offset', String(pageIndex * limit));
 
 		// sort
 		params.set('sortBy', sortBy);
@@ -129,27 +130,21 @@
 		return params.toString();
 	}
 
-	async function fetchPaginatedClients(reset = false) {
-		if (!browser) return;
-		if (isLoading || (!hasMore && !reset)) return;
+	function mapClientRows(fetched: any[]): TableType {
+		return fetched.map((client) => {
+			const contact: TableCellArrayItem[] = [];
+			if (client.email) {
+				contact.push({
+					type: 'link',
+					label: client.email,
+					action: () => onSendClientEmail(client.email)
+				});
+			}
+			if (client.phone) {
+				contact.push({ type: 'phone', content: client.phone });
+			}
 
-		const cachedFetch = wrapFetch(fetch);
-		isLoading = true;
-
-		if (reset) {
-			page = 0;
-			data = [];
-			hasMore = true;
-		}
-
-		try {
-			const qs = buildQueryParams();
-			const res = await cachedFetch(`/api/clients?${qs}`);
-			if (!res.ok) throw new Error('Failed to fetch clients');
-
-			const fetched = await res.json();
-
-			const newData: TableType = fetched.map((client) => ({
+			return {
 				id: client.id,
 				name: [
 					{
@@ -158,12 +153,7 @@
 						action: () => onGoToClient(client.id)
 					}
 				],
-				contact: [
-					client.email
-						? { type: 'link', label: client.email, action: () => onSendClientEmail(client.email) }
-						: null,
-					client.phone ? { type: 'phone', content: client.phone } : null
-				].filter(Boolean),
+				contact,
 				trainer:
 					client.trainer_firstname || client.trainer_lastname
 						? `${client.trainer_firstname ?? ''} ${client.trainer_lastname ?? ''}`.trim()
@@ -186,15 +176,54 @@
 						action: () => onGoToClientsCalendar(client.id)
 					}
 				]
-			}));
+			};
+		});
+	}
 
-			data = [...data, ...newData];
+	function applyClientRows(fetched: any[], reset: boolean, pageIndex: number) {
+		const newData = mapClientRows(fetched);
+		data = reset ? newData : [...data, ...newData];
+		hasMore = newData.length >= limit;
+		page = pageIndex + 1;
+	}
 
-			if (newData.length < limit) hasMore = false;
-			page++;
+	async function fetchPaginatedClients(reset = false, options: { force?: boolean } = {}) {
+		if (!browser) return;
+		if (isFetching || (!hasMore && !reset)) return;
+
+		const cachedFetch = wrapFetch(fetch);
+		const pageIndex = reset ? 0 : page;
+		const qs = buildQueryParams(pageIndex);
+		const url = `/api/clients?${qs}`;
+
+		if (options.force) {
+			invalidateByPrefix('/api/clients');
+		}
+
+		if (reset) {
+			page = 0;
+			hasMore = true;
+			const cached = options.force ? null : getCachedJson<any[]>(url);
+			if (cached) {
+				applyClientRows(cached, true, pageIndex);
+			} else {
+				data = [];
+			}
+		}
+
+		isFetching = true;
+		isLoading = !(reset && data.length > 0);
+
+		try {
+			const res = await cachedFetch(url);
+			if (!res.ok) throw new Error('Failed to fetch clients');
+
+			const fetched = await res.json();
+			applyClientRows(fetched, reset, pageIndex);
 		} catch (e) {
 			console.error('Error loading clients:', e);
 		} finally {
+			isFetching = false;
 			isLoading = false;
 		}
 	}
@@ -206,7 +235,7 @@
 		}
 	}
 
-	async function handleSortChange(event) {
+	async function handleSortChange(event: CustomEvent<{ column: string; order: 'asc' | 'desc' }>) {
 		const { column, order } = event.detail; // emitted by <Table/>
 		// Map table column -> API sort key
 		if (column === 'name') sortBy = 'name';

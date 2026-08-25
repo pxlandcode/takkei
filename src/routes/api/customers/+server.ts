@@ -1,6 +1,7 @@
 import { query } from '$lib/db';
+import { respondJsonWithEtag } from '$lib/server/http-cache';
 
-export async function GET({ url }) {
+export async function GET({ url, request }) {
 	const limit = parseInt(url.searchParams.get('limit') || '50');
 	const offset = parseInt(url.searchParams.get('offset') || '0');
 	const sortBy = url.searchParams.get('sortBy') || 'name';
@@ -21,7 +22,7 @@ export async function GET({ url }) {
 				 ${includeDeleted ? '' : 'WHERE lifecycle.gdpr_deleted_at IS NULL'}
 				 ORDER BY customers.name ASC`
 			);
-			return new Response(JSON.stringify(result), { status: 200 });
+			return respondJsonWithEtag(request, result);
 		} catch (error) {
 			console.error('Error fetching short customers:', error);
 			return new Response(JSON.stringify({ error: 'Internal Server Error' }), { status: 500 });
@@ -88,7 +89,7 @@ export async function GET({ url }) {
 
 	try {
 		const result = await query(sql, params);
-		return new Response(JSON.stringify(result), { status: 200 });
+		return respondJsonWithEtag(request, result);
 	} catch (error) {
 		console.error('Error fetching customers:', error);
 		return new Response(JSON.stringify({ error: 'Internal Server Error' }), { status: 500 });

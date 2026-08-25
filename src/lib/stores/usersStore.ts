@@ -1,15 +1,22 @@
 import type { User } from '$lib/types/userTypes';
 import { get, writable } from 'svelte/store';
-import { wrapFetch } from '$lib/services/api/apiCache';
+import { cacheFirstJson, invalidateByPrefix } from '$lib/services/api/apiCache';
 
 export const users = writable<User[]>([]);
 
-export async function fetchUsers() {
+export async function fetchUsers(options: { force?: boolean } = {}) {
+	const url = '/api/users';
+	if (options.force) {
+		invalidateByPrefix(url);
+	}
+
 	try {
-		const cachedFetch = wrapFetch(fetch);
-		const response = await cachedFetch('/api/users');
-		if (!response.ok) throw new Error('Failed to fetch users');
-		const data: User[] = await response.json();
+		const { cached, fresh } = cacheFirstJson<User[]>(fetch, url);
+		if (cached && !options.force) {
+			users.set(cached);
+		}
+
+		const data = await fresh;
 		users.set(data);
 	} catch (error) {
 		console.error('Error fetching users:', error);

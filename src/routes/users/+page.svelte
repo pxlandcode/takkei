@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import type { Unsubscriber } from 'svelte/store';
 	import { users, fetchUsers } from '$lib/stores/usersStore';
 	import type { TableType } from '$lib/types/componentTypes';
 	import Table from '../../components/bits/table/Table.svelte';
@@ -38,11 +39,11 @@
 		openPopup({
 			header: 'Ny användare',
 			icon: 'Plus',
-			component: UserForm,
+			component: UserForm as any,
 			maxWidth: '720px',
 			listeners: {
 				created: () => {
-					fetchUsers();
+					fetchUsers({ force: true });
 				}
 			},
 			closeOn: ['created']
@@ -106,11 +107,10 @@
 	}
 
 	// Fetch Users on Mount
-	onMount(async () => {
+	onMount(() => {
 		headerState.title = 'Tränare';
 		headerState.icon = 'Person';
-		await fetchUsers();
-		users.subscribe((userList) => {
+		const unsubscribe: Unsubscriber = users.subscribe((userList) => {
 			if (!userList || userList.length === 0) return;
 
 			data = userList.map((user) => ({
@@ -152,6 +152,10 @@
 
 			filteredData = [...data];
 		});
+
+		fetchUsers();
+
+		return unsubscribe;
 	});
 
 	$: {

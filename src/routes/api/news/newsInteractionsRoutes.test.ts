@@ -98,10 +98,7 @@ describe('news interaction routes', () => {
 	});
 
 	it('marks visible news as read', async () => {
-		mockedMarkNewsRead.mockResolvedValueOnce({
-			...sampleNews,
-			read_at: 'now'
-		} as any);
+		mockedMarkNewsRead.mockResolvedValueOnce('now' as any);
 
 		const response = await PUT_READ({ params: { id: '9' }, locals: trainerLocals } as any);
 		const body = await response.json();
@@ -109,6 +106,20 @@ describe('news interaction routes', () => {
 		expect(response.status).toBe(200);
 		expect(mockedMarkNewsRead).toHaveBeenCalledWith(9, 7);
 		expect(body.read_at).toBe('now');
+	});
+
+	it('does not rewrite read state for already read news', async () => {
+		mockedGetNewsVisibleToUser.mockResolvedValueOnce({
+			...sampleNews,
+			read_at: 'already-read'
+		} as any);
+
+		const response = await PUT_READ({ params: { id: '9' }, locals: trainerLocals } as any);
+		const body = await response.json();
+
+		expect(response.status).toBe(200);
+		expect(mockedMarkNewsRead).not.toHaveBeenCalled();
+		expect(body.read_at).toBe('already-read');
 	});
 
 	it('toggles the like reaction for visible news', async () => {
@@ -148,7 +159,11 @@ describe('news interaction routes', () => {
 		};
 		mockedListNewsComments.mockResolvedValueOnce([comment] as any);
 
-		const response = await GET_COMMENTS({ params: { id: '9' }, locals: trainerLocals } as any);
+		const response = await GET_COMMENTS({
+			params: { id: '9' },
+			locals: trainerLocals,
+			request: new Request('http://localhost/api/news/9/comments')
+		} as any);
 		const body = await response.json();
 
 		expect(response.status).toBe(200);

@@ -4,6 +4,7 @@
 	import { addToast } from '$lib/stores/toastStore';
 	import { AppToastType } from '$lib/types/toastTypes';
 	import Input from '../../bits/Input/Input.svelte';
+	import { invalidateByPrefix } from '$lib/services/api/apiCache';
 
 	export let customer;
 	export let onSave: (updated?: any) => void = () => {};
@@ -55,6 +56,7 @@
 				message: 'Kund uppdaterad',
 				description: `${(result && result.name) || form.name} uppdaterades korrekt.`
 			});
+			invalidateByPrefix('/api/customers');
 
 			if (result && typeof result === 'object') {
 				form = { ...form, ...result };

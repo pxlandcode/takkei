@@ -8,8 +8,9 @@ export const PUT: RequestHandler = async ({ params, locals }) => {
 	if (!session) throw error(401, 'Unauthorized');
 
 	const newsId = parseNewsId(params.id);
-	await requireVisibleNews(session.trainerId, newsId);
+	const news = await requireVisibleNews(session.trainerId, newsId);
+	if (news.read_at) return json(news);
 
-	const news = await markNewsRead(newsId, session.trainerId);
-	return json(news);
+	const readAt = await markNewsRead(newsId, session.trainerId);
+	return json({ ...news, read_at: readAt ?? new Date().toISOString() });
 };

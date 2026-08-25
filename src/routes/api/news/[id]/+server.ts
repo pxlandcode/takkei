@@ -10,6 +10,7 @@ import {
 	sanitizeNewsRoles,
 	updateNews
 } from '$lib/server/newsService';
+import { respondJsonWithEtag } from '$lib/server/http-cache';
 
 function ensureTrainer(locals: any) {
 	const authUser = locals.user;
@@ -19,7 +20,7 @@ function ensureTrainer(locals: any) {
 	return { trainerId, authUser };
 }
 
-export const GET: RequestHandler = async ({ params, locals }) => {
+export const GET: RequestHandler = async ({ params, request, locals }) => {
 	const session = ensureTrainer(locals);
 	if (!session) throw error(401, 'Unauthorized');
 
@@ -29,7 +30,7 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 	const news = await getNewsVisibleToUser(session.trainerId, newsId);
 	if (!news) throw error(404, 'Nyheten hittades inte eller saknas behörighet');
 
-	return json(news);
+	return respondJsonWithEtag(request, news);
 };
 
 export const PUT: RequestHandler = async ({ params, request, locals }) => {

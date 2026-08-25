@@ -8,8 +8,22 @@
 	import { loadingStore } from '$lib/stores/loading';
 	import { addToast } from '$lib/stores/toastStore';
 	import { AppToastType } from '$lib/types/toastTypes';
+	import { invalidateByPrefix } from '$lib/services/api/apiCache';
 
-	export let client;
+	type ClientRecord = {
+		id: number;
+		firstname: string;
+		lastname: string;
+		email?: string;
+		person_number?: string;
+		alternative_email?: string;
+		phone?: string;
+		primary_location_id?: number | null;
+		active?: boolean | null;
+		[key: string]: unknown;
+	};
+
+	export let client: ClientRecord;
 	export let onSave: (updated?: any) => void = () => {};
 
 	let errors: Record<string, string> = {};
@@ -73,6 +87,7 @@
 				message: 'Klient uppdaterad',
 				description: `${client.firstname} ${client.lastname} har uppdaterats korrekt.`
 			});
+			invalidateByPrefix('/api/clients');
 
 			if (result && typeof result === 'object') {
 				Object.assign(client, result);
@@ -129,14 +144,16 @@
 		{errors}
 	/>
 
-	<label class="mt-2 flex items-center gap-2 text-sm font-medium text-gray">
+	<label class="text-gray mt-2 flex items-center gap-2 text-sm font-medium">
 		<input type="checkbox" bind:checked={client.active} class="h-4 w-4" />
 		Aktiv
 	</label>
 
 	<div class="rounded-sm border border-gray-200 p-4">
 		<p class="mb-2 text-sm font-semibold text-gray-700">Byt lösenord</p>
-		<p class="mb-4 text-xs text-gray-500">Lämna fälten tomma om du vill behålla nuvarande lösenord.</p>
+		<p class="mb-4 text-xs text-gray-500">
+			Lämna fälten tomma om du vill behålla nuvarande lösenord.
+		</p>
 		<div class="grid grid-cols-1 gap-4 md:grid-cols-2">
 			<Input
 				label="Nytt lösenord"
@@ -156,7 +173,7 @@
 	</div>
 
 	{#if errors.general}
-		<p class="text-sm font-medium text-error">{errors.general}</p>
+		<p class="text-error text-sm font-medium">{errors.general}</p>
 	{/if}
 
 	<div class="pt-2">

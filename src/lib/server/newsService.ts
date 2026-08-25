@@ -342,18 +342,30 @@ export async function deleteNews(id: number) {
 	await query(`DELETE FROM news_items WHERE id = $1`, [id]);
 }
 
-export async function markNewsRead(newsId: number, trainerId: number): Promise<NewsRecord | null> {
-	await query(
+export async function markNewsRead(newsId: number, trainerId: number): Promise<string | null> {
+	const [row] = await query(
 		`
+		WITH inserted AS (
 		INSERT INTO news_item_reads (news_item_id, user_id, read_at)
 		VALUES ($1, $2, NOW())
 		ON CONFLICT (news_item_id, user_id)
-		DO UPDATE SET read_at = EXCLUDED.read_at
+			DO NOTHING
+		RETURNING read_at
+		)
+		SELECT read_at
+		FROM inserted
+		UNION ALL
+		SELECT read_at
+		FROM news_item_reads
+		WHERE news_item_id = $1
+		  AND user_id = $2
+		  AND NOT EXISTS (SELECT 1 FROM inserted)
+		LIMIT 1
 	`,
 		[newsId, trainerId]
 	);
 
-	return getNewsVisibleToUser(trainerId, newsId);
+	return row?.read_at ?? null;
 }
 
 export async function setNewsLikeReaction({

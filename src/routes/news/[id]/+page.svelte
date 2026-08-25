@@ -11,6 +11,7 @@
 	import type { NewsComment, NewsItem } from '$lib/types/newsTypes';
 	import { addToast } from '$lib/stores/toastStore';
 	import { AppToastType } from '$lib/types/toastTypes';
+	import { invalidateByPrefix } from '$lib/services/api/apiCache';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -41,6 +42,9 @@
 	onMount(() => {
 		headerState.title = 'Nyhet';
 		headerState.icon = 'Newspaper';
+		if (data.didMarkRead) {
+			invalidateByPrefix('/api/news');
+		}
 	});
 
 	function formatDateTime(value: string | null) {
@@ -68,6 +72,7 @@
 			if (!res.ok) throw new Error(await res.text());
 			const updated: NewsItem = await res.json();
 			syncNews(updated);
+			invalidateByPrefix('/api/news');
 		} catch (err: any) {
 			addToast({
 				type: AppToastType.CANCEL,
@@ -92,6 +97,7 @@
 				message: 'Nyheten raderades',
 				description: ''
 			});
+			invalidateByPrefix('/api/news');
 			goto('/news');
 		} catch (err: any) {
 			addToast({
