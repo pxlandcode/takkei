@@ -24,6 +24,8 @@
 	export let iconColor: string = 'currentColor';
 	export let notificationCount: number = 0;
 	export let disabled: boolean = false;
+	let className: string = '';
+	export { className as class };
 	export let confirmOptions: {
 		title?: string;
 		description?: string;
@@ -96,6 +98,7 @@
 		${transparent && variant === 'cancel' ? 'hover:text-red' : ''}
 		${sizeClasses}
 		${full ? 'w-full' : ''}
+		${className}
 		focus:outline-hidden active:translate-y-0.5
 		disabled:opacity-60 disabled:cursor-not-allowed disabled:pointer-events-none disabled:bg-gray-100 disabled:text-gray-500 disabled:border-gray/40
 	`;

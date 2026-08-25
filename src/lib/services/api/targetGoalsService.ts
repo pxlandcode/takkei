@@ -6,6 +6,17 @@ export type TargetGoalsResponse = {
 	months: Array<{ month: number; goal_value: number | null; is_anchor?: boolean }>;
 };
 
+type TargetGoalsMonthRow = {
+	month: number | string;
+	goal_value: number | string | null;
+	is_anchor?: boolean | null;
+};
+
+function toGoalValue(value: number | string | null | undefined): number | null {
+	const numericValue = Number(value);
+	return value == null || Number.isNaN(numericValue) ? null : Math.trunc(numericValue);
+}
+
 async function readErrorMessage(res: Response): Promise<string | null> {
 	try {
 		const data = await res.clone().json();
@@ -48,16 +59,19 @@ export async function getTargetGoals(
 	targetKindId: number
 ): Promise<TargetGoalsResponse> {
 	const qs = buildQuery({ ownerType, ownerId, year, targetKindId });
-	const res = await wrapFetch(fetch)(`/api/targets/month?${qs.toString()}`);
+	const res = await wrapFetch(fetch)(`/api/targets/month?${qs.toString()}`, { cache: 'no-store' });
 	if (!res.ok) throw new Error('Failed to fetch target goals');
-	const body = await res.json();
-	const months = (body?.months ?? []).map((r: any) => ({
+	const body = (await res.json()) as {
+		yearGoal?: number | string | null;
+		months?: TargetGoalsMonthRow[];
+	};
+	const months = (body?.months ?? []).map((r) => ({
 		month: Number(r.month),
-		goal_value: r.goal_value,
+		goal_value: toGoalValue(r.goal_value),
 		is_anchor: Boolean(r.is_anchor)
 	}));
 	return {
-		yearGoal: body?.yearGoal ?? null,
+		yearGoal: toGoalValue(body?.yearGoal),
 		months
 	};
 }
@@ -157,7 +171,7 @@ export async function getWeekGoals(
 		month: String(month),
 		targetKindId: String(targetKindId)
 	});
-	const res = await wrapFetch(fetch)(`/api/targets/week?${qs.toString()}`, { cache: false });
+	const res = await wrapFetch(fetch)(`/api/targets/week?${qs.toString()}`, { cache: 'no-store' });
 	if (!res.ok) throw new Error('Failed to fetch week goals');
 	return res.json();
 }

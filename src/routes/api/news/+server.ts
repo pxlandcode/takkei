@@ -6,6 +6,7 @@ import {
 	getTrainerRoles,
 	insertNews,
 	listNewsVisibleToUser,
+	type NewsFilter,
 	sanitizeNewsRoles,
 	stripHtmlToText
 } from '$lib/server/newsService';
@@ -60,10 +61,18 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 
 	const limit = Number(url.searchParams.get('limit') || '10');
 	const offset = Number(url.searchParams.get('offset') || '0');
+	const filterParam = url.searchParams.get('filter');
+	const filter: NewsFilter =
+		filterParam === 'unread' || filterParam === 'pinned' ? filterParam : 'all';
 	const recentOnly =
 		url.searchParams.get('latest') === '1' || url.searchParams.get('recent') === '1';
 
-	const news = await listNewsVisibleToUser(session.trainerId, { limit, offset, recentOnly });
+	const news = await listNewsVisibleToUser(session.trainerId, {
+		limit,
+		offset,
+		recentOnly,
+		filter
+	});
 
 	return json(news);
 };
@@ -78,6 +87,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	const text = typeof body.text === 'string' ? body.text : '';
 	const sendEmail = Boolean(body.send_email ?? body.sendEmail);
 	const roles = sanitizeNewsRoles(body.roles);
+	const pinned = Boolean(body.pinned);
 
 	if (!title) throw error(400, 'Titel krävs');
 	if (!text) throw error(400, 'Text krävs');
@@ -89,7 +99,8 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		title,
 		text,
 		writerId: trainerId,
-		roles
+		roles,
+		pinned
 	});
 
 	let emailResult: { sent: boolean; recipients: number } | null = null;

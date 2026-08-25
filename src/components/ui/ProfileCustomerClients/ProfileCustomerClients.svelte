@@ -7,6 +7,7 @@
 	import { AppToastType } from '$lib/types/toastTypes';
 
 	type RawClient = { id: number | string; firstname?: string; lastname?: string };
+	type ClientIdSource = { id: number | string } | undefined | null;
 
 	interface ClientOption {
 		id: number;
@@ -27,10 +28,23 @@
 	let clientsLoading = false;
 	let clientLoadError = '';
 	let isSavingClients = false;
+	let savedClientIdsKey = '[]';
+	let selectedClientIdsKey = '[]';
+	let hasClientChanges = false;
 
 	function getClientLabel(client: ClientOption): string {
 		const parts = [client.firstname, client.lastname].filter(Boolean);
 		return parts.length ? parts.join(' ') : 'Namnlös klient';
+	}
+
+	function getClientIdsKey(source: ClientIdSource[]): string {
+		const ids = [
+			...new Set(
+				source.map((client) => Number(client?.id)).filter((id) => Number.isFinite(id) && id > 0)
+			)
+		].sort((a, b) => a - b);
+
+		return JSON.stringify(ids);
 	}
 
 	function refreshAllClients() {
@@ -74,15 +88,16 @@
 
 	let lastPropClientIds = '';
 	$: {
-		const propIds = Array.isArray(clients)
-			? [...new Set(clients.map((client) => Number(client?.id)).filter((id) => Number.isFinite(id)))].sort((a, b) => a - b)
-			: [];
-		const key = JSON.stringify(propIds);
+		const key = getClientIdsKey(clients ?? []);
 		if (key !== lastPropClientIds) {
 			lastPropClientIds = key;
+			savedClientIdsKey = key;
 			syncSelectedClients(clients ?? []);
 		}
 	}
+
+	$: selectedClientIdsKey = getClientIdsKey(selectedClients);
+	$: hasClientChanges = selectedClientIdsKey !== savedClientIdsKey;
 
 	async function loadAllClients() {
 		clientsLoading = true;
@@ -126,8 +141,13 @@
 		selectedClients = selectedClients.filter((client) => client.id !== id);
 	}
 
+	function getSelectedClientHref(item: { type: string; id: number | string }): string | undefined {
+		if (item.type !== 'client') return undefined;
+		return `/clients/${item.id}`;
+	}
+
 	async function handleSaveClients() {
-		if (!customerId || isSavingClients) return;
+		if (!customerId || isSavingClients || !hasClientChanges) return;
 		isSavingClients = true;
 		try {
 			const payload = {
@@ -163,8 +183,12 @@
 			selectedClients = normalizedClients
 				.map((client) => clientCache.get(client.id))
 				.filter(Boolean) as ClientOption[];
+			savedClientIdsKey = getClientIdsKey(normalizedClients);
 
-			dispatch('clientsUpdated', normalizedClients.map((client) => ({ ...client })));
+			dispatch(
+				'clientsUpdated',
+				normalizedClients.map((client) => ({ ...client }))
+			);
 
 			addToast({
 				type: AppToastType.SUCCESS,
@@ -187,14 +211,16 @@
 <div class="rounded-sm bg-white p-6 shadow-md">
 	<div class="flex flex-col gap-4">
 		<div>
-			<h3 class="text-xl font-semibold text-text">Klientkopplingar</h3>
+			<h3 class="text-text text-xl font-semibold">Klientkopplingar</h3>
 			<p class="text-sm text-gray-500">Koppla en eller flera klienter till kunden.</p>
 		</div>
 
 		<DropdownCheckbox
 			label="Välj klienter"
 			id={`customer-clients-${customerId}`}
-			placeholder={clientsLoading && allClients.length === 0 ? 'Hämtar klienter...' : 'Välj klienter'}
+			placeholder={clientsLoading && allClients.length === 0
+				? 'Hämtar klienter...'
+				: 'Välj klienter'}
 			options={allClients.map((client) => ({ name: getClientLabel(client), value: client }))}
 			bind:selectedValues={selectedClients}
 			on:change={handleClientSelection}
@@ -208,7 +234,12 @@
 		{/if}
 
 		{#if selectedClients.length > 0}
-			<FilterBox title="Valda klienter" {selectedClients} on:removeFilter={(event) => removeClient(event.detail.id)} />
+			<FilterBox
+				title="Valda klienter"
+				{selectedClients}
+				getFilterHref={getSelectedClientHref}
+				on:removeFilter={(event) => removeClient(event.detail.id)}
+			/>
 		{/if}
 
 		<div class="flex justify-end">
@@ -218,7 +249,7 @@
 				iconLeft="Check"
 				iconLeftSize="14px"
 				on:click={handleSaveClients}
-				disabled={isSavingClients || clientsLoading}
+				disabled={isSavingClients || clientsLoading || !hasClientChanges}
 			/>
 		</div>
 	</div>

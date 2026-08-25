@@ -23,12 +23,14 @@ type CachedFetchInit = RequestInit & {
 const isBrowser = () => typeof window !== 'undefined' && typeof localStorage !== 'undefined';
 
 function cacheDisabledExplicitly(options?: CachedFetchInit) {
-	return typeof options?.cache === 'boolean' ? options.cache === false : false;
+	if (typeof options?.cache === 'boolean') return options.cache === false;
+	return options?.cache === 'no-store' || options?.cache === 'reload';
 }
 
 function stripBooleanCache(options?: CachedFetchInit): CachedFetchInit | undefined {
 	if (!options || typeof options.cache !== 'boolean') return options;
-	const { cache: _cache, ...rest } = options;
+	const rest = { ...options };
+	delete rest.cache;
 	return rest;
 }
 
@@ -53,10 +55,6 @@ function cacheBypassReason(url: string, options?: CachedFetchInit): string | und
 	}
 
 	return undefined;
-}
-
-function shouldBypassCache(url: string, options?: CachedFetchInit) {
-	return Boolean(cacheBypassReason(url, options));
 }
 
 function normalizeUrl(rawUrl: string) {
@@ -211,25 +209,26 @@ export function cacheFirstJson<T = unknown>(
 	return { cached, fresh };
 }
 
-function deriveLastModified(data: any): string | undefined {
+function deriveLastModified(data: unknown): string | undefined {
 	if (!data) return undefined;
 
-	const toTimestampString = (candidate: any): string | undefined => {
+	const toTimestampString = (candidate: unknown): string | undefined => {
 		if (typeof candidate === 'string') return candidate;
 		if (candidate instanceof Date && !Number.isNaN(candidate.getTime()))
 			return candidate.toISOString();
 		return undefined;
 	};
 
-	const extractTimestamp = (value: any): string | undefined => {
+	const extractTimestamp = (value: unknown): string | undefined => {
 		if (!value || typeof value !== 'object') return undefined;
+		const record = value as Record<string, unknown>;
 		const candidate = toTimestampString(
-			value.updated_at ??
-				value.updatedAt ??
-				value.last_modified ??
-				value.lastModified ??
-				value.created_at ??
-				value.createdAt
+			record.updated_at ??
+				record.updatedAt ??
+				record.last_modified ??
+				record.lastModified ??
+				record.created_at ??
+				record.createdAt
 		);
 		return candidate;
 	};
@@ -307,18 +306,18 @@ export async function cachedFetch(
 
 	if (!cacheableMethod(method)) {
 		logCache('skip (non-cacheable method)', { method, url: normalizedUrl });
-		return fetchLike(input as any, withSameOriginCredentials(sanitizedOptions));
+		return fetchLike(input, withSameOriginCredentials(sanitizedOptions));
 	}
 
 	if (!isBrowser()) {
 		logCache('skip (non-browser)', { method, url: normalizedUrl });
-		return fetchLike(input as any, options);
+		return fetchLike(input, options);
 	}
 
 	const bypassReason = cacheBypassReason(url, options);
 	if (bypassReason) {
 		logCache('bypass cache', { method, url: normalizedUrl, reason: bypassReason });
-		return fetchLike(input as any, withSameOriginCredentials(sanitizedOptions));
+		return fetchLike(input, withSameOriginCredentials(sanitizedOptions));
 	}
 
 	const key = buildCacheKey(method, url);

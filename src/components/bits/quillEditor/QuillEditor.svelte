@@ -6,6 +6,7 @@
 	let container: HTMLDivElement | null = null;
 	export let content = '';
 	export let placeholder = 'Skriv ditt meddelande här...';
+	export let onChange: ((html: string) => void) | null = null;
 
 	const dispatch = createEventDispatcher();
 	let lastHtml = '';
@@ -51,6 +52,7 @@
 			const html = editor.root.innerHTML;
 			if (html === lastHtml) return;
 			lastHtml = html;
+			onChange?.(html);
 			dispatch('change', html);
 		});
 	});
@@ -65,7 +67,7 @@
 </script>
 
 <div class="quill-container">
-	<div bind:this={container} class="editor" />
+	<div bind:this={container} class="editor"></div>
 </div>
 
 <style>

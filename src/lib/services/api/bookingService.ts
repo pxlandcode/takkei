@@ -1,12 +1,55 @@
 import { capitalizeFirstLetter } from '$lib/helpers/generic/genericHelpers';
 import { invalidateByPrefix } from '$lib/services/api/apiCache';
+import { get } from 'svelte/store';
+import { user } from '$lib/stores/userStore';
+import {
+	todayLocalISO,
+	updateCompanyTargets,
+	updateLocationTargets,
+	updateTargets
+} from '$lib/stores/targetsStore';
 
 const BOOKINGS_PREFIX = '/api/bookings';
 const PERSONAL_BOOKINGS_PREFIX = '/api/fetch-personal-bookings';
 const NOTIFICATIONS_PREFIX = '/api/notifications';
 const TARGETS_PREFIX = '/api/targets';
+const TARGET_SUMMARY_REFRESH_DELAY_MS = 150;
+
+let targetSummaryRefreshTimer: number | null = null;
 
 export type AvailableSlotsBlockedReason = 'absence' | 'vacation';
+
+type BookingActor = {
+	id: number;
+	firstname: string;
+	lastname: string;
+};
+
+type BookingObject = {
+	id?: number;
+	name?: string | null;
+	text?: string | null;
+	user_id?: number | string | null;
+	user_ids?: Array<number | string>;
+	attendees?: Array<number | string>;
+	date: string;
+	time: string;
+	endTime?: string | null;
+	bookingType?: { value?: string | number | null } | null;
+	repeat?: boolean;
+	booked_by_id?: number | string | null;
+	internalEducation?: boolean;
+	education?: boolean;
+	internal?: boolean;
+	clientId?: number | string | null;
+	packageId?: number | string | null;
+	trainerId?: number | string | null;
+	locationId?: number | string | null;
+	isTrial?: boolean;
+	currentUser?: BookingActor;
+	roomId?: number | string | null;
+	status?: string | null;
+};
 
 function invalidateBookingRelatedCaches() {
 	invalidateByPrefix(BOOKINGS_PREFIX);
@@ -19,7 +62,42 @@ function getErrorMessage(error: unknown, fallback: string): string {
 	return error instanceof Error && error.message ? error.message : fallback;
 }
 
-async function notify(data) {
+async function refreshVisibleTargetSummariesAfterBookingChange() {
+	const currentUser = get(user);
+	const dateISO = todayLocalISO();
+	const refreshes: Promise<unknown>[] = [updateCompanyTargets(dateISO, { force: true })];
+
+	if (currentUser?.kind === 'trainer') {
+		refreshes.push(updateTargets('trainer', currentUser.id, dateISO, { force: true }));
+
+		const defaultLocationId = Number(currentUser.default_location_id ?? 0);
+		if (defaultLocationId > 0) {
+			refreshes.push(updateLocationTargets(defaultLocationId, dateISO, { force: true }));
+		}
+	}
+
+	const results = await Promise.allSettled(refreshes);
+	for (const result of results) {
+		if (result.status === 'rejected') {
+			console.error('Failed to refresh target summary after booking change', result.reason);
+		}
+	}
+}
+
+function scheduleTargetSummaryRefreshAfterBookingChange() {
+	if (typeof window === 'undefined') return;
+
+	if (targetSummaryRefreshTimer !== null) {
+		window.clearTimeout(targetSummaryRefreshTimer);
+	}
+
+	targetSummaryRefreshTimer = window.setTimeout(() => {
+		targetSummaryRefreshTimer = null;
+		void refreshVisibleTargetSummariesAfterBookingChange();
+	}, TARGET_SUMMARY_REFRESH_DELAY_MS);
+}
+
+async function notify(data: Record<string, unknown>) {
 	await fetch('/api/notifications', {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
@@ -31,17 +109,17 @@ async function notify(data) {
 }
 
 export async function createBooking(
-	bookingObject: any,
+	bookingObject: BookingObject,
 	type: 'training' | 'personal' | 'meeting' = 'training'
 ) {
 	try {
 		// Determine which API to call
-		let apiUrl =
+		const apiUrl =
 			type === 'personal' || type === 'meeting'
 				? '/api/create-personal-booking'
 				: '/api/create-booking';
 
-		let requestData;
+		let requestData: Record<string, unknown>;
 
 		if (type === 'personal' || type === 'meeting') {
 			requestData = {
@@ -51,7 +129,7 @@ export async function createBooking(
 				user_ids: bookingObject.attendees,
 				start_time: `${bookingObject.date}T${bookingObject.time}:00`,
 				end_time: `${bookingObject.date}T${bookingObject.endTime}:00`,
-				kind: capitalizeFirstLetter(bookingObject.bookingType?.value ?? 'Corporate'),
+				kind: capitalizeFirstLetter(String(bookingObject.bookingType?.value ?? 'Corporate')),
 				repeat_of: bookingObject.repeat ? 1 : null,
 				booked_by_id: bookingObject.booked_by_id
 			};
@@ -107,7 +185,12 @@ export async function createBooking(
 		const currentUser = bookingObject.currentUser;
 		if (response.ok) {
 			// ✅ Notify for personal booking created by someone else
-			if (type === 'personal' && bookingObject.user_id !== currentUser.id) {
+			if (
+				type === 'personal' &&
+				currentUser &&
+				bookingObject.user_id != null &&
+				bookingObject.user_id !== currentUser.id
+			) {
 				await notify({
 					name: 'Personlig bokning skapad',
 					description: `En personlig bokning har lagts till i ditt schema av ${currentUser.firstname} ${currentUser.lastname}.`,
@@ -119,7 +202,12 @@ export async function createBooking(
 			}
 
 			// ✅ Notify for meeting with multiple attendees
-			if (type === 'meeting' && bookingObject.user_ids?.length > 0) {
+			if (
+				type === 'meeting' &&
+				currentUser &&
+				Array.isArray(bookingObject.user_ids) &&
+				bookingObject.user_ids.length > 0
+			) {
 				await notify({
 					name: 'Nytt möte inbokat',
 					description: `Ett nytt möte har lagts till i ditt schema av ${currentUser.firstname} ${currentUser.lastname}.`,
@@ -133,6 +221,7 @@ export async function createBooking(
 			// ✅ Notify trainer for a client booking if not created by them
 			if (
 				type === 'training' &&
+				currentUser &&
 				bookingObject.trainerId &&
 				bookingObject.trainerId !== currentUser.id
 			) {
@@ -149,6 +238,9 @@ export async function createBooking(
 			throw new Error(responseData.error || 'Booking creation failed');
 		}
 		invalidateBookingRelatedCaches();
+		if (type === 'training') {
+			scheduleTargetSummaryRefreshAfterBookingChange();
+		}
 		return {
 			success: true,
 			message: 'Bokningen har skapats',
@@ -180,7 +272,7 @@ export async function fetchAvailableSlots({
 	userId?: number | null;
 	ignoreBookingId?: number | null;
 }) {
-	const body: any = { date, trainerId, locationId };
+	const body: Record<string, unknown> = { date, trainerId, locationId };
 	if (checkUsersBusy) {
 		body.checkUsersBusy = true;
 		body.userId = userId ?? null;
@@ -204,11 +296,11 @@ export async function fetchAvailableSlots({
 	return { availableSlots: [], outsideAvailabilitySlots: [], blockedReason: null };
 }
 
-export async function updateStandardBooking(bookingObject: any) {
+export async function updateStandardBooking(bookingObject: BookingObject) {
 	try {
 		const includeUserId = !!bookingObject.internalEducation || !!bookingObject.education;
 
-		const requestData: Record<string, any> = {
+		const requestData: Record<string, unknown> = {
 			booking_id: bookingObject.id,
 			client_id: bookingObject.clientId ?? null,
 			trainer_id: bookingObject.trainerId ?? null,
@@ -242,6 +334,7 @@ export async function updateStandardBooking(bookingObject: any) {
 		if (!response.ok) throw new Error(responseData.error || 'Update failed');
 
 		invalidateBookingRelatedCaches();
+		scheduleTargetSummaryRefreshAfterBookingChange();
 		return {
 			success: true,
 			message: 'Bokningen har uppdaterats',
@@ -258,7 +351,7 @@ export async function updateStandardBooking(bookingObject: any) {
 	}
 }
 
-export async function updatePersonalBooking(bookingObject: any, kind: string) {
+export async function updatePersonalBooking(bookingObject: BookingObject, kind: string) {
 	try {
 		const userIds = bookingObject.user_ids ?? bookingObject.attendees ?? [];
 
@@ -290,7 +383,7 @@ export async function updatePersonalBooking(bookingObject: any, kind: string) {
 		};
 	} catch (error) {
 		console.error('Error Updating Personal Booking:', error);
-		const message = error?.message ?? 'Error updating personal booking';
+		const message = getErrorMessage(error, 'Error updating personal booking');
 		return {
 			success: false,
 			message,
@@ -320,6 +413,7 @@ export async function cancelBooking(
 		if (!res.ok) throw new Error(data.error || 'Cancellation failed');
 
 		invalidateBookingRelatedCaches();
+		scheduleTargetSummaryRefreshAfterBookingChange();
 		return {
 			success: true,
 			message: 'Bokningen har avbokats',
@@ -327,9 +421,10 @@ export async function cancelBooking(
 		};
 	} catch (err) {
 		console.error('Error cancelling booking:', err);
+		const message = getErrorMessage(err, 'Unknown cancellation error');
 		return {
 			success: false,
-			message: err.message ?? 'Unknown cancellation error'
+			message
 		};
 	}
 }
@@ -355,16 +450,18 @@ export async function updateCancelledBooking(
 		if (!res.ok) throw new Error(data.error || 'Update failed');
 
 		invalidateBookingRelatedCaches();
+		scheduleTargetSummaryRefreshAfterBookingChange();
 		return {
 			success: true,
 			message: 'Avbokningen har uppdaterats',
 			data: data.booking
 		};
-	} catch (err: any) {
+	} catch (err) {
 		console.error('Error updating cancelled booking:', err);
+		const message = getErrorMessage(err, 'Unknown update error');
 		return {
 			success: false,
-			message: err.message ?? 'Unknown update error'
+			message
 		};
 	}
 }
@@ -389,11 +486,12 @@ export async function deletePersonalBooking(bookingId: number, scope: 'all' | 's
 				(scope === 'self' ? 'Du har tagits bort från mötet.' : 'Bokningen har tagits bort'),
 			data
 		};
-	} catch (error: any) {
+	} catch (error) {
 		console.error('Error deleting personal booking:', error);
+		const message = getErrorMessage(error, 'Unknown deletion error');
 		return {
 			success: false,
-			message: error?.message ?? 'Unknown deletion error'
+			message
 		};
 	}
 }
@@ -406,16 +504,18 @@ export async function deleteMeetingBooking(bookingId: number) {
 		const data = await res.json();
 		if (!res.ok) throw new Error(data.error || 'Kunde inte ta bort mötet');
 		invalidateBookingRelatedCaches();
+		scheduleTargetSummaryRefreshAfterBookingChange();
 		return {
 			success: true,
 			message: 'Bokningen har tagits bort',
 			data
 		};
-	} catch (error: any) {
+	} catch (error) {
 		console.error('Error deleting meeting booking:', error);
+		const message = getErrorMessage(error, 'Unknown deletion error');
 		return {
 			success: false,
-			message: error?.message ?? 'Unknown deletion error'
+			message
 		};
 	}
 }

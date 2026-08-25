@@ -76,6 +76,7 @@ import IconTakkei from './IconTakkei.svelte';
 import IconMinimize from './IconMinimize.svelte';
 import IconWindows from './IconWindows.svelte';
 import IconInactive from './IconInactive.svelte';
+import IconThumbsUp from './IconThumbsUp.svelte';
 
 export {
 	IconClose,
@@ -155,5 +156,6 @@ export {
 	IconTakkei,
 	IconMinimize,
 	IconWindows,
-	IconInactive
+	IconInactive,
+	IconThumbsUp
 };

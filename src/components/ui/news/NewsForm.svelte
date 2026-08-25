@@ -1,41 +1,72 @@
 <script lang="ts">
-	import { createEventDispatcher } from 'svelte';
-	import Input from '../../bits/Input/Input.svelte';
-	import Checkbox from '../../bits/checkbox/Checkbox.svelte';
-	import Button from '../../bits/button/Button.svelte';
+	import { goto } from '$app/navigation';
+	import Icon from '../../bits/icon-component/Icon.svelte';
 	import QuillEditor from '../../bits/quillEditor/QuillEditor.svelte';
+	import NewsPublishOptions from './NewsPublishOptions.svelte';
+	import NewsVisibilitySelector from './NewsVisibilitySelector.svelte';
+	import { ROLE_OPTIONS, roleLabel } from '$lib/constants/roles';
 	import { addToast } from '$lib/stores/toastStore';
 	import { AppToastType } from '$lib/types/toastTypes';
 	import type { NewsItem } from '$lib/types/newsTypes';
 
-	export let news: NewsItem | null = null;
-	export let mode: 'create' | 'edit' = 'create';
-	export let showSendEmail = false;
+	type Props = {
+		news?: NewsItem | null;
+		mode?: 'create' | 'edit';
+		showSendEmail?: boolean;
+		cancelHref?: string;
+		onSaved?: (news: NewsItem) => void;
+	};
 
-	const dispatch = createEventDispatcher();
+	let {
+		news = null,
+		mode = 'create',
+		showSendEmail = false,
+		cancelHref = '/news',
+		onSaved
+	}: Props = $props();
 
 	const roleOptions = [
-		'Administrator',
-		'LocationManager',
-		'LocationAdmin',
-		'BookKeepingAdmin',
-		'Economy',
-		'Trainer',
-		'Educator',
-		'EventAdmin'
+		...ROLE_OPTIONS,
+		{ name: 'Platschef', value: 'LocationManager' },
+		{ name: 'Bokföring', value: 'BookKeepingAdmin' },
+		{ name: 'Eventadmin', value: 'EventAdmin' }
 	];
 
-	let title = news?.title ?? '';
-	let text = news?.text ?? '';
-	let selectedRoles: string[] = news?.roles ?? [];
-	let sendEmail = false;
-	let isSubmitting = false;
+	let title = $state(news?.title ?? '');
+	let text = $state(news?.text ?? '');
+	let selectedRoles = $state<string[]>(news?.roles ?? []);
+	let pinned = $state(Boolean(news?.pinned));
+	let sendEmail = $state(false);
+	let isSubmitting = $state(false);
+	let currentNewsId = $state<number | null>(news?.id ?? null);
 
-	$: if (news) {
-		title = news.title;
-		text = news.text;
-		selectedRoles = news.roles ?? [];
-	}
+	$effect(() => {
+		const nextNewsId = news?.id ?? null;
+		if (nextNewsId !== currentNewsId) {
+			currentNewsId = nextNewsId;
+			title = news?.title ?? '';
+			text = news?.text ?? '';
+			selectedRoles = news?.roles ?? [];
+			pinned = Boolean(news?.pinned);
+			sendEmail = false;
+		}
+	});
+
+	let selectedRoleSummary = $derived(
+		selectedRoles.length === 0
+			? 'Alla med en roll'
+			: selectedRoles.map((role) => roleLabel(role)).join(', ')
+	);
+
+	let formTitle = $derived(mode === 'create' ? 'Skapa nyhet' : 'Redigera nyhet');
+	let formDescription = $derived(
+		mode === 'create'
+			? 'Publicera intern information till tränare.'
+			: 'Uppdatera innehåll och synlighet.'
+	);
+	let submitText = $derived(
+		isSubmitting ? 'Sparar...' : mode === 'create' ? 'Publicera nyhet' : 'Spara ändringar'
+	);
 
 	function isEmptyContent(value: string): boolean {
 		if (!value) return true;
@@ -47,17 +78,12 @@
 		return cleaned.length === 0;
 	}
 
-	function toggleRole(role: string) {
-		selectedRoles = selectedRoles.includes(role)
-			? selectedRoles.filter((r) => r !== role)
-			: [...selectedRoles, role];
-	}
-
 	async function handleSubmit() {
 		if (!title.trim() || isEmptyContent(text)) {
 			addToast({
 				type: AppToastType.CANCEL,
-				message: 'Titel och text krävs'
+				message: 'Titel och text krävs',
+				description: ''
 			});
 			return;
 		}
@@ -67,7 +93,8 @@
 			const payload: Record<string, unknown> = {
 				title: title.trim(),
 				text,
-				roles: selectedRoles
+				roles: selectedRoles,
+				pinned
 			};
 			if (mode === 'create') {
 				payload.sendEmail = sendEmail;
@@ -91,15 +118,17 @@
 
 			addToast({
 				type: AppToastType.SUCCESS,
-				message: mode === 'create' ? 'Nyhet skapad' : 'Nyhet uppdaterad'
+				message: mode === 'create' ? 'Nyhet skapad' : 'Nyhet uppdaterad',
+				description: ''
 			});
 
-			dispatch('saved', { news: savedNews });
+			onSaved?.(savedNews);
 
 			if (mode === 'create') {
 				title = '';
 				text = '';
 				selectedRoles = [];
+				pinned = false;
 				sendEmail = false;
 			}
 		} catch (err: any) {
@@ -114,45 +143,86 @@
 	}
 </script>
 
-<div class="flex flex-col gap-3">
-	<Input label="Titel" name="title" bind:value={title} />
-
-	<div>
-		<p class="mb-2 text-sm font-semibold text-gray-700">Synlig för roller</p>
-		<div class="grid grid-cols-2 gap-2 md:grid-cols-3">
-			{#each roleOptions as role}
-				<Checkbox
-					id={role}
-					label={role}
-					checked={selectedRoles.includes(role)}
-					on:change={() => toggleRole(role)}
-				/>
-			{/each}
+<div class="flex flex-col gap-4">
+	<div class="rounded-sm border border-gray-200 bg-white p-5 shadow-sm">
+		<div class="mb-5 flex items-start justify-between gap-4">
+			<div>
+				<h3 class="text-text text-xl font-semibold">{formTitle}</h3>
+				<p class="mt-1 text-sm text-gray-500">{formDescription}</p>
+			</div>
+			<a
+				href={cancelHref}
+				class="inline-flex h-8 items-center gap-2 rounded-sm border border-gray-200 bg-white px-3 text-sm font-medium text-gray-600 transition hover:bg-gray-50"
+			>
+				<Icon icon="ChevronLeft" size="14px" />
+				Tillbaka
+			</a>
 		</div>
-		<p class="mt-1 text-xs text-gray-500">
-			Om inga roller väljs visas nyheten för alla med en roll.
-		</p>
+
+		<div class="mb-4">
+			<label for="news-title" class="mb-3 block text-sm font-medium">Titel</label>
+			<input
+				id="news-title"
+				name="title"
+				placeholder="Rubrik"
+				bind:value={title}
+				class="w-full rounded border border-gray-300 bg-white px-3 py-2 text-black transition-colors duration-150 focus:border-gray-500 focus:outline-hidden"
+			/>
+		</div>
+
+		<div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_18rem]">
+			<NewsVisibilitySelector
+				options={roleOptions}
+				{selectedRoles}
+				summary={selectedRoleSummary}
+				onChange={(roles) => (selectedRoles = roles)}
+			/>
+
+			<NewsPublishOptions
+				{pinned}
+				{sendEmail}
+				{showSendEmail}
+				onPinnedChange={(value) => (pinned = value)}
+				onSendEmailChange={(value) => (sendEmail = value)}
+			/>
+		</div>
 	</div>
 
-	<div>
-		<p class="mb-2 text-sm font-semibold text-gray-700">Innehåll</p>
-		<QuillEditor content={text} placeholder="Skriv nyhetsinnehållet här..." on:change={(e) => (text = e.detail ?? '')} />
-	</div>
-
-	{#if showSendEmail}
-		<div class="flex items-center gap-2">
-			<Checkbox id="send-email" bind:checked={sendEmail} label="Skicka som mail" />
-			<span class="text-xs text-gray-500">(mottagare filtreras på valda roller)</span>
+	<div class="rounded-sm border border-gray-200 bg-white p-5 shadow-sm">
+		<div class="mb-3 flex items-center justify-between gap-3">
+			<div>
+				<h4 class="text-text text-sm font-semibold">Innehåll</h4>
+				<p class="mt-1 text-xs text-gray-500">
+					Texten visas i artikelvyn och i mailet om det skickas.
+				</p>
+			</div>
+			<Icon icon="Edit" size="18px" extraClasses="text-gray-400" />
 		</div>
-	{/if}
+		<QuillEditor
+			content={text}
+			placeholder="Skriv nyhetsinnehållet här..."
+			onChange={(value) => (text = value)}
+		/>
+	</div>
 
 	<div class="flex justify-end gap-2">
-		<Button
-			variant="primary"
-			iconLeft="Save"
-			text={mode === 'create' ? 'Publicera nyhet' : 'Spara ändringar'}
-			on:click={handleSubmit}
+		<button
+			type="button"
+			class="border-gray text-gray inline-flex h-[45px] items-center gap-2 rounded-sm border bg-white px-4 text-base font-semibold shadow-xs transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-100 disabled:text-gray-500"
+			onclick={() => goto(cancelHref)}
 			disabled={isSubmitting}
-		/>
+		>
+			<Icon icon="ChevronLeft" size="14px" />
+			Avbryt
+		</button>
+		<button
+			type="button"
+			class="border-gray/30 bg-primary hover:bg-primary-hover inline-flex h-[45px] items-center gap-2 rounded-sm border px-4 text-base font-semibold text-white shadow-xs transition disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-100 disabled:text-gray-500"
+			onclick={handleSubmit}
+			disabled={isSubmitting}
+		>
+			<Icon icon="Save" size="14px" />
+			{submitText}
+		</button>
 	</div>
 </div>

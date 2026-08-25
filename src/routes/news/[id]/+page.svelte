@@ -1,172 +1,173 @@
 <script lang="ts">
-	import Icon from '../../../components/bits/icon-component/Icon.svelte';
-	import Button from '../../../components/bits/button/Button.svelte';
-	import QuillViewer from '../../../components/bits/quillViewer/QuillViewer.svelte';
-	import NewsForm from '../../../components/ui/news/NewsForm.svelte';
 	import { onMount } from 'svelte';
+	import { goto } from '$app/navigation';
+	import Icon from '../../../components/bits/icon-component/Icon.svelte';
+	import NewsArticle from '../../../components/ui/news/NewsArticle.svelte';
+	import NewsComments from '../../../components/ui/news/NewsComments.svelte';
+	import NewsSideList from '../../../components/ui/news/NewsSideList.svelte';
 	import { headerState } from '$lib/stores/headerState.svelte';
 	import { user } from '$lib/stores/userStore';
 	import { hasRole } from '$lib/helpers/userHelpers/roleHelper';
-	import type { NewsItem } from '$lib/types/newsTypes';
+	import type { NewsComment, NewsItem } from '$lib/types/newsTypes';
 	import { addToast } from '$lib/stores/toastStore';
 	import { AppToastType } from '$lib/types/toastTypes';
-	import { goto } from '$app/navigation';
+	import type { PageData } from './$types';
 
-	export let data;
+	let { data }: { data: PageData } = $props();
 
-	let news: NewsItem = data.news;
-	let latest: NewsItem[] = data.latest ?? [];
-	let isEditing = false;
+	let news = $state<NewsItem>(data.news);
+	let latest = $state<NewsItem[]>(data.latest ?? []);
+	let comments = $state<NewsComment[]>(data.comments ?? []);
+	let isUpdatingReaction = $state(false);
+	let isDeleting = $state(false);
 
-	$: currentUser = $user;
-	$: isAdmin = hasRole(['Administrator', 'LocationManager', 'Economy'], currentUser);
-	$: isWriter = news?.writer_id === currentUser?.id;
-	$: canEdit = isAdmin || isWriter;
-	$: canDelete = isAdmin || isWriter;
+	let currentUser = $derived($user);
+	let canManage = $derived(
+		hasRole(['Administrator', 'LocationManager', 'Economy'], currentUser as any)
+	);
+	let isAdministrator = $derived(hasRole('Administrator', currentUser as any));
+	let isWriter = $derived(news?.writer_id === currentUser?.id);
+	let canEdit = $derived(isAdministrator || (isWriter && canManage));
+	let canDelete = $derived(isAdministrator || (isWriter && canManage));
+	let publishedDate = $derived(formatDateTime(news?.published_at || news?.created_at));
+	let sideNews = $derived([news, ...latest.filter((item) => item.id !== news.id)].slice(0, 10));
+
+	$effect(() => {
+		news = data.news;
+		latest = data.latest ?? [];
+		comments = data.comments ?? [];
+	});
 
 	onMount(() => {
 		headerState.title = 'Nyhet';
 		headerState.icon = 'Newspaper';
 	});
 
-	function formatDate(value: string | null) {
+	function formatDateTime(value: string | null) {
 		if (!value) return '';
 		const d = new Date(value);
 		if (Number.isNaN(d.getTime())) return value;
 		return d.toLocaleString('sv-SE', { dateStyle: 'medium', timeStyle: 'short' });
 	}
 
-	async function refreshLatest() {
-		const res = await fetch('/api/news?latest=1&limit=4');
-		if (res.ok) {
-			latest = await res.json();
+	function syncNews(updated: NewsItem | null) {
+		if (!updated) return;
+		news = updated;
+		latest = latest.map((item) => (item.id === updated.id ? updated : item));
+	}
+
+	async function toggleLike() {
+		if (isUpdatingReaction) return;
+		isUpdatingReaction = true;
+		try {
+			const res = await fetch(`/api/news/${news.id}/reaction`, {
+				method: 'PUT',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ active: !news.has_reacted })
+			});
+			if (!res.ok) throw new Error(await res.text());
+			const updated: NewsItem = await res.json();
+			syncNews(updated);
+		} catch (err: any) {
+			addToast({
+				type: AppToastType.CANCEL,
+				message: 'Kunde inte uppdatera reaktionen',
+				description: err?.message
+			});
+		} finally {
+			isUpdatingReaction = false;
 		}
 	}
 
-	function handleSaved(event) {
-		news = event.detail.news;
-		isEditing = false;
-		refreshLatest();
-	}
-
 	async function deleteNews() {
+		if (isDeleting) return;
+		if (!window.confirm('Radera nyhet?')) return;
+
+		isDeleting = true;
 		try {
 			const res = await fetch(`/api/news/${news.id}`, { method: 'DELETE' });
 			if (!res.ok) throw new Error(await res.text());
-			addToast({ type: AppToastType.SUCCESS, message: 'Nyheten raderades' });
+			addToast({
+				type: AppToastType.SUCCESS,
+				message: 'Nyheten raderades',
+				description: ''
+			});
 			goto('/news');
-		} catch (err) {
+		} catch (err: any) {
 			addToast({
 				type: AppToastType.CANCEL,
 				message: 'Kunde inte radera',
 				description: err?.message
 			});
+		} finally {
+			isDeleting = false;
 		}
 	}
-	$: roles = news?.roles ?? [];
+
+	function handleCommentCountChange(count: number) {
+		news = { ...news, comment_count: count };
+		latest = latest.map((item) => (item.id === news.id ? { ...item, comment_count: count } : item));
+	}
 </script>
 
 <div class="custom-scrollbar m-4 h-full overflow-y-auto">
-	<div class="mb-4 flex items-center gap-2">
-		<div class="bg-text flex h-7 w-7 items-center justify-center rounded-full text-white">
-			<Icon icon="Newspaper" size="18px" />
+	<div class="mb-4 flex flex-wrap items-start justify-between gap-3">
+		<div class="flex min-w-0 items-center gap-2">
+			<div
+				class="bg-text flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-white"
+			>
+				<Icon icon="Newspaper" size="18px" />
+			</div>
+			<div class="min-w-0">
+				<h2 class="text-text truncate text-3xl font-semibold">Nyhet</h2>
+				<p class="text-sm text-gray-500">{publishedDate}</p>
+			</div>
 		</div>
-		<h2 class="text-text text-3xl font-semibold">{news.title}</h2>
+
+		<div class="mr-12 flex flex-wrap items-center gap-2 md:mr-0">
+			<a
+				href="/news"
+				class="border-gray text-gray inline-flex h-8 items-center gap-2 rounded-sm border bg-white px-3 text-sm font-semibold shadow-xs transition hover:bg-gray-50"
+			>
+				<Icon icon="ChevronLeft" size="14px" />
+				Alla nyheter
+			</a>
+			{#if canEdit}
+				<a
+					href={`/news/${news.id}/edit`}
+					class="border-gray text-gray inline-flex h-8 items-center gap-2 rounded-sm border bg-white px-3 text-sm font-semibold shadow-xs transition hover:bg-gray-50"
+				>
+					<Icon icon="Edit" size="14px" />
+					Redigera
+				</a>
+			{/if}
+			{#if canDelete}
+				<button
+					type="button"
+					class="border-gray text-error hover:bg-error/10 hover:text-error-hover inline-flex h-8 items-center gap-2 rounded-sm border bg-white px-3 text-sm font-semibold shadow-xs transition disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-100 disabled:text-gray-500"
+					onclick={deleteNews}
+					disabled={isDeleting}
+				>
+					<Icon icon="Trash" size="14px" />
+					Ta bort
+				</button>
+			{/if}
+		</div>
 	</div>
 
-	<div class="grid grid-cols-1 gap-4 xl:grid-cols-3">
-		<div class="space-y-4 xl:col-span-2">
-			<div class="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
-				<div class="flex flex-wrap items-center justify-between gap-2">
-					<p class="text-sm text-gray-500">
-						Publicerad {formatDate(news.published_at || news.created_at)}
-						{#if news.writer_name}
-							· {news.writer_name}
-						{/if}
-					</p>
-					{#if roles.length}
-						<div class="flex flex-wrap gap-1.5">
-							{#each roles as role}
-								<span
-									class="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600"
-								>
-									{role}
-								</span>
-							{/each}
-						</div>
-					{/if}
-				</div>
+	<div class="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]">
+		<div class="min-w-0 space-y-4">
+			<NewsArticle {news} {isUpdatingReaction} onToggleLike={toggleLike} />
 
-				{#if isEditing}
-					<div class="mt-4">
-						<NewsForm {news} mode="edit" on:saved={handleSaved} />
-					</div>
-				{:else}
-					<div class="prose mt-4 max-w-none">
-						<QuillViewer content={news.text} />
-					</div>
-				{/if}
-
-				{#if canEdit || canDelete}
-					<div class="mt-6 flex items-center justify-end gap-2 border-t border-gray-100 pt-4">
-						{#if canEdit}
-							<Button
-								variant="secondary"
-								iconLeft="Edit"
-								text={isEditing ? 'Avbryt' : 'Redigera'}
-								small
-								on:click={() => (isEditing = !isEditing)}
-							/>
-						{/if}
-						{#if canDelete}
-							<Button
-								variant="danger-outline"
-								iconLeft="Trash"
-								text="Ta bort"
-								small
-								confirmOptions={{
-									title: 'Radera nyhet?',
-									description:
-										'Är du säker på att du vill radera den här nyheten? Detta kan inte ångras.',
-									action: deleteNews,
-									actionLabel: 'Radera'
-								}}
-							/>
-						{/if}
-					</div>
-				{/if}
-			</div>
+			<NewsComments
+				newsId={news.id}
+				initialComments={comments}
+				onCountChange={handleCommentCountChange}
+			/>
 		</div>
 
-		<div class="flex flex-col gap-3">
-			<div class="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-				<div class="mb-3 flex items-center justify-between">
-					<h4 class="text-text text-sm font-semibold">Senaste nyheter</h4>
-					<a
-						class="text-primary hover:text-primary-hover text-sm font-medium hover:underline"
-						href="/news">Visa alla</a
-					>
-				</div>
-				{#if latest.length === 0}
-					<p class="text-sm text-gray-500">Inga aktuella nyheter.</p>
-				{:else}
-					<div class="space-y-1">
-						{#each latest as n (n.id)}
-							<a
-								href={`/news/${n.id}`}
-								class="block rounded-md px-2 py-2 transition hover:bg-gray-50 {n.id === news.id
-									? 'bg-primary/5 border-primary border-l-2'
-									: ''}"
-							>
-								<p class="text-text line-clamp-2 text-sm font-medium">{n.title}</p>
-								<p class="mt-0.5 text-xs text-gray-400">
-									{formatDate(n.published_at || n.created_at)}
-								</p>
-							</a>
-						{/each}
-					</div>
-				{/if}
-			</div>
-		</div>
+		<aside class="min-w-0">
+			<NewsSideList news={sideNews} selectedId={news.id} />
+		</aside>
 	</div>
 </div>

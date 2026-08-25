@@ -1,6 +1,8 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import {
+	canDeleteNewsRecord,
+	canEditNewsRecord,
 	canManageNews,
 	deleteNews,
 	getNewsVisibleToUser,
@@ -42,6 +44,7 @@ export const PUT: RequestHandler = async ({ params, request, locals }) => {
 	const title = (payload.title ?? '').trim();
 	const text = typeof payload.text === 'string' ? payload.text : '';
 	const roles = sanitizeNewsRoles(payload.roles);
+	const pinned = Boolean(payload.pinned);
 
 	if (!title) throw error(400, 'Titel krävs');
 	if (!text) throw error(400, 'Text krävs');
@@ -52,11 +55,11 @@ export const PUT: RequestHandler = async ({ params, request, locals }) => {
 	const existing = await getNewsVisibleToUser(trainerId, newsId);
 	if (!existing) throw error(404, 'Nyheten finns inte eller saknar behörighet');
 
-	if (existing.writer_id !== trainerId) {
+	if (!canEditNewsRecord(existing, trainerId, userRoles)) {
 		throw error(403, 'Endast författaren kan uppdatera nyheten');
 	}
 
-	const updated = await updateNews({ id: newsId, title, text, roles });
+	const updated = await updateNews({ id: newsId, title, text, roles, pinned, viewerId: trainerId });
 	if (!updated) throw error(500, 'Kunde inte uppdatera nyheten');
 
 	return json(updated);
@@ -72,6 +75,13 @@ export const DELETE: RequestHandler = async ({ params, locals }) => {
 
 	const userRoles = await getTrainerRoles(trainerId);
 	if (!canManageNews(userRoles)) throw error(403, 'Saknar behörighet att ta bort nyheter');
+
+	const existing = await getNewsVisibleToUser(trainerId, newsId);
+	if (!existing) throw error(404, 'Nyheten finns inte eller saknar behörighet');
+
+	if (!canDeleteNewsRecord(existing, trainerId, userRoles)) {
+		throw error(403, 'Saknar behörighet att ta bort nyheten');
+	}
 
 	await deleteNews(newsId);
 	return json({ success: true });
