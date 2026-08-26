@@ -9,7 +9,6 @@
 	import TextArea from '../../../bits/textarea/TextArea.svelte';
 	import { user } from '$lib/stores/userStore';
 	import OptionButton from '../../../bits/optionButton/OptionButton.svelte';
-	import { capitalizeFirstLetter } from '$lib/helpers/generic/genericHelpers';
 	import RepeatBookingSection from '../RepeatBookingSection.svelte';
 
 	export let bookingObject: {
@@ -41,6 +40,11 @@
 	let boundaryKey: string | null = null;
 	let boundaryAbortController: AbortController | null = null;
 	let isBoundaryLoading = false;
+	const emailBehaviorOptions = [
+		{ value: 'none', label: 'Skicka inte' },
+		{ value: 'send', label: 'Skicka direkt' },
+		{ value: 'edit', label: 'Redigera innan' }
+	];
 
 	function timeStringToMinutes(value?: string | null): number | null {
 		if (!value) return null;
@@ -155,13 +159,12 @@
 	});
 
 	function handleEmailBehaviorSelect(event: CustomEvent<string>) {
-		bookingObject.emailBehavior = {
-			value: event.detail,
-			label: capitalizeFirstLetter(event.detail)
-		};
+		bookingObject.emailBehavior =
+			emailBehaviorOptions.find((option) => option.value === event.detail) ??
+			emailBehaviorOptions[0];
 	}
 
-	function handleUserSelection(event) {
+	function handleUserSelection(event: CustomEvent<{ selected: number[] }>) {
 		bookingObject.attendees = [...event.detail.selected];
 		bookingObject.user_ids = [...event.detail.selected];
 		bookingObject.user_id = bookingObject.attendees?.[0] ?? null;
@@ -203,7 +206,7 @@
 		const data = await res.json();
 
 		if (data.success && data.repeatedBookings) {
-			repeatedBookings = data.repeatedBookings.map((week) => {
+			repeatedBookings = data.repeatedBookings.map((week: any) => {
 				const mapped = {
 					...week,
 					selectedTime: week.time ?? bookingObject.time,
@@ -293,7 +296,7 @@
 		repeatedBookings = repeatedBookings.map((w) => {
 			if (w.week !== weekNumber) return w;
 
-			const stillConflictsWith = w.conflictingUserIds.filter((id) => id !== userId);
+			const stillConflictsWith = w.conflictingUserIds.filter((id: number) => id !== userId);
 			const newConflict = stillConflictsWith.length > 0;
 
 			return {
@@ -634,11 +637,7 @@
 		<OptionButton
 			label="Bekräftelsemail"
 			labelIcon="Mail"
-			options={[
-				{ value: 'none', label: 'Skicka inte' },
-				{ value: 'send', label: 'Skicka direkt' },
-				{ value: 'edit', label: 'Redigera innan' }
-			]}
+			options={emailBehaviorOptions}
 			bind:selectedOption={bookingObject.emailBehavior}
 			on:select={handleEmailBehaviorSelect}
 			size="small"

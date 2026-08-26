@@ -16,17 +16,25 @@
 	import {
 		BOOKING_EMAIL_RECIPIENT_DEFAULT,
 		buildBookingConfirmationEmailBody,
+		buildMeetingConfirmationEmailBody,
 		handleBookingEmail,
+		handleMeetingBookingEmail,
 		handleMeetingOrPersonalBooking,
 		handleTrainingBooking,
+		MEETING_CONFIRMATION_EMAIL_HEADER,
+		MEETING_CONFIRMATION_EMAIL_SUBHEADER,
+		MEETING_CONFIRMATION_EMAIL_SUBJECT,
 		requireClientCalendarEmailLinks,
 		resolveBookingConfirmationRecipients,
+		resolveMeetingConfirmationRecipients,
+		type BookedDateLine,
+		type BookingEmailRecipientTarget,
 		type ClientCalendarEmailLinks
 	} from '$lib/helpers/bookingHelpers/bookingHelpers';
 	import { openPopup, popupStore, closePopup, type PopupState } from '$lib/stores/popupStore';
 	import MailComponent from '../mailComponent/MailComponent.svelte';
 	import { hasRole } from '$lib/helpers/userHelpers/roleHelper';
-	import type { User } from '$lib/types/userTypes';
+	import type { AuthenticatedUser, User } from '$lib/types/userTypes';
 	import type { SelectedSlot } from '$lib/stores/selectedSlotStore';
 	import { clearSelectedSlot } from '$lib/stores/selectedSlotStore';
 	import { loadingStore } from '$lib/stores/loading';
@@ -60,6 +68,34 @@
 
 	type UserOption = { label: string; value: number };
 	type MeetingUserOption = { name: string; value: number };
+	type BookingTypeOption = { label: string; value: string | number; icon?: string | null };
+	type EmailBehavior = 'send' | 'edit' | 'none';
+	type EmailBehaviorOption = { label: string; value: EmailBehavior };
+	type BookingObjectState = {
+		user_id: number | null;
+		booked_by_id: number | null;
+		user_ids: number[];
+		attendees: number[];
+		bookingType: BookingTypeOption | null;
+		trainerId: number | null;
+		clientId: number | null;
+		locationId: number | null;
+		roomId?: number | null;
+		currentUser: AuthenticatedUser | null;
+		isTrial: boolean;
+		internalEducation: boolean;
+		education: boolean;
+		internal: boolean;
+		name: string;
+		text: string;
+		date: string;
+		time: string;
+		endTime: string;
+		repeat: boolean;
+		repeatWeeks?: number;
+		emailBehavior: EmailBehaviorOption;
+		emailRecipient: { value: BookingEmailRecipientTarget; label: string };
+	};
 
 	const BOOKING_TYPE_OPTIONS: { label: string; icon: string; value: BookingComponent }[] = [
 		{ label: 'Träning', icon: 'Training', value: 'training' },
@@ -70,14 +106,22 @@
 		{ label: 'Möte', icon: 'Meeting', value: 'meeting' },
 		{ label: 'Personlig', icon: 'Person', value: 'personal' }
 	];
+	const EMAIL_BEHAVIOR_DEFAULT: EmailBehaviorOption = { label: 'Skicka inte', value: 'none' };
+	const STANDARD_EMAIL_BOOKING_TYPES = new Set<BookingComponent>([
+		'training',
+		'trial',
+		'practice',
+		'flight',
+		'education'
+	]);
 
 	let selectedBookingComponent: BookingComponent = 'training';
 
-	let repeatedBookings = [];
+	let repeatedBookings: any[] = [];
 	let selectedIsUnavailable = false;
-	let currentUser = get(user);
+	let currentUser: AuthenticatedUser | null = get(user);
 	let formErrors: Record<string, string> = {};
-	let previousComponent: typeof selectedBookingComponent | null = null;
+	let previousComponent: BookingComponent | null = null;
 	let resumeSlotApplied = false;
 	let isApplyingResumeSlot = false;
 	let isSubmitting = false;
@@ -93,7 +137,7 @@
 	let isEducatorUser = false;
 	let educatorIds = new Set<number>();
 
-	let bookingObject = {
+	let bookingObject: BookingObjectState = {
 		user_id: null,
 		booked_by_id: null,
 		user_ids: [],
@@ -106,6 +150,7 @@
 		isTrial: false,
 		internalEducation: false,
 		education: false,
+		internal: false,
 		name: '',
 		text: '',
 		date: startTime
@@ -122,7 +167,7 @@
 				})
 			: '13:30',
 		repeat: false,
-		emailBehavior: { label: 'Skicka inte', value: 'none' },
+		emailBehavior: { ...EMAIL_BEHAVIOR_DEFAULT },
 		emailRecipient: { ...BOOKING_EMAIL_RECIPIENT_DEFAULT }
 	};
 
@@ -194,8 +239,8 @@
 	}
 
 	$: currentUser = $user;
-	$: isAdminUser = hasRole('Administrator', currentUser);
-	$: isEducatorUser = hasRole('Educator', currentUser);
+	$: isAdminUser = hasRole('Administrator', currentUser?.kind === 'trainer' ? currentUser : null);
+	$: isEducatorUser = hasRole('Educator', currentUser?.kind === 'trainer' ? currentUser : null);
 	$: canAccessEducation = isAdminUser || isEducatorUser;
 
 	$: allUsers = ($users as User[] | undefined) ?? [];
@@ -295,6 +340,10 @@
 	// Sync user_ids and user_id from attendees
 	$: if (selectedBookingComponent !== previousComponent) {
 		formErrors = {};
+		if (previousComponent !== null) {
+			bookingObject.emailBehavior = { ...EMAIL_BEHAVIOR_DEFAULT };
+			bookingObject.emailRecipient = { ...BOOKING_EMAIL_RECIPIENT_DEFAULT };
+		}
 		previousComponent = selectedBookingComponent;
 	}
 
@@ -348,8 +397,117 @@
 	function getLocationLabelFromId(id: number | null | undefined) {
 		const list = $locations || [];
 		const loc = id ? list.find((l) => l.id === id) : null;
+		const address = (loc as { address?: string | null } | undefined)?.address;
 		// Prefer street address (e.g., "Garvargatan 7"), then name, else fallback.
-		return (loc?.address && loc.address.trim()) || loc?.name || 'Okänd plats';
+		return (address && address.trim()) || loc?.name || 'Okänd plats';
+	}
+
+	function toValidUserId(value: unknown): number | null {
+		const parsed = Number(value);
+		return Number.isFinite(parsed) ? parsed : null;
+	}
+
+	function getMeetingAttendeeIds() {
+		return Array.from(
+			new Set(
+				(bookingObject.attendees ?? [])
+					.map((attendeeId) => toValidUserId(attendeeId))
+					.filter((attendeeId): attendeeId is number => attendeeId !== null)
+			)
+		);
+	}
+
+	function getMeetingBookedById() {
+		return toValidUserId(bookingObject.booked_by_id) ?? toValidUserId(currentUser?.id);
+	}
+
+	async function resolveMeetingEmailRecipients() {
+		const attendeeIds = getMeetingAttendeeIds();
+		const bookedById = getMeetingBookedById();
+		const expectedRecipientIds = new Set([
+			...attendeeIds,
+			...(bookedById !== null ? [bookedById] : [])
+		]);
+
+		let recipients = resolveMeetingConfirmationRecipients({
+			attendeeIds,
+			bookedById,
+			bookedByEmail: currentUser?.email ?? null
+		});
+
+		if (recipients.length < expectedRecipientIds.size) {
+			try {
+				await fetchUsers();
+			} catch (error) {
+				console.error('Failed to refresh users for meeting email', error);
+			}
+
+			recipients = resolveMeetingConfirmationRecipients({
+				attendeeIds,
+				bookedById,
+				bookedByEmail: currentUser?.email ?? null
+			});
+		}
+
+		return recipients;
+	}
+
+	function buildMeetingEmailBody(bookedDates: BookedDateLine[]) {
+		return buildMeetingConfirmationEmailBody({
+			name: bookingObject.name,
+			text: bookingObject.text,
+			bookedDates,
+			fromUser: currentUser ?? { firstname: '', lastname: '', email: '' }
+		});
+	}
+
+	function openMeetingEmailPopup(recipients: string[], bookedDates: BookedDateLine[]) {
+		openPopup({
+			header: `Maila mötesbekräftelse till ${recipients.join(', ')}`,
+			icon: 'Mail',
+			component: MailComponent,
+			maxWidth: '900px',
+			props: {
+				prefilledRecipients: recipients,
+				subject: MEETING_CONFIRMATION_EMAIL_SUBJECT,
+				header: MEETING_CONFIRMATION_EMAIL_HEADER,
+				subheader: MEETING_CONFIRMATION_EMAIL_SUBHEADER,
+				body: buildMeetingEmailBody(bookedDates),
+				lockedFields: ['recipients'],
+				autoFetchUsersAndClients: false
+			}
+		});
+	}
+
+	async function handleCreatedMeetingEmail(
+		emailBehavior: 'send' | 'edit',
+		bookedDates: BookedDateLine[]
+	) {
+		if (!currentUser) return;
+
+		const recipients = await resolveMeetingEmailRecipients();
+
+		if (!recipients.length) {
+			addToast({
+				type: AppToastType.CANCEL,
+				message: 'Ingen e-postadress',
+				description: 'Det saknas e-postadress för vald mottagare, så inget mail skickades.'
+			});
+			return;
+		}
+
+		const emailResult = await handleMeetingBookingEmail({
+			emailBehavior,
+			recipientEmails: recipients,
+			fromUser: currentUser,
+			bookedDates,
+			name: bookingObject.name,
+			text: bookingObject.text
+		});
+
+		if (emailResult === 'edit') {
+			openMeetingEmailPopup(recipients, bookedDates);
+		}
 	}
 
 	async function applyResumeSlot(slot: SelectedSlot) {
@@ -410,10 +568,16 @@
 		try {
 			const locationName = getLocationLabelFromId(bookingObject.locationId);
 
-			let bookedDates: { date: string; time: string; locationName?: string }[] = [];
+			let bookedDates: BookedDateLine[] = [];
 			let success = false;
 
-			if (type === 'training' || type === 'trial' || type === 'practice' || type === 'flight') {
+			if (
+				type === 'training' ||
+				type === 'trial' ||
+				type === 'practice' ||
+				type === 'flight' ||
+				type === 'education'
+			) {
 				const result = await handleTrainingBooking(
 					bookingObject,
 					currentUser,
@@ -433,7 +597,7 @@
 						bookedDates = [{ date: bookingObject.date, time: bookingObject.time, locationName }];
 					}
 				}
-			} else {
+			} else if (type === 'meeting' || type === 'personal') {
 				// meeting | personal
 				const res = await handleMeetingOrPersonalBooking(
 					bookingObject,
@@ -454,64 +618,75 @@
 				| 'none';
 
 			if (success && emailBehavior !== 'none') {
-				const recipientTarget =
-					bookingObject.emailRecipient?.value ?? BOOKING_EMAIL_RECIPIENT_DEFAULT.value;
-				const recipients = resolveBookingConfirmationRecipients({
-					recipientTarget,
-					clientId: bookingObject.clientId,
-					trainerId: bookingObject.trainerId
-				});
-
-				if (recipients.length > 0) {
-					const emailResult = await handleBookingEmail({
-						emailBehavior,
-						recipientEmails: recipients,
-						fromUser: currentUser,
-						bookedDates,
+				if (type === 'meeting') {
+					await handleCreatedMeetingEmail(emailBehavior, bookedDates);
+				} else if (STANDARD_EMAIL_BOOKING_TYPES.has(type)) {
+					const recipientTarget =
+						bookingObject.emailRecipient?.value ?? BOOKING_EMAIL_RECIPIENT_DEFAULT.value;
+					const recipients = resolveBookingConfirmationRecipients({
+						recipientTarget,
 						clientId: bookingObject.clientId,
-						clientRecipientEmails:
-							typeof bookingObject.clientId === 'number' && Number.isFinite(bookingObject.clientId)
-								? getClientEmails(bookingObject.clientId)
-								: []
+						trainerId: bookingObject.trainerId
 					});
 
-					if (emailResult === 'edit') {
-						try {
-							const calendarLinks: ClientCalendarEmailLinks | null =
-								recipientTarget === 'client'
-									? await requireClientCalendarEmailLinks(bookingObject.clientId)
-									: null;
-							openPopup({
-								header: `Maila bokningsbekräftelse till ${recipients.join(', ')}`,
-								icon: 'Mail',
-								component: MailComponent,
-								maxWidth: '900px',
-								props: {
-									prefilledRecipients: recipients,
-									subject: 'Bokningsbekräftelse',
-									header: 'Bekräftelse på dina bokningar',
-									subheader: 'Tack för din bokning!',
-									body: buildBookingConfirmationEmailBody({
-										bookedDates,
-										fromUser: currentUser,
-										calendarSyncUrl: calendarLinks?.syncPageUrl ?? null,
-										bookingsPageUrl: calendarLinks?.bookingsPageUrl ?? null
-									}),
-									lockedFields: ['recipients'],
-									autoFetchUsersAndClients: false
-								}
-							});
-						} catch (error) {
-							console.error('Failed to create calendar links for booking email editor', error);
-							addToast({
-								type: AppToastType.CANCEL,
-								message: 'Kunde inte skapa kalenderlänkar',
-								description:
-									error instanceof Error
-										? error.message
-										: 'Kunde inte skapa länkarna till kundens bokningar och kalender.'
-							});
+					if (recipients.length > 0) {
+						const emailResult = await handleBookingEmail({
+							emailBehavior,
+							recipientEmails: recipients,
+							fromUser: currentUser,
+							bookedDates,
+							clientId: bookingObject.clientId,
+							clientRecipientEmails:
+								typeof bookingObject.clientId === 'number' &&
+								Number.isFinite(bookingObject.clientId)
+									? getClientEmails(bookingObject.clientId)
+									: []
+						});
+
+						if (emailResult === 'edit') {
+							try {
+								const calendarLinks: ClientCalendarEmailLinks | null =
+									recipientTarget === 'client'
+										? await requireClientCalendarEmailLinks(bookingObject.clientId)
+										: null;
+								openPopup({
+									header: `Maila bokningsbekräftelse till ${recipients.join(', ')}`,
+									icon: 'Mail',
+									component: MailComponent,
+									maxWidth: '900px',
+									props: {
+										prefilledRecipients: recipients,
+										subject: 'Bokningsbekräftelse',
+										header: 'Bekräftelse på dina bokningar',
+										subheader: 'Tack för din bokning!',
+										body: buildBookingConfirmationEmailBody({
+											bookedDates,
+											fromUser: currentUser,
+											calendarSyncUrl: calendarLinks?.syncPageUrl ?? null,
+											bookingsPageUrl: calendarLinks?.bookingsPageUrl ?? null
+										}),
+										lockedFields: ['recipients'],
+										autoFetchUsersAndClients: false
+									}
+								});
+							} catch (error) {
+								console.error('Failed to create calendar links for booking email editor', error);
+								addToast({
+									type: AppToastType.CANCEL,
+									message: 'Kunde inte skapa kalenderlänkar',
+									description:
+										error instanceof Error
+											? error.message
+											: 'Kunde inte skapa länkarna till kundens bokningar och kalender.'
+								});
+							}
 						}
+					} else {
+						addToast({
+							type: AppToastType.CANCEL,
+							message: 'Ingen e-postadress',
+							description: 'Det saknas e-postadress för vald mottagare, så inget mail skickades.'
+						});
 					}
 				}
 			}
