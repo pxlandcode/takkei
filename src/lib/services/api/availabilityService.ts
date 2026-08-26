@@ -35,7 +35,7 @@ export async function saveWeeklyAvailability(userId: number, weeklyAvailability:
 // ✅ Date Availability
 export async function saveDateAvailability(
 	userId: number,
-	dateAvailabilities: { date: string; from: string; to: string }[]
+	dateAvailabilities: { date: string; start_time: string; end_time: string }[]
 ) {
 	for (const item of dateAvailabilities) {
 		const res = await fetch(`${baseUrl}/date`, {
@@ -62,14 +62,20 @@ export async function removeDateAvailability(id: number) {
 }
 
 // ✅ Vacations
-export async function saveVacations(userId: number, vacations: { from: string; to: string }[]) {
+export async function saveVacations(
+	userId: number,
+	vacations: { start_date: string; end_date: string }[]
+) {
 	for (const vacation of vacations) {
 		const res = await fetch(`${baseUrl}/vacation`, {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify({ userId, ...vacation })
 		});
-		if (!res.ok) throw new Error(`Misslyckades att spara semester ${vacation.from}–${vacation.to}`);
+		if (!res.ok)
+			throw new Error(
+				`Misslyckades att spara semester ${vacation.start_date}–${vacation.end_date}`
+			);
 	}
 	invalidateByPrefix(baseUrl);
 }

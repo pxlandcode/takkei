@@ -6,6 +6,8 @@
 	import ArticlesSettings from '../../components/ui/articlesSettings/ArticlesSettings.svelte';
 	import TargetsSettings from '../../components/ui/targetsSettings/TargetsSettings.svelte';
 	import SchedulingSettings from '../../components/ui/schedulingSettings/SchedulingSettings.svelte';
+	import VacationSettings from '../../components/ui/schedulingSettings/VacationSettings.svelte';
+	import AbsenceSettings from '../../components/ui/schedulingSettings/AbsenceSettings.svelte';
 	import ObSettings from '../../components/ui/obSettings/ObSettings.svelte';
 	import HolidaySettings from '../../components/ui/holidaySettings/HolidaySettings.svelte';
 	import MailComponent from '../../components/ui/mailComponent/MailComponent.svelte';
@@ -116,6 +118,18 @@
 					requiredRoles: ['Administrator']
 				},
 				{
+					label: 'Semester',
+					icon: 'CalendarSun',
+					component: VacationSettings,
+					requiredRoles: ['Administrator']
+				},
+				{
+					label: 'Frånvaro',
+					icon: 'Cancel',
+					component: AbsenceSettings,
+					requiredRoles: ['Administrator']
+				},
+				{
 					label: 'Helgdagar',
 					icon: 'CalendarSun',
 					component: HolidaySettings,
@@ -134,7 +148,7 @@
 					requiredRoles: ['Administrator', 'Economy', 'Economy Admin']
 				},
 				{
-					label: 'Semester',
+					label: 'Semesterersättning',
 					icon: 'Money',
 					component: HolidayPaySettings,
 					requiredRoles: ['Administrator']
