@@ -2,65 +2,65 @@ import { query } from '$lib/db.js';
 import { redirect } from '@sveltejs/kit';
 
 export async function load({ locals, url }) {
-        const currentRoute = url.pathname;
-        const publicRoutes = ['/login'];
-        const isPublicCalendarRoute =
-                currentRoute.startsWith('/calendar-sync/') ||
-                currentRoute.startsWith('/calendar-bookings/');
+	const currentRoute = url.pathname;
+	const normalizedRoute = currentRoute.length > 1 ? currentRoute.replace(/\/+$/, '') : currentRoute;
+	const publicRoutes = ['/login', '/signup'];
+	const isPublicCalendarRoute =
+		currentRoute.startsWith('/calendar-sync/') || currentRoute.startsWith('/calendar-bookings/');
 
-        if (publicRoutes.includes(currentRoute)) {
-                return { user: null };
-        }
+	if (publicRoutes.includes(normalizedRoute)) {
+		return { user: null };
+	}
 
-        const authUser = locals.user;
+	const authUser = locals.user;
 
-        if (isPublicCalendarRoute && !authUser) {
-                return { user: null };
-        }
+	if (isPublicCalendarRoute && !authUser) {
+		return { user: null };
+	}
 
-        if (!authUser) {
-                throw redirect(302, '/login');
-        }
+	if (!authUser) {
+		throw redirect(302, '/login');
+	}
 
-        if (authUser.kind === 'trainer') {
-                const trainerId = authUser.trainerId ?? authUser.trainer_id;
-                if (!trainerId) throw redirect(302, '/login');
+	if (authUser.kind === 'trainer') {
+		const trainerId = authUser.trainerId ?? authUser.trainer_id;
+		if (!trainerId) throw redirect(302, '/login');
 
-                const trainerResult = await query('SELECT * FROM users WHERE id = $1', [trainerId]);
-                const trainer = trainerResult[0];
-                if (!trainer) throw redirect(302, '/login');
+		const trainerResult = await query('SELECT * FROM users WHERE id = $1', [trainerId]);
+		const trainer = trainerResult[0];
+		if (!trainer) throw redirect(302, '/login');
 
-                const roles = await query('SELECT * FROM roles WHERE user_id = $1', [trainerId]);
-                trainer.roles = roles;
-                trainer.kind = 'trainer';
-                trainer.lucia_user_id = authUser.id;
+		const roles = await query('SELECT * FROM roles WHERE user_id = $1', [trainerId]);
+		trainer.roles = roles;
+		trainer.kind = 'trainer';
+		trainer.lucia_user_id = authUser.id;
 
-                return { user: trainer };
-        }
+		return { user: trainer };
+	}
 
-        if (authUser.kind === 'client') {
-                const clientId = authUser.clientId ?? authUser.client_id;
-                if (!clientId) throw redirect(302, '/login');
+	if (authUser.kind === 'client') {
+		const clientId = authUser.clientId ?? authUser.client_id;
+		if (!clientId) throw redirect(302, '/login');
 
 		const clientResult = await query(
 			'SELECT id, firstname, lastname, email, phone FROM clients WHERE id = $1',
 			[clientId]
 		);
-                const client = clientResult[0];
-                if (!client) throw redirect(302, '/login');
+		const client = clientResult[0];
+		if (!client) throw redirect(302, '/login');
 
-                return {
-                        user: {
+		return {
+			user: {
 				id: client.id,
 				firstname: client.firstname,
 				lastname: client.lastname,
 				email: client.email,
 				phone: client.phone ?? null,
-                                kind: 'client',
-                                lucia_user_id: authUser.id
-                        }
-                };
-        }
+				kind: 'client',
+				lucia_user_id: authUser.id
+			}
+		};
+	}
 
-        return { user: null };
+	return { user: null };
 }

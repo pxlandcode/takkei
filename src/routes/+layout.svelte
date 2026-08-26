@@ -69,6 +69,7 @@
 	let absencePromptLoadToken = 0;
 
 	$: currentRoute = $page.url.pathname;
+	$: isPublicStandaloneRoute = currentRoute === '/login' || currentRoute === '/signup';
 	$: isStandaloneCalendarRoute =
 		currentRoute.startsWith('/calendar-sync/') || currentRoute.startsWith('/calendar-bookings/');
 
@@ -317,7 +318,7 @@
 	}
 	$: if (
 		browser &&
-		currentRoute === '/login' &&
+		isPublicStandaloneRoute &&
 		(currentAbsencePrompt || absencePromptLoadedForUserId !== null || $absencePromptAcknowledgedKey)
 	) {
 		currentAbsencePrompt = null;
@@ -327,7 +328,7 @@
 	}
 	$: if (
 		browser &&
-		currentRoute !== '/login' &&
+		!isPublicStandaloneRoute &&
 		currentAccount?.kind === 'trainer' &&
 		currentAccount.id !== absencePromptLoadedForUserId
 	) {
@@ -335,11 +336,11 @@
 		loadCurrentAbsencePrompt(currentAccount.id);
 	}
 	$: currentAbsencePromptKey =
-		currentRoute !== '/login' && currentAccount?.kind === 'trainer' && currentAbsencePrompt
+		!isPublicStandaloneRoute && currentAccount?.kind === 'trainer' && currentAbsencePrompt
 			? buildCurrentAbsenceKey(currentAccount.id, currentAbsencePrompt)
 			: null;
 	$: shouldShowAbsencePrompt = Boolean(
-		currentRoute !== '/login' &&
+		!isPublicStandaloneRoute &&
 			currentAccount?.kind === 'trainer' &&
 			currentAbsencePrompt &&
 			currentAbsencePromptKey &&
@@ -366,7 +367,7 @@
 			{/key}
 		{/if}
 	</div>
-	{#if currentRoute === '/login'}
+	{#if isPublicStandaloneRoute}
 		<slot />
 	{:else if isStandaloneCalendarRoute && !currentAccount}
 		<main class="bg-background-gradient relative flex h-dvh w-full overflow-hidden p-4">

@@ -4,20 +4,35 @@ import { redirect } from '@sveltejs/kit';
 import { i18n } from '$lib/i18n';
 import { lucia } from '$lib/server/auth';
 
-const PUBLIC_PATHS = new Set(['/login', '/api/login', '/api/signup', '/logout']);
+const PUBLIC_PATHS = new Set(['/login', '/signup', '/api/login', '/api/signup', '/logout']);
+const SIGNUP_HOSTS = new Set(['signup.takkei.se']);
 const CLIENT_READ_ONLY_API_PATHS = new Set(['/api/greetings', '/api/locations']);
 
+function normalizePathname(pathname: string): string {
+	return pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname;
+}
+
 function isPublicPath(pathname: string): boolean {
+	const normalizedPathname = normalizePathname(pathname);
+
 	return (
-		PUBLIC_PATHS.has(pathname) ||
+		PUBLIC_PATHS.has(normalizedPathname) ||
 		(pathname.startsWith('/calendar/client/') && pathname.endsWith('.ics')) ||
 		pathname.startsWith('/calendar-sync/') ||
 		pathname.startsWith('/calendar-bookings/')
 	);
 }
 
+function isSignupSubdomain(url: URL): boolean {
+	return SIGNUP_HOSTS.has(url.hostname.toLowerCase());
+}
+
 const handleAuth: Handle = async ({ event, resolve }) => {
 	const { pathname } = event.url;
+
+	if (event.request.method === 'GET' && isSignupSubdomain(event.url) && pathname === '/') {
+		throw redirect(308, '/signup');
+	}
 
 	if (event.request.method === 'OPTIONS') {
 		return resolve(event);

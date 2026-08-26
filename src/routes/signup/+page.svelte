@@ -1,22 +1,25 @@
 <script lang="ts">
-	import Checkbox from '../components/checkbox/Checkbox.svelte';
-	import Dropdown from '../components/dropdown/Dropdown.svelte';
-	import InfoButton from '../components/infoButton/InfoButton.svelte';
-	import Input from '../components/Input/Input.svelte';
-	import { onMount, tick } from 'svelte';
-	import OptionButton from '../components/optionButton/OptionButton.svelte';
-	import Button from '../components/button/Button.svelte';
-	import PopupWrapper from '../components/ui/popupWrapper/PopupWrapper.svelte';
-	import { agreePrivayContent, agreeTermsContent } from '../content/terms';
-	import { loadingStore } from '../stores/loading';
-	import { createEvent } from '$lib/services/eventService';
+	import { tick } from 'svelte';
+	import type { PageData } from './$types';
+	import Checkbox from '../../components/bits/checkbox/Checkbox.svelte';
+	import Dropdown from '../../components/bits/dropdown/Dropdown.svelte';
+	import InfoButton from '../../components/bits/infoButton/InfoButton.svelte';
+	import Input from '../../components/bits/Input/Input.svelte';
+	import OptionButton from '../../components/bits/optionButton/OptionButton.svelte';
+	import Button from '../../components/bits/button/Button.svelte';
+	import PopupWrapper from '../../components/ui/popupWrapper/PopupWrapper.svelte';
+	import { agreePrivacyContent, agreeTermsContent } from '$lib/content/signupTerms';
+	import { loadingStore } from '$lib/stores/loading';
 
-	export let data;
+	export let data: PageData;
+
+	type SignupPackage = PageData['packages'][number];
+	type SelectOption<T = string | number | boolean> = { value: T; label: string };
 
 	let firstname = '';
 	let lastname = '';
 	let email = '';
-	let personnummer = '';
+	let person_number = '';
 	let phone = '';
 	let streetAddress = '';
 	let zip = '';
@@ -28,6 +31,7 @@
 	let selectedTrainingPackage = '';
 	let autogiro = false;
 	let existingPackage = false;
+	let existingPackageOwner = '';
 
 	let isOtherPaymentAddress = false;
 	let payerName = '';
@@ -38,50 +42,29 @@
 	let payerInvoiceZip = '';
 	let payerInvoiceCity = '';
 
-	let trainingPackages = [];
-	let trainingPackageOptions = [];
-	let paymentInstallmentOptions = [{ value: 1, label: '1 delbetalning' }];
-	let autogiroOptions = [
+	let paymentInstallmentOptions: SelectOption<number>[] = [{ value: 1, label: '1 delbetalning' }];
+	const autogiroOptions: SelectOption<boolean>[] = [
 		{ value: false, label: 'E-postfaktura' },
 		{ value: true, label: 'Autogiro' }
 	];
 	let selectedInstallment = paymentInstallmentOptions[0];
 	let selectedAutogiro = autogiroOptions[0];
-	let existingPackageOwner = '';
 
-	let errors = {};
-
+	let errors: Record<string, string> = {};
 	let submissionComplete = false;
+	let isPopupOpen = false;
+	let popupHeader = '';
+	let popupContent = '';
 
-	// Fetch training packages
-	onMount(async () => {
-		try {
-			const res = await fetch('/api/training-packages');
-			const fetchedData = await res.json();
-
-			trainingPackages = fetchedData.packages.map((pkg) => {
-				const sessionCount = extractSessionCount(pkg.name);
-				return {
-					id: pkg.id,
-					name: pkg.name.trim(),
-					price: pkg.price_with_vat,
-					sessionCount
-				};
-			});
-
-			trainingPackageOptions = trainingPackages.map(
-				(pkg) => `${pkg.name} - ${formatPrice(pkg.price_with_vat)} kr`
-			);
-		} catch (error) {
-			console.error('Error fetching training packages:', error);
-		}
-	});
+	$: packageOptions = data.packages.map(
+		(pkg) => `${pkg.name} - ${formatPrice(pkg.price_with_vat)}kr`
+	);
 
 	function resetFormFields() {
 		firstname = '';
 		lastname = '';
 		email = '';
-		personnummer = '';
+		person_number = '';
 		phone = '';
 		streetAddress = '';
 		zip = '';
@@ -91,6 +74,8 @@
 
 		selectedTrainingPackage = '';
 		autogiro = false;
+		existingPackage = false;
+		existingPackageOwner = '';
 		isOtherPaymentAddress = false;
 		payerName = '';
 		payerEmail = '';
@@ -101,29 +86,28 @@
 		payerInvoiceCity = '';
 
 		paymentInstallmentOptions = [{ value: 1, label: '1 delbetalning' }];
-
 		selectedInstallment = paymentInstallmentOptions[0];
 		selectedAutogiro = autogiroOptions[0];
 		errors = {};
-
 		submissionComplete = false;
-		existingPackage = false;
-		existingPackageOwner = '';
+	}
+
+	async function scrollToFirstError() {
+		await tick();
+		const firstErrorKey = Object.keys(errors)[0];
+		if (!firstErrorKey) return;
+
+		const errorElement = document.getElementById(firstErrorKey);
+		errorElement?.scrollIntoView({ behavior: 'smooth', block: 'center' });
 	}
 
 	async function handleSubmit() {
+		errors = {};
 		loadingStore.loading(true, 'Skickar din information till våra tränare...');
+
 		if (!validateForm()) {
 			loadingStore.loading(false);
-
-			const firstErrorKey = Object.keys(errors)[0];
-			if (firstErrorKey) {
-				const errorElement = document.getElementById(firstErrorKey);
-				console.log('errorElement', errorElement);
-				if (errorElement) {
-					errorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-				}
-			}
+			await scrollToFirstError();
 			return;
 		}
 
@@ -131,7 +115,8 @@
 			firstname,
 			lastname,
 			email,
-			personnummer,
+			person_number,
+			personnummer: person_number,
 			phone,
 			streetAddress,
 			zip,
@@ -139,6 +124,7 @@
 			agreeToTerms,
 			agreeToPrivacy,
 			existingPackage,
+			existingPackageOwner,
 			selectedTrainingPackage: existingPackage ? null : selectedTrainingPackage,
 			autogiro: existingPackage ? null : autogiro,
 			paymentChoice: isOtherPaymentAddress ? 'company' : 'self',
@@ -169,82 +155,62 @@
 
 			const responseData = await res.json();
 
-			let description = `En ny klient har skapats via formuläret.\nKlient: ${responseData.clientName}\nKlientens email: ${responseData.email}\nKlient ID: ${responseData.clientId}\n${existingPackage ? `Klienten ska träna på befintligt paket som ägs av ${existingPackageOwner}` : `Kund ID: ${responseData.customerId}\nPaket ID: ${responseData.packageId}`}`;
-
-			const responseEvent = await createEvent({
-				name: `Ny klient med ID ${responseData.clientId} registrerad via formuläret`,
-				user_ids: [2, 19],
-				description,
-				start_time: new Date().toISOString(),
-				end_time: new Date().toISOString(),
-				active: true,
-				done: false
-			});
+			if (!res.ok) {
+				errors = responseData.errors ?? {
+					general: responseData.error ?? 'Något gick fel. Försök igen.'
+				};
+				await scrollToFirstError();
+				return;
+			}
 
 			submissionComplete = true;
-			loadingStore.loading(false);
 		} catch (error) {
-			console.error('Error submitting form:', error);
+			console.error('Error submitting signup form:', error);
+			errors.general = 'Något gick fel. Försök igen.';
+			await scrollToFirstError();
+		} finally {
 			loadingStore.loading(false);
 		}
 	}
 
-	function formatPrice(price: number) {
-		return new Intl.NumberFormat('sv-SE').format(Math.round(price));
+	function formatPrice(price: number | string | null | undefined) {
+		const numericPrice = Number(price ?? 0);
+		return new Intl.NumberFormat('sv-SE').format(Math.round(numericPrice));
 	}
 
 	function handlePaymentChoiceChange(value: boolean) {
 		isOtherPaymentAddress = value;
-	}
-	function handleTermsAcceptanceChange(value: boolean) {
-		agreeToTerms = value;
 	}
 
 	function handleExistingPackageChange(value: boolean) {
 		existingPackage = value;
 	}
 
-	function handlePersonalDataAcceptanceChange(value: boolean) {
-		agreeToPrivacy = value;
-	}
-
-	async function handleTrainingPackageChange(event) {
-		selectedTrainingPackage = event.detail.value; // ✅ Update selected training package first
-		await tick(); // ✅ Wait for UI update before updating installments
+	function handleTrainingPackageChange(event: CustomEvent<{ value: string }>) {
+		selectedTrainingPackage = event.detail.value;
 		updateInstallmentOptions();
 	}
 
-	function extractSessionCount(name) {
+	function extractSessionCount(name: string) {
 		const match = name.match(/(\d+)/);
-		return match ? parseInt(match[1]) : 1; // Default to 1 if no number is found
+		return match ? parseInt(match[1], 10) : 1;
 	}
 
-	function getPricePerSession(pkg) {
-		const sessionCountMatch = pkg.name.match(/(\d+)/);
-		const sessionCount = sessionCountMatch ? parseInt(sessionCountMatch[1]) : 1;
-
-		const pricePerSession = pkg.price_with_vat / sessionCount;
-
-		return pricePerSession;
+	function getPricePerSession(pkg: SignupPackage) {
+		const sessionCount = extractSessionCount(pkg.name);
+		return Number(pkg.price_with_vat ?? 0) / sessionCount;
 	}
 
 	function updateInstallmentOptions() {
 		if (!selectedTrainingPackage) return;
 
-		// Extract only the package name (remove price formatting)
 		const extractedName = selectedTrainingPackage.split(' - ')[0];
-
-		// Find the corresponding package object
-
-		const selectedPackage = trainingPackages.find(
-			(pkg) => pkg.name.trim() === extractedName.trim()
-		);
+		const selectedPackage = data.packages.find((pkg) => pkg.name.trim() === extractedName.trim());
 
 		if (!selectedPackage) return;
 
-		const sessionCount = selectedPackage.sessionCount;
-
-		let options = [{ value: 1, label: '1 st' }];
+		const sessionCount = extractSessionCount(selectedPackage.name);
+		const options: SelectOption<number>[] = [{ value: 1, label: '1 st' }];
 
 		if (sessionCount >= 12) options.push({ value: 3, label: '3 st' });
 		if (sessionCount >= 24) options.push({ value: 6, label: '6 st' });
@@ -256,8 +222,6 @@
 
 	function validateForm() {
 		let isValid = true;
-
-		// Reset errors
 		errors = {};
 
 		if (!firstname) {
@@ -272,8 +236,8 @@
 			errors.email = 'Ogiltig e-postadress';
 			isValid = false;
 		}
-		if (!personnummer || !/^\d{6}-\d{4}$/.test(personnummer)) {
-			errors.personnummer = 'Ogiltigt personnummer (format: ÅÅMMDD-XXXX)';
+		if (!person_number || !/^\d{6}-\d{4}$/.test(person_number)) {
+			errors.person_number = 'Ogiltigt personnummer (format: ÅÅMMDD-XXXX)';
 			isValid = false;
 		}
 		if (!phone) {
@@ -301,7 +265,6 @@
 			isValid = false;
 		}
 
-		// Skip checking these if `existingPackage` is true
 		if (!existingPackage) {
 			if (!selectedTrainingPackage) {
 				errors['training-package'] = 'Välj ett träningspaket';
@@ -313,35 +276,44 @@
 			}
 		}
 
-		if (existingPackage) {
-			if (!existingPackageOwner) {
-				errors['existing-package-owner'] = 'Fyll i ägaren av det befintliga paketet';
+		if (existingPackage && !existingPackageOwner) {
+			errors.existingPackageOwner = 'Fyll i ägaren av det befintliga paketet';
+			isValid = false;
+		}
+
+		if (isOtherPaymentAddress && !existingPackage) {
+			if (!payerName) {
+				errors.payerName = 'Företagsnamn/Namn är obligatoriskt';
+				isValid = false;
+			}
+			if (!payerEmail || !/\S+@\S+\.\S+/.test(payerEmail)) {
+				errors.payerEmail = 'Ogiltig e-postadress';
+				isValid = false;
+			}
+			if (!payerPhone) {
+				errors.payerPhone = 'Ogiltigt telefonnummer';
+				isValid = false;
+			}
+			if (!payerOrganizationNumber || !/^\d{6}-\d{4}$/.test(payerOrganizationNumber)) {
+				errors.payerOrganizationNumber = 'Organisationsnummer/Personnummer är obligatoriskt';
+				isValid = false;
+			}
+			if (!payerInvoiceAddress) {
+				errors.payerInvoiceAddress = 'Fakturaadress är obligatorisk';
+				isValid = false;
+			}
+			if (!payerInvoiceZip || !/^\d{3} ?\d{2}$/.test(payerInvoiceZip)) {
+				errors.payerInvoiceZip = 'Ogiltigt postnummer';
+				isValid = false;
+			}
+			if (!payerInvoiceCity) {
+				errors.payerInvoiceCity = 'Ort är obligatorisk';
 				isValid = false;
 			}
 		}
 
-		// Skip payer details validation if `existingPackage` is true
-		if (isOtherPaymentAddress && !existingPackage) {
-			if (!payerName) (errors.payerName = 'Företagsnamn/Namn är obligatoriskt'), (isValid = false);
-			if (!payerEmail || !/\S+@\S+\.\S+/.test(payerEmail))
-				(errors.payerEmail = 'Ogiltig e-postadress'), (isValid = false);
-			if (!payerPhone) (errors.payerPhone = 'Ogiltigt telefonnummer'), (isValid = false);
-			if (!payerOrganizationNumber || !/^\d{6}-\d{4}$/.test(payerOrganizationNumber))
-				(errors.payerOrganizationNumber = 'Organisationsnummer/Personnummer är obligatoriskt'),
-					(isValid = false);
-			if (!payerInvoiceAddress)
-				(errors.payerInvoiceAddress = 'Fakturaadress är obligatorisk'), (isValid = false);
-			if (!payerInvoiceZip || !/^\d{3} ?\d{2}$/.test(payerInvoiceZip))
-				(errors.payerInvoiceZip = 'Ogiltigt postnummer'), (isValid = false);
-			if (!payerInvoiceCity) (errors.payerInvoiceCity = 'Ort är obligatorisk'), (isValid = false);
-		}
-
 		return isValid;
 	}
-	let isPopupOpen = false;
-	let popupHeader = '';
-	let popupContent = '';
-	let popupIcon = 'CircleInfo';
 
 	function openPopup(header: string, content: string) {
 		popupHeader = header;
@@ -355,11 +327,11 @@
 </script>
 
 {#if submissionComplete}
-	<div class="flex h-full flex-col items-center justify-center">
-		<h1 class="text-2xl font-semibold">Tack för din information!</h1>
-		<p class="mb-4 text-sm">Vi ser fram emot att träna med dig.</p>
+	<div class="flex h-full min-h-[calc(100dvh-3rem)] flex-col items-center justify-center">
+		<h1 class="text-center text-2xl font-semibold">Tack för din information!</h1>
+		<p class="mb-4 text-center text-sm">Vi ser fram emot att träna med dig.</p>
 		{#if autogiro}
-			<p class="mb-4">
+			<p class="mb-4 text-center">
 				<a
 					href="https://www.mvh.bgonline.se/mandate/9e127c16-516e-4e10-8df9-6db1bc6cad01"
 					class="text-orange-500 hover:text-orange-600"
@@ -368,7 +340,7 @@
 				</a>
 			</p>
 		{/if}
-		<div class="w-full max-w-md rounded-lg p-4 shadow-md">
+		<div class="w-full max-w-md rounded-sm p-4 shadow-md">
 			<h2 class="mb-2 text-lg font-semibold">Din kvittens</h2>
 			<p><strong>Namn:</strong> {firstname} {lastname}</p>
 			<p><strong>E-post:</strong> {email}</p>
@@ -393,12 +365,14 @@
 			{/if}
 		</div>
 
-		<button
-			class="mt-6 rounded-lg bg-orange-500 px-4 py-2 text-white shadow-md transition hover:bg-orange-600"
-			on:click={resetFormFields}
-		>
-			Registrera en annan tränande
-		</button>
+		<div class="mt-6 w-full max-w-md">
+			<Button
+				text="Registrera en annan tränande"
+				variant="primary"
+				full
+				on:click={resetFormFields}
+			/>
+		</div>
 	</div>
 {:else}
 	<form class="mx-auto max-w-md" on:submit|preventDefault={handleSubmit}>
@@ -407,7 +381,7 @@
 			<h2 class="pt-4 text-xl font-semibold">Personuppgifter</h2>
 		</div>
 
-		<div class="flex flex-row gap-2">
+		<div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
 			<Input
 				label="Förnamn"
 				name="firstname"
@@ -432,11 +406,11 @@
 			{errors}
 		/>
 
-		<div class="flex flex-row gap-2">
+		<div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
 			<Input
 				label="Personnummer"
-				name="personnummer"
-				bind:value={personnummer}
+				name="person_number"
+				bind:value={person_number}
 				placeholder="xxxxxx-xxxx (10 siffror)"
 				{errors}
 			/>
@@ -456,17 +430,17 @@
 			placeholder="Garvargatan 7"
 			{errors}
 		/>
-		<div class="flex space-x-2">
+		<div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
 			<Input label="Postnummer" name="zip" bind:value={zip} placeholder="112 21" {errors} />
 			<Input label="Ort" name="city" bind:value={city} placeholder="Stockholm" {errors} />
 		</div>
 
-		<h2 class="pb-2 pt-4 text-xl font-semibold">Träningspaket &amp; Betalningsalternativ</h2>
+		<h2 class="pt-4 pb-2 text-xl font-semibold">Träningspaket &amp; Betalningsalternativ</h2>
 		<div class="flex flex-row gap-4 py-4">
 			<Checkbox
 				id="existing-package"
 				label="Jag ska träna på ett befintligt paket"
-				name="payment-choice"
+				name="existing-package"
 				checked={existingPackage}
 				on:change={(e) => handleExistingPackageChange(e.detail.checked)}
 			/>
@@ -479,7 +453,7 @@
 			<div class="flex flex-row gap-4 py-4">
 				<Input
 					label="Det befintliga paketets ägare"
-					name="existing-package-owner"
+					name="existingPackageOwner"
 					bind:value={existingPackageOwner}
 					placeholder="Namn/företag"
 					{errors}
@@ -497,7 +471,7 @@
 					{#each data.packages as pkg}
 						<li>
 							{pkg.name} - {formatPrice(pkg.price_with_vat)}kr
-							<span class="text-gray-500">
+							<span class="text-gray-300">
 								= {formatPrice(getPricePerSession(pkg))}kr/träningstillfälle</span
 							>
 						</li>
@@ -509,7 +483,8 @@
 					id="training-package"
 					label="Träningspaket"
 					bind:selectedValue={selectedTrainingPackage}
-					options={data.packages.map((pkg) => `${pkg.name} - ${formatPrice(pkg.price_with_vat)}kr`)}
+					options={packageOptions}
+					variant="black"
 					on:change={handleTrainingPackageChange}
 					{errors}
 				/>
@@ -526,15 +501,19 @@
 				{#if paymentInstallmentOptions.length > 1}
 					<p class="pt-4">Välj antal delbetalningar</p>
 					<OptionButton
+						id="payment-installment"
 						options={paymentInstallmentOptions}
 						bind:selectedOption={selectedInstallment}
-						on:select={(event) =>
-							(selectedInstallment = paymentInstallmentOptions.find(
-								(opt) => opt.value === event.detail
-							))}
+						variant="black"
+						full
+						{errors}
+						on:select={(event) => {
+							const next = paymentInstallmentOptions.find((opt) => opt.value === event.detail);
+							if (next) selectedInstallment = next;
+						}}
 					/>
 				{/if}
-				<div class="flex flex-row justify-between">
+				<div class="flex flex-row justify-between gap-4">
 					<p class="pt-4">Välj betalningsalternativ</p>
 					<InfoButton
 						info="Vid val av autogiro ber vi dig klicka på länken efter du bekräftat din beställning och fylla i dina uppgifter. Om du inte har tid idag kommer vi skicka dig en påminnelse."
@@ -544,6 +523,8 @@
 				<OptionButton
 					options={autogiroOptions}
 					bind:selectedOption={selectedAutogiro}
+					variant="black"
+					full
 					on:select={(event) => {
 						autogiro = event.detail;
 					}}
@@ -552,7 +533,7 @@
 					<Checkbox
 						id="other-billing"
 						label="Annan faktureringsadress"
-						name="payment-choice"
+						name="other-billing"
 						checked={isOtherPaymentAddress}
 						on:change={(e) => handlePaymentChoiceChange(e.detail.checked)}
 					/>
@@ -578,7 +559,7 @@
 					placeholder="info@takkei.se"
 					{errors}
 				/>
-				<div class="flex flex-row gap-2">
+				<div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
 					<Input
 						label="Organisationsnummer"
 						name="payerOrganizationNumber"
@@ -602,7 +583,7 @@
 					placeholder="Garvargatan 7"
 					{errors}
 				/>
-				<div class="flex space-x-2">
+				<div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
 					<Input
 						label="Postnummer"
 						name="payerInvoiceZip"
@@ -629,7 +610,7 @@
 				label="Jag godkänner villkoren"
 				name="accept-terms"
 				checked={agreeToTerms}
-				on:change={(e) => handleTermsAcceptanceChange(e.detail.checked)}
+				on:change={(e) => (agreeToTerms = e.detail.checked)}
 				{errors}
 			/>
 			<Checkbox
@@ -637,31 +618,51 @@
 				label="Jag godkänner hanteringen av mina personuppgifter"
 				name="accept-handling-of-personal-data"
 				checked={agreeToPrivacy}
-				on:change={(e) => handlePersonalDataAcceptanceChange(e.detail.checked)}
+				on:change={(e) => (agreeToPrivacy = e.detail.checked)}
 				{errors}
 			/>
 
-			<div class="flex flex-row gap-4">
-				<Button onClick={() => openPopup('Villkor', agreeTermsContent)}>Läs villkoren</Button>
-				<Button onClick={() => openPopup('Hantering av personuppgifter', agreePrivayContent)}
-					>Läs hur vi hanterar dina personupptifter</Button
-				>
+			<div class="flex flex-col gap-4 sm:flex-row">
+				<Button
+					text="Läs villkoren"
+					variant="secondary"
+					class="h-auto min-h-[45px] py-2 whitespace-normal"
+					on:click={() => openPopup('Villkor', agreeTermsContent)}
+				/>
+				<Button
+					text="Läs hur vi hanterar dina personuppgifter"
+					variant="secondary"
+					class="h-auto min-h-[45px] py-2 text-sm whitespace-normal"
+					on:click={() => openPopup('Hantering av personuppgifter', agreePrivacyContent)}
+				/>
 			</div>
 		</div>
 
-		<button
+		{#if errors.general}
+			<p class="text-error mb-4 text-sm font-medium">{errors.general}</p>
+		{/if}
+
+		<Button
 			type="submit"
-			class="w-full rounded bg-orange-500 px-4 py-2 text-white hover:bg-orange-600 disabled:bg-orange-500/50"
-			disabled={$loadingStore.isLoading}>Bekräfta</button
-		>
+			text="Bekräfta"
+			variant="primary"
+			full
+			disabled={$loadingStore.isLoading}
+		/>
 	</form>
 {/if}
 
 {#if isPopupOpen}
-	<PopupWrapper width="600px" icon={popupIcon} header={popupHeader} on:close={closePopup}>
+	<PopupWrapper
+		width="600px"
+		maxWidth="90vw"
+		maxHeight={undefined}
+		icon="CircleInfo"
+		header={popupHeader}
+		draggable={false}
+		minimizable={false}
+		on:close={closePopup}
+	>
 		{@html popupContent}
 	</PopupWrapper>
 {/if}
-
-<style>
-</style>
