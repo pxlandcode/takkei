@@ -48,7 +48,6 @@ type SignupArticle = {
 
 const { pool } = db;
 const { queryWithClient } = db as DbWithClientQuery;
-const SIGNUP_NOTIFICATION_USER_IDS = [2, 19];
 
 function text(value: unknown) {
 	return typeof value === 'string' ? value.trim() : '';
@@ -231,49 +230,6 @@ function buildInstallments(totalPrice: number, installmentsCount: number, invoic
 	});
 }
 
-async function createSignupNotificationEvent({
-	client,
-	clientId,
-	customerId,
-	packageId,
-	payload
-}: {
-	client: PoolClient;
-	clientId: number;
-	customerId: number | null;
-	packageId: number | null;
-	payload: SignupPayload;
-}) {
-	const clientName = `${payload.firstname} ${payload.lastname}`.trim();
-	const now = new Date().toISOString();
-	const description = `En ny klient har skapats via formuläret.\nKlient: ${clientName}\nKlientens email: ${payload.email}\nKlient ID: ${clientId}\n${
-		payload.existingPackage
-			? `Klienten ska träna på befintligt paket som ägs av ${payload.existingPackageOwner}`
-			: `Kund ID: ${customerId}\nPaket ID: ${packageId}`
-	}`;
-
-	await txQuery(
-		client,
-		`
-		INSERT INTO events
-			(name, user_ids, start_time, end_time, notify_at, description, active, done,
-			 repeat_yearly, repeat_monthly, repeat_weekly, repeat_of_id, shared_event_ids, personal,
-			 created_at, updated_at)
-		VALUES
-			($1, $2, $3, $4, $5, $6, true, false, false, false, false, null, $7, false, NOW(), NOW())
-		`,
-		[
-			`Ny klient med ID ${clientId} registrerad via formuläret`,
-			pgIntArray(SIGNUP_NOTIFICATION_USER_IDS),
-			now,
-			now,
-			'start_time',
-			description,
-			pgIntArray([])
-		]
-	);
-}
-
 export const POST: RequestHandler = async ({ request }) => {
 	let body: Record<string, unknown>;
 	try {
@@ -295,18 +251,6 @@ export const POST: RequestHandler = async ({ request }) => {
 	try {
 		await client.query('BEGIN');
 		transactionStarted = true;
-
-		const existingClient = await txQuery<{ id: number }>(
-			client,
-			`SELECT id FROM clients WHERE LOWER(email) = LOWER($1) LIMIT 1`,
-			[payload.email]
-		);
-
-		if (existingClient.length > 0) {
-			await rollback(client);
-			transactionStarted = false;
-			return json({ success: false, errors: { email: 'E-post används redan' } }, { status: 400 });
-		}
 
 		const packageName = packageNameFromSelection(payload.selectedTrainingPackage);
 		let article: SignupArticle | null = null;
@@ -440,13 +384,24 @@ export const POST: RequestHandler = async ({ request }) => {
 			packageId = packageResult[0].id;
 		}
 
-		await createSignupNotificationEvent({
+		const caseResult = await txQuery<{ id: number }>(
 			client,
-			clientId,
-			customerId,
-			packageId,
-			payload
-		});
+			`
+			INSERT INTO signup_onboarding_cases (
+				submitted_payload,
+				provisional_client_id,
+				provisional_customer_id,
+				provisional_package_id,
+				resolved_client_id,
+				resolved_customer_id,
+				resolved_package_id
+			)
+			VALUES ($1::jsonb, $2, $3, $4, $2, $3, $4)
+			RETURNING id
+			`,
+			[JSON.stringify(payload), clientId, customerId, packageId]
+		);
+		const onboardingCaseId = caseResult[0].id;
 
 		await client.query('COMMIT');
 		transactionStarted = false;
@@ -457,6 +412,7 @@ export const POST: RequestHandler = async ({ request }) => {
 				clientId,
 				customerId,
 				packageId,
+				onboardingCaseId,
 				trainingPackage: payload.selectedTrainingPackage || null,
 				clientName: `${payload.firstname} ${payload.lastname}`.trim(),
 				email: payload.email

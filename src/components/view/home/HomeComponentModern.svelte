@@ -8,11 +8,17 @@
 	import HomeModernHeader from './modern/HomeModernHeader.svelte';
 	import HomeModernHolidayPayCard from './modern/HomeModernHolidayPayCard.svelte';
 	import HomeModernNotifications from './modern/HomeModernNotifications.svelte';
+	import HomeModernSignupBanner from './modern/HomeModernSignupBanner.svelte';
+	import { onMount } from 'svelte';
+	import { signupOnboardingStore } from '$lib/stores/signupOnboardingStore';
+
+	onMount(() => signupOnboardingStore.start($user));
 </script>
 
 <div class="custom-scrollbar h-full overflow-y-auto bg-[#f8f9fb]">
 	<div class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
 		<HomeModernHeader />
+		<HomeModernSignupBanner />
 
 		<div class="grid gap-3 lg:grid-cols-3">
 			<div class="min-w-0 space-y-3 lg:col-span-2">

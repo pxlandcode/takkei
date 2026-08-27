@@ -326,7 +326,7 @@
 		{#if pkg?.client && isAdmin}
 			<Button
 				text="Flytta till kund"
-				icon="ArrowRightLeft"
+				icon="ChevronLeft"
 				variant="secondary"
 				on:click={moveToCustomer}
 			/>

@@ -16,6 +16,7 @@
 	import { user } from '$lib/stores/userStore';
 	import { popupStore, openPopup, closePopup } from '$lib/stores/popupStore';
 	import { getCalendarUrl } from '$lib/helpers/calendarHelpers/calendarNavigation';
+	import { signupOnboardingStore } from '$lib/stores/signupOnboardingStore';
 
 	export let clientMode = false;
 
@@ -25,6 +26,7 @@
 		const currentUser = get(user);
 		if (currentUser) {
 			notificationStore.updateFromServer(currentUser.id);
+			signupOnboardingStore.start(currentUser);
 		}
 	});
 
@@ -53,7 +55,7 @@
 		});
 	}
 
-	$: clientNotifications = clientMode ? 0 : ($notificationStore.byType.client ?? 0);
+	$: clientNotifications = clientMode ? 0 : $signupOnboardingStore.pending;
 	$: alertNotifications = clientMode ? 0 : ($notificationStore.byType.alert ?? 0);
 	$: activePopup = $popupStore;
 

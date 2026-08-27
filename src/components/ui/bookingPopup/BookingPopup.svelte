@@ -569,6 +569,7 @@
 			const locationName = getLocationLabelFromId(bookingObject.locationId);
 
 			let bookedDates: BookedDateLine[] = [];
+			let createdBookingIds: number[] = [];
 			let success = false;
 
 			if (
@@ -585,6 +586,7 @@
 					'training'
 				);
 				success = result.success;
+				createdBookingIds = result.bookingIds ?? [];
 
 				if (success) {
 					if (repeatedBookings.length > 0) {
@@ -696,6 +698,7 @@
 				console.log('hello');
 				formErrors = {};
 				clearSelectedSlot();
+				dispatch('created', { bookingIds: createdBookingIds });
 				onClose();
 			}
 		} finally {

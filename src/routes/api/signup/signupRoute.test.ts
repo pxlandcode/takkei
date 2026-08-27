@@ -66,15 +66,14 @@ describe('/api/signup', () => {
 		mockClient.query.mockResolvedValue({ rows: [] });
 	});
 
-	it('creates customer, client, relationship, package, and notification event', async () => {
+	it('creates customer, client, relationship, package, and onboarding case', async () => {
 		mockedQueryWithClient
-			.mockResolvedValueOnce([])
 			.mockResolvedValueOnce([articleRow()])
 			.mockResolvedValueOnce([{ id: 100 }])
 			.mockResolvedValueOnce([{ id: 200 }])
 			.mockResolvedValueOnce([])
 			.mockResolvedValueOnce([{ id: 300 }])
-			.mockResolvedValueOnce([]);
+			.mockResolvedValueOnce([{ id: 400 }]);
 
 		const response = await POST({ request: jsonRequest(basePayload()) } as any);
 		const body = await response.json();
@@ -85,6 +84,7 @@ describe('/api/signup', () => {
 			clientId: 200,
 			customerId: 100,
 			packageId: 300,
+			onboardingCaseId: 400,
 			clientName: 'Anna Andersson',
 			email: 'anna@example.com'
 		});
@@ -92,7 +92,7 @@ describe('/api/signup', () => {
 		expect(mockClient.query).toHaveBeenLastCalledWith('COMMIT');
 		expect(mockClient.query).not.toHaveBeenCalledWith('ROLLBACK');
 
-		const customerParams = mockedQueryWithClient.mock.calls[2][2];
+		const customerParams = mockedQueryWithClient.mock.calls[1][2];
 		expect(customerParams).toEqual([
 			'Anna Andersson',
 			'Garvargatan 7',
@@ -103,10 +103,10 @@ describe('/api/signup', () => {
 			'0701234567'
 		]);
 
-		const relationshipSql = mockedQueryWithClient.mock.calls[4][1];
+		const relationshipSql = mockedQueryWithClient.mock.calls[3][1];
 		expect(relationshipSql).toContain("'Training'");
 
-		const packageParams = mockedQueryWithClient.mock.calls[5][2];
+		const packageParams = mockedQueryWithClient.mock.calls[4][2];
 		expect(packageParams[0]).toBe(100);
 		expect(packageParams[1]).toBe(10);
 		expect(packageParams[2]).toBe(200);
@@ -115,18 +115,17 @@ describe('/api/signup', () => {
 		expect(packageParams[8]).toBe('{100}');
 		expect(String(packageParams[7])).toContain(":invoice_no: '100'");
 
-		const eventParams = mockedQueryWithClient.mock.calls[6][2];
-		expect(eventParams[0]).toBe('Ny klient med ID 200 registrerad via formuläret');
-		expect(eventParams[1]).toBe('{2,19}');
-		expect(eventParams[5]).toContain('Kund ID: 100');
-		expect(eventParams[5]).toContain('Paket ID: 300');
+		const caseSql = mockedQueryWithClient.mock.calls[5][1];
+		const caseParams = mockedQueryWithClient.mock.calls[5][2];
+		expect(caseSql).toContain('INSERT INTO signup_onboarding_cases');
+		expect(JSON.parse(caseParams[0])).toMatchObject({ email: 'anna@example.com', autogiro: true });
+		expect(caseParams.slice(1)).toEqual([200, 100, 300]);
 	});
 
-	it('creates only a client and notification event for existing-package signups', async () => {
+	it('creates a client and onboarding case for existing-package signups', async () => {
 		mockedQueryWithClient
-			.mockResolvedValueOnce([])
 			.mockResolvedValueOnce([{ id: 201 }])
-			.mockResolvedValueOnce([]);
+			.mockResolvedValueOnce([{ id: 401 }]);
 
 		const response = await POST({
 			request: jsonRequest(
@@ -142,16 +141,23 @@ describe('/api/signup', () => {
 		const body = await response.json();
 
 		expect(response.status).toBe(201);
-		expect(body).toMatchObject({ clientId: 201, customerId: null, packageId: null });
-		expect(mockedQueryWithClient).toHaveBeenCalledTimes(3);
+		expect(body).toMatchObject({
+			clientId: 201,
+			customerId: null,
+			packageId: null,
+			onboardingCaseId: 401
+		});
+		expect(mockedQueryWithClient).toHaveBeenCalledTimes(2);
 
-		const clientParams = mockedQueryWithClient.mock.calls[1][2];
+		const clientParams = mockedQueryWithClient.mock.calls[0][2];
 		expect(clientParams[0]).toBeNull();
 
-		const eventParams = mockedQueryWithClient.mock.calls[2][2];
-		expect(eventParams[5]).toContain(
-			'Klienten ska träna på befintligt paket som ägs av Takkei Trainingsystems AB'
-		);
+		const caseParams = mockedQueryWithClient.mock.calls[1][2];
+		expect(JSON.parse(caseParams[0])).toMatchObject({
+			existingPackage: true,
+			existingPackageOwner: 'Takkei Trainingsystems AB'
+		});
+		expect(caseParams.slice(1)).toEqual([201, null, null]);
 		expect(mockClient.query).toHaveBeenLastCalledWith('COMMIT');
 	});
 
@@ -184,21 +190,27 @@ describe('/api/signup', () => {
 		expect(mockedPool.connect).not.toHaveBeenCalled();
 	});
 
-	it('rejects duplicate client emails and rolls back', async () => {
-		mockedQueryWithClient.mockResolvedValueOnce([{ id: 1 }]);
+	it('allows duplicate client emails so administrators can merge them', async () => {
+		mockedQueryWithClient
+			.mockResolvedValueOnce([articleRow()])
+			.mockResolvedValueOnce([{ id: 100 }])
+			.mockResolvedValueOnce([{ id: 200 }])
+			.mockResolvedValueOnce([])
+			.mockResolvedValueOnce([{ id: 300 }])
+			.mockResolvedValueOnce([{ id: 400 }]);
 
 		const response = await POST({ request: jsonRequest(basePayload()) } as any);
-		const body = await response.json();
 
-		expect(response.status).toBe(400);
-		expect(body.errors.email).toBe('E-post används redan');
+		expect(response.status).toBe(201);
+		expect(
+			mockedQueryWithClient.mock.calls.some(([sql]) => String(sql).includes('LOWER(email)'))
+		).toBe(false);
 		expect(mockClient.query).toHaveBeenCalledWith('BEGIN');
-		expect(mockClient.query).toHaveBeenCalledWith('ROLLBACK');
-		expect(mockClient.query).not.toHaveBeenCalledWith('COMMIT');
+		expect(mockClient.query).toHaveBeenCalledWith('COMMIT');
 	});
 
 	it('rejects unknown packages and rolls back', async () => {
-		mockedQueryWithClient.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+		mockedQueryWithClient.mockResolvedValueOnce([]);
 
 		const response = await POST({ request: jsonRequest(basePayload()) } as any);
 		const body = await response.json();
@@ -211,12 +223,12 @@ describe('/api/signup', () => {
 
 	it('rolls back when a later insert fails', async () => {
 		mockedQueryWithClient
-			.mockResolvedValueOnce([])
 			.mockResolvedValueOnce([articleRow()])
 			.mockResolvedValueOnce([{ id: 100 }])
 			.mockResolvedValueOnce([{ id: 200 }])
 			.mockResolvedValueOnce([])
-			.mockRejectedValueOnce(new Error('package insert failed'));
+			.mockResolvedValueOnce([{ id: 300 }])
+			.mockRejectedValueOnce(new Error('onboarding insert failed'));
 
 		const response = await POST({ request: jsonRequest(basePayload()) } as any);
 		const body = await response.json();

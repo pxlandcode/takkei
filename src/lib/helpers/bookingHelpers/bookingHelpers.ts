@@ -301,8 +301,9 @@ export async function handleTrainingBooking(
 	currentUser: any,
 	repeatedBookings: any[],
 	type: 'training'
-): Promise<{ success: boolean; bookedDates?: string[] }> {
+): Promise<{ success: boolean; bookedDates?: string[]; bookingIds?: number[] }> {
 	let bookedDates: string[] = [];
+	let bookingIds: number[] = [];
 
 	if (repeatedBookings.length > 0) {
 		let successCount = 0;
@@ -318,6 +319,7 @@ export async function handleTrainingBooking(
 			if (result.success) {
 				successCount++;
 				bookedDates.push(`${repeated.date} kl ${repeated.selectedTime}`);
+				if (Number.isInteger(Number(result.bookingId))) bookingIds.push(Number(result.bookingId));
 			} else {
 				const errorDetails = result.error ?? result.message;
 				addToast({
@@ -337,7 +339,7 @@ export async function handleTrainingBooking(
 				description: `${successCount} av ${repeatedBookings.length} lyckades.`
 			});
 
-			return { success: true, bookedDates };
+			return { success: true, bookedDates, bookingIds };
 		}
 		return { success: false };
 	} else {
@@ -350,7 +352,11 @@ export async function handleTrainingBooking(
 				description: `Bokningen skapades klockan ${bookingObject.time} den ${bookingObject.date}.`
 			});
 
-			return { success: true, bookedDates: [`${bookingObject.date} kl ${bookingObject.time}`] };
+			return {
+				success: true,
+				bookedDates: [`${bookingObject.date} kl ${bookingObject.time}`],
+				bookingIds: Number.isInteger(Number(result.bookingId)) ? [Number(result.bookingId)] : []
+			};
 		} else {
 			const errorDetails = result.error ?? result.message;
 			addToast({
