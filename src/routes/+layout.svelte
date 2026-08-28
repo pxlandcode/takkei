@@ -40,6 +40,7 @@
 		resolveCurrentAbsence,
 		type CurrentAbsence
 	} from '$lib/helpers/availability/currentAbsence';
+	import { isSignupHost } from '$lib/signupHosts';
 
 	export let data;
 	$user = data.user;
@@ -69,7 +70,9 @@
 	let absencePromptLoadToken = 0;
 
 	$: currentRoute = $page.url.pathname;
-	$: isPublicStandaloneRoute = currentRoute === '/login' || currentRoute === '/signup';
+	$: isSignupRootRoute = currentRoute === '/' && isSignupHost($page.url);
+	$: isPublicStandaloneRoute =
+		currentRoute === '/login' || currentRoute === '/signup' || isSignupRootRoute;
 	$: isStandaloneCalendarRoute =
 		currentRoute.startsWith('/calendar-sync/') || currentRoute.startsWith('/calendar-bookings/');
 
