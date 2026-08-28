@@ -54,6 +54,35 @@ CREATE TABLE IF NOT EXISTS signup_onboarding_actions (
 	created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- Signup onboarding data contains submitted personal data and administrator
+-- decisions. Keep it server-only; application authorization happens in SvelteKit
+-- before server-side pg queries.
+ALTER TABLE signup_onboarding_cases ENABLE ROW LEVEL SECURITY;
+ALTER TABLE signup_onboarding_actions ENABLE ROW LEVEL SECURITY;
+
+REVOKE ALL ON TABLE signup_onboarding_cases FROM PUBLIC;
+REVOKE ALL ON TABLE signup_onboarding_actions FROM PUBLIC;
+REVOKE ALL ON SEQUENCE signup_onboarding_cases_id_seq FROM PUBLIC;
+REVOKE ALL ON SEQUENCE signup_onboarding_actions_id_seq FROM PUBLIC;
+
+DO $$
+BEGIN
+	IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
+		REVOKE ALL ON TABLE signup_onboarding_cases FROM anon;
+		REVOKE ALL ON TABLE signup_onboarding_actions FROM anon;
+		REVOKE ALL ON SEQUENCE signup_onboarding_cases_id_seq FROM anon;
+		REVOKE ALL ON SEQUENCE signup_onboarding_actions_id_seq FROM anon;
+	END IF;
+
+	IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
+		REVOKE ALL ON TABLE signup_onboarding_cases FROM authenticated;
+		REVOKE ALL ON TABLE signup_onboarding_actions FROM authenticated;
+		REVOKE ALL ON SEQUENCE signup_onboarding_cases_id_seq FROM authenticated;
+		REVOKE ALL ON SEQUENCE signup_onboarding_actions_id_seq FROM authenticated;
+	END IF;
+END;
+$$;
+
 CREATE INDEX IF NOT EXISTS idx_signup_onboarding_cases_status_created
 	ON signup_onboarding_cases (status, created_at DESC);
 
