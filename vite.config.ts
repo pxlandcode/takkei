@@ -4,6 +4,9 @@ import { sveltekit } from '@sveltejs/kit/vite';
 
 export default defineConfig({
 	cacheDir: process.env.VITE_CACHE_DIR ?? '.vite-cache',
+	server: {
+		allowedHosts: ['signup.takkei.se']
+	},
 
 	plugins: [
 		sveltekit(),

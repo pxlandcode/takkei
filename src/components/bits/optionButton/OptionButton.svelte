@@ -3,7 +3,7 @@
 	import { ripple } from '$lib/actions/ripple';
 	import Icon from '../icon-component/Icon.svelte';
 
-	export let options: { value: any; label: string; icon?: string }[] = [];
+	export let options: { value: any; label: string; icon?: string; notificationCount?: number }[] = [];
 	export let selectedOption: { value: any; label: string; icon?: string | null } | null = null;
 	export let variant: 'black' | 'gray' = 'gray';
 	export let size: 'small' | 'medium' = 'medium';
@@ -25,13 +25,18 @@
 	$: resolvedErrorKey = errorKey ?? id ?? undefined;
 	$: labelId = id ? `${id}-label` : undefined;
 
-	function selectOption(option: { value: any; label: string; icon?: string | null }) {
+	function selectOption(option: {
+		value: any;
+		label: string;
+		icon?: string | null;
+		notificationCount?: number;
+	}) {
 		selectedOption = option;
 		dispatch('select', option.value);
 	}
 
 	$: buttonClasses = `
-		flex-1 flex flex-row gap-1 text-center font-semibold transition-colors transition-transform duration-150 hover:text-white items-center justify-center cursor-pointer active:translate-y-0.5
+		relative w-full flex flex-row gap-1 text-center font-semibold transition-colors transition-transform duration-150 hover:text-white items-center justify-center cursor-pointer active:translate-y-0.5
 		${size === 'small' ? 'h-8 text-xs' : 'h-[46px] text-sm'} 
 		${variant === 'black' ? 'text-black hover:bg-black ' : '  '}
          ${variant === 'gray' ? 'text-gray hover:bg-gray' : ''}
@@ -69,22 +74,31 @@
 			aria-labelledby={label ? labelId : undefined}
 		>
 			{#each options as option, index}
-				<button
-					type="button"
-					aria-pressed={selectedOption?.value === option.value}
-					class={`${buttonClasses} ${selectedOption?.value === option.value ? selectedClasses : ''} 
+				<div class="relative min-w-0 flex-1 overflow-visible">
+					<button
+						type="button"
+						aria-pressed={selectedOption?.value === option.value}
+						class={`${buttonClasses} ${selectedOption?.value === option.value ? selectedClasses : ''}
 					${index === 0 ? 'rounded-l' : ''} 
 					${index === options.length - 1 ? 'rounded-r' : ''}`}
-					use:ripple
-					on:click={() => selectOption(option)}
-				>
-					<span class="relative z-10 flex flex-row items-center justify-center gap-1">
-						{#if selectedOption?.value === option.value || option.icon}
-							<Icon icon={option.icon ? option.icon : 'Check'} size="16px" />
-						{/if}
-						{option.label}
-					</span>
-				</button>
+						use:ripple
+						on:click={() => selectOption(option)}
+					>
+						<span class="relative z-10 flex flex-row items-center justify-center gap-1">
+							{#if selectedOption?.value === option.value || option.icon}
+								<Icon icon={option.icon ? option.icon : 'Check'} size="16px" />
+							{/if}
+							{option.label}
+						</span>
+					</button>
+					{#if (option.notificationCount ?? 0) > 0}
+						<span
+							class="bg-notification pointer-events-none absolute -top-2 -right-2 z-20 flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-xs font-semibold text-white shadow-xs"
+						>
+							{option.notificationCount}
+						</span>
+					{/if}
+				</div>
 			{/each}
 		</div>
 	</div>

@@ -5,10 +5,21 @@
 	import { createEventDispatcher, onMount } from 'svelte';
 	import Icon from '../icon-component/Icon.svelte';
 
+	type IconDef = { icon: string; size?: string };
+	type DropdownOption = {
+		label: string;
+		value: any;
+		unavailable?: boolean;
+		icon?: string;
+		iconSize?: string;
+		icons?: (string | IconDef | null | undefined)[];
+	};
+	type DropdownOptionInput = string | DropdownOption;
+
 	export let id: string;
 	export let label: string;
 	export let placeholder: string = 'Välj ett alternativ';
-	export let options: (string | { label: string; value: any })[] = [];
+	export let options: DropdownOptionInput[] = [];
 	export let disabled: boolean = false;
 	export let variant: 'black' | 'gray' = 'gray';
 	export let selectedValue: any = '';
@@ -43,9 +54,7 @@
 	};
 
 	// Helper function to check if options are objects
-	function isObjectOption(
-		option: any
-	): option is { label: string; value: any; unavailable?: boolean } {
+	function isObjectOption(option: any): option is DropdownOption {
 		return typeof option === 'object' && option !== null && 'label' in option && 'value' in option;
 	}
 
@@ -63,8 +72,6 @@
 	);
 	$: iconsForSelected = selectedIcons ?? getIcons(selectedOption);
 
-	type IconDef = { icon: string; size?: string };
-
 	function getIcons(option: any): IconDef[] {
 		if (!isObjectOption(option)) return [];
 
@@ -72,16 +79,16 @@
 
 		// Normalise icons array entries into objects with icon + size
 		if (Array.isArray(option.icons)) {
-			return option.icons
-				.map((entry) => {
-					if (!entry) return null;
-					if (typeof entry === 'string') return { icon: entry, size: iconSize };
-					if (typeof entry === 'object' && 'icon' in entry) {
-						return { icon: entry.icon, size: entry.size ?? iconSize };
-					}
-					return null;
-				})
-				.filter((item): item is IconDef => Boolean(item));
+			const icons: IconDef[] = [];
+			for (const entry of option.icons) {
+				if (!entry) continue;
+				if (typeof entry === 'string') {
+					icons.push({ icon: entry, size: iconSize });
+				} else {
+					icons.push({ icon: entry.icon, size: entry.size ?? iconSize });
+				}
+			}
+			return icons;
 		}
 
 		if (option.icon) return [{ icon: option.icon, size: iconSize }];
@@ -90,7 +97,7 @@
 	}
 
 	// Select an option and close dropdown
-	function selectOption(option: string | { label: string; value: any }) {
+	function selectOption(option: DropdownOptionInput) {
 		selectedValue = isObjectOption(option) ? option.value : option;
 		showDropdown = false;
 		activeIndex = -1;
@@ -126,6 +133,7 @@
 		maxNumberOfSuggestions = initialMaxNumberOfSuggestions ?? 50;
 		searchQuery = '';
 		showDropdown = !showDropdown;
+		if (showDropdown && search) dispatch('search', { query: searchQuery });
 		activeIndex = -1;
 	}
 
@@ -137,6 +145,10 @@
 	// Handle keyboard navigation
 	function handleKeydown(event: KeyboardEvent) {
 		if (!showDropdown) return;
+		if (filteredOptions.length === 0 && ['ArrowDown', 'ArrowUp', 'Enter'].includes(event.key)) {
+			event.preventDefault();
+			return;
+		}
 
 		if (event.key === 'ArrowDown') {
 			event.preventDefault();
@@ -154,8 +166,8 @@
 	// Filter options based on search query
 	$: filteredOptions = options
 		.filter((option) => {
-			const label = isObjectOption(option) ? option.label.toLowerCase() : option.toLowerCase();
-			return label.includes(searchQuery.toLowerCase());
+			const label = isObjectOption(option) ? option.label : String(option);
+			return label.toLowerCase().includes(searchQuery.toLowerCase());
 		})
 		.slice(0, maxNumberOfSuggestions);
 
@@ -169,6 +181,11 @@
 		if (distanceFromBottom <= 5 && maxNumberOfSuggestions < totalAvailableSuggestions) {
 			maxNumberOfSuggestions += 20;
 		}
+	}
+
+	function handleSearchInput(event: Event) {
+		searchQuery = (event.currentTarget as HTMLInputElement).value;
+		dispatch('search', { query: searchQuery });
 	}
 
 	onMount(() => {
@@ -238,7 +255,7 @@
 	{/if}
 
 	<!-- Dropdown List -->
-	{#if showDropdown && options.length > 0}
+	{#if showDropdown && (options.length > 0 || search)}
 		<ul
 			bind:this={suggestionsListElement}
 			class={`border-gray-bright absolute z-50 max-h-60 w-full overflow-auto rounded-sm border bg-white shadow-md
@@ -255,10 +272,15 @@
 						type="text"
 						class="focus:outline-blue w-full rounded-sm border p-2"
 						placeholder="Sök..."
-						bind:value={searchQuery}
+						value={searchQuery}
+						on:input={handleSearchInput}
 						on:keydown={handleKeydown}
 					/>
 				</li>
+			{/if}
+
+			{#if filteredOptions.length === 0}
+				<li class="px-3 py-2 text-sm text-gray-500">Inga alternativ</li>
 			{/if}
 
 			{#each filteredOptions as option, i}
@@ -274,7 +296,7 @@
 						class={`relative w-full px-3 py-2 text-left hover:text-white focus:text-white focus:outline-white
 				${variant === 'black' ? 'hover:bg-black focus:bg-black' : 'hover:bg-gray focus:bg-gray'}`}
 						use:ripple
-						aria-label={isObjectOption(option) ? option.label : option}
+						aria-label={isObjectOption(option) ? option.label : String(option)}
 					>
 						<div class="relative z-10 flex items-center justify-between gap-2">
 							<span>{isObjectOption(option) ? option.label : option}</span>

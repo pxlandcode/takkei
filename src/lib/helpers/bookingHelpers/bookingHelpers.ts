@@ -9,12 +9,21 @@ import { getUserEmails } from '$lib/stores/usersStore';
 import { addToast } from '$lib/stores/toastStore';
 import { AppToastType } from '$lib/types/toastTypes';
 
-export type BookedDateLine = { date: string; time: string; locationName?: string };
+export type BookedDateLine = {
+	date: string;
+	time: string;
+	endTime?: string | null;
+	locationName?: string;
+};
 export type BookingEmailRecipientTarget = 'both' | 'client';
 export type ClientCalendarEmailLinks = {
 	syncPageUrl: string;
 	bookingsPageUrl: string;
 };
+
+export const MEETING_CONFIRMATION_EMAIL_SUBJECT = 'Mötesbekräftelse';
+export const MEETING_CONFIRMATION_EMAIL_HEADER = 'Möte inbokat';
+export const MEETING_CONFIRMATION_EMAIL_SUBHEADER = 'Detaljer för mötet';
 
 export const BOOKING_EMAIL_RECIPIENT_OPTIONS: {
 	value: BookingEmailRecipientTarget;
@@ -50,6 +59,43 @@ function escapeHtmlAttribute(raw: string): string {
 		.replace(/"/g, '&quot;')
 		.replace(/</g, '&lt;')
 		.replace(/>/g, '&gt;');
+}
+
+function escapeHtml(raw: string): string {
+	return raw
+		.replace(/&/g, '&amp;')
+		.replace(/</g, '&lt;')
+		.replace(/>/g, '&gt;')
+		.replace(/"/g, '&quot;')
+		.replace(/'/g, '&#39;');
+}
+
+function escapeHtmlWithLineBreaks(raw: string): string {
+	return escapeHtml(raw).replace(/\r\n|\n|\r/g, '<br>');
+}
+
+function getUserDisplayName(user: {
+	firstname?: string | null;
+	lastname?: string | null;
+	email?: string | null;
+}): string {
+	const name = [user.firstname, user.lastname]
+		.map((part) => part?.trim())
+		.filter((part): part is string => Boolean(part))
+		.join(' ');
+	return name || user.email?.trim() || 'Takkei';
+}
+
+function toFiniteNumber(value: unknown): number | null {
+	const parsed = Number(value);
+	return Number.isFinite(parsed) ? parsed : null;
+}
+
+function formatMeetingBookedDateLine(booking: BookedDateLine): string {
+	const date = escapeHtml(booking.date);
+	const startTime = escapeHtml(booking.time);
+	const endTime = booking.endTime ? escapeHtml(booking.endTime) : null;
+	return endTime ? `${date} kl. ${startTime} - ${endTime}` : `${date} kl. ${startTime}`;
 }
 
 export function buildBookingConfirmationEmailBody({
@@ -92,6 +138,40 @@ export function buildBookingConfirmationEmailBody({
         Du kan boka av eller om din träningstid senast klockan 12.00 dagen innan träning genom att kontakta någon i ditt tränarteam via sms, e‑post eller telefon.${calendarLinks}<br><br>
         Hälsningar,<br>
         ${fromUser.firstname}<br>
+        Takkei Trainingsystems
+      `;
+}
+
+export function buildMeetingConfirmationEmailBody({
+	name,
+	text,
+	bookedDates,
+	fromUser
+}: {
+	name?: string | null;
+	text?: string | null;
+	bookedDates: BookedDateLine[];
+	fromUser: { firstname?: string | null; lastname?: string | null; email?: string | null };
+}): string {
+	const meetingName = name?.trim() ? escapeHtml(name.trim()) : 'Möte';
+	const description = text?.trim()
+		? escapeHtmlWithLineBreaks(text.trim())
+		: 'Ingen beskrivning angiven.';
+	const bookedByName = escapeHtml(getUserDisplayName(fromUser));
+	const greetingName = escapeHtml(fromUser.firstname?.trim() || getUserDisplayName(fromUser));
+	const dateLines = bookedDates.map(formatMeetingBookedDateLine).join('<br>');
+
+	return `
+        Hej!<br><br>
+        Du har bokats in på ett möte med följande detaljer:<br><br>
+        <strong>Namn:</strong> ${meetingName}<br>
+        <strong>Beskrivning:</strong><br>
+        ${description}<br>
+        <strong>Datum och tid:</strong><br>
+        ${dateLines}<br><br>
+        <strong>Bokad av:</strong> ${bookedByName}<br><br>
+        Hälsningar,<br>
+        ${greetingName}<br>
         Takkei Trainingsystems
       `;
 }
@@ -194,13 +274,36 @@ export function resolveBookingConfirmationRecipients({
 	return getUniqueRecipients(clientRecipients);
 }
 
+export function resolveMeetingConfirmationRecipients({
+	attendeeIds = [],
+	bookedById = null,
+	bookedByEmail = null
+}: {
+	attendeeIds?: Array<number | string | null | undefined> | null;
+	bookedById?: number | string | null;
+	bookedByEmail?: string | null;
+}): string[] {
+	const userIds = new Set<number>();
+
+	for (const attendeeId of attendeeIds ?? []) {
+		const parsed = toFiniteNumber(attendeeId);
+		if (parsed !== null) userIds.add(parsed);
+	}
+
+	const parsedBookedById = toFiniteNumber(bookedById);
+	if (parsedBookedById !== null) userIds.add(parsedBookedById);
+
+	return getUniqueRecipients([...getUserEmails(Array.from(userIds)), bookedByEmail ?? '']);
+}
+
 export async function handleTrainingBooking(
-	bookingObject,
-	currentUser,
-	repeatedBookings,
+	bookingObject: any,
+	currentUser: any,
+	repeatedBookings: any[],
 	type: 'training'
-): Promise<{ success: boolean; bookedDates?: string[] }> {
+): Promise<{ success: boolean; bookedDates?: string[]; bookingIds?: number[] }> {
 	let bookedDates: string[] = [];
+	let bookingIds: number[] = [];
 
 	if (repeatedBookings.length > 0) {
 		let successCount = 0;
@@ -216,6 +319,7 @@ export async function handleTrainingBooking(
 			if (result.success) {
 				successCount++;
 				bookedDates.push(`${repeated.date} kl ${repeated.selectedTime}`);
+				if (Number.isInteger(Number(result.bookingId))) bookingIds.push(Number(result.bookingId));
 			} else {
 				const errorDetails = result.error ?? result.message;
 				addToast({
@@ -235,7 +339,7 @@ export async function handleTrainingBooking(
 				description: `${successCount} av ${repeatedBookings.length} lyckades.`
 			});
 
-			return { success: true, bookedDates };
+			return { success: true, bookedDates, bookingIds };
 		}
 		return { success: false };
 	} else {
@@ -248,7 +352,11 @@ export async function handleTrainingBooking(
 				description: `Bokningen skapades klockan ${bookingObject.time} den ${bookingObject.date}.`
 			});
 
-			return { success: true, bookedDates: [`${bookingObject.date} kl ${bookingObject.time}`] };
+			return {
+				success: true,
+				bookedDates: [`${bookingObject.date} kl ${bookingObject.time}`],
+				bookingIds: Number.isInteger(Number(result.bookingId)) ? [Number(result.bookingId)] : []
+			};
 		} else {
 			const errorDetails = result.error ?? result.message;
 			addToast({
@@ -324,7 +432,7 @@ export async function handleMeetingOrPersonalBooking(
 
 			if (result.success) {
 				successCount++;
-				bookedDates.push({ date: repeated.date, time: chosenTime });
+				bookedDates.push({ date: repeated.date, time: chosenTime, endTime: chosenEndTime });
 			} else {
 				const errorDetails = result.error ?? result.message;
 				addToast({
@@ -365,7 +473,9 @@ export async function handleMeetingOrPersonalBooking(
 		});
 
 		// No location for meeting/personal
-		const bookedDates: BookedDateLine[] = [{ date: bookingObject.date, time: bookingObject.time }];
+		const bookedDates: BookedDateLine[] = [
+			{ date: bookingObject.date, time: bookingObject.time, endTime: bookingObject.endTime }
+		];
 		return { success: true, bookedDates };
 	} else {
 		const errorDetails = result.error ?? result.message;
@@ -499,6 +609,69 @@ export async function handleBookingEmail({
 				error instanceof Error
 					? error.message
 					: `Kunde inte skicka bekräftelsemail till ${recipientLabel}.`;
+			addToast({
+				type: AppToastType.CANCEL,
+				message: 'Fel vid utskick',
+				description: errorMessage
+			});
+			return 'skipped';
+		}
+	}
+
+	if (emailBehavior === 'edit') return 'edit';
+	return 'skipped';
+}
+
+export async function handleMeetingBookingEmail({
+	emailBehavior,
+	recipientEmails,
+	fromUser,
+	bookedDates,
+	name,
+	text
+}: {
+	emailBehavior: 'send' | 'edit' | 'none';
+	recipientEmails: string[];
+	fromUser: { firstname: string; lastname: string; email: string };
+	bookedDates: BookedDateLine[];
+	name?: string | null;
+	text?: string | null;
+}): Promise<'sent' | 'edit' | 'skipped'> {
+	const recipients = getUniqueRecipients(recipientEmails);
+	if (recipients.length === 0 || emailBehavior === 'none') return 'skipped';
+	const recipientLabel = recipients.join(', ');
+
+	if (emailBehavior === 'send') {
+		try {
+			await sendMail({
+				to: recipients,
+				subject: MEETING_CONFIRMATION_EMAIL_SUBJECT,
+				header: MEETING_CONFIRMATION_EMAIL_HEADER,
+				subheader: MEETING_CONFIRMATION_EMAIL_SUBHEADER,
+				body: buildMeetingConfirmationEmailBody({
+					name,
+					text,
+					bookedDates,
+					fromUser
+				}),
+				from: {
+					name: `${fromUser.firstname} ${fromUser.lastname}`,
+					email: fromUser.email
+				}
+			});
+
+			addToast({
+				type: AppToastType.SUCCESS,
+				message: 'Mötesbekräftelse skickad',
+				description: `Ett bekräftelsemail skickades till ${recipientLabel}.`
+			});
+			return 'sent';
+		} catch (error) {
+			console.error('Failed to send meeting confirmation email', error);
+			const errorMessage =
+				error instanceof Error
+					? error.message
+					: `Kunde inte skicka mötesbekräftelse till ${recipientLabel}.`;
 			addToast({
 				type: AppToastType.CANCEL,
 				message: 'Fel vid utskick',

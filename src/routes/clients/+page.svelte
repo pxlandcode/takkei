@@ -19,6 +19,9 @@
 	import { openPopup } from '$lib/stores/popupStore';
 	import { headerState } from '$lib/stores/headerState.svelte';
 	import { getCachedJson, invalidateByPrefix, wrapFetch } from '$lib/services/api/apiCache';
+	import { page as pageStore } from '$app/stores';
+	import { isAdministrator, signupOnboardingStore } from '$lib/stores/signupOnboardingStore';
+	import SignupOnboardingQueue from '../../components/ui/signupOnboarding/SignupOnboardingQueue.svelte';
 
 	// Headers (sortable like customers: name + trainer)
 	const headers = [
@@ -29,10 +32,54 @@
 	];
 
 	// Filters
-	let selectedStatusOption = { value: 'active', label: 'Visa aktiva' }; // active | inactive | all
-	let selectedOwnershipOption = { value: 'mine', label: 'Mina klienter' }; // mine | all
+	let selectedStatusOption: { value: 'active' | 'inactive' | 'all'; label: string } = {
+		value: 'active',
+		label: 'Visa aktiva'
+	};
+	let selectedOwnershipOption: {
+		value: 'mine' | 'all' | 'new';
+		label: string;
+		notificationCount?: number;
+	} = { value: 'mine', label: 'Mina klienter' };
 	let searchQuery = '';
-	const debouncedSearch = debounce(() => fetchPaginatedClients(true), 300);
+	const debouncedSearch = debounce(() => {
+		if (selectedOwnershipOption.value !== 'new') fetchPaginatedClients(true);
+	}, 300);
+	$: currentUser = $user;
+	$: canManageOnboarding = isAdministrator(currentUser);
+	$: ownershipOptions = [
+		{ value: 'mine' as const, label: 'Mina klienter' },
+		{ value: 'all' as const, label: 'Alla klienter' },
+		...(canManageOnboarding
+			? [
+					{
+						value: 'new' as const,
+						label: 'Nya klienter',
+						notificationCount: $signupOnboardingStore.pending
+					}
+				]
+			: [])
+	];
+	$: requestedOwnershipView = $pageStore.url.searchParams.get('view');
+	$: if (browser) {
+		const nextView =
+			requestedOwnershipView === 'new' && canManageOnboarding
+				? 'new'
+				: requestedOwnershipView === 'all'
+					? 'all'
+					: 'mine';
+		if (selectedOwnershipOption.value !== nextView) {
+			selectedOwnershipOption = {
+				value: nextView,
+				label:
+					nextView === 'new'
+						? 'Nya klienter'
+						: nextView === 'all'
+							? 'Alla klienter'
+							: 'Mina klienter'
+			};
+		}
+	}
 
 	// Paging/load state
 	let data: TableType = [];
@@ -188,7 +235,7 @@
 	}
 
 	async function fetchPaginatedClients(reset = false, options: { force?: boolean } = {}) {
-		if (!browser) return;
+		if (!browser || selectedOwnershipOption.value === 'new') return;
 		if (isFetching || (!hasMore && !reset)) return;
 
 		const cachedFetch = wrapFetch(fetch);
@@ -251,8 +298,28 @@
 	onMount(() => {
 		headerState.title = 'Klienter';
 		headerState.icon = 'Person';
-		fetchPaginatedClients(true);
+		signupOnboardingStore.start(get(user));
+		const requestedView = $pageStore.url.searchParams.get('view');
+		if (requestedView === 'new' && canManageOnboarding) {
+			selectedOwnershipOption = { value: 'new', label: 'Nya klienter' };
+		} else if (requestedView === 'all') {
+			selectedOwnershipOption = { value: 'all', label: 'Alla klienter' };
+		} else {
+			selectedOwnershipOption = { value: 'mine', label: 'Mina klienter' };
+		}
+		if (requestedView === 'new' && !canManageOnboarding) {
+			void goto('/clients?view=mine', { replaceState: true, keepFocus: true, noScroll: true });
+		}
+		if (selectedOwnershipOption.value !== 'new') fetchPaginatedClients(true);
 	});
+
+	function handleOwnershipSelect(event: CustomEvent<'mine' | 'all' | 'new'>) {
+		const view = event.detail;
+		if (view === 'new' && !canManageOnboarding) return;
+		searchQuery = '';
+		void goto(`/clients?view=${view}`, { replaceState: true, keepFocus: true, noScroll: true });
+		if (view !== 'new') void fetchPaginatedClients(true);
+	}
 
 	// Local filtering (status, quick text match while server search runs)
 	$: {
@@ -283,7 +350,12 @@
 	}
 
 	// Reload from server when filters change
-	$: if (browser && selectedStatusOption.value && selectedOwnershipOption.value) {
+	$: if (
+		browser &&
+		selectedStatusOption.value &&
+		selectedOwnershipOption.value &&
+		selectedOwnershipOption.value !== 'new'
+	) {
 		fetchPaginatedClients(true);
 	}
 </script>
@@ -303,7 +375,9 @@
 			<Button text="Lägg till klient" variant="primary" on:click={openClientForm} />
 		</div>
 
-		<div class="flex flex-col gap-2 xl:flex-row xl:items-center xl:gap-4">
+		<div
+			class="flex flex-col gap-2 min-[1430px]:flex-row min-[1430px]:items-center min-[1430px]:gap-4"
+		>
 			<input
 				type="text"
 				bind:value={searchQuery}
@@ -312,14 +386,16 @@
 				class="w-full max-w-md min-w-60 rounded-sm border border-gray-300 p-2 focus:border-blue-500 focus:outline-hidden"
 			/>
 
-			<div class="min-w-60">
+			<div
+				class={canManageOnboarding
+					? 'w-full min-w-0 min-[1430px]:w-auto min-[1430px]:min-w-[340px]'
+					: 'min-w-60'}
+			>
 				<OptionButton
-					options={[
-						{ value: 'mine', label: 'Mina klienter' },
-						{ value: 'all', label: 'Alla klienter' }
-					]}
+					options={ownershipOptions}
 					bind:selectedOption={selectedOwnershipOption}
 					size="small"
+					on:select={handleOwnershipSelect}
 				/>
 			</div>
 			<div class="min-w-80">
@@ -336,13 +412,17 @@
 		</div>
 	</div>
 
-	<Table {headers} data={filteredData} noSelect on:sortChange={handleSortChange} />
+	{#if selectedOwnershipOption.value === 'new'}
+		<SignupOnboardingQueue search={searchQuery} status={selectedStatusOption.value} />
+	{:else}
+		<Table {headers} data={filteredData} noSelect on:sortChange={handleSortChange} />
+	{/if}
 
-	{#if isLoading}
+	{#if selectedOwnershipOption.value !== 'new' && isLoading}
 		<p class="my-4 text-center text-sm text-gray-400">Laddar fler klienter...</p>
 	{/if}
 
-	{#if !hasMore && data.length > 0}
+	{#if selectedOwnershipOption.value !== 'new' && !hasMore && data.length > 0}
 		<p class="my-4 text-center text-sm text-gray-400">Inga fler klienter att visa.</p>
 	{/if}
 </div>

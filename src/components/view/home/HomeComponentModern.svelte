@@ -8,6 +8,11 @@
 	import HomeModernHeader from './modern/HomeModernHeader.svelte';
 	import HomeModernHolidayPayCard from './modern/HomeModernHolidayPayCard.svelte';
 	import HomeModernNotifications from './modern/HomeModernNotifications.svelte';
+	import HomeModernSignupBanner from './modern/HomeModernSignupBanner.svelte';
+	import { onMount } from 'svelte';
+	import { signupOnboardingStore } from '$lib/stores/signupOnboardingStore';
+
+	onMount(() => signupOnboardingStore.start($user));
 </script>
 
 <div class="custom-scrollbar h-full overflow-y-auto bg-[#f8f9fb]">
@@ -17,12 +22,14 @@
 		<div class="grid gap-3 lg:grid-cols-3">
 			<div class="min-w-0 space-y-3 lg:col-span-2">
 				<HomeModernNotifications />
+				<HomeModernSignupBanner class="lg:hidden" />
 				<HomeModernBookings />
 				<MyStatisticsModule variant="modern" />
 				<BookingGrid trainerId={$user?.id} />
 			</div>
 
 			<div class="min-w-0 space-y-3">
+				<HomeModernSignupBanner class="hidden lg:block" />
 				<HomeModernClientsWithoutBookings />
 				<HomeModernGoals />
 				<HomeModernHolidayPayCard />

@@ -46,8 +46,8 @@
 		if (!noClose) closeFromUser();
 	}
 
-	function onDialogClick(e: MouseEvent) {
-		// backdrop click is when target === dialog element
+	function onDialogPointerDown(e: PointerEvent) {
+		// backdrop interaction is when target === dialog element
 		if (noClose || !dismissable || isDragging) return;
 		if (e.target === dialogEl) closeFromUser();
 	}
@@ -141,7 +141,12 @@
 </script>
 
 {#if mounted}
-	<dialog bind:this={dialogEl} class="popup-dialog" on:click={onDialogClick} on:cancel={onCancel}>
+	<dialog
+		bind:this={dialogEl}
+		class="popup-dialog"
+		on:pointerdown={onDialogPointerDown}
+		on:cancel={onCancel}
+	>
 		{#if open}
 			<div
 				class={containerClass()}

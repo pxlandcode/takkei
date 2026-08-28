@@ -32,25 +32,34 @@ export function confirm(node: HTMLElement, params: ConfirmParams) {
 		popover.className =
 			'confirm-popover absolute z-2147483647 max-w-xs rounded-sm border border-gray-bright bg-white p-4 shadow-xl';
 
-		popover.innerHTML = `
-			<p class="mb-1 font-semibold text-gray">${title}</p>
-			<p class="mb-3 text-sm text-gray">${description}</p>
-			<div class="flex justify-end gap-6">
-				<button data-cancel class="text-base text-error hover:text-error-hover hover:underline">Avbryt</button>
-				<button data-confirm class="rounded-sm bg-success hover:bg-success-hover px-8 py-1 text-base text-white">${actionLabel}</button>
-			</div>
-		`;
+		const titleElement = document.createElement('p');
+		titleElement.className = 'mb-1 font-semibold text-gray';
+		titleElement.textContent = title;
+
+		const descriptionElement = document.createElement('p');
+		descriptionElement.className = 'mb-3 text-sm text-gray';
+		descriptionElement.textContent = description;
+
+		const actionsElement = document.createElement('div');
+		actionsElement.className = 'flex justify-end gap-6';
+
+		const cancelButton = document.createElement('button');
+		cancelButton.type = 'button';
+		cancelButton.className = 'text-base text-error hover:text-error-hover hover:underline';
+		cancelButton.textContent = 'Avbryt';
+
+		const confirmButton = document.createElement('button');
+		confirmButton.type = 'button';
+		confirmButton.className =
+			'rounded-sm bg-success hover:bg-success-hover px-8 py-1 text-base text-white';
+		confirmButton.textContent = actionLabel;
+
+		actionsElement.append(cancelButton, confirmButton);
+		popover.append(titleElement, descriptionElement, actionsElement);
 
 		const closestDialog = node.closest('dialog') as HTMLElement | null;
 		const openDialogs = Array.from(document.querySelectorAll('dialog[open]')) as HTMLElement[];
 		const host = closestDialog ?? openDialogs[openDialogs.length - 1] ?? document.body;
-		console.log('[confirm] attaching popover', {
-			node,
-			closestDialog,
-			openDialogs,
-			chosenHost: host,
-			rootNode: node.getRootNode()
-		});
 		if (getComputedStyle(host).position === 'static') {
 			host.style.position = 'relative';
 		}
@@ -61,15 +70,11 @@ export function confirm(node: HTMLElement, params: ConfirmParams) {
 
 			cleanupOutside = clickOutside(popover!, hide).destroy;
 
-			popover
-				?.querySelector('[data-cancel]')
-				?.addEventListener('click', hide);
-			popover
-				?.querySelector('[data-confirm]')
-				?.addEventListener('click', () => {
-					action ? action() : node.click();
-					hide();
-				});
+			cancelButton.addEventListener('click', hide);
+			confirmButton.addEventListener('click', () => {
+				action ? action() : node.click();
+				hide();
+			});
 		});
 
 		visible = true;
@@ -91,7 +96,9 @@ export function confirm(node: HTMLElement, params: ConfirmParams) {
 
 		const trigger = node.getBoundingClientRect();
 		const box = popover.getBoundingClientRect();
-		const hostRect = ((node.closest('dialog') as HTMLElement) ?? document.body).getBoundingClientRect();
+		const hostRect = (
+			(node.closest('dialog') as HTMLElement) ?? document.body
+		).getBoundingClientRect();
 		const spacing = 8;
 
 		let top: number;

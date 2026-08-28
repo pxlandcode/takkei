@@ -18,6 +18,7 @@
 		iconSize?: string;
 		sort?: boolean;
 		width?: string;
+		stacked?: boolean;
 	}[] = [];
 
 	export let data: TableType = [];
@@ -231,8 +232,9 @@
 						>
 							{#if Array.isArray(row[header.key])}
 								<div
-									class="flex flex-row flex-wrap gap-2 {header.key === 'actions' &&
-										'justify-center'}"
+									class="flex {header.stacked
+										? 'flex-col items-start gap-1'
+										: 'flex-row flex-wrap gap-2'} {header.key === 'actions' && 'justify-center'}"
 								>
 									{#each row[header.key] as item}
 										{#if item.type === 'button'}
@@ -304,6 +306,22 @@
 													<span class="sr-only">{item.label}</span>
 												{/if}
 											</span>
+										{:else if item.type === 'pill'}
+											<span
+												class={`inline-flex whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold ${
+													item.variant === 'danger'
+														? 'bg-red-100 text-red-700'
+														: item.variant === 'warning'
+															? 'bg-amber-100 text-amber-800'
+															: item.variant === 'success'
+																? 'bg-green-100 text-green-700'
+																: item.variant === 'info'
+																	? 'bg-blue-100 text-blue-700'
+																	: 'bg-gray-100 text-gray-700'
+												}`}
+											>
+												{item.label}
+											</span>
 										{:else}
 											<p class="text-gray-700">{item.content}</p>
 										{/if}
@@ -362,7 +380,11 @@
 							</p>
 							<div class="text-right text-sm text-gray-800">
 								{#if Array.isArray(row[header.key])}
-									<div class="flex flex-row flex-wrap gap-2">
+								<div
+									class="flex {header.stacked
+										? 'flex-col items-start gap-1'
+										: 'flex-row flex-wrap gap-2'}"
+								>
 										{#each row[header.key] as item}
 											{#if item.type === 'button'}
 												{#if item.tooltip}
@@ -434,6 +456,22 @@
 													{#if item.label}
 														<span class="sr-only">{item.label}</span>
 													{/if}
+												</span>
+											{:else if item.type === 'pill'}
+												<span
+													class={`inline-flex whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold ${
+														item.variant === 'danger'
+															? 'bg-red-100 text-red-700'
+															: item.variant === 'warning'
+																? 'bg-amber-100 text-amber-800'
+																: item.variant === 'success'
+																	? 'bg-green-100 text-green-700'
+																	: item.variant === 'info'
+																		? 'bg-blue-100 text-blue-700'
+																		: 'bg-gray-100 text-gray-700'
+													}`}
+												>
+													{item.label}
 												</span>
 											{:else}
 												<p class="text-gray-700">{item.content}</p>
