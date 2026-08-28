@@ -1,6 +1,7 @@
 <script lang="ts">
 	import Button from '../../../bits/button/Button.svelte';
 	import Input from '../../../bits/Input/Input.svelte';
+	import StepActionFooter from './StepActionFooter.svelte';
 
 	export let currentCase: any;
 	export let payload: any;
@@ -63,10 +64,10 @@
 			<Input label="Postnummer" name="zip" bind:value={detailForm.zip} errors={detailErrors} />
 			<Input label="Ort" name="city" bind:value={detailForm.city} errors={detailErrors} />
 		</div>
-		<div class="flex justify-end gap-2">
+		<StepActionFooter>
 			<Button text="Avbryt" variant="secondary" small disabled={busy} on:click={onCancel} />
 			<Button text="Spara" iconLeft="Check" small disabled={busy} on:click={onSave} />
-		</div>
+		</StepActionFooter>
 	{:else}
 		<div class="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
 			<div>

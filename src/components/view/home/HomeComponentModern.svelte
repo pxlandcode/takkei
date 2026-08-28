@@ -18,17 +18,18 @@
 <div class="custom-scrollbar h-full overflow-y-auto bg-[#f8f9fb]">
 	<div class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
 		<HomeModernHeader />
-		<HomeModernSignupBanner />
 
 		<div class="grid gap-3 lg:grid-cols-3">
 			<div class="min-w-0 space-y-3 lg:col-span-2">
 				<HomeModernNotifications />
+				<HomeModernSignupBanner class="lg:hidden" />
 				<HomeModernBookings />
 				<MyStatisticsModule variant="modern" />
 				<BookingGrid trainerId={$user?.id} />
 			</div>
 
 			<div class="min-w-0 space-y-3">
+				<HomeModernSignupBanner class="hidden lg:block" />
 				<HomeModernClientsWithoutBookings />
 				<HomeModernGoals />
 				<HomeModernHolidayPayCard />

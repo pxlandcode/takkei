@@ -19,6 +19,7 @@ export type SignupOnboardingActionInput =
 	| { type: 'keep_customer' }
 	| { type: 'merge_customer'; targetCustomerId: number }
 	| { type: 'connect_customer'; targetCustomerId: number }
+	| { type: 'change_customer'; targetCustomerId: number }
 	| { type: 'keep_package' }
 	| { type: 'connect_package'; packageId: number }
 	| { type: 'skip_package' }

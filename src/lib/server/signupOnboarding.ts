@@ -10,6 +10,7 @@ import type {
 	SignupOnboardingStatus,
 	SignupOnboardingSummary
 } from '$lib/types/signupOnboarding';
+import { randomBytes } from 'crypto';
 import type { PoolClient } from 'pg';
 
 type SqlClient = Pick<PoolClient, 'query'>;
@@ -41,6 +42,24 @@ function text(value: unknown) {
 
 function normalizeDigits(value: unknown) {
 	return text(value).replace(/\D/g, '');
+}
+
+const ACTIVE_ONBOARDING_STATUSES_SQL = "('new', 'in_progress', 'waiting')";
+
+function activeCaseResolvedClientAvailableSql(
+	caseAlias = 'soc',
+	clientAlias = 'resolved_client',
+	lifecycleAlias = 'resolved_client_lifecycle'
+) {
+	return `(
+		${caseAlias}.status NOT IN ${ACTIVE_ONBOARDING_STATUSES_SQL}
+		OR ${caseAlias}.client_resolution = 'pending'
+		OR (
+			${caseAlias}.resolved_client_id IS NOT NULL
+			AND ${clientAlias}.id IS NOT NULL
+			AND ${lifecycleAlias}.gdpr_deleted_at IS NULL
+		)
+	)`;
 }
 
 function normalizeOnboardingDetails(value: unknown) {
@@ -129,8 +148,13 @@ export async function getSignupOnboardingSummary(_authUser: any): Promise<Signup
 	const rows = (await db.query(
 		`
 		SELECT COUNT(*)::int AS pending
-		FROM signup_onboarding_cases
-		WHERE status IN ('new', 'in_progress', 'waiting')
+		FROM signup_onboarding_cases soc
+		LEFT JOIN clients resolved_client ON resolved_client.id = soc.resolved_client_id
+		LEFT JOIN gdpr_profile_lifecycle resolved_client_lifecycle
+			ON resolved_client_lifecycle.profile_type = 'client'
+			AND resolved_client_lifecycle.client_id = resolved_client.id
+		WHERE soc.status IN ${ACTIVE_ONBOARDING_STATUSES_SQL}
+			AND ${activeCaseResolvedClientAvailableSql()}
 		`
 	)) as any[];
 
@@ -192,7 +216,12 @@ export async function listSignupOnboardingCases(options: {
 			) AS has_duplicate_warning,
 			COUNT(*) OVER()::int AS total_count
 		FROM signup_onboarding_cases soc
+		LEFT JOIN clients resolved_client ON resolved_client.id = soc.resolved_client_id
+		LEFT JOIN gdpr_profile_lifecycle resolved_client_lifecycle
+			ON resolved_client_lifecycle.profile_type = 'client'
+			AND resolved_client_lifecycle.client_id = resolved_client.id
 		WHERE ${where.join(' AND ')}
+			AND ${activeCaseResolvedClientAvailableSql()}
 		ORDER BY
 			CASE soc.status WHEN 'new' THEN 0 WHEN 'in_progress' THEN 1 WHEN 'waiting' THEN 2 ELSE 3 END,
 			soc.created_at ASC
@@ -402,6 +431,67 @@ async function ensureRelationship(client: SqlClient, customerId: number, clientI
 		`INSERT INTO client_customer_relationships (customer_id, client_id, relationship, active, created_at, updated_at) VALUES ($1, $2, 'Training', true, NOW(), NOW())`,
 		[customerId, clientId]
 	);
+}
+
+async function clientExistsForOnboarding(client: SqlClient, clientId: number) {
+	const rows = await txQuery<{ id: number }>(
+		client,
+		`
+		SELECT c.id
+		FROM clients c
+		LEFT JOIN gdpr_profile_lifecycle lifecycle
+			ON lifecycle.profile_type = 'client'
+			AND lifecycle.client_id = c.id
+		WHERE c.id = $1
+			AND lifecycle.gdpr_deleted_at IS NULL
+		LIMIT 1
+		`,
+		[clientId]
+	);
+	return positiveInt(rows[0]?.id);
+}
+
+async function ensureClientForConfirmation(client: SqlClient, caseRow: any) {
+	const provisionalClientId = positiveInt(caseRow.provisional_client_id);
+	if (provisionalClientId) return { clientId: provisionalClientId, source: 'provisional' };
+
+	const resolvedClientId = positiveInt(caseRow.resolved_client_id);
+	if (resolvedClientId) {
+		const existingClientId = await clientExistsForOnboarding(client, resolvedClientId);
+		if (existingClientId) return { clientId: existingClientId, source: 'resolved' };
+	}
+
+	const details = normalizeOnboardingDetails(caseRow.submitted_payload);
+	validateOnboardingDetails(details);
+	const provisionalCustomerId = positiveInt(caseRow.provisional_customer_id);
+	const clientKey = randomBytes(32).toString('hex');
+	const rows = await txQuery<{ id: number }>(
+		client,
+		`
+		INSERT INTO clients
+			(customer_id, firstname, lastname, email, phone, person_number, key, active, created_at, updated_at)
+		VALUES
+			($1, $2, $3, $4, $5, $6, $7, true, NOW(), NOW())
+		RETURNING id
+		`,
+		[
+			provisionalCustomerId,
+			details.firstname,
+			details.lastname,
+			details.email,
+			details.phone,
+			details.person_number,
+			clientKey
+		]
+	);
+	const createdClientId = positiveInt(rows[0]?.id);
+	if (!createdClientId) {
+		throw new SignupOnboardingError(500, 'Kunde inte skapa klienten', 'client_create_failed');
+	}
+	if (provisionalCustomerId) {
+		await ensureRelationship(client, provisionalCustomerId, createdClientId);
+	}
+	return { clientId: createdClientId, source: 'created' };
 }
 
 async function findActiveCustomerIdsForClient(client: SqlClient, clientId: number) {
@@ -628,9 +718,40 @@ function assertCustomerResolved(caseRow: any) {
 async function markCaseInProgress(client: SqlClient, caseId: number) {
 	await txQuery(
 		client,
-		`UPDATE signup_onboarding_cases SET status = 'in_progress', updated_at = NOW() WHERE id = $1 AND status = 'new'`,
+		`
+		UPDATE signup_onboarding_cases
+		SET status = 'in_progress',
+			completed_at = NULL,
+			completion_note = NULL,
+			updated_at = NOW()
+		WHERE id = $1
+			AND status IN ('new', 'completed')
+		`,
 		[caseId]
 	);
+}
+
+function isMaterialRepairAction(actionType: string) {
+	return [
+		'change_customer',
+		'connect_package',
+		'skip_package',
+		'set_primary_assignment',
+		'skip_primary_assignment'
+	].includes(actionType);
+}
+
+function canRunOnClosedCase(status: string, actionType: string) {
+	if (actionType === 'reopen') return true;
+	if (status !== 'completed') return false;
+	return [
+		'change_customer',
+		'connect_package',
+		'skip_package',
+		'set_primary_assignment',
+		'skip_primary_assignment',
+		'attach_booking'
+	].includes(actionType);
 }
 
 async function completeCaseIfReady(client: SqlClient, caseId: number) {
@@ -687,7 +808,7 @@ export async function performSignupOnboardingAction(options: {
 				'case_changed'
 			);
 		}
-		if (!isOpen(caseRow.status) && !['reopen'].includes(action.type)) {
+		if (!isOpen(caseRow.status) && !canRunOnClosedCase(caseRow.status, action.type)) {
 			throw new SignupOnboardingError(409, 'Registreringen är redan stängd', 'case_closed');
 		}
 
@@ -759,15 +880,39 @@ export async function performSignupOnboardingAction(options: {
 				break;
 			}
 			case 'confirm_new_client':
-				if (!caseRow.provisional_client_id)
-					throw new SignupOnboardingError(409, 'Den preliminära klienten saknas', 'missing_client');
-				await txQuery(
-					client,
-					`UPDATE signup_onboarding_cases SET resolved_client_id = provisional_client_id, client_resolution = 'confirmed_new', status = CASE WHEN status = 'new' THEN 'in_progress' ELSE status END, updated_at = NOW() WHERE id = $1`,
-					[options.caseId]
-				);
+				if (caseRow.client_resolution !== 'pending') {
+					throw new SignupOnboardingError(
+						409,
+						'Klienten är redan löst och kan inte ändras här.',
+						'client_already_resolved'
+					);
+				}
+				{
+					const ensuredClient = await ensureClientForConfirmation(client, caseRow);
+					await txQuery(
+						client,
+						`
+						UPDATE signup_onboarding_cases
+						SET provisional_client_id = COALESCE(provisional_client_id, $2),
+							resolved_client_id = $2,
+							client_resolution = 'confirmed_new',
+							status = CASE WHEN status = 'new' THEN 'in_progress' ELSE status END,
+							updated_at = NOW()
+						WHERE id = $1
+						`,
+						[options.caseId, ensuredClient.clientId]
+					);
+					metadata = { clientId: ensuredClient.clientId, source: ensuredClient.source };
+				}
 				break;
 			case 'merge_client': {
+				if (caseRow.client_resolution !== 'pending') {
+					throw new SignupOnboardingError(
+						409,
+						'Klienten är redan löst och kan inte ändras här.',
+						'client_already_resolved'
+					);
+				}
 				const targetClientId = positiveInt(action.targetClientId);
 				if (!targetClientId || !caseRow.provisional_client_id)
 					throw new SignupOnboardingError(400, 'Välj en målklient', 'invalid_client');
@@ -869,6 +1014,44 @@ export async function performSignupOnboardingAction(options: {
 					[options.caseId, targetCustomerId]
 				);
 				metadata = { targetCustomerId };
+				break;
+			}
+			case 'change_customer': {
+				const resolvedClientId = assertClientResolved(caseRow);
+				const targetCustomerId = positiveInt(action.targetCustomerId);
+				if (!targetCustomerId) {
+					throw new SignupOnboardingError(400, 'Välj en kund', 'invalid_customer');
+				}
+				const customers = await txQuery(
+					client,
+					`SELECT id FROM customers WHERE id = $1 AND active = true`,
+					[targetCustomerId]
+				);
+				if (!customers[0]) {
+					throw new SignupOnboardingError(404, 'Kunden hittades inte', 'customer_not_found');
+				}
+				await ensureRelationship(client, targetCustomerId, resolvedClientId);
+				await txQuery(
+					client,
+					`
+					UPDATE signup_onboarding_cases
+					SET resolved_customer_id = $2,
+						customer_resolution = CASE
+							WHEN provisional_customer_id = $2 THEN 'kept'
+							ELSE 'connected'
+						END,
+						resolved_package_id = NULL,
+						package_resolution = 'pending',
+						updated_at = NOW()
+					WHERE id = $1
+					`,
+					[options.caseId, targetCustomerId]
+				);
+				metadata = {
+					targetCustomerId,
+					previousCustomerId: positiveInt(caseRow.resolved_customer_id),
+					resetPackage: true
+				};
 				break;
 			}
 			case 'keep_package':
@@ -1114,7 +1297,12 @@ export async function performSignupOnboardingAction(options: {
 		}
 
 		if (!['mark_waiting', 'reopen', 'complete', 'cancel'].includes(action.type)) {
-			await markCaseInProgress(client, options.caseId);
+			if (
+				caseRow.status === 'new' ||
+				(caseRow.status === 'completed' && isMaterialRepairAction(action.type))
+			) {
+				await markCaseInProgress(client, options.caseId);
+			}
 			const autoCompleted = await completeCaseIfReady(client, options.caseId);
 			if (autoCompleted) metadata = { ...metadata, autoCompleted: true };
 		}

@@ -6,11 +6,17 @@ export type SelectOption = {
 	raw?: any;
 };
 
+export type UnavailablePackageOption = SelectOption & {
+	reasons: string[];
+};
+
 export type InfoRow = {
 	label: string;
 	value: unknown;
 	detail?: unknown;
 };
+
+export type OnboardingStepKey = 'client' | 'customer' | 'package' | 'primary_assignment';
 
 export type MergeFieldPlanEntry = {
 	key: string;
@@ -58,6 +64,16 @@ export function compactParts(values: unknown[]) {
 		.filter(Boolean);
 }
 
+function normalizedText(value: unknown) {
+	return String(value ?? '')
+		.trim()
+		.toLowerCase();
+}
+
+function normalizedDigits(value: unknown) {
+	return String(value ?? '').replace(/\D/g, '');
+}
+
 export function sortSuggestedOptions(a: SelectOption, b: SelectOption) {
 	if (a.suggested !== b.suggested) return a.suggested ? -1 : 1;
 	if (a.suggested && b.suggested) return Number(b.matchScore ?? 0) - Number(a.matchScore ?? 0);
@@ -87,13 +103,40 @@ export function formatDate(value?: string | null) {
 }
 
 export function resolutionLabel(value: string) {
-	return value === 'pending' ? 'Åtgärd krävs' : 'Klar';
+	return value === 'pending' ? 'Åtgärd' : 'Klar';
 }
 
 export function formatCurrency(value: unknown) {
 	if (value === null || value === undefined || value === '') return null;
 	const numeric = Number(value);
 	return Number.isFinite(numeric) ? `${numeric.toLocaleString('sv-SE')} kr` : String(value);
+}
+
+export function nextRequiredOnboardingStep(currentCase: any): OnboardingStepKey | null {
+	if (currentCase.client_resolution === 'pending' || !positiveId(currentCase.resolved_client_id)) {
+		return 'client';
+	}
+	if (
+		currentCase.customer_resolution === 'pending' ||
+		!positiveId(currentCase.resolved_customer_id)
+	) {
+		return 'customer';
+	}
+	if (
+		currentCase.package_resolution === 'pending' ||
+		(currentCase.package_resolution !== 'not_required' &&
+			!positiveId(currentCase.resolved_package_id))
+	) {
+		return 'package';
+	}
+	if (currentCase.primary_assignment_resolution === 'pending') {
+		return 'primary_assignment';
+	}
+	return null;
+}
+
+export function onboardingRequiredComplete(currentCase: any) {
+	return nextRequiredOnboardingStep(currentCase) === null;
 }
 
 export function clientDisplayName(client: any) {
@@ -114,6 +157,26 @@ export function clientDetailText(client: any) {
 	]).join(' · ');
 }
 
+export function clientSuggestionReasons(payload: any, client: any) {
+	const reasons: string[] = [];
+	const payloadPersonNumber = normalizedDigits(payload?.person_number ?? payload?.personnummer);
+	const clientPersonNumber = normalizedDigits(client?.person_number);
+	const payloadEmail = normalizedText(payload?.email);
+	const clientEmail = normalizedText(client?.email);
+	const payloadPhone = normalizedDigits(payload?.phone);
+	const clientPhone = normalizedDigits(client?.phone);
+	const payloadName = normalizedText(fullName(payload?.firstname, payload?.lastname));
+	const clientName = normalizedText(fullName(client?.firstname, client?.lastname));
+
+	if (payloadPersonNumber && clientPersonNumber && payloadPersonNumber === clientPersonNumber) {
+		reasons.push('Personnummer');
+	}
+	if (payloadEmail && clientEmail && payloadEmail === clientEmail) reasons.push('E-post');
+	if (payloadPhone && clientPhone && payloadPhone === clientPhone) reasons.push('Telefon');
+	if (payloadName && clientName && payloadName === clientName) reasons.push('Namn');
+	return reasons;
+}
+
 export function customerDetailText(customer: any) {
 	const id = positiveId(customer?.id);
 	return compactParts([
@@ -123,6 +186,30 @@ export function customerDetailText(customer: any) {
 		customer?.customer_no ? `Kundnr ${customer.customer_no}` : null,
 		id ? `#${id}` : null
 	]).join(' · ');
+}
+
+export function customerSuggestionReasons(payload: any, customer: any) {
+	const reasons: string[] = [];
+	const payloadEmail = normalizedText(payload?.payerEmail || payload?.email);
+	const customerEmail = normalizedText(customer?.email);
+	const payloadOrganizationNumber = normalizedDigits(payload?.payerOrganizationNumber);
+	const customerOrganizationNumber = normalizedDigits(customer?.organization_number);
+	const payloadPhone = normalizedDigits(payload?.payerPhone || payload?.phone);
+	const customerPhone = normalizedDigits(customer?.phone);
+	const payloadName = normalizedText(payload?.payerName);
+	const customerName = normalizedText(customer?.name);
+
+	if (
+		payloadOrganizationNumber &&
+		customerOrganizationNumber &&
+		payloadOrganizationNumber === customerOrganizationNumber
+	) {
+		reasons.push('Org/personnummer');
+	}
+	if (payloadEmail && customerEmail && payloadEmail === customerEmail) reasons.push('E-post');
+	if (payloadPhone && customerPhone && payloadPhone === customerPhone) reasons.push('Telefon');
+	if (payloadName && customerName && payloadName === customerName) reasons.push('Namn');
+	return reasons;
 }
 
 export function clientOptionLabel(client: any, suggested = false) {
@@ -331,6 +418,37 @@ export function packageCanBeSelectedByClient(pkg: any, resolvedClientId: unknown
 	);
 }
 
+export function packageUnavailableReasons(pkg: any, resolvedClientId: unknown) {
+	const reasons: string[] = [];
+	const packageClientId = positiveId(pkg?.client_id);
+	const clientId = positiveId(resolvedClientId);
+	if (!packageHasRemainingSessions(pkg)) reasons.push('Fullbokat');
+	if (packageClientId && clientId && packageClientId !== clientId) {
+		reasons.push('Personligt för annan klient');
+	}
+	return reasons;
+}
+
+export function packageAvailabilityOptions(packages: any[], resolvedClientId: unknown) {
+	const selectable: SelectOption[] = [];
+	const unavailable: UnavailablePackageOption[] = [];
+
+	for (const item of packages ?? []) {
+		const value = positiveId(item?.id);
+		if (!value) continue;
+		const option = {
+			value,
+			label: packageOptionLabel(item),
+			raw: item
+		};
+		const reasons = packageUnavailableReasons(item, resolvedClientId);
+		if (reasons.length) unavailable.push({ ...option, reasons });
+		else selectable.push(option);
+	}
+
+	return { selectable, unavailable };
+}
+
 export function packageOptionLabel(item: any) {
 	const total = item.total_sessions ?? item.article_sessions;
 	const remainingCount = packageRemainingSessions(item);
@@ -482,6 +600,60 @@ export function primaryAssignmentRows(
 				currentCase.primary_assignment_resolution === 'skipped'
 					? 'Ej vald'
 					: locationDisplayNameById(currentCase.resolved_primary_location_id)
+		}
+	];
+}
+
+export function onboardingSummaryRows(
+	currentCase: any,
+	selectedClientInfo: any,
+	selectedCustomerInfo: any,
+	selectedPackageInfo: any,
+	trainerOptions: SelectOption[],
+	locationOptions: SelectOption[]
+) {
+	const assignmentRows = primaryAssignmentRows(currentCase, trainerOptions, locationOptions);
+	const packageValue =
+		currentCase.package_resolution === 'not_required'
+			? 'Inget paket'
+			: selectedPackageInfo
+				? selectedPackageInfo.article_name ||
+					selectedPackageInfo.label ||
+					`Paket #${selectedPackageInfo.id}`
+				: null;
+	return [
+		{
+			label: 'Klient',
+			value: selectedClientInfo ? clientDisplayName(selectedClientInfo) : null,
+			detail: selectedClientInfo ? clientDetailText(selectedClientInfo) : null
+		},
+		{
+			label: 'Kund',
+			value: selectedCustomerInfo ? customerDisplayName(selectedCustomerInfo) : null,
+			detail: selectedCustomerInfo ? customerDetailText(selectedCustomerInfo) : null
+		},
+		{
+			label: 'Paket',
+			value: packageValue,
+			detail:
+				currentCase.package_resolution === 'not_required'
+					? 'Aktivt valt att fortsätta utan paket'
+					: selectedPackageInfo
+						? packageOptionLabel(selectedPackageInfo)
+						: null
+		},
+		{
+			label: 'Primär tränare',
+			value: assignmentRows[0]?.value
+		},
+		{
+			label: 'Primär lokal',
+			value: assignmentRows[1]?.value
+		},
+		{
+			label: 'Bokning',
+			value: currentCase.booking_id ? `#${currentCase.booking_id}` : 'Ej bokad',
+			detail: currentCase.booking_id ? 'Första bokning kopplad' : 'Valfritt'
 		}
 	];
 }

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import Button from '../../../bits/button/Button.svelte';
+	import StepActionFooter from './StepActionFooter.svelte';
 
 	export let currentCase: any;
 	export let clientStepDone = false;
@@ -15,7 +16,15 @@
 	{#if currentCase.booking_id}
 		<p class="text-sm text-green-700">Bokning #{currentCase.booking_id} är kopplad.</p>
 	{/if}
-	<div class="mt-3 flex flex-wrap gap-2">
+	<StepActionFooter>
+		<Button
+			text="Gå till klientprofil"
+			iconLeft="GoTo"
+			variant="secondary"
+			small
+			disabled={!clientStepDone || busy}
+			on:click={goToClientProfile}
+		/>
 		{#if !currentCase.booking_id}
 			<Button
 				text="Boka träning"
@@ -25,13 +34,5 @@
 				on:click={openBooking}
 			/>
 		{/if}
-		<Button
-			text="Gå till klientprofil"
-			iconLeft="GoTo"
-			variant="secondary"
-			small
-			disabled={!clientStepDone || busy}
-			on:click={goToClientProfile}
-		/>
-	</div>
+	</StepActionFooter>
 </div>

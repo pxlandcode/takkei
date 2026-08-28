@@ -10,6 +10,7 @@
 	import CustomerStep from '../../../../components/ui/signupOnboarding/detail/CustomerStep.svelte';
 	import PackageStep from '../../../../components/ui/signupOnboarding/detail/PackageStep.svelte';
 	import PrimaryAssignmentStep from '../../../../components/ui/signupOnboarding/detail/PrimaryAssignmentStep.svelte';
+	import ResolutionSummaryCard from '../../../../components/ui/signupOnboarding/detail/ResolutionSummaryCard.svelte';
 	import SubmittedDetailsCard from '../../../../components/ui/signupOnboarding/detail/SubmittedDetailsCard.svelte';
 	import { openPopup, closePopup } from '$lib/stores/popupStore';
 	import { signupOnboardingStore } from '$lib/stores/signupOnboardingStore';
@@ -27,18 +28,22 @@
 		findPackageById,
 		formatDate,
 		fullName,
-		packageCanBeSelectedByClient,
-		packageOptionLabel,
+		packageAvailabilityOptions,
+		nextRequiredOnboardingStep,
 		positiveId,
 		sameId,
-		type SelectOption
+		type OnboardingStepKey,
+		type SelectOption,
+		type UnavailablePackageOption
 	} from '$lib/helpers/signupOnboardingDetail';
 	import type { ComponentType } from 'svelte';
 
 	export let data: {
 		workspace: any;
 		clients?: any[];
+		clientOptionsError?: string | null;
 		customers?: any[];
+		customerOptionsError?: string | null;
 		trainers?: any[];
 		locations?: any[];
 	};
@@ -48,6 +53,7 @@
 	let allClients: any[] = Array.isArray(data.clients) ? data.clients : [];
 	let allCustomers: any[] = Array.isArray(data.customers) ? data.customers : [];
 	let packageOptions: SelectOption[] = [];
+	let unavailablePackageOptions: UnavailablePackageOption[] = [];
 	let selectedClientId: number | '' = '';
 	let selectedCustomerId: number | '' = '';
 	let selectedPackageId: number | '' = '';
@@ -57,8 +63,13 @@
 	let customerPreview: any = null;
 	let loadingClientOptions = !Array.isArray(data.clients);
 	let loadingCustomerOptions = !Array.isArray(data.customers);
+	let clientOptionsError = data.clientOptionsError ?? '';
+	let customerOptionsError = data.customerOptionsError ?? '';
 	let loadingPackages = false;
 	let editingDetails = false;
+	let editingCustomer = false;
+	let editingPackage = false;
+	let editingPrimaryAssignment = false;
 	let detailErrors: Record<string, string> = {};
 	let detailForm = detailsFromPayload(data.workspace.case.submitted_payload ?? {});
 	let lastResolvedCustomerId: number | null = null;
@@ -67,10 +78,13 @@
 	let lastPrimaryAssignmentKey = '';
 	let clientPreviewRequestId = 0;
 	let customerPreviewRequestId = 0;
+	let activeStep: OnboardingStepKey | null = null;
+	let lastResolutionSignature = '';
 
 	$: currentCase = workspace.case;
 	$: payload = currentCase.submitted_payload ?? {};
 	$: isOpen = ['new', 'in_progress', 'waiting'].includes(currentCase.status);
+	$: canManageResolvedSteps = isOpen || currentCase.status === 'completed';
 	$: resolvedClientId = currentCase.resolved_client_id;
 	$: resolvedCustomerId = currentCase.resolved_customer_id;
 	$: clientStepDone = currentCase.client_resolution !== 'pending' && Boolean(resolvedClientId);
@@ -92,12 +106,38 @@
 	$: suggestedClientOptions = combineSuggestedClientOptions(currentCase, workspace);
 	$: suggestedCustomerOptions = combineSuggestedCustomerOptions(currentCase, workspace);
 	$: suggestedPackageOptions = packageOptions;
-	$: clientMergePlaceholder = loadingClientOptions ? 'Hämtar klienter...' : 'Välj målklient';
-	$: customerMergePlaceholder = loadingCustomerOptions
-		? 'Hämtar kunder...'
-		: currentCase.provisional_customer_id
-			? 'Välj målkund'
-			: 'Välj kund';
+	$: clientMergePlaceholder = clientOptionsError
+		? 'Kunde inte hämta klienter'
+		: loadingClientOptions
+			? 'Hämtar klienter...'
+			: 'Välj målklient';
+	$: customerMergePlaceholder = customerOptionsError
+		? 'Kunde inte hämta kunder'
+		: loadingCustomerOptions
+			? 'Hämtar kunder...'
+			: currentCase.provisional_customer_id
+				? 'Välj målkund'
+				: 'Välj kund';
+	$: nextRequiredStep = nextRequiredOnboardingStep(currentCase);
+	$: resolutionSignature = [
+		currentCase.client_resolution,
+		resolvedClientId ?? '',
+		currentCase.customer_resolution,
+		resolvedCustomerId ?? '',
+		currentCase.package_resolution,
+		currentCase.resolved_package_id ?? '',
+		currentCase.primary_assignment_resolution,
+		currentCase.resolved_primary_trainer_id ?? '',
+		currentCase.resolved_primary_location_id ?? ''
+	].join(':');
+	$: if (resolutionSignature !== lastResolutionSignature) {
+		lastResolutionSignature = resolutionSignature;
+		activeStep = nextRequiredStep;
+	}
+	$: clientStepOpen = isOpen && activeStep === 'client';
+	$: customerStepOpen = isOpen && activeStep === 'customer';
+	$: packageStepOpen = isOpen && activeStep === 'package';
+	$: primaryAssignmentStepOpen = isOpen && activeStep === 'primary_assignment';
 	$: selectedClientInfo =
 		findClientById(currentCase, workspace, allClients, selectedClientId) ??
 		findClientById(currentCase, workspace, allClients, resolvedClientId) ??
@@ -111,21 +151,43 @@
 			? findCustomerById(currentCase, workspace, allCustomers, currentCase.provisional_customer_id)
 			: null);
 	$: selectedPackageInfo = selectedPackageId
-		? findPackageById(currentCase, packageOptions, selectedPackageId)
+		? findPackageById(
+				currentCase,
+				[...packageOptions, ...unavailablePackageOptions],
+				selectedPackageId
+			)
 		: currentCase.package_resolution !== 'pending'
-			? findPackageById(currentCase, packageOptions, currentCase.resolved_package_id)
+			? findPackageById(
+					currentCase,
+					[...packageOptions, ...unavailablePackageOptions],
+					currentCase.resolved_package_id
+				)
 			: null;
 	$: selectedPackageIsCurrent =
 		Boolean(selectedPackageId) &&
 		Boolean(currentCase.resolved_package_id) &&
 		Number(selectedPackageId) === Number(currentCase.resolved_package_id);
-	$: packageActionText =
-		currentCase.package_resolution === 'pending' && selectedPackageIsCurrent
+	$: packageActionText = editingPackage
+		? 'Spara paket'
+		: currentCase.package_resolution === 'pending' && selectedPackageIsCurrent
 			? 'Bekräfta valt paket'
 			: currentCase.resolved_package_id
 				? 'Ändra paket'
 				: 'Koppla paket';
-	$: canSavePackage = Boolean(selectedPackageId) && currentCase.package_resolution === 'pending';
+	$: canSavePackage =
+		Boolean(selectedPackageId) &&
+		packageOptions.some((option) => sameId(option.value, selectedPackageId)) &&
+		(currentCase.package_resolution === 'pending' || editingPackage);
+	$: canEditCustomer =
+		canManageResolvedSteps && currentCase.customer_resolution !== 'pending' && clientStepDone;
+	$: canSaveCustomerChange =
+		Boolean(selectedCustomerId) && !sameId(selectedCustomerId, currentCase.resolved_customer_id);
+	$: canEditPackage =
+		canManageResolvedSteps && currentCase.package_resolution !== 'pending' && canResolvePackageStep;
+	$: canEditPrimaryAssignment =
+		canManageResolvedSteps &&
+		currentCase.primary_assignment_resolution !== 'pending' &&
+		clientStepDone;
 	$: purchasedPackageRemaining = Math.max(
 		0,
 		Number(currentCase.purchased_package_total_sessions ?? 0) -
@@ -160,7 +222,7 @@
 	}
 	$: if (
 		browser &&
-		isOpen &&
+		canManageResolvedSteps &&
 		canResolvePackageStep &&
 		resolvedCustomerId &&
 		Number(resolvedCustomerId) !== lastPackageCustomerId
@@ -170,7 +232,20 @@
 	}
 
 	function selectCustomerOption(option: SelectOption) {
+		if (sameId(selectedCustomerId, option.value)) {
+			clearCustomerTarget();
+			return;
+		}
 		selectCustomerTarget(option.value);
+	}
+
+	function clearCustomerTarget() {
+		selectedCustomerId = '';
+		customerPreview = null;
+		customerPreviewRequestId += 1;
+		selectedPackageId = '';
+		packageOptions = [];
+		unavailablePackageOptions = [];
 	}
 
 	function selectCustomerTarget(targetId: unknown) {
@@ -179,12 +254,22 @@
 		customerPreview = null;
 		if (id) {
 			void loadPackages(id);
-			if (currentCase.provisional_customer_id) void previewCustomerMerge(id);
+			if (currentCase.provisional_customer_id && !editingCustomer) void previewCustomerMerge(id);
 		}
 	}
 
 	function selectClientSuggestion(option: SelectOption) {
+		if (sameId(selectedClientId, option.value)) {
+			clearClientTarget();
+			return;
+		}
 		selectClientTarget(option.value);
+	}
+
+	function clearClientTarget() {
+		selectedClientId = '';
+		clientPreview = null;
+		clientPreviewRequestId += 1;
 	}
 
 	function selectClientTarget(targetId: unknown) {
@@ -202,6 +287,48 @@
 		selectCustomerTarget(event.detail?.value ?? selectedCustomerId);
 	}
 
+	function startEditingCustomer() {
+		selectedCustomerId = positiveId(resolvedCustomerId) ?? '';
+		customerPreview = null;
+		editingCustomer = true;
+		activeStep = 'customer';
+	}
+
+	function cancelEditingCustomer() {
+		selectedCustomerId = positiveId(resolvedCustomerId) ?? '';
+		customerPreview = null;
+		editingCustomer = false;
+		activeStep = nextRequiredOnboardingStep(currentCase);
+	}
+
+	function startEditingPackage() {
+		selectedPackageId = positiveId(currentCase.resolved_package_id) ?? '';
+		editingPackage = true;
+		activeStep = 'package';
+		const customerId = positiveId(resolvedCustomerId);
+		if (customerId) void loadPackages(customerId, true);
+	}
+
+	function cancelEditingPackage() {
+		selectedPackageId = positiveId(currentCase.resolved_package_id) ?? '';
+		editingPackage = false;
+		activeStep = nextRequiredOnboardingStep(currentCase);
+	}
+
+	function startEditingPrimaryAssignment() {
+		selectedPrimaryTrainerId = positiveId(currentCase.resolved_primary_trainer_id) ?? '';
+		selectedPrimaryLocationId = positiveId(currentCase.resolved_primary_location_id) ?? '';
+		editingPrimaryAssignment = true;
+		activeStep = 'primary_assignment';
+	}
+
+	function cancelEditingPrimaryAssignment() {
+		selectedPrimaryTrainerId = positiveId(currentCase.resolved_primary_trainer_id) ?? '';
+		selectedPrimaryLocationId = positiveId(currentCase.resolved_primary_location_id) ?? '';
+		editingPrimaryAssignment = false;
+		activeStep = nextRequiredOnboardingStep(currentCase);
+	}
+
 	function clientInfoHeading() {
 		if (currentCase.client_resolution !== 'pending') return 'Löst klient';
 		if (selectedClientId) return 'Vald målklient';
@@ -216,17 +343,19 @@
 		if (defaultLocationId) selectedPrimaryLocationId = defaultLocationId;
 	}
 
-	function savePrimaryAssignment() {
+	async function savePrimaryAssignment() {
 		if (!selectedPrimaryTrainerId || !selectedPrimaryLocationId) return;
-		void runAction({
+		const ok = await runAction({
 			type: 'set_primary_assignment',
 			primaryTrainerId: Number(selectedPrimaryTrainerId),
 			primaryLocationId: Number(selectedPrimaryLocationId)
 		});
+		if (ok) editingPrimaryAssignment = false;
 	}
 
-	function skipPrimaryAssignment() {
-		void runAction({ type: 'skip_primary_assignment' });
+	async function skipPrimaryAssignment() {
+		const ok = await runAction({ type: 'skip_primary_assignment' });
+		if (ok) editingPrimaryAssignment = false;
 	}
 
 	function selectPackageOption(option: SelectOption) {
@@ -241,12 +370,16 @@
 
 	async function loadClientOptions() {
 		loadingClientOptions = true;
+		clientOptionsError = '';
 		try {
 			const response = await fetch('/api/clients?short=true&limit=5000', { cache: 'no-store' });
 			if (!response.ok) throw new Error('Kunde inte hämta klienter');
-			allClients = await response.json();
+			const result = await response.json();
+			if (!Array.isArray(result)) throw new Error('Kunde inte hämta klienter');
+			allClients = result;
 		} catch (error) {
 			allClients = [];
+			clientOptionsError = error instanceof Error ? error.message : 'Kunde inte hämta klienter';
 			console.error('Failed to load onboarding clients:', error);
 		} finally {
 			loadingClientOptions = false;
@@ -255,12 +388,16 @@
 
 	async function loadCustomerOptions() {
 		loadingCustomerOptions = true;
+		customerOptionsError = '';
 		try {
 			const response = await fetch('/api/customers?limit=5000', { cache: 'no-store' });
 			if (!response.ok) throw new Error('Kunde inte hämta kunder');
-			allCustomers = await response.json();
+			const result = await response.json();
+			if (!Array.isArray(result)) throw new Error('Kunde inte hämta kunder');
+			allCustomers = result;
 		} catch (error) {
 			allCustomers = [];
+			customerOptionsError = error instanceof Error ? error.message : 'Kunde inte hämta kunder';
 			console.error('Failed to load onboarding customers:', error);
 		} finally {
 			loadingCustomerOptions = false;
@@ -272,22 +409,15 @@
 		loadingPackages = true;
 		if (!preserveSelection) selectedPackageId = '';
 		packageOptions = [];
+		unavailablePackageOptions = [];
 		try {
 			const response = await fetch(`/api/customers/${customerId}/package-assignments`);
 			if (!response.ok) throw new Error('Kunde inte hämta paket');
 			const result = await response.json();
-			packageOptions = (result.packages ?? [])
-				.filter((item: any) => packageCanBeSelectedByClient(item, resolvedClientId))
-				.map((item: any) => ({
-					value: Number(item.id),
-					label: packageOptionLabel(item),
-					raw: item
-				}));
-			if (
-				currentCase.package_resolution !== 'pending' &&
-				currentCase.resolved_package_id &&
-				packageOptions.some((option) => sameId(option.value, currentCase.resolved_package_id))
-			) {
+			const availability = packageAvailabilityOptions(result.packages ?? [], resolvedClientId);
+			packageOptions = availability.selectable;
+			unavailablePackageOptions = availability.unavailable;
+			if (currentCase.package_resolution !== 'pending' && currentCase.resolved_package_id) {
 				selectedPackageId = Number(currentCase.resolved_package_id);
 			}
 		} catch (error) {
@@ -336,7 +466,7 @@
 	}
 
 	async function runAction(action: SignupOnboardingActionInput) {
-		if (busy) return;
+		if (busy) return false;
 		busy = true;
 		try {
 			const response = await fetch(`/api/onboarding/${currentCase.id}/actions`, {
@@ -357,18 +487,30 @@
 				editingDetails = false;
 				detailErrors = {};
 			}
+			if (action.type === 'change_customer') {
+				editingCustomer = false;
+				editingPackage = false;
+			}
+			if (action.type === 'connect_package' || action.type === 'skip_package') {
+				editingPackage = false;
+			}
+			if (action.type === 'set_primary_assignment' || action.type === 'skip_primary_assignment') {
+				editingPrimaryAssignment = false;
+			}
 			await signupOnboardingStore.refresh();
 			addToast({
 				type: AppToastType.SUCCESS,
 				message: 'Registreringen uppdaterad',
 				description: 'Ändringen är sparad.'
 			});
+			return true;
 		} catch (error) {
 			addToast({
 				type: AppToastType.CANCEL,
 				message: 'Kunde inte uppdatera',
 				description: error instanceof Error ? error.message : 'Försök igen.'
 			});
+			return false;
 		} finally {
 			busy = false;
 		}
@@ -503,74 +645,111 @@
 
 				<ClientStep
 					{currentCase}
-					{isOpen}
+					{payload}
+					isOpen={clientStepOpen}
 					{busy}
 					{selectedClientInfo}
 					bind:selectedClientId
 					{suggestedClientOptions}
 					{clientOptions}
 					{loadingClientOptions}
+					{clientOptionsError}
 					{clientMergePlaceholder}
 					{clientPreview}
 					clientInfoHeading={clientInfoHeading()}
 					{runAction}
 					{selectClientSuggestion}
+					{clearClientTarget}
 					{handleClientTargetChange}
 					{previewClientMerge}
+					retryClientOptions={loadClientOptions}
 				/>
 
 				<CustomerStep
 					{currentCase}
-					{isOpen}
+					{payload}
+					isOpen={customerStepOpen}
 					{busy}
 					{clientStepDone}
 					{selectedCustomerInfo}
 					bind:selectedCustomerId
 					{suggestedCustomerOptions}
 					{customerOptions}
+					{loadingCustomerOptions}
+					{customerOptionsError}
 					{customerMergePlaceholder}
 					{customerPreview}
+					bind:editingCustomer
+					{canEditCustomer}
+					{canSaveCustomerChange}
 					{runAction}
 					{selectCustomerOption}
+					{clearCustomerTarget}
 					{handleCustomerTargetChange}
 					{previewCustomerMerge}
+					{startEditingCustomer}
+					{cancelEditingCustomer}
+					retryCustomerOptions={loadCustomerOptions}
 				/>
 
 				<PackageStep
 					{currentCase}
-					{isOpen}
+					isOpen={packageStepOpen}
 					{busy}
 					{canResolvePackageStep}
 					{selectedPackageInfo}
 					bind:selectedPackageId
 					{suggestedPackageOptions}
 					{packageOptions}
+					{unavailablePackageOptions}
 					{packageActionText}
 					{canSavePackage}
 					{purchasedPackageRemaining}
 					{loadingPackages}
+					bind:editingPackage
+					{canEditPackage}
 					{selectPackageOption}
 					{runAction}
 					{openCreatePackage}
+					{startEditingPackage}
+					{cancelEditingPackage}
 				/>
 
 				<PrimaryAssignmentStep
 					{currentCase}
-					{isOpen}
+					isOpen={primaryAssignmentStepOpen}
 					{busy}
 					{clientStepDone}
 					{trainerOptions}
 					{locationOptions}
 					bind:selectedPrimaryTrainerId
 					bind:selectedPrimaryLocationId
+					bind:editingPrimaryAssignment
+					{canEditPrimaryAssignment}
 					{handlePrimaryTrainerChange}
 					{savePrimaryAssignment}
 					{skipPrimaryAssignment}
+					{startEditingPrimaryAssignment}
+					{cancelEditingPrimaryAssignment}
 				/>
 
-				<BookingShortcutStep
+				{#if nextRequiredStep}
+					<BookingShortcutStep
+						{currentCase}
+						{clientStepDone}
+						{busy}
+						{openBooking}
+						{goToClientProfile}
+					/>
+				{/if}
+
+				<ResolutionSummaryCard
 					{currentCase}
-					{clientStepDone}
+					{selectedClientInfo}
+					{selectedCustomerInfo}
+					{selectedPackageInfo}
+					{trainerOptions}
+					{locationOptions}
 					{busy}
 					{openBooking}
 					{goToClientProfile}

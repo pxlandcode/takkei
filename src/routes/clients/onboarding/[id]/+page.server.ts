@@ -3,10 +3,16 @@ import { query } from '$lib/db';
 import { getSignupOnboardingCase, SignupOnboardingError } from '$lib/server/signupOnboarding';
 import { error, redirect } from '@sveltejs/kit';
 
+type OptionLoadResult<T> = {
+	items: T[];
+	error: string | null;
+};
+
 async function loadClientOptions() {
 	try {
-		return await query(
-			`
+		return {
+			items: await query(
+				`
 			SELECT
 				clients.id,
 				clients.firstname,
@@ -23,17 +29,20 @@ async function loadClientOptions() {
 			ORDER BY clients.lastname ASC, clients.firstname ASC
 			LIMIT 5000
 			`
-		);
+			),
+			error: null
+		} satisfies OptionLoadResult<any>;
 	} catch (caught) {
 		console.error('Failed to load onboarding client options:', caught);
-		return [];
+		return { items: [], error: 'Kunde inte hämta klienter' } satisfies OptionLoadResult<any>;
 	}
 }
 
 async function loadCustomerOptions() {
 	try {
-		return await query(
-			`
+		return {
+			items: await query(
+				`
 			SELECT
 				customers.id,
 				customers.name,
@@ -58,10 +67,12 @@ async function loadCustomerOptions() {
 			ORDER BY customers.name ASC
 			LIMIT 5000
 			`
-		);
+			),
+			error: null
+		} satisfies OptionLoadResult<any>;
 	} catch (caught) {
 		console.error('Failed to load onboarding customer options:', caught);
-		return [];
+		return { items: [], error: 'Kunde inte hämta kunder' } satisfies OptionLoadResult<any>;
 	}
 }
 
@@ -103,7 +114,7 @@ export async function load({ locals, params }) {
 	if (!Number.isInteger(caseId) || caseId <= 0) throw error(404, 'Registreringen hittades inte');
 
 	try {
-		const [workspace, clients, customers, trainers, locations] = await Promise.all([
+		const [workspace, clientOptions, customerOptions, trainers, locations] = await Promise.all([
 			getSignupOnboardingCase(caseId),
 			loadClientOptions(),
 			loadCustomerOptions(),
@@ -111,7 +122,15 @@ export async function load({ locals, params }) {
 			loadLocationOptions()
 		]);
 
-		return { workspace, clients, customers, trainers, locations };
+		return {
+			workspace,
+			clients: clientOptions.items,
+			clientOptionsError: clientOptions.error,
+			customers: customerOptions.items,
+			customerOptionsError: customerOptions.error,
+			trainers,
+			locations
+		};
 	} catch (caught) {
 		if (caught instanceof SignupOnboardingError) throw error(caught.status, caught.message);
 		throw caught;
