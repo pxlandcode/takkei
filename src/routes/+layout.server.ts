@@ -1,14 +1,16 @@
 import { query } from '$lib/db.js';
+import { isSignupHost } from '$lib/signupHosts';
 import { redirect } from '@sveltejs/kit';
 
 export async function load({ locals, url }) {
 	const currentRoute = url.pathname;
 	const normalizedRoute = currentRoute.length > 1 ? currentRoute.replace(/\/+$/, '') : currentRoute;
 	const publicRoutes = ['/login', '/signup'];
+	const isSignupRootRoute = normalizedRoute === '/' && isSignupHost(url);
 	const isPublicCalendarRoute =
 		currentRoute.startsWith('/calendar-sync/') || currentRoute.startsWith('/calendar-bookings/');
 
-	if (publicRoutes.includes(normalizedRoute)) {
+	if (publicRoutes.includes(normalizedRoute) || isSignupRootRoute) {
 		return { user: null };
 	}
 

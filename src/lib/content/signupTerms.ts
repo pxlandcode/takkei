@@ -8,7 +8,7 @@ export const agreeTermsContent = `
 
         <h2 class="mb-4 mt-6 text-2xl font-bold text-black">Så här kommer du igång</h2>
         <p class="mb-4">
-            Efter att du provtränat hos oss skickar vi en länk till <a href="https://signup.takkei.se/signup" class="text-blue-500 underline">signup.takkei.se/signup</a>.
+            Efter att du provtränat hos oss skickar vi en länk till <a href="https://signup.takkei.se/" class="text-blue-500 underline">signup.takkei.se</a>.
             Där fyller du i dina personuppgifter, väljer ditt träningspaket samt betalningsupplägg. När du klickar i rutan för att godkänna våra villkor
             och hur vi hanterar dina personuppgifter, och sedan trycker på "Bekräfta", blir avtalet gällande och du är redo att komma igång med din träning hos Takkei.
         </p>
