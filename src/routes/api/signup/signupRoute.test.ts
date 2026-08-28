@@ -122,10 +122,39 @@ describe('/api/signup', () => {
 		expect(caseParams.slice(1)).toEqual([200, 100, 300]);
 	});
 
-	it('creates a client and onboarding case for existing-package signups', async () => {
+	it('accepts unrestricted organization numbers for company payers', async () => {
 		mockedQueryWithClient
-			.mockResolvedValueOnce([{ id: 201 }])
-			.mockResolvedValueOnce([{ id: 401 }]);
+			.mockResolvedValueOnce([articleRow()])
+			.mockResolvedValueOnce([{ id: 100 }])
+			.mockResolvedValueOnce([{ id: 200 }])
+			.mockResolvedValueOnce([])
+			.mockResolvedValueOnce([{ id: 300 }])
+			.mockResolvedValueOnce([{ id: 400 }]);
+
+		const response = await POST({
+			request: jsonRequest(
+				basePayload({
+					paymentChoice: 'company',
+					payerName: 'Takkei AB',
+					payerEmail: 'invoice@example.com',
+					payerPhone: '0812345678',
+					payerOrganizationNumber: 'SE 556725-6556 VAT',
+					payerInvoiceAddress: 'Fakturagatan 1',
+					payerInvoiceZip: '111 22',
+					payerInvoiceCity: 'Stockholm'
+				})
+			)
+		} as any);
+
+		expect(response.status).toBe(201);
+
+		const customerParams = mockedQueryWithClient.mock.calls[1][2];
+		expect(customerParams[4]).toBe('SE 556725-6556 VAT');
+		expect(mockClient.query).toHaveBeenCalledWith('COMMIT');
+	});
+
+	it('creates a client and onboarding case for existing-package signups', async () => {
+		mockedQueryWithClient.mockResolvedValueOnce([{ id: 201 }]).mockResolvedValueOnce([{ id: 401 }]);
 
 		const response = await POST({
 			request: jsonRequest(

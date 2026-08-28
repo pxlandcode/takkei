@@ -125,7 +125,7 @@ function isValidEmail(email: string) {
 	return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email);
 }
 
-function isValidPersonOrOrgNumber(value: string) {
+function isValidPersonNumber(value: string) {
 	return /^\d{6}-\d{4}$/.test(value);
 }
 
@@ -139,7 +139,7 @@ function validatePayload(payload: SignupPayload) {
 	if (!payload.firstname) errors.firstname = 'Förnamn är obligatoriskt';
 	if (!payload.lastname) errors.lastname = 'Efternamn är obligatoriskt';
 	if (!isValidEmail(payload.email)) errors.email = 'Ogiltig e-postadress';
-	if (!isValidPersonOrOrgNumber(payload.person_number)) {
+	if (!isValidPersonNumber(payload.person_number)) {
 		errors.person_number = 'Ogiltigt personnummer (format: ÅÅMMDD-XXXX)';
 	}
 	if (!payload.phone) errors.phone = 'Ogiltigt telefonnummer';
@@ -165,7 +165,7 @@ function validatePayload(payload: SignupPayload) {
 		if (!payload.payerName) errors.payerName = 'Företagsnamn/Namn är obligatoriskt';
 		if (!isValidEmail(payload.payerEmail)) errors.payerEmail = 'Ogiltig e-postadress';
 		if (!payload.payerPhone) errors.payerPhone = 'Ogiltigt telefonnummer';
-		if (!isValidPersonOrOrgNumber(payload.payerOrganizationNumber)) {
+		if (!payload.payerOrganizationNumber) {
 			errors.payerOrganizationNumber = 'Organisationsnummer/Personnummer är obligatoriskt';
 		}
 		if (!payload.payerInvoiceAddress) {

@@ -294,7 +294,7 @@
 				errors.payerPhone = 'Ogiltigt telefonnummer';
 				isValid = false;
 			}
-			if (!payerOrganizationNumber || !/^\d{6}-\d{4}$/.test(payerOrganizationNumber)) {
+			if (!payerOrganizationNumber.trim()) {
 				errors.payerOrganizationNumber = 'Organisationsnummer/Personnummer är obligatoriskt';
 				isValid = false;
 			}
